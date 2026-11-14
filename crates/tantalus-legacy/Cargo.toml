@@ -8,6 +8,7 @@ publish.workspace = true
 
 [dependencies]
 serde.workspace = true
+sha2.workspace = true
 tantalus-contracts = { path = "../tantalus-contracts" }
 
 [dev-dependencies]

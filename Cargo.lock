@@ -5217,6 +5217,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tantalus-contracts",
+ "tempfile",
 ]
 
 [[package]]
@@ -5238,6 +5239,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "sha2",
  "tantalus-contracts",
  "tempfile",
 ]
