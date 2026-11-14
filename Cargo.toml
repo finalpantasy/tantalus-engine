@@ -4,6 +4,8 @@ members = [
     "crates/tantalus-client",
     "crates/tantalus-contracts",
     "crates/tantalus-core",
+    "crates/tantalus-game",
+    "crates/tantalus-legacy",
     "crates/tantalus-tools",
 ]
 resolver = "2"

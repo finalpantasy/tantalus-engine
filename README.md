@@ -40,6 +40,7 @@ The current source includes:
 - Synthetic tests for missing resources, incorrect file types, non-ASCII paths, and unchanged source files.
 - A pinned Memoria reference baseline with 22 initial capability groups and 204 configuration bindings.
 - A Bevy 0.19.1 client driven by renderer-independent scene snapshots.
+- A source-backed original-event VM subset and deterministic field scheduler.
 
 No original game assets are included. UnityFS containers are recognized, but real AssetBundle decoding is not implemented. Headless visual verification is failing after blank Tantalus and official Bevy control captures; see [`tasks/T05.md`](tasks/T05.md). No compatibility or performance claim is being made beyond the checks recorded in [`tasks/`](tasks/).
 
@@ -65,7 +66,8 @@ No original game assets are included. UnityFS containers are recognized, but rea
 - [x] **T04 foundation:** deterministic asset packs, atomic cache revisions, and UnityFS recognition.
 - [ ] **Real PC assets:** Unity AssetBundle decoding and real field/model verification.
 - [ ] **T05 — Native presentation:** structural client checks pass; visual proof remains unresolved.
-- [ ] **T04–T06 — First field:** bounded asset import, native presentation, and the original event VM.
+- [x] **T06 foundation:** original-event decoding, expressions, waits, windows, movement, and field scheduling.
+- [ ] **T04–T06 — First field:** real asset decoding, verified native presentation, and the complete event VM.
 - [ ] **Independent game loop:** field → interaction → battle → rewards → save/reload, without Unity or Memoria.
 - [ ] **Creation architecture:** external packages, seamless encounters, additive content, and total-conversion fixtures.
 - [ ] **Full compatibility:** complete FFIX behavior and the audited Memoria baseline.

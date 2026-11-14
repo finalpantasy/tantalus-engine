@@ -1,0 +1,11 @@
+[package]
+name = "tantalus-game"
+description = "Default FFIX game modules for Tantalus Engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+tantalus-contracts = { path = "../tantalus-contracts" }
+tantalus-legacy = { path = "../tantalus-legacy" }

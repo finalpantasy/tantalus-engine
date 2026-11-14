@@ -5219,6 +5219,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "tantalus-game"
+version = "0.1.0"
+dependencies = [
+ "tantalus-contracts",
+ "tantalus-legacy",
+]
+
+[[package]]
+name = "tantalus-legacy"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tantalus-contracts",
+ "tempfile",
+]
+
+[[package]]
 name = "tantalus-tools"
 version = "0.1.0"
 dependencies = [

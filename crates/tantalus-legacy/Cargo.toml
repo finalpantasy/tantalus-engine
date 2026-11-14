@@ -1,0 +1,15 @@
+[package]
+name = "tantalus-legacy"
+description = "Original FFIX binary and event compatibility for Tantalus Engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+tantalus-contracts = { path = "../tantalus-contracts" }
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile = "3"
