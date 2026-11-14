@@ -16,10 +16,11 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 - `T01` — Verified for source audit, synthetic inspection, and CLI scope. Evidence: `tasks/T01.md`.
 - `T02` — Verified for stable IDs, transactional registries, aliases/renames, and item instances. Evidence: `tasks/T02.md`.
 - `T03` — Verified for deterministic simulation, replay, readiness barriers, clocks, and traces. Evidence: `tasks/T03.md`.
+- `T04` — Importer/cache foundation verified; real Unity AssetBundle decoding remains Building. Evidence: `tasks/T04.md`.
 - Reference source checkout: verified at `c716e1faaeee8c856cc10921234d017f1187b45b`.
 - Owned FFIX installation: not supplied. Real-install checks are NOT_RUN.
 - Public repository: https://github.com/finalpantasy/tantalus-engine.
 
 ## Next dependencies
 
-T04 implements a bounded PC asset importer and canonical pack. Synthetic/malformed fixtures can proceed immediately; verification against real field/model assets requires an owned installation. T03 supplies tick inputs, recorded external readiness, revisions, and state digests.
+Real AssetBundle decoding requires a source-compatible codec and, for real-content verification, an owned installation. Synthetic T05 presentation work can proceed independently using the T03 snapshots and T04 canonical pack model.

@@ -36,10 +36,11 @@ The current source includes:
 - A read-only PC installation inspector.
 - Streaming SHA-256 fingerprints and structured diagnostics.
 - A JSON-capable `tantalusctl` command-line tool.
+- Deterministic content packs with bounded imports, atomic cache revisions, and dependency validation.
 - Synthetic tests for missing resources, incorrect file types, non-ASCII paths, and unchanged source files.
 - A pinned Memoria reference baseline with 22 initial capability groups and 204 configuration bindings.
 
-No original game assets are included. No compatibility or performance claim is being made beyond the checks recorded in [`tasks/T01.md`](tasks/T01.md).
+No original game assets are included. UnityFS containers are recognized, but real AssetBundle decoding is not implemented. No compatibility or performance claim is being made beyond the checks recorded in [`tasks/`](tasks/).
 
 ## Planned platform
 
@@ -60,6 +61,8 @@ No original game assets are included. No compatibility or performance claim is b
 - [x] **T01 — Baseline and inspection:** reference pins, capability ledger, and read-only installation reports.
 - [x] **T02 — Content identity:** stable IDs, additive registries, and distinct item instances.
 - [x] **T03 — Simulation:** deterministic clocks, input tapes, commands, and traces.
+- [x] **T04 foundation:** deterministic asset packs, atomic cache revisions, and UnityFS recognition.
+- [ ] **Real PC assets:** Unity AssetBundle decoding and real field/model verification.
 - [ ] **T04–T06 — First field:** bounded asset import, native presentation, and the original event VM.
 - [ ] **Independent game loop:** field → interaction → battle → rewards → save/reload, without Unity or Memoria.
 - [ ] **Creation architecture:** external packages, seamless encounters, additive content, and total-conversion fixtures.

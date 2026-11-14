@@ -125,7 +125,50 @@ pub struct InstallReport {
 pub enum ImportError {
     RootNotFound(PathBuf),
     RootNotDirectory(PathBuf),
-    RootUnavailable { path: PathBuf, source: io::Error },
+    RootUnavailable {
+        path: PathBuf,
+        source: io::Error,
+    },
+    Cancelled {
+        cache: PathBuf,
+    },
+    Invalid {
+        resource: String,
+        message: String,
+    },
+    Unsupported {
+        resource: String,
+        format: String,
+    },
+    Io {
+        operation: &'static str,
+        path: PathBuf,
+        source: io::Error,
+    },
+}
+
+impl ImportError {
+    pub fn invalid(resource: impl Display, message: impl Display) -> Self {
+        Self::Invalid {
+            resource: resource.to_string(),
+            message: message.to_string(),
+        }
+    }
+
+    pub fn unsupported(resource: impl Display, format: impl Display) -> Self {
+        Self::Unsupported {
+            resource: resource.to_string(),
+            format: format.to_string(),
+        }
+    }
+
+    pub fn io(operation: &'static str, path: &Path, source: io::Error) -> Self {
+        Self::Io {
+            operation,
+            path: path.to_path_buf(),
+            source,
+        }
+    }
 }
 
 impl Display for ImportError {
@@ -148,6 +191,28 @@ impl Display for ImportError {
                 "installation root cannot be inspected: {}: {source}",
                 path.display()
             ),
+            Self::Cancelled { cache } => {
+                write!(
+                    formatter,
+                    "import cancelled before publishing to {}",
+                    cache.display()
+                )
+            }
+            Self::Invalid { resource, message } => {
+                write!(formatter, "invalid import resource `{resource}`: {message}")
+            }
+            Self::Unsupported { resource, format } => {
+                write!(formatter, "unsupported format `{format}` for `{resource}`")
+            }
+            Self::Io {
+                operation,
+                path,
+                source,
+            } => write!(
+                formatter,
+                "{operation} failed for {}: {source}",
+                path.display()
+            ),
         }
     }
 }
@@ -155,7 +220,7 @@ impl Display for ImportError {
 impl Error for ImportError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::RootUnavailable { source, .. } => Some(source),
+            Self::RootUnavailable { source, .. } | Self::Io { source, .. } => Some(source),
             _ => None,
         }
     }

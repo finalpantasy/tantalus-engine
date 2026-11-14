@@ -1,7 +1,9 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
-use tantalus_assets::inspect_install;
+use tantalus_assets::{
+    CancellationToken, DirectoryAssetSource, ImportPlan, import_subset, inspect_install,
+};
 
 fn main() -> ExitCode {
     match run(std::env::args_os().skip(1).collect()) {
@@ -18,10 +20,17 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
         print_help();
         return Ok(());
     }
-    if args.len() < 2 || args[0] != "install" || args[1] != "inspect" {
-        return Err("expected `install inspect --root <path> [--json]`".to_owned());
+    if args.len() < 2 {
+        return Err(usage().to_owned());
     }
+    match (args[0].to_str(), args[1].to_str()) {
+        (Some("install"), Some("inspect")) => run_install_inspect(args),
+        (Some("assets"), Some("import")) => run_assets_import(args),
+        _ => Err(usage().to_owned()),
+    }
+}
 
+fn run_install_inspect(args: Vec<OsString>) -> Result<(), String> {
     let mut root = None;
     let mut json = false;
     let mut index = 2;
@@ -76,8 +85,71 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
     Ok(())
 }
 
+fn run_assets_import(args: Vec<OsString>) -> Result<(), String> {
+    let mut plan_path = None;
+    let mut json = false;
+    let mut index = 2;
+    while index < args.len() {
+        match args[index].to_str() {
+            Some("--plan") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| "`--plan` requires a path".to_owned())?;
+                if plan_path.replace(PathBuf::from(value)).is_some() {
+                    return Err("`--plan` may only be supplied once".to_owned());
+                }
+            }
+            Some("--json") => json = true,
+            _ => {
+                return Err(format!(
+                    "unrecognized argument: {}",
+                    args[index].to_string_lossy()
+                ));
+            }
+        }
+        index += 1;
+    }
+
+    let plan_path = plan_path.ok_or_else(|| "missing required `--plan <path>`".to_owned())?;
+    let bytes = std::fs::read(&plan_path)
+        .map_err(|error| format!("could not read {}: {error}", plan_path.display()))?;
+    let plan: ImportPlan = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("could not parse {}: {error}", plan_path.display()))?;
+    if plan.source_root.as_os_str().is_empty() || plan.cache_root.as_os_str().is_empty() {
+        return Err("the import plan must set `source_root` and `cache_root`".to_owned());
+    }
+    let source = DirectoryAssetSource::new(&plan.source_root);
+    let manifest = import_subset(
+        &plan,
+        &source,
+        &plan.cache_root,
+        &CancellationToken::default(),
+    )
+    .map_err(|error| error.to_string())?;
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&manifest)
+                .map_err(|error| format!("could not serialize pack manifest: {error}"))?
+        );
+    } else {
+        println!(
+            "Imported {} assets into pack {}",
+            manifest.assets.len(),
+            manifest.pack_id
+        );
+    }
+    Ok(())
+}
+
+fn usage() -> &'static str {
+    "expected `install inspect --root <path> [--json]` or `assets import --plan <path> [--json]`"
+}
+
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n\nInspects a PC installation without modifying it."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n\nInspect installations without modifying them and import validated local asset packs."
     );
 }
