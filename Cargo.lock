@@ -5248,6 +5248,7 @@ dependencies = [
 name = "tantalus-mods"
 version = "0.1.0"
 dependencies = [
+ "semver",
  "serde",
  "serde_json",
  "sha2",

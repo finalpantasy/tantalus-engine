@@ -46,6 +46,7 @@ The current source includes:
 - Classic, current-scene, and prepared-arena encounter lifecycle contracts with readiness, cancellation, and outcome ownership.
 - Atomic native saves with recoverable generations, migration boundaries, unknown-data retention, and exactly-once outcome markers.
 - Source-backed Memoria binary sidecar decoding and slot/autosave pairing checks; original base-save decoding remains pending.
+- Deterministic mod resolution with semantic versions, feature dependencies, provider conflicts, ordered replacements, and save-integrated profile locks.
 
 No original game assets are included. UnityFS containers are recognized, but real AssetBundle decoding is not implemented. Headless visual verification is failing after blank Tantalus and official Bevy control captures; see [`tasks/T05.md`](tasks/T05.md). No compatibility or performance claim is being made beyond the checks recorded in [`tasks/`](tasks/).
 
@@ -78,6 +79,8 @@ No original game assets are included. UnityFS containers are recognized, but rea
 - [x] **T08 — Battle action foundation:** costs, targeting, multi-hit effects, outcomes, and reward recovery.
 - [x] **T09 foundation:** shared encounter lifecycle, readiness, cancellation, spatial mapping, and presentation commands.
 - [x] **T10 foundation:** atomic native saves, recovery, outcome markers, and Memoria binary sidecar decoding.
+- [x] **T11 resolver foundation:** semantic-version resolution, feature dependencies, conflicts, and exact profile locks.
+- [ ] **Executable mods:** WASM sandbox, transactional host calls, and external total-conversion fixtures.
 - [ ] **Legacy saves:** original base-save AES/schema mapping and verified import/export.
 - [ ] **Creation architecture:** real seamless presentation and external total-conversion fixtures.
 - [ ] **Full compatibility:** complete FFIX behavior and the audited Memoria baseline.

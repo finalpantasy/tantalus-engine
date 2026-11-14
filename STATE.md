@@ -23,6 +23,7 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 - `T08` — Synthetic battle/action/effect/reward foundation verified; real original ability compatibility remains pending. Evidence: `tasks/T08.md`.
 - `T09` — Synthetic encounter lifecycle, mapping, cancellation, and presentation-command foundation verified; real visual/camera integration remains pending. Evidence: `tasks/T09.md`.
 - `T10` — Native atomic saves, recovery, migration boundaries, exactly-once outcomes, and Memoria binary sidecar codec verified. Base-save AES/schema decoding and real-save checks remain Building/NOT_RUN. Evidence: `tasks/T10.md`.
+- `T11` — Semantic-version resolver, feature dependencies, provider/content conflicts, and save-integrated profile locks verified. WASM host and external replacement fixtures remain Building. Evidence: `tasks/T11.md`.
 - Architecture review — integrated in `docs/REVIEW_2026-11-14.md` and `audit/review-ledger.csv`; diagnostic policy verified, backend selection and real-reference probes remain open.
 - Reference source checkout: verified at `c716e1faaeee8c856cc10921234d017f1187b45b`.
 - Owned FFIX installation: not supplied. Real-install checks are NOT_RUN.
@@ -30,4 +31,4 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 
 ## Next dependencies
 
-T11 implements versioned mod resolution, provider conflicts, the sandboxed WASM host, transactional module state, and external total-conversion fixtures. T10 base-save AES/schema decoding and real-save round trips remain open. Real FFIX codec work and the T05 visual failure remain open.
+Continue T11 with the Wasmtime host, versioned WIT/SDK boundary, deterministic resource limits, transactional module state, and externally built ARPG/card/loot fixtures. T10 base-save AES/schema decoding and real-save round trips remain open. Real FFIX codec work and the T05 visual failure remain open.

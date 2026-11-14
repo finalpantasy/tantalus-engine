@@ -37,10 +37,14 @@ pub struct EngineIdentity {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModuleLock {
-    pub package: ContentId,
+    pub package: String,
     pub version: String,
     pub required: bool,
     pub state_schema: u32,
+    #[serde(default)]
+    pub content_hash: String,
+    #[serde(default)]
+    pub features: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

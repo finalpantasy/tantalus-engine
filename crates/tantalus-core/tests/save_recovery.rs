@@ -15,16 +15,20 @@ fn profile() -> ProfileLock {
         content_fingerprint: "fixture-content-digest".to_owned(),
         modules: vec![
             ModuleLock {
-                package: id("fixture:story/required"),
+                package: "fixture.story".to_owned(),
                 version: "1.0.0".to_owned(),
                 required: true,
                 state_schema: 3,
+                content_hash: "a".repeat(64),
+                features: Vec::new(),
             },
             ModuleLock {
-                package: id("fixture:cosmetic/optional"),
+                package: "fixture.cosmetic".to_owned(),
                 version: "2.0.0".to_owned(),
                 required: false,
                 state_schema: 1,
+                content_hash: "b".repeat(64),
+                features: Vec::new(),
             },
         ],
     }
@@ -250,7 +254,7 @@ fn missing_required_modules_block_resume_and_preserve_their_sections() {
         .unwrap();
     assert_eq!(
         plan.missing_required_modules,
-        vec![id("fixture:story/required")]
+        vec!["fixture.story".to_owned()]
     );
     assert_eq!(
         plan.envelope.modules[&id("fixture:story/required")].state,

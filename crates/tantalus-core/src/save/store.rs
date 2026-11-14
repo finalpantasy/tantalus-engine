@@ -5,9 +5,7 @@ use std::collections::BTreeSet;
 use std::fs::{self, File};
 use std::io::{ErrorKind, Write};
 use std::path::PathBuf;
-use tantalus_contracts::{
-    CURRENT_SAVE_FORMAT_VERSION, ContentId, ProfileLock, SaveEnvelope, SaveId,
-};
+use tantalus_contracts::{CURRENT_SAVE_FORMAT_VERSION, ProfileLock, SaveEnvelope, SaveId};
 use tempfile::NamedTempFile;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,7 +27,7 @@ pub struct LoadPlan {
     pub save_id: SaveId,
     pub envelope: SaveEnvelope,
     pub target_profile: ProfileLock,
-    pub missing_required_modules: Vec<ContentId>,
+    pub missing_required_modules: Vec<String>,
     pub migration_required: bool,
     pub profile_changed: bool,
 }

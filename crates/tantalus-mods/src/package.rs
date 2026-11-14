@@ -12,6 +12,22 @@ pub const PACKAGE_SCHEMA_VERSION: u32 = 1;
 pub struct PackageDependency {
     pub package: String,
     pub version_range: String,
+    #[serde(default)]
+    pub optional: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PackageFeature {
+    pub name: String,
+    #[serde(default)]
+    pub dependencies: Vec<PackageDependency>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderDeclaration {
+    pub service: ContentId,
+    #[serde(default)]
+    pub exclusive: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -19,12 +35,27 @@ pub struct WorldPackage {
     pub spawn_regions: Vec<ContentId>,
 }
 
+fn any_version() -> String {
+    "*".to_owned()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PackageManifest {
     pub schema_version: u32,
     pub package_id: String,
     pub version: String,
+    #[serde(default = "any_version")]
+    pub engine_range: String,
+    #[serde(default = "any_version")]
+    pub sdk_range: String,
+    #[serde(default)]
+    pub save_schema: u32,
+    #[serde(default)]
     pub dependencies: Vec<PackageDependency>,
+    #[serde(default)]
+    pub features: Vec<PackageFeature>,
+    #[serde(default)]
+    pub providers: Vec<ProviderDeclaration>,
     pub world: WorldPackage,
     pub records: Vec<PackageRecord>,
 }
