@@ -21,6 +21,7 @@ fn resolved_card_profile() -> ResolvedProfile {
             providers: vec![ProviderDeclaration {
                 service,
                 exclusive: true,
+                entrypoint: None,
             }],
             entrypoints: Vec::new(),
             world: WorldPackage::default(),

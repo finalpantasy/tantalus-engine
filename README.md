@@ -52,6 +52,7 @@ The current source includes:
 - An exclusive-provider card WASM fixture with deterministic rules, AI selection, match flow, rewards, progression, and UI events.
 - Module-only packages with bounded WASM staging, named entry points, byte digests, and resolved-profile identity checks.
 - Pure WASM module-state migration with schema/history updates and source-save preservation on failure.
+- Single-provider initialization, dispatch, snapshots, shutdown, and explicit failure without vanilla fallback.
 
 No original game assets are included. UnityFS containers are recognized, but real AssetBundle decoding is not implemented. Headless visual verification is failing after blank Tantalus and official Bevy control captures; see [`tasks/T05.md`](tasks/T05.md). No compatibility or performance claim is being made beyond the checks recorded in [`tasks/`](tasks/).
 
@@ -89,7 +90,8 @@ No original game assets are included. UnityFS containers are recognized, but rea
 - [x] **T11 action/card fixtures:** independently compiled action/loot and exclusive-provider card modules.
 - [x] **T11 package entry points:** bounded module staging, named loading, and exact profile/hash verification.
 - [x] **T11 migration foundation:** pure external WASM section migration with source preservation on failure.
-- [ ] **Executable mod maturity:** WIT-generated bindings, full provider lifecycle, and multi-module migration orchestration.
+- [x] **T11 provider lifecycle:** initialization, dispatch, snapshots, shutdown, and no silent fallback.
+- [ ] **Executable mod maturity:** WIT component bindings, multi-provider transactions, and multi-module migration orchestration.
 - [ ] **Legacy saves:** original base-save AES/schema mapping and verified import/export.
 - [ ] **Creation architecture:** real seamless presentation and external total-conversion fixtures.
 - [ ] **Full compatibility:** complete FFIX behavior and the audited Memoria baseline.

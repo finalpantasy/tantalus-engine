@@ -6,7 +6,7 @@ use tantalus_sdk::{ABI_VERSION, emit_json, input_bytes, output_bytes};
 struct Request {
     abi_version: i32,
     module_state: Option<CardState>,
-    input: MatchInput,
+    input: Value,
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,6 +58,20 @@ pub extern "C" fn tantalus_invoke(packed: i64) -> i64 {
     assert_eq!(request.abi_version, ABI_VERSION);
     let mut state = request.module_state.unwrap_or_default();
     let input = request.input;
+    if input.get("trap").and_then(Value::as_bool) == Some(true) {
+        panic!("requested provider failure");
+    }
+    if let Some(operation) = input.get("operation").and_then(Value::as_str) {
+        assert!(matches!(operation, "initialize" | "shutdown"));
+        return output_bytes(
+            serde_json::to_vec(&GuestOutput {
+                state,
+                events: Vec::new(),
+            })
+            .unwrap(),
+        );
+    }
+    let input: MatchInput = serde_json::from_value(input).unwrap();
     let mut events = vec![json!({
         "name": "card.ui.update",
         "data": {"match": input.match_id, "round": state.round + 1}

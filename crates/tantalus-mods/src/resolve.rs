@@ -34,9 +34,16 @@ pub struct ProfileRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderBinding {
+    pub package: String,
+    pub entrypoint: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResolvedProvider {
     pub service: ContentId,
     pub packages: Vec<String>,
+    pub bindings: Vec<ProviderBinding>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -481,27 +488,42 @@ fn resolve_providers(
     ordered: &[String],
     selected: &BTreeMap<String, PreparedCandidate>,
 ) -> Result<Vec<ResolvedProvider>, ResolutionError> {
-    let mut providers: BTreeMap<ContentId, Vec<(String, bool)>> = BTreeMap::new();
+    let mut providers: BTreeMap<ContentId, Vec<ProviderBinding>> = BTreeMap::new();
+    let mut exclusive = BTreeSet::new();
     for package in ordered {
-        for declaration in &selected[package].candidate.manifest.providers {
+        let manifest = &selected[package].candidate.manifest;
+        for declaration in &manifest.providers {
+            let entrypoint = declaration.entrypoint.clone().unwrap_or_else(|| {
+                if manifest.entrypoints.len() == 1 {
+                    manifest.entrypoints[0].name.clone()
+                } else {
+                    "main".to_owned()
+                }
+            });
             providers
-                .entry(declarationservice(declaration))
+                .entry(declaration.service.clone())
                 .or_default()
-                .push((package.clone(), declaration.exclusive));
+                .push(ProviderBinding {
+                    package: package.clone(),
+                    entrypoint,
+                });
+            if declaration.exclusive {
+                exclusive.insert(declaration.service.clone());
+            }
         }
     }
     providers
         .into_iter()
-        .map(|(service, entries)| {
-            if entries.len() > 1 && entries.iter().any(|(_, exclusive)| *exclusive) {
+        .map(|(service, bindings)| {
+            if bindings.len() > 1 && exclusive.contains(&service) {
                 return Err(ResolutionError::new(
                     ResolutionErrorCode::ProviderConflict,
                     None,
                     format!(
                         "exclusive service `{service}` has multiple providers: {}",
-                        entries
+                        bindings
                             .iter()
-                            .map(|(package, _)| package.as_str())
+                            .map(|binding| binding.package.as_str())
                             .collect::<Vec<_>>()
                             .join(", ")
                     ),
@@ -509,14 +531,14 @@ fn resolve_providers(
             }
             Ok(ResolvedProvider {
                 service,
-                packages: entries.into_iter().map(|(package, _)| package).collect(),
+                packages: bindings
+                    .iter()
+                    .map(|binding| binding.package.clone())
+                    .collect(),
+                bindings,
             })
         })
         .collect()
-}
-
-fn declarationservice(declaration: &crate::ProviderDeclaration) -> ContentId {
-    declaration.service.clone()
 }
 
 fn validate_content_declarations(

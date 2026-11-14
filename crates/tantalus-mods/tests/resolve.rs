@@ -260,11 +260,13 @@ fn exclusive_providers_conflict_and_shared_providers_keep_load_order() {
     first.manifest.providers.push(ProviderDeclaration {
         service: service.clone(),
         exclusive: true,
+        entrypoint: None,
     });
     let mut second = candidate("fixture.second", "1.0.0");
     second.manifest.providers.push(ProviderDeclaration {
         service: service.clone(),
         exclusive: false,
+        entrypoint: None,
     });
     let error = ModResolver::resolve(&request(
         vec![first.clone(), second.clone()],

@@ -28,6 +28,8 @@ pub struct ProviderDeclaration {
     pub service: ContentId,
     #[serde(default)]
     pub exclusive: bool,
+    #[serde(default)]
+    pub entrypoint: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
