@@ -1,0 +1,23 @@
+schema_version = 1
+project = "tantalus-engine"
+recorded_on = "2026-11-14"
+
+[memoria.stable]
+repository = "https://github.com/Albeoris/Memoria"
+tag = "v2026.11.09"
+commit = "677c77c6928141bf2fe909df3b3446b4c194893c"
+evidence = "verified-local-tag"
+binary_hashes = "not-acquired"
+
+[memoria.source_snapshot]
+repository = "https://github.com/Albeoris/Memoria"
+commit = "c716e1faaeee8c856cc10921234d017f1187b45b"
+role = "normative-source-capability-baseline"
+evidence = "verified-local-checkout"
+
+[original_pc]
+status = "not-supplied"
+editions = []
+executable_hashes = []
+resource_hashes = []
+notes = "No owned installation path or reference binary has been supplied. Real-install inspection and reference behavior capture are NOT_RUN."
