@@ -6,6 +6,7 @@ members = [
     "crates/tantalus-core",
     "crates/tantalus-game",
     "crates/tantalus-legacy",
+    "crates/tantalus-mods",
     "crates/tantalus-tools",
 ]
 resolver = "2"

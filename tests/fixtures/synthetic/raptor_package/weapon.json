@@ -1,0 +1,9 @@
+{
+  "id": "my_mod:weapon/raptor_talon",
+  "slot": "my_mod:slot/talon",
+  "model": "my_mod:model/raptor_talon",
+  "stats": {
+    "my_mod:stat/bleed_power": 12
+  },
+  "teaches": []
+}

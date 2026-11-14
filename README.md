@@ -69,7 +69,8 @@ No original game assets are included. UnityFS containers are recognized, but rea
 - [x] **T06 foundation:** original-event decoding, expressions, waits, windows, movement, and field scheduling.
 - [ ] **T04–T06 — First field:** real asset decoding, verified native presentation, and the complete event VM.
 - [ ] **Independent game loop:** field → interaction → battle → rewards → save/reload, without Unity or Memoria.
-- [ ] **Creation architecture:** external packages, seamless encounters, additive content, and total-conversion fixtures.
+- [x] **T07 — Additive world content:** staged packages, visible actors, perception, pursuit, and persistent outcomes.
+- [ ] **Creation architecture:** seamless encounters and external total-conversion fixtures.
 - [ ] **Full compatibility:** complete FFIX behavior and the audited Memoria baseline.
 - [ ] **Creator release:** launcher, workshop, stable SDK, documentation, API, and MCP.
 

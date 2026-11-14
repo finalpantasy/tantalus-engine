@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "package_id": "fixture.raptor",
+  "version": "1.0.0",
+  "dependencies": [],
+  "world": {
+    "spawn_regions": ["my_mod:spawn_region/eastern_marsh"]
+  },
+  "records": [
+    { "id": "my_mod:actor/iron_raptor_rig", "source_path": "rig.json", "operation": "add" },
+    { "id": "my_mod:behavior/raptor_hunt", "source_path": "behavior.json", "operation": "add" },
+    { "id": "my_mod:attack/shredding_dive", "source_path": "attack.json", "operation": "add" },
+    { "id": "my_mod:weapon/raptor_talon", "source_path": "weapon.json", "operation": "add" },
+    { "id": "my_mod:enemy/iron_raptor", "source_path": "enemy.json", "operation": "add" },
+    { "id": "my_mod:spawn_region/eastern_marsh", "source_path": "spawn.json", "operation": "add" }
+  ]
+}

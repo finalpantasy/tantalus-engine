@@ -1,0 +1,9 @@
+{
+  "id": "my_mod:spawn_region/eastern_marsh",
+  "cell": "my_mod:cell/eastern_marsh",
+  "enemy": "my_mod:enemy/iron_raptor",
+  "center": { "x": 0, "y": 0, "z": 0 },
+  "radius": 500,
+  "capacity": 1,
+  "respawn_ticks": 20
+}

@@ -1,0 +1,7 @@
+{
+  "id": "my_mod:enemy/iron_raptor",
+  "rig": "my_mod:actor/iron_raptor_rig",
+  "behavior": "my_mod:behavior/raptor_hunt",
+  "attack": "my_mod:attack/shredding_dive",
+  "weapon_drop": "my_mod:weapon/raptor_talon"
+}

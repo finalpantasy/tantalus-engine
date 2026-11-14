@@ -1,0 +1,8 @@
+{
+  "id": "my_mod:attack/shredding_dive",
+  "targeting": "single_enemy",
+  "power": 37,
+  "status": "my_mod:status/bleeding",
+  "animation": "my_mod:animation/iron_raptor_dive",
+  "effect": "my_mod:effect/shredding_dive"
+}

@@ -1,0 +1,6 @@
+{
+  "id": "my_mod:actor/iron_raptor_rig",
+  "model": "actors/iron_raptor.glb",
+  "idle_animation": "my_mod:animation/iron_raptor_idle",
+  "attachment_points": ["beak", "talons"]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "my_mod:behavior/raptor_hunt",
+  "disposition": "aggressive",
+  "patrol_radius": 1000,
+  "sight_range": 5000,
+  "hearing_range": 2500,
+  "pursuit_speed": 100,
+  "leash_range": 6000,
+  "encounter_range": 250
+}

@@ -19,10 +19,11 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 - `T04` — Importer/cache foundation verified; real Unity AssetBundle decoding remains Building. Evidence: `tasks/T04.md`.
 - `T05` — Client/contracts verified; visual proof remains failed after blank Tantalus and official Bevy control captures. Evidence: `tasks/T05.md`.
 - `T06` — Event VM and field scheduling foundation verified; real field execution remains pending. Evidence: `tasks/T06.md`.
+- `T07` — Verified for additive packages, world actors, encounter ownership, persistence, and respawn. Evidence: `tasks/T07.md`.
 - Reference source checkout: verified at `c716e1faaeee8c856cc10921234d017f1187b45b`.
 - Owned FFIX installation: not supplied. Real-install checks are NOT_RUN.
 - Public repository: https://github.com/finalpantasy/tantalus-engine.
 
 ## Next dependencies
 
-Expand real asset and event coverage, resolve the open T05 visual failure, and connect the field VM to actual imported content. The next independent synthetic slice can be T07 additive world actors while real codecs remain pending.
+Integrate the supplied architecture review: preservation charter, bounded Bevy/Fyrox selection, cinematic/localization/reimport coverage, and diagnostic policies. T08 supplies a synthetic battle/action path; real FFIX verification still requires codec work and an owned installation.
