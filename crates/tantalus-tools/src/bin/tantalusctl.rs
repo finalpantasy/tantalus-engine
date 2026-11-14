@@ -153,6 +153,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut text_asset = None;
     let mut texture = None;
     let mut bgi = None;
+    let mut bgs = None;
     let mut index = 2;
     while index < args.len() {
         match args[index].to_str() {
@@ -185,6 +186,16 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     return Err("`--texture` may only be supplied once".to_owned());
                 }
             }
+            Some("--bgs") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--bgs` requires a UTF-8 asset name".to_owned())?;
+                if bgs.replace(value.to_owned()).is_some() {
+                    return Err("`--bgs` may only be supplied once".to_owned());
+                }
+            }
             Some("--bgi") => {
                 index += 1;
                 let value = args
@@ -209,6 +220,63 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let path = path.ok_or_else(|| "missing required `--path <path>`".to_owned())?;
     let bundle = tantalus_assets::pc::unity_raw::UnityRawBundle::open(&path)
         .map_err(|error| error.to_string())?;
+    if let Some(name) = bgs {
+        let bytes = bundle
+            .read_entry(0, 300 * 1024 * 1024)
+            .map_err(|error| error.to_string())?;
+        let serialized =
+            tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
+                .map_err(|error| error.to_string())?;
+        let mut selected = None;
+        for (index, object) in serialized.report().objects.iter().enumerate() {
+            if object.class_id != 49 {
+                continue;
+            }
+            let asset = tantalus_assets::pc::text_asset::TextAsset::parse(
+                serialized
+                    .object_data(index)
+                    .map_err(|error| error.to_string())?,
+                &name,
+            )
+            .map_err(|error| error.to_string())?;
+            if asset.name == name {
+                selected = Some(asset);
+                break;
+            }
+        }
+        let asset = selected.ok_or_else(|| format!("BGS asset `{name}` was not found"))?;
+        let scene = tantalus_assets::pc::bgs::BgsFile::parse(&asset.script, &name)
+            .map_err(|error| error.to_string())?;
+        let report = serde_json::json!({
+            "name": asset.name,
+            "scene_length": scene.scene_length,
+            "depth_bit_shift": scene.depth_bit_shift,
+            "cameras": scene.cameras.len(),
+            "overlays": scene.overlays.len(),
+            "sprites": scene.overlays.iter().map(|overlay| overlay.sprites.len()).sum::<usize>(),
+            "lights": scene.lights.len(),
+            "animations": scene.animations.len(),
+            "animation_frames": scene.animations.iter().map(|animation| animation.frames.len()).sum::<usize>(),
+            "first_projection": scene.cameras.first().map(|camera| camera.projection),
+        });
+        if json {
+            println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        } else {
+            println!(
+                "{}: {} bytes, {} cameras, {} overlays, {} sprites",
+                asset.name,
+                scene.scene_length,
+                scene.cameras.len(),
+                scene.overlays.len(),
+                scene
+                    .overlays
+                    .iter()
+                    .map(|overlay| overlay.sprites.len())
+                    .sum::<usize>()
+            );
+        }
+        return Ok(());
+    }
     if let Some(name) = bgi {
         let bytes = bundle
             .read_entry(0, 300 * 1024 * 1024)
@@ -416,11 +484,11 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, or `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--bgi <name>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, or `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--bgi <name>] [--bgs <name>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--bgi <name>] [--json]\n\nInspect installations and UnityRaw bundles without modifying them, or import validated local asset packs."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--bgi <name>] [--bgs <name>] [--json]\n\nInspect installations and UnityRaw bundles without modifying them, or import validated local asset packs."
     );
 }

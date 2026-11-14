@@ -30,6 +30,10 @@ All 115 real textures use Unity format 12 (DXT5) with embedded data. The reader 
 
 The source-backed BGI parser handles triangles, vertex/edge lists, floors, normals, and animation frame references. The selected real field contains 203 triangles, 164 vertices, 609 edges, 3 floors, 2 normals, and no animation list. Independent raw-header decoding matches every count and offset. Evidence: `audit/bgi-field.json`.
 
+## BGS scene verification
+
+The source-backed BGS parser handles scene headers, cameras, overlays, packed sprite parameters/locations, lights, and animation frames. The selected real field has 2 cameras, 22 overlays, 1,704 sprites, 2 animations with 10 frames, and no lights. Scene length 21,888 and all header counts/offsets match independent raw decoding. Evidence: `audit/bgs-field.json`.
+
 ## Remaining dependency
 
-Parse BGS scene/camera/overlay structures, connect BGI navigation to movement, and validate field composition and events against the owned installation. Real gameplay has not been run.
+Map BGS camera/overlay/sprite structures into the native compositor, connect BGI navigation to movement, and validate actual field presentation and events. Real gameplay has not been run; this parser milestone is not rendered parity.

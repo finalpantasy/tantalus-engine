@@ -1,0 +1,16 @@
+{
+  "name": "FBG_N00_TSHP_MAP001_TH_CGR_0.bgs",
+  "source_text_asset_sha256": "fe7801496837fe36222206122030850cd0a9b6fc138b517f0eebdf44a5914622",
+  "scene_length": 21888,
+  "depth_bit_shift": 2,
+  "animations": 2,
+  "animation_frames": 10,
+  "overlays": 22,
+  "sprites": 1704,
+  "lights": 0,
+  "cameras": 2,
+  "offsets": [52, 84, 1316, 1316],
+  "first_projection": 529,
+  "reference_match": "Independent raw-header lengths, counts, and offsets match Rust",
+  "payload_redistributed": false
+}
