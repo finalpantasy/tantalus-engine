@@ -151,6 +151,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut json = false;
     let mut objects = false;
     let mut text_asset = None;
+    let mut texture = None;
     let mut index = 2;
     while index < args.len() {
         match args[index].to_str() {
@@ -171,6 +172,16 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     .ok_or_else(|| "`--text-asset` requires a UTF-8 asset name".to_owned())?;
                 if text_asset.replace(value.to_owned()).is_some() {
                     return Err("`--text-asset` may only be supplied once".to_owned());
+                }
+            }
+            Some("--texture") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--texture` requires a UTF-8 asset name".to_owned())?;
+                if texture.replace(value.to_owned()).is_some() {
+                    return Err("`--texture` may only be supplied once".to_owned());
                 }
             }
             Some("--json") => json = true,
@@ -245,6 +256,57 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         }
         return Ok(());
     }
+    if let Some(name) = texture {
+        let bytes = bundle
+            .read_entry(0, 300 * 1024 * 1024)
+            .map_err(|error| error.to_string())?;
+        let serialized =
+            tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
+                .map_err(|error| error.to_string())?;
+        let mut selected = None;
+        for (index, object) in serialized.report().objects.iter().enumerate() {
+            if object.class_id != 28 {
+                continue;
+            }
+            let texture = tantalus_assets::pc::texture::Texture2D::parse(
+                serialized
+                    .object_data(index)
+                    .map_err(|error| error.to_string())?,
+                &name,
+            )
+            .map_err(|error| error.to_string())?;
+            if texture.name == name {
+                selected = Some((object.path_id, texture));
+                break;
+            }
+        }
+        let (path_id, texture) =
+            selected.ok_or_else(|| format!("Texture2D `{name}` was not found"))?;
+        let rgba = texture.rgba_bytes().map_err(|error| error.to_string())?;
+        let report = serde_json::json!({
+            "name": texture.name,
+            "path_id": path_id,
+            "width": texture.width,
+            "height": texture.height,
+            "format": texture.format,
+            "image_bytes": texture.image_data.len(),
+            "dxt5_sha256": format!("{:x}", Sha256::digest(&texture.image_data)),
+            "rgba_sha256": format!("{:x}", Sha256::digest(&rgba)),
+        });
+        if json {
+            println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        } else {
+            println!(
+                "{}: {}x{}, format {}, {} bytes",
+                texture.name,
+                texture.width,
+                texture.height,
+                texture.format,
+                texture.image_data.len()
+            );
+        }
+        return Ok(());
+    }
     if objects {
         let bytes = bundle
             .read_entry(0, 300 * 1024 * 1024)
@@ -292,11 +354,11 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, or `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, or `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--json]\n\nInspect installations and UnityRaw bundles without modifying them, or import validated local asset packs."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--json]\n\nInspect installations and UnityRaw bundles without modifying them, or import validated local asset packs."
     );
 }

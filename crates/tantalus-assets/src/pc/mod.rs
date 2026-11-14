@@ -1,5 +1,6 @@
 pub mod serialized;
 pub mod text_asset;
+pub mod texture;
 pub mod unity_raw;
 
 use crate::install::ImportError;

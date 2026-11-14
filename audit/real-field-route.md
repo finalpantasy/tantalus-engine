@@ -22,6 +22,10 @@ Summary evidence is in `audit/serialized-p0data101.json`. Object payloads are no
 
 The real TextAsset layout is length-prefixed `m_Name`, raw `m_Script`, and `m_PathName`, with four-byte alignment. Rust decodes the selected `.bgi` (12,544 bytes) and `.bgs` (21,888 bytes); SHA-256 values match UnityPy exactly. Metadata is recorded in `audit/text-assets-p0data101.json`. Payloads remain local and are not committed.
 
+## Texture2D payload verification
+
+All 115 real textures use Unity format 12 (DXT5) with embedded data. The reader handles the exact format-15 layout and validates block-compressed sizes. A real 1024×1024 atlas matches UnityPy's compressed SHA-256 and vertically oriented RGBA SHA-256 exactly. See `audit/texture-p0data101.json`. No image payload is committed.
+
 ## Remaining dependency
 
-Implement the required Texture2D payload reader, parse the `.bgs`/`.bgi` formats into scene/navigation structures, and validate field composition and events. Real gameplay has not been run.
+Parse the `.bgs`/`.bgi` formats into scene/navigation structures and validate field composition and events against the owned installation. Real gameplay has not been run.

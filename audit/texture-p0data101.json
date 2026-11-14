@@ -1,0 +1,15 @@
+{
+  "source_bundle_sha256": "f16fce89e8da60f4d7b83751fcc7db6f3c284c12436af359f3a71d5f0d65c1a2",
+  "name": "atlas",
+  "path_id": -8668381710264188282,
+  "width": 1024,
+  "height": 1024,
+  "unity_texture_format": 12,
+  "codec": "DXT5",
+  "compressed_bytes": 1048576,
+  "dxt5_sha256": "9b2f7daf438dc45a0c6038e33ab7adf56d2990dad4f1a51bade6a9e14044ea54",
+  "rgba_bytes": 4194304,
+  "rgba_sha256": "715479e82e49a27ec7e839c788fb1212bbfb2a25526b0f1bba0a3b6291daa854",
+  "reference_match": "UnityPy 1.25.0 raw and vertically oriented RGBA hashes match exactly",
+  "payload_redistributed": false
+}
