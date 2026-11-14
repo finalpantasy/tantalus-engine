@@ -6,7 +6,7 @@
 - Memoria stable tag: `v2026.11.09`, verified locally at `677c77c6928141bf2fe909df3b3446b4c194893c`.
 - The source snapshot and stable tag are distinct references; neither is evidence of the contents of a release binary.
 - No release binary has been acquired or hashed.
-- No owned FFIX PC installation has been supplied or inspected.
+- Owned PC installation observed read-only at `E:/SteamLibrary/steamapps/common/FINAL FANTASY IX`; runtime is original/unknown with a Memoria-associated effect plugin but no managed Memoria runtime or configuration. Normalized evidence: `audit/real-install.json`. No runtime behavior has been verified.
 
 ## Evidence rules
 

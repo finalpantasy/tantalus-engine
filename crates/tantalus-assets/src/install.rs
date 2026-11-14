@@ -357,12 +357,21 @@ pub fn inspect_install(root: &Path) -> Result<InstallReport, ImportError> {
         LayoutStatus::IncompletePc
     };
 
-    let memoria_detected = resources.iter().any(|resource| {
-        matches!(
-            resource.key.as_str(),
-            "memoria_prime" | "memoria_special_effects"
-        ) && resource.status == ResourceStatus::Present
-    });
+    let resource_present = |key: &str| {
+        resources
+            .iter()
+            .any(|resource| resource.key == key && resource.status == ResourceStatus::Present)
+    };
+    let memoria_detected = resource_present("memoria_prime");
+    if !memoria_detected && resource_present("memoria_special_effects") {
+        diagnostics.push(Diagnostic {
+            severity: DiagnosticSeverity::Info,
+            code: "memoria-runtime-unconfirmed".to_owned(),
+            message: "Memoria-associated special-effects component found, but the managed Memoria runtime is absent; full Memoria installation is not established".to_owned(),
+            resource_key: Some("memoria_special_effects".to_owned()),
+            path: root.to_string_lossy().into_owned(),
+        });
+    }
     let evidence = resources
         .iter()
         .filter(|resource| resource.status == ResourceStatus::Present)

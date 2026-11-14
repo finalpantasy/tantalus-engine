@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "report_kind": "normalized_install_inspection_summary",
+  "root": "E:/SteamLibrary/steamapps/common/FINAL FANTASY IX",
+  "layout": "recognized_pc",
+  "build": {
+    "support": "unknown",
+    "reference_runtime": "original_or_unknown",
+    "edition": null
+  },
+  "resources": {
+    "FF9_Launcher.exe": {
+      "bytes": 680448,
+      "sha256": "c7315712378256efd1fe7efd711561f322d1b691dbd56b02e04d3f68f8b0811c"
+    },
+    "x64/FF9.exe": {
+      "bytes": 19411456,
+      "sha256": "aedfd04154bfe2555fa07753e5c8caae3a57d7adba48e737c6859a2f3880d1bd"
+    },
+    "x64/FF9_Data/Managed/Assembly-CSharp.dll": {
+      "bytes": 4036608,
+      "sha256": "2fd5a4b7300a2806b875a9913e9001ed970c2ce4e449938a00d142fd1339b8d2"
+    },
+    "x64/FF9_Data/resources.assets": {
+      "bytes": 590057040,
+      "sha256": "4dbd0b3fe547406884d7d3a79471c5fc7c34756940ede1515c6afe4de116532d"
+    },
+    "x64/FF9_Data/sharedassets2.assets": {
+      "bytes": 198981708,
+      "sha256": "5fbfd206b0f358542c887410d695d161a66c5ea9e3e0cf7f57742aab5433d666"
+    },
+    "x64/FF9_Data/Plugins/FF9SpecialEffectPlugin.dll": {
+      "bytes": 435200,
+      "sha256": "5e01f899e9090fc720f4fd563648f216f5f1f088c902d0f80aa04d34f31d43cd"
+    },
+    "x64/steam_api64.dll": {
+      "bytes": 204880,
+      "sha256": "e61f3a4c3833ce48629d48d655c124f0ed552198d5a6cf82eb2f431688c00d2a"
+    }
+  },
+  "managed_metadata": {
+    "mvid": "1f1564f9-71a5-4da6-a75c-3ff5f85471db",
+    "assembly_version": "1.0.7141.27878",
+    "runtime_family": "unity-mono",
+    "assembly_references": ["mscorlib", "Assembly-CSharp-firstpass", "UnityEngine", "System.Core", "System", "XInputDotNetPure", "UnityEngine.UI"],
+    "memoria_prime_reference": false,
+    "evidence_ids": ["ev_93b17ee60d3423859953713c7d648f85c33fa61b558d2f147c54d71077718356", "ev_c049e3efe53d31fccd1a7668d162fcca98757dd37f800c9f8d2c6dd813d59abf"]
+  },
+  "missing_dependencies": [],
+  "real_game_execution": "not_run",
+  "asset_decoding": "not_run"
+}

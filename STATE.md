@@ -26,7 +26,7 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 - `T11` — Resolver/profile locks, Wasmtime ABI, packaged entry points, external action/card fixtures, pure migration, and single-provider lifecycle verified. WIT component bindings, multi-provider transactions, and multi-module migration remain Building. Evidence: `tasks/T11.md`.
 - Architecture review — integrated in `docs/REVIEW_2026-11-14.md` and `audit/review-ledger.csv`; diagnostic policy verified, backend selection and real-reference probes remain open.
 - Reference source checkout: verified at `c716e1faaeee8c856cc10921234d017f1187b45b`.
-- Owned FFIX installation: not supplied. Real-install checks are NOT_RUN.
+- Owned FFIX installation: PC copy inspected read-only; runtime original/unknown with an associated effect plugin, not confirmed Memoria. Real execution/asset decoding remains NOT_RUN. Evidence: `audit/real-install.json`.
 - Public repository: https://github.com/finalpantasy/tantalus-engine.
 
 ## Next dependencies

@@ -200,6 +200,28 @@ fn memoria_components_are_identified_without_executing_them() {
 }
 
 #[test]
+fn special_effect_plugin_alone_does_not_confirm_memoria() {
+    let fixture = complete_fixture();
+    write_fixture(
+        fixture.path(),
+        "x64/FF9_Data/Plugins/FF9SpecialEffectPlugin.dll",
+        b"synthetic associated plugin",
+    );
+
+    let report = inspect_install(fixture.path()).unwrap();
+    assert_eq!(
+        report.build.reference_runtime,
+        ReferenceRuntime::OriginalOrUnknown
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "memoria-runtime-unconfirmed")
+    );
+}
+
+#[test]
 fn non_utf8_text_is_observed_without_being_mislabeled() {
     let fixture = complete_fixture();
     write_fixture(fixture.path(), "Memoria.ini", &[0xff, 0xfe, 0x00]);

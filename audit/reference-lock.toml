@@ -16,11 +16,15 @@ role = "normative-source-capability-baseline"
 evidence = "verified-local-checkout"
 
 [original_pc]
-status = "not-supplied"
-editions = []
-executable_hashes = []
-resource_hashes = []
-notes = "No owned installation path or reference binary has been supplied. Real-install inspection and reference behavior capture are NOT_RUN."
+status = "observed-original-or-unknown"
+root = "E:/SteamLibrary/steamapps/common/FINAL FANTASY IX"
+editions = ["pc-unknown-build-with-memoria-associated-effect-plugin"]
+executable_hashes = ["x64/FF9.exe:aedfd04154bfe2555fa07753e5c8caae3a57d7adba48e737c6859a2f3880d1bd"]
+resource_hashes = [
+  "x64/FF9_Data/resources.assets:4dbd0b3fe547406884d7d3a79471c5fc7c34756940ede1515c6afe4de116532d",
+  "x64/FF9_Data/sharedassets2.assets:5fbfd206b0f358542c887410d695d161a66c5ea9e3e0cf7f57742aab5433d666",
+]
+notes = "Read-only inspection passed; no vanilla fingerprint, real-game execution, or asset decoding is claimed. See audit/real-install.json."
 
 [wasmtime]
 version = "49.0.5"
