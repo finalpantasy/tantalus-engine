@@ -1,7 +1,9 @@
+pub mod migrations;
 pub mod package;
 pub mod resolve;
 pub mod wasm_host;
 
+pub use migrations::ModuleMigration;
 pub use package::{
     ModuleEntrypoint, PackageDependency, PackageFeature, PackageLoader, PackageManifest,
     PackageOperation, PackageRecord, ProviderDeclaration, StagedModule, StagedPackage,

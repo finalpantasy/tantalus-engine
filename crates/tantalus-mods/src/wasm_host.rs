@@ -54,7 +54,7 @@ pub struct ModuleError {
 }
 
 impl ModuleError {
-    fn new(kind: ModuleErrorKind, package: &str, context: impl Into<String>) -> Self {
+    pub(crate) fn new(kind: ModuleErrorKind, package: &str, context: impl Into<String>) -> Self {
         Self {
             kind,
             package: package.to_owned(),
@@ -234,6 +234,10 @@ impl ModuleHost {
 
     pub fn module_state(&self) -> &serde_json::Value {
         &self.module_state
+    }
+
+    pub fn restore_module_state(&mut self, state: serde_json::Value) {
+        self.module_state = state;
     }
 
     pub fn authoritative_state(&self) -> &BTreeMap<String, serde_json::Value> {
