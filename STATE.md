@@ -16,7 +16,7 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 - `T01` — Verified for source audit, synthetic inspection, and CLI scope. Evidence: `tasks/T01.md`.
 - Reference source checkout: verified at `c716e1faaeee8c856cc10921234d017f1187b45b`.
 - Owned FFIX installation: not supplied. Real-install checks are NOT_RUN.
-- Public repository presentation and publication: authorized and in progress.
+- Public repository: https://github.com/finalpantasy/tantalus-engine (verified public).
 
 ## Next dependencies
 
