@@ -26,6 +26,7 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
     match (args[0].to_str(), args[1].to_str()) {
         (Some("install"), Some("inspect")) => run_install_inspect(args),
         (Some("assets"), Some("import")) => run_assets_import(args),
+        (Some("assets"), Some("inspect-bundle")) => run_assets_inspect_bundle(args),
         _ => Err(usage().to_owned()),
     }
 }
@@ -144,12 +145,57 @@ fn run_assets_import(args: Vec<OsString>) -> Result<(), String> {
     Ok(())
 }
 
+fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
+    let mut path = None;
+    let mut json = false;
+    let mut index = 2;
+    while index < args.len() {
+        match args[index].to_str() {
+            Some("--path") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| "`--path` requires a path".to_owned())?;
+                if path.replace(PathBuf::from(value)).is_some() {
+                    return Err("`--path` may only be supplied once".to_owned());
+                }
+            }
+            Some("--json") => json = true,
+            _ => {
+                return Err(format!(
+                    "unrecognized argument: {}",
+                    args[index].to_string_lossy()
+                ));
+            }
+        }
+        index += 1;
+    }
+    let path = path.ok_or_else(|| "missing required `--path <path>`".to_owned())?;
+    let bundle = tantalus_assets::pc::unity_raw::UnityRawBundle::open(&path)
+        .map_err(|error| error.to_string())?;
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(bundle.report())
+                .map_err(|error| format!("could not serialize bundle report: {error}"))?
+        );
+    } else {
+        println!(
+            "UnityRaw {}: {} entries, engine {}",
+            bundle.report().format_version,
+            bundle.report().entries.len(),
+            bundle.report().engine_version
+        );
+    }
+    Ok(())
+}
+
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]` or `assets import --plan <path> [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, or `assets inspect-bundle --path <path> [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n\nInspect installations without modifying them and import validated local asset packs."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--json]\n\nInspect installations and UnityRaw bundles without modifying them, or import validated local asset packs."
     );
 }

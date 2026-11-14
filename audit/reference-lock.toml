@@ -23,8 +23,9 @@ executable_hashes = ["x64/FF9.exe:aedfd04154bfe2555fa07753e5c8caae3a57d7adba48e7
 resource_hashes = [
   "x64/FF9_Data/resources.assets:4dbd0b3fe547406884d7d3a79471c5fc7c34756940ede1515c6afe4de116532d",
   "x64/FF9_Data/sharedassets2.assets:5fbfd206b0f358542c887410d695d161a66c5ea9e3e0cf7f57742aab5433d666",
+  "StreamingAssets/p0data101.bin:f16fce89e8da60f4d7b83751fcc7db6f3c284c12436af359f3a71d5f0d65c1a2",
 ]
-notes = "Read-only inspection passed; no vanilla fingerprint, real-game execution, or asset decoding is claimed. See audit/real-install.json."
+notes = "Read-only inspection and UnityRaw directory decoding passed; no vanilla fingerprint, real-game execution, or serialized-object decoding is claimed. See audit/real-install.json and audit/real-field-route.md."
 
 [wasmtime]
 version = "49.0.5"

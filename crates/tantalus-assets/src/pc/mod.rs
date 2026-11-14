@@ -1,3 +1,5 @@
+pub mod unity_raw;
+
 use crate::install::ImportError;
 use serde::{Deserialize, Serialize};
 use std::fs::File;

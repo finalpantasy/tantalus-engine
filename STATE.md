@@ -16,7 +16,7 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 - `T01` — Verified for source audit, synthetic inspection, and CLI scope. Evidence: `tasks/T01.md`.
 - `T02` — Verified for stable IDs, transactional registries, aliases/renames, and item instances. Evidence: `tasks/T02.md`.
 - `T03` — Verified for deterministic simulation, replay, readiness barriers, clocks, and traces. Evidence: `tasks/T03.md`.
-- `T04` — Importer/cache foundation verified; real Unity AssetBundle decoding remains Building. Evidence: `tasks/T04.md`.
+- `T04` — Importer/cache and real UnityRaw directory reading verified; serialized Unity objects and real field presentation remain Building. Evidence: `tasks/T04.md` and `audit/real-field-route.md`.
 - `T05` — Client/contracts verified; visual proof remains failed after blank Tantalus and official Bevy control captures. Evidence: `tasks/T05.md`.
 - `T06` — Event VM and field scheduling foundation verified; real field execution remains pending. Evidence: `tasks/T06.md`.
 - `T07` — Verified for additive packages, world actors, encounter ownership, persistence, and respawn. Evidence: `tasks/T07.md`.
@@ -31,4 +31,4 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 
 ## Next dependencies
 
-Continue T11 with a separate WIT component-model adapter, multi-provider transaction policy, multi-module migration, and retained-fixture SDK regression policies. Single-provider lifecycle and external action/card fixtures are verified. T10 base-save AES/schema decoding and real-save round trips remain open. Real FFIX codec work and the T05 visual failure remain open.
+Decode Unity serialized-file objects for the selected real field, then connect `.bgs` scene and `.bgi` navigation data to T05/T06. T11 component bindings and multi-provider/migration orchestration remain later maturity work. T10 base-save AES/schema decoding and real-save round trips remain open. T05 visual failure remains open.

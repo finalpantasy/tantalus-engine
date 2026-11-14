@@ -1,0 +1,20 @@
+{
+  "source": "E:/SteamLibrary/steamapps/common/FINAL FANTASY IX/StreamingAssets/p0data101.bin",
+  "sha256": "f16fce89e8da60f4d7b83751fcc7db6f3c284c12436af359f3a71d5f0d65c1a2",
+  "format_version": 3,
+  "player_version": "5.x.x",
+  "engine_version": "5.2.3p2",
+  "header_size": 60,
+  "streamed_content_size": 249871092,
+  "complete_file_size": 249871152,
+  "data_offset": 60,
+  "entries": [
+    {
+      "path": "CAB-ebad16f7dde378a09a285fac6d8f6fc3",
+      "relative_offset": 52,
+      "size": 249871040,
+      "absolute_offset": 112
+    }
+  ],
+  "verification": "Rust tantalusctl assets inspect-bundle completed locally; no payload included"
+}
