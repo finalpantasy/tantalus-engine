@@ -31,4 +31,4 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 
 ## Next dependencies
 
-Render mapped field sprites in the native client and connect BGI navigation to movement. Real BGS+BGI mapping is verified; actual presentation and gameplay remain unverified. Real gameplay and visual parity remain unverified. T11 component bindings and multi-provider/migration orchestration remain later maturity work. T10 base-save AES/schema decoding and real-save round trips remain open. T05 visual failure remains open.
+Resolve native field image capture, then connect BGI navigation to movement and real event execution. Bevy textured field sprites are structurally verified, but actual presentation remains unverified and blank captures remain open. Real gameplay and visual parity remain unverified. T11 component bindings and multi-provider/migration orchestration remain later maturity work. T10 base-save AES/schema decoding and real-save round trips remain open. T05 visual failure remains open.

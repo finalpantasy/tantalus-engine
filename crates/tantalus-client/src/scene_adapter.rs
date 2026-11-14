@@ -3,16 +3,18 @@ use crate::legacy_compositor::LegacyCompositor;
 use bevy::camera::RenderTarget;
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::prelude::*;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use tantalus_contracts::{
-    ContentId, ContentRevision, EntityId, Point3, PresentationSnapshot, ScenePresentationMode,
+    ContentId, ContentRevision, EntityId, FieldSceneDescription, FieldSpritePresentation, Point3,
+    PresentationSnapshot, ScenePresentationMode,
 };
 
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedAssets {
     pub content_revision: ContentRevision,
+    pub images: BTreeMap<ContentId, Handle<Image>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,6 +100,56 @@ impl ClientSceneAdapter {
             );
         }
         self.spawn_camera(snapshot);
+        Ok(())
+    }
+
+    pub fn apply_field(
+        &mut self,
+        scene: &FieldSceneDescription,
+        assets: &ResolvedAssets,
+    ) -> Result<(), ClientError> {
+        let mut sprites = Vec::new();
+        let mut identities = BTreeSet::new();
+        for overlay in &scene.overlays {
+            for sprite in &overlay.sprites {
+                if !identities.insert((sprite.overlay_index, sprite.sprite_index)) {
+                    return Err(ClientError::new("duplicate field sprite identity"));
+                }
+                if sprite.atlas_rect[2] <= sprite.atlas_rect[0]
+                    || sprite.atlas_rect[3] <= sprite.atlas_rect[1]
+                {
+                    return Err(ClientError::new(
+                        "field sprite has an empty atlas rectangle",
+                    ));
+                }
+                if !assets.images.contains_key(&sprite.atlas) {
+                    return Err(ClientError::new(format!(
+                        "field sprite atlas `{}` is not resolved",
+                        sprite.atlas
+                    )));
+                }
+                if sprite.active {
+                    sprites.push(sprite);
+                }
+            }
+        }
+        sprites.sort_by_key(|sprite| (sprite.depth, sprite.overlay_index, sprite.sprite_index));
+
+        self.clear_scene();
+        self.mode = ScenePresentationMode::Layered2d;
+        for sprite in sprites {
+            self.spawn_field_sprite(sprite, assets);
+        }
+        let transform = Transform::from_xyz(0.0, 0.0, 500.0);
+        let camera = match &self.render_target {
+            Some(target) => self
+                .app
+                .world_mut()
+                .spawn((Camera2d, transform, target.clone()))
+                .id(),
+            None => self.app.world_mut().spawn((Camera2d, transform)).id(),
+        };
+        self.scene_entities.push(camera);
         Ok(())
     }
 
@@ -201,6 +253,36 @@ impl ClientSceneAdapter {
         }
     }
 
+    fn spawn_field_sprite(&mut self, sprite: &FieldSpritePresentation, assets: &ResolvedAssets) {
+        let image = assets.images[&sprite.atlas].clone();
+        let entity = self
+            .app
+            .world_mut()
+            .spawn((
+                Sprite {
+                    image,
+                    rect: Some(Rect::new(
+                        sprite.atlas_rect[0] as f32,
+                        sprite.atlas_rect[1] as f32,
+                        sprite.atlas_rect[2] as f32,
+                        sprite.atlas_rect[3] as f32,
+                    )),
+                    ..Sprite::default()
+                },
+                Transform::from_xyz(
+                    to_units(sprite.pixel_offset[0]),
+                    to_units(-sprite.pixel_offset[1]),
+                    to_units(sprite.depth as i32),
+                ),
+                FieldSpriteIdentity {
+                    overlay: sprite.overlay_index,
+                    sprite: sprite.sprite_index,
+                },
+            ))
+            .id();
+        self.scene_entities.push(entity);
+    }
+
     fn spawn_camera(&mut self, snapshot: &PresentationSnapshot) {
         let transform = if self.uses_3d() {
             Transform::from_translation(to_vec3(snapshot.camera.position))
@@ -301,6 +383,12 @@ fn to_vec3(point: Point3) -> Vec3 {
 
 fn to_color(color: [u8; 4]) -> Color {
     Color::srgba_u8(color[0], color[1], color[2], color[3])
+}
+
+#[derive(Component)]
+pub struct FieldSpriteIdentity {
+    pub overlay: u32,
+    pub sprite: u32,
 }
 
 #[derive(Component)]
