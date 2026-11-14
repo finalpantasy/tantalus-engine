@@ -56,8 +56,26 @@ pub struct PackageManifest {
     pub features: Vec<PackageFeature>,
     #[serde(default)]
     pub providers: Vec<ProviderDeclaration>,
+    #[serde(default)]
+    pub entrypoints: Vec<ModuleEntrypoint>,
     pub world: WorldPackage,
     pub records: Vec<PackageRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModuleEntrypoint {
+    pub name: String,
+    pub source_path: String,
+    pub abi_version: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedModule {
+    pub name: String,
+    pub source_path: String,
+    pub abi_version: i32,
+    pub wasm: Vec<u8>,
+    pub sha256: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,6 +96,7 @@ pub enum PackageOperation {
 pub struct StagedPackage {
     pub manifest: PackageManifest,
     pub patch: RegistryPatch,
+    pub modules: Vec<StagedModule>,
     pub content_hash: String,
 }
 
@@ -114,10 +133,10 @@ impl PackageLoader {
                 &manifest_path,
             ));
         }
-        if manifest.records.is_empty() {
+        if manifest.records.is_empty() && manifest.entrypoints.is_empty() {
             report.push(issue(
                 "empty-package",
-                "package must contain at least one content record",
+                "package must contain at least one content record or module entrypoint",
                 None,
                 &manifest_path,
             ));
@@ -197,6 +216,93 @@ impl PackageLoader {
             }
         }
 
+        let mut modules = Vec::new();
+        let mut entrypoint_names = BTreeSet::new();
+        for entrypoint in &manifest.entrypoints {
+            if entrypoint.name.is_empty()
+                || !entrypoint_names.insert(entrypoint.name.clone())
+                || entrypoint.abi_version != crate::wasm_host::MODULE_ABI_VERSION
+            {
+                report.push(issue(
+                    "invalid-entrypoint",
+                    "entrypoint names must be nonempty/unique and use the supported ABI",
+                    None,
+                    path,
+                ));
+                continue;
+            }
+            let relative = match safe_relative(&entrypoint.source_path) {
+                Ok(relative) => relative,
+                Err(message) => {
+                    report.push(issue("invalid-package-path", message, None, path));
+                    continue;
+                }
+            };
+            let source_path = canonical_root.join(relative);
+            let canonical_source = match fs::canonicalize(&source_path) {
+                Ok(source) if source.starts_with(&canonical_root) => source,
+                Ok(_) => {
+                    report.push(issue(
+                        "package-path-escape",
+                        "module escapes the package root",
+                        None,
+                        &source_path,
+                    ));
+                    continue;
+                }
+                Err(error) => {
+                    report.push(issue(
+                        "package-resource-unavailable",
+                        error.to_string(),
+                        None,
+                        &source_path,
+                    ));
+                    continue;
+                }
+            };
+            let length = fs::metadata(&canonical_source)
+                .map(|metadata| metadata.len())
+                .unwrap_or(u64::MAX);
+            if length > 16 * 1024 * 1024 {
+                report.push(issue(
+                    "module-too-large",
+                    "WASM entrypoint exceeds the 16 MiB staging limit",
+                    None,
+                    &canonical_source,
+                ));
+                continue;
+            }
+            let wasm = match fs::read(&canonical_source) {
+                Ok(wasm) if wasm.starts_with(b"\0asm") => wasm,
+                Ok(_) => {
+                    report.push(issue(
+                        "invalid-wasm",
+                        "module does not have a WASM binary header",
+                        None,
+                        &canonical_source,
+                    ));
+                    continue;
+                }
+                Err(error) => {
+                    report.push(issue(
+                        "package-resource-unavailable",
+                        error.to_string(),
+                        None,
+                        &canonical_source,
+                    ));
+                    continue;
+                }
+            };
+            let sha256 = format!("{:x}", Sha256::digest(&wasm));
+            modules.push(StagedModule {
+                name: entrypoint.name.clone(),
+                source_path: entrypoint.source_path.clone(),
+                abi_version: entrypoint.abi_version,
+                wasm,
+                sha256,
+            });
+        }
+
         if !report.is_valid() {
             return Err(report);
         }
@@ -215,12 +321,18 @@ impl PackageLoader {
             )
             .collect();
         content_records.sort_by(|left, right| left.1.id.cmp(&right.1.id));
-        let content_bytes = serde_json::to_vec(&content_records)
-            .expect("serializing validated content records cannot fail");
+        let mut module_identities = modules
+            .iter()
+            .map(|module| (&module.name, &module.sha256, module.abi_version))
+            .collect::<Vec<_>>();
+        module_identities.sort_by_key(|(name, _, _)| name.as_str());
+        let content_bytes = serde_json::to_vec(&(content_records, module_identities))
+            .expect("serializing validated content and module identities cannot fail");
         let content_hash = format!("{:x}", Sha256::digest(content_bytes));
         Ok(StagedPackage {
             manifest,
             patch,
+            modules,
             content_hash,
         })
     }

@@ -23,7 +23,7 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 - `T08` — Synthetic battle/action/effect/reward foundation verified; real original ability compatibility remains pending. Evidence: `tasks/T08.md`.
 - `T09` — Synthetic encounter lifecycle, mapping, cancellation, and presentation-command foundation verified; real visual/camera integration remains pending. Evidence: `tasks/T09.md`.
 - `T10` — Native atomic saves, recovery, migration boundaries, exactly-once outcomes, and Memoria binary sidecar codec verified. Base-save AES/schema decoding and real-save checks remain Building/NOT_RUN. Evidence: `tasks/T10.md`.
-- `T11` — Resolver/profile locks, Wasmtime ABI, and independently compiled action/loot and exclusive-provider card fixtures verified. WIT-generated bindings, full provider lifecycle, and module migrations remain Building. Evidence: `tasks/T11.md`.
+- `T11` — Resolver/profile locks, Wasmtime ABI, packaged entry points, and independently compiled action/card fixtures verified. WIT-generated bindings, full provider lifecycle, and module migrations remain Building. Evidence: `tasks/T11.md`.
 - Architecture review — integrated in `docs/REVIEW_2026-11-14.md` and `audit/review-ledger.csv`; diagnostic policy verified, backend selection and real-reference probes remain open.
 - Reference source checkout: verified at `c716e1faaeee8c856cc10921234d017f1187b45b`.
 - Owned FFIX installation: not supplied. Real-install checks are NOT_RUN.
@@ -31,4 +31,4 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 
 ## Next dependencies
 
-Continue T11 with WIT-generated bindings, package entry-point loading, full provider lifecycle integration, module migrations, and retained-fixture SDK regression policies. External action/loot and card fixtures are verified. T10 base-save AES/schema decoding and real-save round trips remain open. Real FFIX codec work and the T05 visual failure remain open.
+Continue T11 with WIT-generated bindings, full provider lifecycle integration, module migrations, and retained-fixture SDK regression policies. Packaged entry points and external action/loot and card fixtures are verified. T10 base-save AES/schema decoding and real-save round trips remain open. Real FFIX codec work and the T05 visual failure remain open.

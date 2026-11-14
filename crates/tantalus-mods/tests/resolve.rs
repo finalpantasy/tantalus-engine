@@ -23,6 +23,7 @@ fn candidate(package: &str, version: &str) -> PackageCandidate {
             dependencies: Vec::new(),
             features: Vec::new(),
             providers: Vec::new(),
+            entrypoints: Vec::new(),
             world: WorldPackage::default(),
             records: Vec::new(),
         },

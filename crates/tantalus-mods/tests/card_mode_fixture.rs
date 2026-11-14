@@ -22,6 +22,7 @@ fn resolved_card_profile() -> ResolvedProfile {
                 service,
                 exclusive: true,
             }],
+            entrypoints: Vec::new(),
             world: WorldPackage::default(),
             records: Vec::new(),
         },

@@ -3,8 +3,9 @@ pub mod resolve;
 pub mod wasm_host;
 
 pub use package::{
-    PackageDependency, PackageFeature, PackageLoader, PackageManifest, PackageOperation,
-    PackageRecord, ProviderDeclaration, StagedPackage, WorldPackage,
+    ModuleEntrypoint, PackageDependency, PackageFeature, PackageLoader, PackageManifest,
+    PackageOperation, PackageRecord, ProviderDeclaration, StagedModule, StagedPackage,
+    WorldPackage,
 };
 pub use resolve::{
     ModResolver, PackageCandidate, ProfileRequest, ResolutionError, ResolutionErrorCode,

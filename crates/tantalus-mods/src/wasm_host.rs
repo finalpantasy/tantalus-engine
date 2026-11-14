@@ -124,6 +124,52 @@ pub struct ModuleHost {
 }
 
 impl ModuleHost {
+    pub fn instantiate_entrypoint(
+        lock: &ProfileLock,
+        staged: &crate::StagedPackage,
+        name: &str,
+        limits: ModuleLimits,
+    ) -> Result<Self, ModuleError> {
+        let package = &staged.manifest.package_id;
+        let locked = lock
+            .modules
+            .iter()
+            .find(|module| module.package == *package)
+            .ok_or_else(|| {
+                ModuleError::new(
+                    ModuleErrorKind::HostValidation,
+                    package,
+                    "staged package is not present in the resolved profile lock",
+                )
+            })?;
+        if locked.version != staged.manifest.version || locked.content_hash != staged.content_hash {
+            return Err(ModuleError::new(
+                ModuleErrorKind::HostValidation,
+                package,
+                "staged package version/content hash does not match the resolved profile lock",
+            ));
+        }
+        let entrypoint = staged
+            .modules
+            .iter()
+            .find(|module| module.name == name)
+            .ok_or_else(|| {
+                ModuleError::new(
+                    ModuleErrorKind::MissingExport,
+                    package,
+                    format!("package entrypoint `{name}` is not staged"),
+                )
+            })?;
+        if entrypoint.sha256 != Self::wasm_sha256(&entrypoint.wasm) {
+            return Err(ModuleError::new(
+                ModuleErrorKind::HostValidation,
+                package,
+                "staged entrypoint digest does not match its bytes",
+            ));
+        }
+        Self::instantiate(lock, package, &entrypoint.wasm, limits)
+    }
+
     pub fn instantiate(
         lock: &ProfileLock,
         package: &str,
