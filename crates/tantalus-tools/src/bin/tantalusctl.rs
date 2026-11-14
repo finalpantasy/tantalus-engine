@@ -5,6 +5,7 @@ use std::process::ExitCode;
 use tantalus_assets::{
     CancellationToken, DirectoryAssetSource, ImportPlan, import_subset, inspect_install,
 };
+use tantalus_contracts::ContentId;
 
 fn main() -> ExitCode {
     match run(std::env::args_os().skip(1).collect()) {
@@ -154,6 +155,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut texture = None;
     let mut bgi = None;
     let mut bgs = None;
+    let mut field = None;
     let mut index = 2;
     while index < args.len() {
         match args[index].to_str() {
@@ -184,6 +186,16 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     .ok_or_else(|| "`--texture` requires a UTF-8 asset name".to_owned())?;
                 if texture.replace(value.to_owned()).is_some() {
                     return Err("`--texture` may only be supplied once".to_owned());
+                }
+            }
+            Some("--field") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--field` requires a UTF-8 field name".to_owned())?;
+                if field.replace(value.to_owned()).is_some() {
+                    return Err("`--field` may only be supplied once".to_owned());
                 }
             }
             Some("--bgs") => {
@@ -220,6 +232,65 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let path = path.ok_or_else(|| "missing required `--path <path>`".to_owned())?;
     let bundle = tantalus_assets::pc::unity_raw::UnityRawBundle::open(&path)
         .map_err(|error| error.to_string())?;
+    if let Some(field) = field {
+        let bytes = bundle
+            .read_entry(0, 300 * 1024 * 1024)
+            .map_err(|error| error.to_string())?;
+        let serialized =
+            tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
+                .map_err(|error| error.to_string())?;
+        let load = |name: String| {
+            for (index, object) in serialized.report().objects.iter().enumerate() {
+                if object.class_id != 49 {
+                    continue;
+                }
+                let asset = tantalus_assets::pc::text_asset::TextAsset::parse(
+                    serialized
+                        .object_data(index)
+                        .map_err(|error| error.to_string())?,
+                    &name,
+                )
+                .map_err(|error| error.to_string())?;
+                if asset.name == name {
+                    return Ok(asset);
+                }
+            }
+            Err(format!("field asset `{name}` was not found"))
+        };
+        let scene_asset = load(format!("{field}.bgs"))?;
+        let navigation_asset = load(format!("{field}.bgi"))?;
+        let scene = tantalus_assets::pc::bgs::BgsFile::parse(&scene_asset.script, &field)
+            .map_err(|error| error.to_string())?;
+        let navigation = tantalus_assets::pc::bgi::BgiFile::parse(&navigation_asset.script, &field)
+            .map_err(|error| error.to_string())?;
+        let mapped = tantalus_assets::pc::field::FieldMapper::map(
+            &scene,
+            &navigation,
+            ContentId::parse("fixture:texture/atlas").unwrap(),
+            0,
+        )
+        .map_err(|error| error.to_string())?;
+        let report = serde_json::json!({
+            "name": field,
+            "camera_projection": mapped.camera.projection,
+            "actor_anchor": [mapped.actor_anchor.x, mapped.actor_anchor.y, mapped.actor_anchor.z],
+            "navigation_triangles": mapped.navigation_triangles,
+            "overlays": mapped.overlays.len(),
+            "sprites": mapped.overlays.iter().map(|overlay| overlay.sprites.len()).sum::<usize>(),
+        });
+        if json {
+            println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        } else {
+            println!(
+                "{}: {} overlays, {} navigation triangles, actor anchor {:?}",
+                field,
+                mapped.overlays.len(),
+                mapped.navigation_triangles,
+                mapped.actor_anchor
+            );
+        }
+        return Ok(());
+    }
     if let Some(name) = bgs {
         let bytes = bundle
             .read_entry(0, 300 * 1024 * 1024)
@@ -484,11 +555,11 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, or `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--bgi <name>] [--bgs <name>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, or `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--bgi <name>] [--bgs <name>] [--field <name>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--bgi <name>] [--bgs <name>] [--json]\n\nInspect installations and UnityRaw bundles without modifying them, or import validated local asset packs."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--bgi <name>] [--bgs <name>] [--field <name>] [--json]\n\nInspect installations and UnityRaw bundles without modifying them, or import validated local asset packs."
     );
 }

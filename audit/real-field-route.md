@@ -34,6 +34,10 @@ The source-backed BGI parser handles triangles, vertex/edge lists, floors, norma
 
 The source-backed BGS parser handles scene headers, cameras, overlays, packed sprite parameters/locations, lights, and animation frames. The selected real field has 2 cameras, 22 overlays, 1,704 sprites, 2 animations with 10 frames, and no lights. Scene length 21,888 and all header counts/offsets match independent raw decoding. Evidence: `audit/bgs-field.json`.
 
+## Renderer-independent mapping
+
+`FieldMapper` now maps the real BGS+BGI data into public field-scene contracts. The real result preserves projection 529, actor anchor (-130, 0, -648), 203 navigation triangles, 22 overlays, and 1,704 sprites. Mapping covers atlas rectangles, pixel offsets, shifted depth, alpha/transparency, visibility, and camera identity. Synthetic tests cover invalid cameras and depth overflow. Evidence: `audit/field-mapping.json`.
+
 ## Remaining dependency
 
-Map BGS camera/overlay/sprite structures into the native compositor, connect BGI navigation to movement, and validate actual field presentation and events. Real gameplay has not been run; this parser milestone is not rendered parity.
+Render the mapped sprites in the native client, connect BGI navigation to movement, and validate actual field presentation and events. Real gameplay has not been run; this mapping milestone is not rendered parity.

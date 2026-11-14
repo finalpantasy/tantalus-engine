@@ -1,0 +1,148 @@
+use tantalus_assets::pc::bgi::*;
+use tantalus_assets::pc::bgs::*;
+use tantalus_assets::pc::field::FieldMapper;
+use tantalus_contracts::*;
+
+fn scene(depth_shift: u16) -> BgsFile {
+    BgsFile {
+        scene_length: 0,
+        depth_bit_shift: depth_shift,
+        origin_z: 0,
+        current_z: 0,
+        origin: [0; 2],
+        current: [0; 2],
+        limits: [0; 4],
+        screen: [0; 2],
+        animations: Vec::new(),
+        overlays: vec![BgsOverlay {
+            flags: 3,
+            current_z: 4,
+            original_z: 2,
+            width: 16,
+            height: 8,
+            origin: [0; 2],
+            current: [20, 30],
+            limits: [0; 4],
+            screen: [0; 2],
+            scroll: [0; 2],
+            fraction: [0; 2],
+            camera: 0,
+            is_x_offset: false,
+            viewport: 0,
+            sprites: vec![BgsSprite {
+                clut_y: 0,
+                clut_x: 0,
+                texture_y: 0,
+                texture_x: 0,
+                resolution: 0,
+                alpha: 2,
+                v: 50,
+                u: 40,
+                height: 8,
+                width: 16,
+                transparency: 1,
+                depth: 7,
+                offset_y: 2,
+                offset_x: 3,
+            }],
+        }],
+        lights: Vec::new(),
+        cameras: vec![BgsCamera {
+            projection: 529,
+            rotation: [[4096, 0, 0], [0, 4096, 0], [0, 0, 4096]],
+            translation: [10, 20, 30],
+            center_offset: [1, 2],
+            width: 320,
+            height: 224,
+            viewport_x: [-160, 160],
+            viewport_y: [-112, 112],
+            depth_offset: 9,
+        }],
+    }
+}
+
+fn navigation() -> BgiFile {
+    BgiFile {
+        origin: [0; 3],
+        current: [0; 3],
+        minimum: [0; 3],
+        maximum: [0; 3],
+        character: [100, 5, 200],
+        active_floor: 0,
+        active_triangle: 0,
+        triangles: vec![BgiTriangle {
+            flags: 0,
+            data: 0,
+            floor: 0,
+            normal: 0,
+            theta_x: 0,
+            theta_z: 0,
+            vertices: [0, 1, 2],
+            edges: [0; 3],
+            neighbors: [-1; 3],
+            center: [0; 3],
+            d: 0,
+        }],
+        edges: Vec::new(),
+        animations: Vec::new(),
+        floors: Vec::new(),
+        normals: Vec::new(),
+        vertices: Vec::new(),
+    }
+}
+
+#[test]
+fn field_mapping_preserves_atlas_offsets_depth_camera_and_navigation_anchor() {
+    let mapped = FieldMapper::map(
+        &scene(2),
+        &navigation(),
+        ContentId::parse("fixture:texture/atlas").unwrap(),
+        0,
+    )
+    .unwrap();
+    assert_eq!(mapped.camera.projection, 529);
+    assert_eq!(
+        mapped.camera.translation,
+        Point3 {
+            x: 10,
+            y: 20,
+            z: 30
+        }
+    );
+    assert_eq!(
+        mapped.actor_anchor,
+        Point3 {
+            x: 100,
+            y: 5,
+            z: 200
+        }
+    );
+    assert_eq!(mapped.navigation_triangles, 1);
+    let sprite = &mapped.overlays[0].sprites[0];
+    assert_eq!(sprite.atlas_rect, [40, 50, 56, 58]);
+    assert_eq!(sprite.pixel_offset, [23, 32]);
+    assert_eq!(sprite.depth, 23);
+    assert!(sprite.active && sprite.screen_anchored);
+}
+
+#[test]
+fn invalid_camera_and_depth_overflow_are_rejected() {
+    assert!(
+        FieldMapper::map(
+            &scene(0),
+            &navigation(),
+            ContentId::parse("fixture:texture/atlas").unwrap(),
+            1
+        )
+        .is_err()
+    );
+    assert!(
+        FieldMapper::map(
+            &scene(32),
+            &navigation(),
+            ContentId::parse("fixture:texture/atlas").unwrap(),
+            0
+        )
+        .is_err()
+    );
+}

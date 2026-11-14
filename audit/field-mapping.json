@@ -1,0 +1,12 @@
+{
+  "name": "FBG_N00_TSHP_MAP001_TH_CGR_0",
+  "camera_index": 0,
+  "camera_projection": 529,
+  "actor_anchor": [-130, 0, -648],
+  "navigation_triangles": 203,
+  "overlays": 22,
+  "sprites": 1704,
+  "verification": "Real BGS+BGI parsed and mapped by the Rust CLI; synthetic mapping tests cover atlas/depth/offset/camera failures",
+  "rendered": false,
+  "payload_redistributed": false
+}

@@ -1,4 +1,5 @@
 pub mod errors;
+pub mod field;
 pub mod ids;
 pub mod instances;
 pub mod revision;
@@ -7,6 +8,7 @@ pub mod simulation;
 pub mod validation;
 
 pub use errors::{EngineError, ErrorCategory};
+pub use field::*;
 pub use ids::{ContentId, IdError, IdErrorKind, ItemInstanceId};
 pub use instances::{AffixRoll, InstanceProperties, PropertyValue};
 pub use revision::ContentRevision;

@@ -1,5 +1,6 @@
 pub mod bgi;
 pub mod bgs;
+pub mod field;
 pub mod serialized;
 pub mod text_asset;
 pub mod texture;
