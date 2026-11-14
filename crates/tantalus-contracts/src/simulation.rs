@@ -298,10 +298,76 @@ pub struct EffectPresentation {
     pub duration_ticks: u32,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Point3 {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActorPresentation {
+    pub entity: EntityId,
+    pub position: Point3,
+    pub size: Point3,
+    pub color: [u8; 4],
+    pub animation: Option<ContentId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldLayerPresentation {
+    pub id: ContentId,
+    pub position: Point3,
+    pub size: Point3,
+    pub color: [u8; 4],
+    pub foreground: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CameraSnapshot {
+    pub position: Point3,
+    pub target: Point3,
+}
+
+impl Default for CameraSnapshot {
+    fn default() -> Self {
+        Self {
+            position: Point3 { x: 0, y: 0, z: 500 },
+            target: Point3::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScenePresentationMode {
+    #[default]
+    Layered2d,
+    Hybrid,
+    Full3d,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AudioRequest {
+    pub cue: ContentId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UiRequest {
+    pub screen: ContentId,
+    pub visible: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PresentationSnapshot {
     pub tick: Tick,
     pub effects: Vec<EffectPresentation>,
+    pub actors: Vec<ActorPresentation>,
+    pub layers: Vec<FieldLayerPresentation>,
+    pub camera: CameraSnapshot,
+    pub mode: ScenePresentationMode,
+    pub audio_requests: Vec<AudioRequest>,
+    pub ui_requests: Vec<UiRequest>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

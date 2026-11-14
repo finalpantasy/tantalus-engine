@@ -1,0 +1,19 @@
+schema_version = 1
+width = 320
+height = 180
+pre_roll_frames = 40
+
+[[cases]]
+id = "synthetic-layered-field"
+mode = "layered_2d"
+expected = "nonempty layered scene with foreground occlusion"
+
+[[cases]]
+id = "synthetic-full-3d"
+mode = "full_3d"
+expected = "nonempty 3D actor and ground with lighting"
+
+[[cases]]
+id = "synthetic-hybrid-contract"
+mode = "hybrid"
+expected = "same serializable gameplay contract; visual fidelity remains a later gate"

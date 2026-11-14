@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/tantalus-assets",
+    "crates/tantalus-client",
     "crates/tantalus-contracts",
     "crates/tantalus-core",
     "crates/tantalus-tools",

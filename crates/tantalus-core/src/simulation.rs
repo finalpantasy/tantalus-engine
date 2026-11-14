@@ -429,6 +429,12 @@ impl Simulation {
                     duration_ticks: state.timeline.duration_ticks,
                 })
                 .collect(),
+            actors: Vec::new(),
+            layers: Vec::new(),
+            camera: Default::default(),
+            mode: Default::default(),
+            audio_requests: Vec::new(),
+            ui_requests: Vec::new(),
         }
     }
 
