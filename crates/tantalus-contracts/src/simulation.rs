@@ -313,6 +313,22 @@ pub struct TraceEvent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "type", content = "content")]
+pub enum ActionMarkerKind {
+    Effect(ContentId),
+    Audio(ContentId),
+    Hit,
+    Complete,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SemanticMarker {
+    pub tick: Tick,
+    pub action: ContentId,
+    pub kind: ActionMarkerKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectPresentation {
     pub effect: EntityId,
     pub elapsed_ticks: u32,

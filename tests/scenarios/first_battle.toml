@@ -1,0 +1,10 @@
+schema_version = 1
+reference_status = "synthetic; no original FFIX battle has been executed"
+action = "fixture:attack/ruin"
+duration_ticks = 6
+markers = ["effect", "audio", "hit", "hit", "complete"]
+expected_mp_cost = 5
+expected_hits = 2
+expected_outcome = "victory"
+expected_reward_commit_count = 1
+required_checks = ["fast_forward", "interruption", "miss", "reward_retry", "presentation_cleanup"]

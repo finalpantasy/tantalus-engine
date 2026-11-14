@@ -42,6 +42,7 @@ The current source includes:
 - A Bevy 0.19.1 client driven by renderer-independent scene snapshots.
 - A source-backed original-event VM subset and deterministic field scheduler.
 - Optional per-tick diagnostics with verification-on-request instead of mandatory normal-play hashing.
+- A synthetic battle engine with multi-hit actions, semantic effects/audio, interruption, and exactly-once rewards.
 
 No original game assets are included. UnityFS containers are recognized, but real AssetBundle decoding is not implemented. Headless visual verification is failing after blank Tantalus and official Bevy control captures; see [`tasks/T05.md`](tasks/T05.md). No compatibility or performance claim is being made beyond the checks recorded in [`tasks/`](tasks/).
 
@@ -71,6 +72,7 @@ No original game assets are included. UnityFS containers are recognized, but rea
 - [ ] **T04–T06 — First field:** real asset decoding, verified native presentation, and the complete event VM.
 - [ ] **Independent game loop:** field → interaction → battle → rewards → save/reload, without Unity or Memoria.
 - [x] **T07 — Additive world content:** staged packages, visible actors, perception, pursuit, and persistent outcomes.
+- [x] **T08 — Battle action foundation:** costs, targeting, multi-hit effects, outcomes, and reward recovery.
 - [ ] **Creation architecture:** seamless encounters and external total-conversion fixtures.
 - [ ] **Full compatibility:** complete FFIX behavior and the audited Memoria baseline.
 - [ ] **Creator release:** launcher, workshop, stable SDK, documentation, API, and MCP.
