@@ -13,6 +13,8 @@ sha2.workspace = true
 semver = "1.0.28"
 tantalus-contracts = { path = "../tantalus-contracts" }
 tantalus-core = { path = "../tantalus-core" }
+wasmtime = { version = "=49.0.5", default-features = false, features = ["cranelift", "runtime", "std"] }
 
 [dev-dependencies]
 tempfile = "3"
+wat = "1"

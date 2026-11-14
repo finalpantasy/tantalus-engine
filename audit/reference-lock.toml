@@ -21,3 +21,10 @@ editions = []
 executable_hashes = []
 resource_hashes = []
 notes = "No owned installation path or reference binary has been supplied. Real-install inspection and reference behavior capture are NOT_RUN."
+
+[wasmtime]
+version = "49.0.5"
+rust_version = "1.96.0"
+features = ["cranelift", "runtime", "std"]
+default_features = false
+evidence = "cargo-lock-and-local-execution-tests"
