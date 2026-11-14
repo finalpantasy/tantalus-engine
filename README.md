@@ -58,7 +58,7 @@ No original game assets are included. No compatibility or performance claim is b
 ## Roadmap
 
 - [x] **T01 — Baseline and inspection:** reference pins, capability ledger, and read-only installation reports.
-- [ ] **T02 — Content identity:** stable IDs, additive registries, and distinct item instances.
+- [x] **T02 — Content identity:** stable IDs, additive registries, and distinct item instances.
 - [ ] **T03 — Simulation:** deterministic clocks, input tapes, commands, and traces.
 - [ ] **T04–T06 — First field:** bounded asset import, native presentation, and the original event VM.
 - [ ] **Independent game loop:** field → interaction → battle → rewards → save/reload, without Unity or Memoria.

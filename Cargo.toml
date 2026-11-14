@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "crates/tantalus-assets",
+    "crates/tantalus-contracts",
+    "crates/tantalus-core",
     "crates/tantalus-tools",
 ]
 resolver = "2"
