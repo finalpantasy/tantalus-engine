@@ -1,0 +1,17 @@
+{
+  "source_bundle_sha256": "f16fce89e8da60f4d7b83751fcc7db6f3c284c12436af359f3a71d5f0d65c1a2",
+  "format_version": 15,
+  "unity_version": "5.2.3p2",
+  "target_platform": 5,
+  "type_trees_embedded": true,
+  "type_class_ids": [28, 49, 142],
+  "object_count": 617,
+  "class_counts": {
+    "28_Texture2D": 115,
+    "49_TextAsset": 501,
+    "142_AssetBundle": 1
+  },
+  "reference_match": "UnityPy 1.25.0 produced the same total and class counts",
+  "payload_decoding": "not_implemented",
+  "payload_redistributed": false
+}

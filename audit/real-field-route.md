@@ -12,6 +12,12 @@ Owned source: `E:/SteamLibrary/steamapps/common/FINAL FANTASY IX`. The initial f
 
 Only metadata and generated reports are committed. Original assets, CAB payloads, and extracted textures remain outside public fixtures.
 
+## Serialized-file verification
+
+The Rust format-15 reader now matches UnityPy's real CAB inventory: 617 objects (501 TextAsset, 115 Texture2D, one AssetBundle) across class types 28, 49, and 142. The implementation handles embedded 24-byte type-tree nodes, little-endian metadata after the big-endian header, and aligned 64-bit object IDs. Format 15 does not consume the older `big_id_enabled` field. Reference instrumentation established type boundaries at bytes 37/883/1234/2513 and object metadata at 2517.
+
+Summary evidence is in `audit/serialized-p0data101.json`. Object payloads are not yet decoded or redistributed.
+
 ## Remaining dependency
 
-Implement Unity serialized-file headers, object tables, and the specific TextAsset/Texture2D readers required by this route. Then validate field composition, event references, and presentation against the owned installation. Real gameplay has not been run.
+Implement the specific TextAsset/Texture2D payload readers required by this route. Then validate field composition, event references, and presentation against the owned installation. Real gameplay has not been run.

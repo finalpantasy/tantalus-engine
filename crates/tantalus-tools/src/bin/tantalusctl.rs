@@ -148,6 +148,7 @@ fn run_assets_import(args: Vec<OsString>) -> Result<(), String> {
 fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut path = None;
     let mut json = false;
+    let mut objects = false;
     let mut index = 2;
     while index < args.len() {
         match args[index].to_str() {
@@ -161,6 +162,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 }
             }
             Some("--json") => json = true,
+            Some("--objects") => objects = true,
             _ => {
                 return Err(format!(
                     "unrecognized argument: {}",
@@ -173,6 +175,35 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let path = path.ok_or_else(|| "missing required `--path <path>`".to_owned())?;
     let bundle = tantalus_assets::pc::unity_raw::UnityRawBundle::open(&path)
         .map_err(|error| error.to_string())?;
+    if objects {
+        let bytes = bundle
+            .read_entry(0, 300 * 1024 * 1024)
+            .map_err(|error| error.to_string())?;
+        let serialized =
+            tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
+                .map_err(|error| error.to_string())?;
+        if json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(serialized.report())
+                    .map_err(|error| format!("could not serialize object report: {error}"))?
+            );
+        } else {
+            let mut classes = std::collections::BTreeMap::new();
+            for object in &serialized.report().objects {
+                *classes.entry(object.class_id).or_insert(0) += 1;
+            }
+            println!(
+                "Serialized {}: {} objects, {} types, Unity {}",
+                serialized.report().format_version,
+                serialized.report().objects.len(),
+                serialized.report().types.len(),
+                serialized.report().unity_version
+            );
+            println!("Class counts: {classes:?}");
+        }
+        return Ok(());
+    }
     if json {
         println!(
             "{}",
@@ -191,11 +222,11 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, or `assets inspect-bundle --path <path> [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, or `assets inspect-bundle --path <path> [--objects] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--json]\n\nInspect installations and UnityRaw bundles without modifying them, or import validated local asset packs."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--json]\n\nInspect installations and UnityRaw bundles without modifying them, or import validated local asset packs."
     );
 }

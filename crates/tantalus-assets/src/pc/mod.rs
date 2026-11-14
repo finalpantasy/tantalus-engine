@@ -1,3 +1,4 @@
+pub mod serialized;
 pub mod unity_raw;
 
 use crate::install::ImportError;
