@@ -21,6 +21,7 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 - `T06` — Event VM and field scheduling foundation verified; real field execution remains pending. Evidence: `tasks/T06.md`.
 - `T07` — Verified for additive packages, world actors, encounter ownership, persistence, and respawn. Evidence: `tasks/T07.md`.
 - `T08` — Synthetic battle/action/effect/reward foundation verified; real original ability compatibility remains pending. Evidence: `tasks/T08.md`.
+- `T09` — Synthetic encounter lifecycle, mapping, cancellation, and presentation-command foundation verified; real visual/camera integration remains pending. Evidence: `tasks/T09.md`.
 - Architecture review — integrated in `docs/REVIEW_2026-11-14.md` and `audit/review-ledger.csv`; diagnostic policy verified, backend selection and real-reference probes remain open.
 - Reference source checkout: verified at `c716e1faaeee8c856cc10921234d017f1187b45b`.
 - Owned FFIX installation: not supplied. Real-install checks are NOT_RUN.
@@ -28,4 +29,4 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 
 ## Next dependencies
 
-T09 implements classic and seamless encounter ownership, readiness, cancellation, outcome, and return. T10 will provide atomic persistence and exactly-once recovery. Real FFIX verification still requires codec work and an owned installation; T05 visual failure remains open.
+T10 implements native save envelopes, atomic persistence, recoverable generations, migrations, unknown-data retention, and exactly-once outcome recovery. Legacy save codecs require source audit; real save verification needs an owned installation. Real FFIX codec work and the T05 visual failure remain open.

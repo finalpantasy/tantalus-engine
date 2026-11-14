@@ -29,6 +29,7 @@ macro_rules! define_id {
 }
 
 define_id!(EntityId);
+define_id!(EncounterId);
 define_id!(ResourceRequestId);
 define_id!(TraceId);
 

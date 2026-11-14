@@ -43,6 +43,7 @@ The current source includes:
 - A source-backed original-event VM subset and deterministic field scheduler.
 - Optional per-tick diagnostics with verification-on-request instead of mandatory normal-play hashing.
 - A synthetic battle engine with multi-hit actions, semantic effects/audio, interruption, and exactly-once rewards.
+- Classic, current-scene, and prepared-arena encounter lifecycle contracts with readiness, cancellation, and outcome ownership.
 
 No original game assets are included. UnityFS containers are recognized, but real AssetBundle decoding is not implemented. Headless visual verification is failing after blank Tantalus and official Bevy control captures; see [`tasks/T05.md`](tasks/T05.md). No compatibility or performance claim is being made beyond the checks recorded in [`tasks/`](tasks/).
 
@@ -73,7 +74,8 @@ No original game assets are included. UnityFS containers are recognized, but rea
 - [ ] **Independent game loop:** field → interaction → battle → rewards → save/reload, without Unity or Memoria.
 - [x] **T07 — Additive world content:** staged packages, visible actors, perception, pursuit, and persistent outcomes.
 - [x] **T08 — Battle action foundation:** costs, targeting, multi-hit effects, outcomes, and reward recovery.
-- [ ] **Creation architecture:** seamless encounters and external total-conversion fixtures.
+- [x] **T09 foundation:** shared encounter lifecycle, readiness, cancellation, spatial mapping, and presentation commands.
+- [ ] **Creation architecture:** real seamless presentation and external total-conversion fixtures.
 - [ ] **Full compatibility:** complete FFIX behavior and the audited Memoria baseline.
 - [ ] **Creator release:** launcher, workshop, stable SDK, documentation, API, and MCP.
 

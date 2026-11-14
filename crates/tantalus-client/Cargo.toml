@@ -11,6 +11,7 @@ bevy = { version = "=0.19.1", default-features = false, features = ["default_app
 crossbeam-channel = "0.5"
 serde.workspace = true
 tantalus-contracts = { path = "../tantalus-contracts" }
+tantalus-core = { path = "../tantalus-core" }
 
 [dev-dependencies]
 image = "0.25"
