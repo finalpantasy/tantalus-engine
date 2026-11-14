@@ -18,6 +18,10 @@ The Rust format-15 reader now matches UnityPy's real CAB inventory: 617 objects 
 
 Summary evidence is in `audit/serialized-p0data101.json`. Object payloads are not yet decoded or redistributed.
 
+## TextAsset payload verification
+
+The real TextAsset layout is length-prefixed `m_Name`, raw `m_Script`, and `m_PathName`, with four-byte alignment. Rust decodes the selected `.bgi` (12,544 bytes) and `.bgs` (21,888 bytes); SHA-256 values match UnityPy exactly. Metadata is recorded in `audit/text-assets-p0data101.json`. Payloads remain local and are not committed.
+
 ## Remaining dependency
 
-Implement the specific TextAsset/Texture2D payload readers required by this route. Then validate field composition, event references, and presentation against the owned installation. Real gameplay has not been run.
+Implement the required Texture2D payload reader, parse the `.bgs`/`.bgi` formats into scene/navigation structures, and validate field composition and events. Real gameplay has not been run.

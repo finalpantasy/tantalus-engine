@@ -1,0 +1,18 @@
+{
+  "source_bundle_sha256": "f16fce89e8da60f4d7b83751fcc7db6f3c284c12436af359f3a71d5f0d65c1a2",
+  "layout": ["m_Name", "m_Script", "m_PathName"],
+  "assets": [
+    {
+      "name": "FBG_N00_TSHP_MAP001_TH_CGR_0.bgi",
+      "script_bytes": 12544,
+      "script_sha256": "8241c6b62b300aabd88e778cbd48625bd10d38a50e5f38b63e4b22b66377f6ce"
+    },
+    {
+      "name": "FBG_N00_TSHP_MAP001_TH_CGR_0.bgs",
+      "script_bytes": 21888,
+      "script_sha256": "fe7801496837fe36222206122030850cd0a9b6fc138b517f0eebdf44a5914622"
+    }
+  ],
+  "reference_match": "UnityPy 1.25.0 payload lengths and SHA-256 values match Rust exactly",
+  "payload_redistributed": false
+}

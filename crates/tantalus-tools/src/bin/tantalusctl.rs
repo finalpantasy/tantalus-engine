@@ -1,3 +1,4 @@
+use sha2::{Digest, Sha256};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -149,6 +150,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut path = None;
     let mut json = false;
     let mut objects = false;
+    let mut text_asset = None;
     let mut index = 2;
     while index < args.len() {
         match args[index].to_str() {
@@ -159,6 +161,16 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     .ok_or_else(|| "`--path` requires a path".to_owned())?;
                 if path.replace(PathBuf::from(value)).is_some() {
                     return Err("`--path` may only be supplied once".to_owned());
+                }
+            }
+            Some("--text-asset") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--text-asset` requires a UTF-8 asset name".to_owned())?;
+                if text_asset.replace(value.to_owned()).is_some() {
+                    return Err("`--text-asset` may only be supplied once".to_owned());
                 }
             }
             Some("--json") => json = true,
@@ -175,6 +187,64 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let path = path.ok_or_else(|| "missing required `--path <path>`".to_owned())?;
     let bundle = tantalus_assets::pc::unity_raw::UnityRawBundle::open(&path)
         .map_err(|error| error.to_string())?;
+    if let Some(name) = text_asset {
+        let bytes = bundle
+            .read_entry(0, 300 * 1024 * 1024)
+            .map_err(|error| error.to_string())?;
+        let serialized =
+            tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
+                .map_err(|error| error.to_string())?;
+        let mut selected = None;
+        let mut failures = Vec::new();
+        for (index, object) in serialized.report().objects.iter().enumerate() {
+            if object.class_id != 49 {
+                continue;
+            }
+            let bytes = serialized
+                .object_data(index)
+                .map_err(|error| error.to_string())?;
+            match tantalus_assets::pc::text_asset::TextAsset::parse(bytes, &name) {
+                Ok(asset) if asset.name == name => {
+                    selected = Some(index);
+                    break;
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    failures.push(format!("path {}: {error}", object.path_id));
+                }
+            }
+        }
+        let index = selected.ok_or_else(|| {
+            format!(
+                "TextAsset `{name}` was not found; decode failures include: {}",
+                failures.into_iter().take(3).collect::<Vec<_>>().join("; ")
+            )
+        })?;
+        let asset = tantalus_assets::pc::text_asset::TextAsset::parse(
+            serialized
+                .object_data(index)
+                .map_err(|error| error.to_string())?,
+            &name,
+        )
+        .map_err(|error| error.to_string())?;
+        let report = serde_json::json!({
+            "name": asset.name,
+            "path_name": asset.path_name,
+            "script_bytes": asset.script.len(),
+            "script_sha256": format!("{:x}", Sha256::digest(&asset.script)),
+        });
+        if json {
+            println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        } else {
+            println!(
+                "{}: {} payload bytes, SHA-256 {}",
+                report["name"].as_str().unwrap(),
+                report["script_bytes"].as_u64().unwrap(),
+                report["script_sha256"].as_str().unwrap()
+            );
+        }
+        return Ok(());
+    }
     if objects {
         let bytes = bundle
             .read_entry(0, 300 * 1024 * 1024)
@@ -222,11 +292,11 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, or `assets inspect-bundle --path <path> [--objects] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, or `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--json]\n\nInspect installations and UnityRaw bundles without modifying them, or import validated local asset packs."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--json]\n\nInspect installations and UnityRaw bundles without modifying them, or import validated local asset packs."
     );
 }

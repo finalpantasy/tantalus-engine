@@ -37,7 +37,7 @@ The current source includes:
 - Streaming SHA-256 fingerprints and structured diagnostics.
 - A JSON-capable `tantalusctl` command-line tool.
 - Deterministic content packs with bounded imports, atomic cache revisions, and dependency validation.
-- Real UnityRaw 3 bundle directory reading and Unity format-15 object-table decoding for the owned PC field archives; object payloads remain pending.
+- Real UnityRaw 3 and format-15 object-table decoding, plus reference-matched `.bgs`/`.bgi` TextAsset payload reads from the owned field archive.
 - Synthetic tests for missing resources, incorrect file types, non-ASCII paths, and unchanged source files.
 - A pinned Memoria reference baseline with 22 initial capability groups and 204 configuration bindings.
 - A Bevy 0.19.1 client driven by renderer-independent scene snapshots.
