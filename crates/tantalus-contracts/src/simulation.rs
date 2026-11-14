@@ -120,6 +120,17 @@ impl Default for RngConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiagnosticPolicy {
+    pub hash_every_step: bool,
+    pub detailed_traces: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VerificationRequest {
+    pub state_digest: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SimulationConfig {
     pub rate: SimulationRate,
@@ -128,6 +139,7 @@ pub struct SimulationConfig {
     pub session_id: u64,
     pub max_step_stride: u32,
     pub rng: RngConfig,
+    pub diagnostics: DiagnosticPolicy,
 }
 
 impl Default for SimulationConfig {
@@ -139,6 +151,7 @@ impl Default for SimulationConfig {
             session_id: 0,
             max_step_stride: 16,
             rng: RngConfig::default(),
+            diagnostics: DiagnosticPolicy::default(),
         }
     }
 }
@@ -210,6 +223,7 @@ pub struct TickInput {
     pub stride: u32,
     pub commands: Vec<GameCommand>,
     pub external_events: Vec<RecordedExternalEvent>,
+    pub verification: VerificationRequest,
 }
 
 impl TickInput {
@@ -219,6 +233,7 @@ impl TickInput {
             stride: 1,
             commands: Vec::new(),
             external_events: Vec::new(),
+            verification: VerificationRequest::default(),
         }
     }
 
@@ -228,6 +243,7 @@ impl TickInput {
             stride,
             commands: Vec::new(),
             external_events: Vec::new(),
+            verification: VerificationRequest::default(),
         }
     }
 
@@ -238,6 +254,11 @@ impl TickInput {
 
     pub fn with_external_events(mut self, events: Vec<RecordedExternalEvent>) -> Self {
         self.external_events = events;
+        self
+    }
+
+    pub fn requesting_digest(mut self) -> Self {
+        self.verification.state_digest = true;
         self
     }
 }
@@ -397,5 +418,5 @@ pub struct TickResult {
     pub outcome: StepOutcome,
     pub events: Vec<DomainEvent>,
     pub presentation: PresentationSnapshot,
-    pub state_digest: StateDigest,
+    pub state_digest: Option<StateDigest>,
 }

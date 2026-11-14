@@ -4,10 +4,11 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use tantalus_contracts::{
-    ButtonTransition, ContentId, DomainEvent, DomainEventKind, EffectPresentation, EffectTimeline,
-    EngineError, EntityId, ErrorCategory, ExternalEventKind, GameCommand, PresentationSnapshot,
-    ProgressionMode, RecordedExternalEvent, ResourceRequestId, SimulationConfig, StateDigest,
-    StepOutcome, Tick, TickInput, TickResult, TraceEvent, TraceId,
+    ButtonTransition, ContentId, ContentRevision, DomainEvent, DomainEventKind, EffectPresentation,
+    EffectTimeline, EngineError, EntityId, ErrorCategory, ExternalEventKind, GameCommand,
+    PresentationSnapshot, ProgressionMode, RecordedExternalEvent, ResourceRequestId,
+    SimulationConfig, SimulationRate, StateDigest, StepOutcome, Tick, TickInput, TickResult,
+    TraceEvent, TraceId,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -110,6 +111,7 @@ impl Simulation {
 
     fn step_inner(&mut self, input: TickInput) -> Result<TickResult, EngineError> {
         self.validate_input(&input)?;
+        let verification_requested = input.verification.state_digest;
         let mut external_events = input.external_events.clone();
         external_events.sort_by_key(|event| (event.tick, event.sequence));
 
@@ -122,7 +124,7 @@ impl Simulation {
                 outcome: StepOutcome::WaitingForReadiness,
                 events: Vec::new(),
                 presentation: self.presentation(),
-                state_digest: self.digest()?,
+                state_digest: self.requested_digest(verification_requested)?,
             });
         }
 
@@ -141,7 +143,7 @@ impl Simulation {
             outcome: StepOutcome::Advanced,
             events,
             presentation: self.presentation(),
-            state_digest: self.digest()?,
+            state_digest: self.requested_digest(verification_requested)?,
         })
     }
 
@@ -401,14 +403,16 @@ impl Simulation {
         self.next_trace_id = self.next_trace_id.checked_add(1).ok_or_else(|| {
             simulation_error(ErrorCategory::CapacityExhausted, "trace ID overflow", false)
         })?;
-        self.traces.push(TraceEvent {
-            id,
-            tick,
-            owner: "tantalus-core/simulation".to_owned(),
-            source,
-            subject,
-            description: format!("{kind:?}"),
-        });
+        if self.config.diagnostics.detailed_traces {
+            self.traces.push(TraceEvent {
+                id,
+                tick,
+                owner: "tantalus-core/simulation".to_owned(),
+                source,
+                subject,
+                description: format!("{kind:?}"),
+            });
+        }
         events.push(DomainEvent {
             trace_id: id,
             tick,
@@ -438,10 +442,28 @@ impl Simulation {
         }
     }
 
+    fn requested_digest(&self, requested: bool) -> Result<Option<StateDigest>, EngineError> {
+        if self.config.diagnostics.hash_every_step || requested {
+            Ok(Some(self.digest()?))
+        } else {
+            Ok(None)
+        }
+    }
+
     fn digest(&self) -> Result<StateDigest, EngineError> {
         #[derive(Serialize)]
+        struct GameplayConfig<'a> {
+            rate: SimulationRate,
+            progression: ProgressionMode,
+            content_revision: ContentRevision,
+            session_id: u64,
+            max_step_stride: u32,
+            rng: &'a tantalus_contracts::RngConfig,
+        }
+
+        #[derive(Serialize)]
         struct AuthoritativeState<'a> {
-            config: &'a SimulationConfig,
+            config: GameplayConfig<'a>,
             tick: Tick,
             buttons: &'a BTreeMap<String, bool>,
             effects: &'a BTreeMap<EntityId, ActiveEffect>,
@@ -452,7 +474,14 @@ impl Simulation {
         }
 
         let state = AuthoritativeState {
-            config: &self.config,
+            config: GameplayConfig {
+                rate: self.config.rate,
+                progression: self.config.progression,
+                content_revision: self.config.content_revision,
+                session_id: self.config.session_id,
+                max_step_stride: self.config.max_step_stride,
+                rng: &self.config.rng,
+            },
             tick: self.tick,
             buttons: &self.buttons,
             effects: &self.effects,

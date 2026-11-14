@@ -10,6 +10,10 @@ fn config(progression: ProgressionMode) -> SimulationConfig {
         session_id: 11,
         max_step_stride: 16,
         rng: RngConfig::default(),
+        diagnostics: DiagnosticPolicy {
+            hash_every_step: true,
+            detailed_traces: true,
+        },
     }
 }
 
@@ -109,7 +113,7 @@ fn run_at_presentation_rate(fps: u32) -> (StateDigest, Vec<DomainEvent>) {
             let result = simulation.step(input).unwrap();
             events.extend(result.events.clone());
             if result.tick == Tick::new(10) {
-                return (result.state_digest, events);
+                return (result.state_digest.expect("verification digest"), events);
             }
         }
     }
@@ -287,7 +291,7 @@ fn stale_or_duplicate_completion_is_rejected_without_changing_state() {
     assert_eq!(simulation.tick(), Tick::new(2));
     assert_eq!(
         simulation.state_digest().unwrap(),
-        ready_result.state_digest
+        ready_result.state_digest.unwrap()
     );
 }
 
@@ -389,4 +393,42 @@ fn replay_envelope_preserves_initial_state_configuration_and_inputs() {
     );
     assert_eq!(restored.config.rng.algorithm, "none");
     assert_eq!(restored.inputs.len(), 2);
+}
+
+#[test]
+fn diagnostic_policies_do_not_change_authoritative_outcomes() {
+    let mut normal = Simulation::new(SimulationConfig {
+        diagnostics: DiagnosticPolicy::default(),
+        ..config(ProgressionMode::ContinuingWorld)
+    })
+    .unwrap();
+    let mut verified = Simulation::new(config(ProgressionMode::ContinuingWorld)).unwrap();
+    let mut normal_events = Vec::new();
+    let mut verified_events = Vec::new();
+    let mut normal_digest = None;
+    let mut verified_digest = None;
+
+    for tick in 1..=10 {
+        let mut input = TickInput::new(Tick::new(tick));
+        input.commands = commands_between(tick - 1, tick);
+        input.external_events = events_between(tick - 1, tick);
+        if tick == 10 {
+            input = input.requesting_digest();
+        }
+        let normal_result = normal.step(input.clone()).unwrap();
+        let verified_result = verified.step(input).unwrap();
+        normal_events.extend(normal_result.events);
+        verified_events.extend(verified_result.events);
+        normal_digest = normal_result.state_digest;
+        verified_digest = verified_result.state_digest;
+        if tick < 10 {
+            assert!(normal_result.presentation.tick.get() <= tick);
+        }
+    }
+
+    assert_eq!(normal_events, verified_events);
+    assert_eq!(normal_digest, verified_digest);
+    assert!(normal_digest.is_some());
+    assert_eq!(normal.traces().count(), 0);
+    assert!(verified.traces().count() > 0);
 }

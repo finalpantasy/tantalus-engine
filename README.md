@@ -41,6 +41,7 @@ The current source includes:
 - A pinned Memoria reference baseline with 22 initial capability groups and 204 configuration bindings.
 - A Bevy 0.19.1 client driven by renderer-independent scene snapshots.
 - A source-backed original-event VM subset and deterministic field scheduler.
+- Optional per-tick diagnostics with verification-on-request instead of mandatory normal-play hashing.
 
 No original game assets are included. UnityFS containers are recognized, but real AssetBundle decoding is not implemented. Headless visual verification is failing after blank Tantalus and official Bevy control captures; see [`tasks/T05.md`](tasks/T05.md). No compatibility or performance claim is being made beyond the checks recorded in [`tasks/`](tasks/).
 
@@ -74,7 +75,7 @@ No original game assets are included. UnityFS containers are recognized, but rea
 - [ ] **Full compatibility:** complete FFIX behavior and the audited Memoria baseline.
 - [ ] **Creator release:** launcher, workshop, stable SDK, documentation, API, and MCP.
 
-Detailed status lives in [`STATE.md`](STATE.md). Reference provenance is tracked in [`audit/provenance.md`](audit/provenance.md).
+Detailed status lives in [`STATE.md`](STATE.md). The fidelity rules are in [`docs/PRESERVATION.md`](docs/PRESERVATION.md). Reference provenance is tracked in [`audit/provenance.md`](audit/provenance.md).
 
 ## Try the current inspector
 

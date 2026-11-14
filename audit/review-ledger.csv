@@ -1,0 +1,21 @@
+review_id,capability,owner,acceptance,status,source
+REV-001,Preservation charter and approved differences,tantalus-game,Behavior/presentation/creation profiles compose and disputed differences are recorded,specified,2026-11-14 architecture review
+REV-002,Mixed movie/live-scene cinematics,tantalus-client,Actor/mask/camera/cue timing survives pause skip completion and return,specified,2026-11-14 architecture review
+REV-003,Coherent localized event profiles,tantalus-legacy,Two language fixtures preserve message IDs choices segmentation scripts and cues,specified,2026-11-14 architecture review
+REV-004,Safe artist reimport,tantalus-assets,Reordered nodes and new animations preserve bindings; removed bones produce repair diagnostics,specified,2026-11-14 architecture review
+REV-005,Durable visual/text authoring source,tantalus-studio,Round trips preserve unknown properties and select responsible source nodes on errors,specified,2026-11-14 architecture review
+REV-006,Prototypes and variants,tantalus-core,Derived content preserves provenance and handles override/cycle/rebase rules,specified,2026-11-14 architecture review
+REV-007,Change-impact preview,tantalus-studio,Known dependents and relevant scenarios are reported without claiming arbitrary-code completeness,specified,2026-11-14 architecture review
+REV-008,Expansion attachment contract,tantalus-game,Synthetic side route respects eligibility ownership party context and return anchors,specified,2026-11-14 architecture review
+REV-009,Reference workbench and coverage navigator,tantalus-tools,First semantic divergence is reported and untested coverage remains visible,specified,2026-11-14 architecture review
+REV-010,Newcomer creator workflow,tantalus-studio,A non-programmer adds validates exports and installs a creature package without engine rebuild,specified,2026-11-14 architecture review
+REV-011,Efficient presentation deltas,tantalus-client,Measured normal-play projection avoids unnecessary full-world copies,specified,2026-11-14 architecture review
+REV-012,Authoritative animation timing,tantalus-core,Rendered poses never decide movement or hit results,specified,2026-11-14 architecture review
+REV-013,Explicit diagnostic policy,tantalus-core,Normal play can omit full hashing/traces while verification produces identical outcomes,verified,2026-11-14 architecture review
+REV-014,Behavioral SDK regression corpus,tantalus-mods,Previously built modules preserve ordering state numeric error and migration behavior,specified,2026-11-14 architecture review
+REV-015,Portable WASM and trusted compiled caches,tantalus-mods,Untrusted precompiled native artifacts are rejected; portable WASM is compiled locally,specified,2026-11-14 architecture review
+REV-016,Dependency and upgrade policy,integration owner,Pinned upgrades run current compatibility and desktop corpora,specified,2026-11-14 architecture review
+REV-017,Windows lifecycle and second-machine qualification,tantalus-client,Packaged slice handles declared display/input/audio cases outside development tree,specified,2026-11-14 architecture review
+REV-018,Cache retention and source preservation,tantalus-launcher,Retention roots protect saves profiles replays undo rollback and creator source,specified,2026-11-14 architecture review
+REV-019,Active Time Event and Mognet coverage,tantalus-game,Availability ordering selection dialogue continuation and return are tested,specified,2026-11-14 architecture review
+REV-020,Bounded Bevy/Fyrox selection,tantalus-client,Shared fixtures produce a recorded single-backend decision without two production engines,building,2026-11-14 architecture review
