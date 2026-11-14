@@ -49,6 +49,7 @@ The current source includes:
 - Deterministic mod resolution with semantic versions, feature dependencies, provider conflicts, ordered replacements, and save-integrated profile locks.
 - Real Wasmtime 49.0.5 execution through an experimental versioned ABI, with fuel/memory limits and transactional rollback.
 - A public Rust SDK/WIT declaration and independently compiled action-mode WASM fixture with movement, attacks, cooldowns, pursuit, loot, and HUD events.
+- An exclusive-provider card WASM fixture with deterministic rules, AI selection, match flow, rewards, progression, and UI events.
 
 No original game assets are included. UnityFS containers are recognized, but real AssetBundle decoding is not implemented. Headless visual verification is failing after blank Tantalus and official Bevy control captures; see [`tasks/T05.md`](tasks/T05.md). No compatibility or performance claim is being made beyond the checks recorded in [`tasks/`](tasks/).
 
@@ -83,8 +84,8 @@ No original game assets are included. UnityFS containers are recognized, but rea
 - [x] **T10 foundation:** atomic native saves, recovery, outcome markers, and Memoria binary sidecar decoding.
 - [x] **T11 resolver foundation:** semantic-version resolution, feature dependencies, conflicts, and exact profile locks.
 - [x] **T11 WASM foundation:** real sandboxed callbacks, deterministic fuel, resource limits, and transactional rollback.
-- [x] **T11 action fixture:** independently compiled Rust movement, attacks, cooldowns, pursuit, loot, and HUD events.
-- [ ] **Executable mod conformance:** WIT-generated bindings, provider replacement, card fixture, and migrations.
+- [x] **T11 action/card fixtures:** independently compiled action/loot and exclusive-provider card modules.
+- [ ] **Executable mod maturity:** WIT-generated bindings, full provider lifecycle, and module migrations.
 - [ ] **Legacy saves:** original base-save AES/schema mapping and verified import/export.
 - [ ] **Creation architecture:** real seamless presentation and external total-conversion fixtures.
 - [ ] **Full compatibility:** complete FFIX behavior and the audited Memoria baseline.
