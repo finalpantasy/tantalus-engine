@@ -340,8 +340,9 @@ impl ModuleHost {
             .call(&mut store, input_length)
             .map_err(|error| self.trap_error("guest allocation", error))?;
         write_guest(&memory, &mut store, pointer, &request, &self.package)?;
+        let input = (i64::from(input_length) << 32) | i64::from(pointer);
         let packed = invoke
-            .call(&mut store, i64::from(pointer))
+            .call(&mut store, input)
             .map_err(|error| self.trap_error("module callback", error))?;
         if let Some(failure) = store.data().failure.clone() {
             return Err(ModuleError::new(
