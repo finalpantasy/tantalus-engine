@@ -39,6 +39,7 @@ The current source includes:
 - Deterministic content packs with bounded imports, atomic cache revisions, and dependency validation.
 - Real UnityRaw 3 and format-15 object-table decoding, plus reference-matched `.bgs`/`.bgi` TextAsset payload reads from the owned field archive.
 - Real DXT5 Texture2D decoding to RGBA with exact reference hash matching, without redistributing image assets.
+- Source-backed BGI navigation parsing with independently matched real field counts and offsets.
 - Synthetic tests for missing resources, incorrect file types, non-ASCII paths, and unchanged source files.
 - A pinned Memoria reference baseline with 22 initial capability groups and 204 configuration bindings.
 - A Bevy 0.19.1 client driven by renderer-independent scene snapshots.

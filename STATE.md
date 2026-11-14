@@ -31,4 +31,4 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 
 ## Next dependencies
 
-Parse the selected field's `.bgs`/`.bgi` structures and connect scene/navigation data to T05/T06. Real UnityRaw, serialized object-table, TextAsset, and DXT5 Texture2D decoding are verified. T11 component bindings and multi-provider/migration orchestration remain later maturity work. T10 base-save AES/schema decoding and real-save round trips remain open. T05 visual failure remains open.
+Parse BGS scene/camera/overlay structures and connect verified BGI navigation to T05/T06. Real UnityRaw, serialized objects, TextAssets, DXT5 textures, and BGI navigation are verified. T11 component bindings and multi-provider/migration orchestration remain later maturity work. T10 base-save AES/schema decoding and real-save round trips remain open. T05 visual failure remains open.

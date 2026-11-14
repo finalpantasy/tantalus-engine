@@ -26,6 +26,10 @@ The real TextAsset layout is length-prefixed `m_Name`, raw `m_Script`, and `m_Pa
 
 All 115 real textures use Unity format 12 (DXT5) with embedded data. The reader handles the exact format-15 layout and validates block-compressed sizes. A real 1024×1024 atlas matches UnityPy's compressed SHA-256 and vertically oriented RGBA SHA-256 exactly. See `audit/texture-p0data101.json`. No image payload is committed.
 
+## BGI navigation verification
+
+The source-backed BGI parser handles triangles, vertex/edge lists, floors, normals, and animation frame references. The selected real field contains 203 triangles, 164 vertices, 609 edges, 3 floors, 2 normals, and no animation list. Independent raw-header decoding matches every count and offset. Evidence: `audit/bgi-field.json`.
+
 ## Remaining dependency
 
-Parse the `.bgs`/`.bgi` formats into scene/navigation structures and validate field composition and events against the owned installation. Real gameplay has not been run.
+Parse BGS scene/camera/overlay structures, connect BGI navigation to movement, and validate field composition and events against the owned installation. Real gameplay has not been run.
