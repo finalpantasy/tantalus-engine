@@ -1360,6 +1360,63 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetCameraFollowHeight { height });
                 }
+                InstructionKind::SetRandomBattles {
+                    pattern,
+                    scene_0,
+                    scene_1,
+                    scene_2,
+                    scene_3,
+                } => {
+                    let pattern = self.evaluate(host, &pattern, instruction.offset, opcode)? as u8;
+                    let scene_0 = self.evaluate(host, &scene_0, instruction.offset, opcode)? as u16;
+                    let scene_1 = self.evaluate(host, &scene_1, instruction.offset, opcode)? as u16;
+                    let scene_2 = self.evaluate(host, &scene_2, instruction.offset, opcode)? as u16;
+                    let scene_3 = self.evaluate(host, &scene_3, instruction.offset, opcode)? as u16;
+                    let scenes = [scene_0, scene_1, scene_2, scene_3];
+                    self.pc = next;
+                    events.push(HostEvent::SetRandomBattles { pattern, scenes });
+                }
+                InstructionKind::SetRandomBattleFrequency { frequency } => {
+                    let frequency =
+                        self.evaluate(host, &frequency, instruction.offset, opcode)? as u8;
+                    self.pc = next;
+                    events.push(HostEvent::SetRandomBattleFrequency { frequency });
+                }
+                InstructionKind::SetBackgroundColor { red, green, blue } => {
+                    let red = self.evaluate(host, &red, instruction.offset, opcode)?;
+                    let green = self.evaluate(host, &green, instruction.offset, opcode)?;
+                    let blue = self.evaluate(host, &blue, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetBackgroundColor { red, green, blue });
+                }
+                InstructionKind::AddControllerMask { pad, buttons } => {
+                    let pad = self.evaluate(host, &pad, instruction.offset, opcode)?;
+                    let buttons = self.evaluate(host, &buttons, instruction.offset, opcode)?;
+                    if buttons < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "controller button list cannot be negative",
+                        ));
+                    }
+                    let buttons = buttons as u32;
+                    self.pc = next;
+                    events.push(HostEvent::AddControllerMask { pad, buttons });
+                }
+                InstructionKind::RemoveControllerMask { pad, buttons } => {
+                    let pad = self.evaluate(host, &pad, instruction.offset, opcode)?;
+                    let buttons = self.evaluate(host, &buttons, instruction.offset, opcode)?;
+                    if buttons < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "controller button list cannot be negative",
+                        ));
+                    }
+                    let buttons = buttons as u32;
+                    self.pc = next;
+                    events.push(HostEvent::RemoveControllerMask { pad, buttons });
+                }
                 InstructionKind::SetTileAnimationRate {
                     animation,
                     frame_rate,
@@ -2994,6 +3051,11 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
         InstructionKind::SetTileAnimationFlags { .. } => 0x64,
         InstructionKind::SetTileAnimationRange { .. } => 0x65,
+        InstructionKind::SetRandomBattles { .. } => 0x3c,
+        InstructionKind::SetRandomBattleFrequency { .. } => 0x57,
+        InstructionKind::SetBackgroundColor { .. } => 0x6b,
+        InstructionKind::AddControllerMask { .. } => 0xb9,
+        InstructionKind::RemoveControllerMask { .. } => 0xba,
         InstructionKind::MoveCamera { .. } => 0x6f,
         InstructionKind::ReleaseCamera { .. } => 0x70,
         InstructionKind::EnableCameraServices { .. } => 0x71,
