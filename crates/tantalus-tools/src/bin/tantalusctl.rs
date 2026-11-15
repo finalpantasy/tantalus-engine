@@ -1177,8 +1177,11 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             std::collections::BTreeSet::new();
         for tick in 0..ticks {
             if wander {
-                let phase = (tick / 8) % 4;
-                let direction = [0x08u32, 0x02, 0x04, 0x01][phase as usize];
+                // 64 ticks per leg: 1024-unit square covering the field.
+                let phase = (tick / 64) % 4;
+                // The Alexandria fields live in negative coordinates; tour
+                // left/up first.
+                let direction = [0x04u32, 0x01, 0x08, 0x02][phase as usize];
                 director.set_input_mask(confirm_only | i32::from(direction as u8));
             }
             match director.step() {
@@ -1291,6 +1294,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             "skipped_empty_entries": skipped,
             "orchestrated": orchestrate,
             "regions_visited": regions_visited.len(),
+            "regions_defined": director.world().regions.len(),
             "spawned_functions": spawned.len(),
             "unspawned_requests": unspawned_requests,
             "completed_entries": completed,

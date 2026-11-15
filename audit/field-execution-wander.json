@@ -606,9 +606,10 @@
     }
   ],
   "name": "EVT_ALEX1_AT_CENTER.eb",
-  "operations": 57793,
+  "operations": 115137,
   "orchestrated": true,
-  "regions_visited": 0,
+  "regions_defined": 7,
+  "regions_visited": 1,
   "skipped_empty_entries": [
     29,
     31,
@@ -620,8 +621,8 @@
     37
   ],
   "spawned_functions": 0,
-  "ticks_requested": 4096,
-  "ticks_run": 4096,
+  "ticks_requested": 8192,
+  "ticks_run": 8192,
   "unspawned_requests": 0,
-  "_note": "Wandering-player demo on real EVT_ALEX1_AT_CENTER.eb: the player (entity 0) walks a 128-unit square while holding confirm; all 10 tag-3 talks still dispatch (38/38 VMs complete, zero errors). regions_visited is 0 - whether Alexandria Center defines regions in tag-0 mains or the wander path misses polygons is open (regions may be defined by non-tag-0 functions)."
+  "_note": "Wandering-player demo on real EVT_ALEX1_AT_CENTER.eb: the player walks a 1024-unit square (the field lives in negative coordinates, so the tour leads left/up) while holding confirm. The run defines 7 regions; the tour organically enters 1, and all 10 tag-3 talks dispatch. 38/38 VMs complete with zero errors."
 }
