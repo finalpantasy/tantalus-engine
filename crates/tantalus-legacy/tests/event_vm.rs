@@ -146,6 +146,7 @@ impl LegacyEventHost for Host {
                 HostEvent::MoveActor { actor, x, z } => {
                     self.movements.push((actor.get(), *x, *z));
                 }
+                HostEvent::AddItem { .. } => {}
                 HostEvent::WalkActor { .. } => {}
                 HostEvent::MoveActorToExit { .. } => {}
                 HostEvent::DeleteObject { .. } => {}
@@ -4762,6 +4763,42 @@ fn mjpos_requests_exit_position_calculation() {
 
     assert_eq!(report.events, [HostEvent::CalculateExitPosition]);
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn itemadd_decodes_item_and_count_operands() {
+    let program = decode_program(&[72, 0, 0x34, 0x12, 5, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 5);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::AddItem {
+            item: 0x1234,
+            count: 5,
+        }]
+    );
+    assert!(vm.traces().any(|trace| trace.opcode == Some(72)));
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![72, 3];
+    append_expression(&mut bytes, constant(-2));
+    append_expression(&mut bytes, constant(300));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::AddItem {
+            item: -2,
+            count: 300,
+        }]
+    );
+
+    let truncated = decode_program(&[72, 0, 1, 0]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(72)"));
 }
 
 #[test]

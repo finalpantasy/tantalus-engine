@@ -210,7 +210,8 @@
     "MOVE 0x23 decodes signed X/Z destinations and emits WalkActor with a repeatable host-owned movement wait",
     "HEREON 0xEF decodes a byte display mode and emits SetHereIcon",
     "BGAFLAG 0x63 decodes animation and raw flags bytes and emits SetTileAnimationFlags",
-    "INCFROG 0xE0 emits the no-operand IncrementFrogCount host command"
+    "INCFROG 0xE0 emits the no-operand IncrementFrogCount host command",
+    "ITEMADD 0x48 decodes a signed 16-bit item ID and byte count and emits AddItem"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -357,11 +358,11 @@
       "entry": 13,
       "function": 4,
       "function_tag": 13,
-      "instruction_offset": 184,
-      "offset": 2628,
-      "opcode": 72,
-      "kind": "UnsupportedOpcode",
-      "instruction": "ITEMADD event opcode 0x48 after INCFROG support"
+      "instruction_offset": 248,
+      "offset": 2743,
+      "opcode": null,
+      "kind": "Decode",
+      "instruction": "WindowSync expression/operands do not complete before the function boundary after ITEMADD support"
     },
     {
       "entry": 13,
