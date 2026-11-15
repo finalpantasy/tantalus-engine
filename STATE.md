@@ -16,7 +16,7 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 - `T01` — Verified for source audit, synthetic inspection, and CLI scope. Evidence: `tasks/T01.md`.
 - `T02` — Verified for stable IDs, transactional registries, aliases/renames, and item instances. Evidence: `tasks/T02.md`.
 - `T03` — Verified for deterministic simulation, replay, readiness barriers, clocks, and traces. Evidence: `tasks/T03.md`.
-- `T04` — Importer/cache and real UnityRaw directory reading verified; serialized Unity objects and real field presentation remain Building. Evidence: `tasks/T04.md` and `audit/real-field-route.md`.
+- `T04` — Importer/cache plus bounded real UnityRaw objects, TextAssets, DXT5 textures, AssetBundle atlas associations, BGI, and BGS verified; full dependency closure and real field presentation remain Building. Evidence: `tasks/T04.md` and `audit/real-field-route.md`.
 - `T05` — Client/contracts verified; visual proof remains failed after blank Tantalus and official Bevy control captures. Evidence: `tasks/T05.md`.
 - `T06` — Event VM and field scheduling foundation verified; real field execution remains pending. Evidence: `tasks/T06.md`.
 - `T07` — Verified for additive packages, world actors, encounter ownership, persistence, and respawn. Evidence: `tasks/T07.md`.
@@ -26,9 +26,9 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 - `T11` — Resolver/profile locks, Wasmtime ABI, packaged entry points, external action/card fixtures, pure migration, and single-provider lifecycle verified. WIT component bindings, multi-provider transactions, and multi-module migration remain Building. Evidence: `tasks/T11.md`.
 - Architecture review — integrated in `docs/REVIEW_2026-11-14.md` and `audit/review-ledger.csv`; diagnostic policy verified, backend selection and real-reference probes remain open.
 - Reference source checkout: verified at `c716e1faaeee8c856cc10921234d017f1187b45b`.
-- Owned FFIX installation: PC copy inspected read-only; runtime original/unknown with an associated effect plugin, not confirmed Memoria. Real execution/asset decoding remains NOT_RUN. Evidence: `audit/real-install.json`.
+- Owned FFIX installation: PC copy inspected read-only; runtime original/unknown with an associated effect plugin, not confirmed Memoria. Original code execution remains NOT_RUN; bounded real asset decoding is verified. Evidence: `audit/real-install.json`.
 - Public repository: https://github.com/finalpantasy/tantalus-engine.
 
 ## Next dependencies
 
-Resolve native field image capture, then connect BGI navigation to movement and real event execution. Bevy textured field sprites are structurally verified, but actual presentation remains unverified and blank captures remain open. Real gameplay and visual parity remain unverified. T11 component bindings and multi-provider/migration orchestration remain later maturity work. T10 base-save AES/schema decoding and real-save round trips remain open. T05 visual failure remains open.
+Load the container-selected real atlas into `ResolvedAssets`, apply the mapped field, and resolve native image capture; then connect BGI navigation to movement and real event execution. Bevy textured field sprites are structurally verified, but actual presentation remains unverified and blank captures remain open. Real gameplay and visual parity remain unverified. T11 component bindings and multi-provider/migration orchestration remain later maturity work. T10 base-save AES/schema decoding and real-save round trips remain open. T05 visual failure remains open.

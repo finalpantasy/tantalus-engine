@@ -153,9 +153,12 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut objects = false;
     let mut text_asset = None;
     let mut texture = None;
+    let mut texture_id = None;
+    let mut rgba_output = None;
     let mut bgi = None;
     let mut bgs = None;
     let mut field = None;
+    let mut atlas_for = None;
     let mut index = 2;
     while index < args.len() {
         match args[index].to_str() {
@@ -178,6 +181,27 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     return Err("`--text-asset` may only be supplied once".to_owned());
                 }
             }
+            Some("--texture-id") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--texture-id` requires an integer".to_owned())?
+                    .parse::<i64>()
+                    .map_err(|error| format!("invalid texture path ID: {error}"))?;
+                if texture_id.replace(value).is_some() {
+                    return Err("`--texture-id` may only be supplied once".to_owned());
+                }
+            }
+            Some("--rgba-output") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| "`--rgba-output` requires a path".to_owned())?;
+                if rgba_output.replace(PathBuf::from(value)).is_some() {
+                    return Err("`--rgba-output` may only be supplied once".to_owned());
+                }
+            }
             Some("--texture") => {
                 index += 1;
                 let value = args
@@ -186,6 +210,16 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     .ok_or_else(|| "`--texture` requires a UTF-8 asset name".to_owned())?;
                 if texture.replace(value.to_owned()).is_some() {
                     return Err("`--texture` may only be supplied once".to_owned());
+                }
+            }
+            Some("--atlas-for") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--atlas-for` requires a UTF-8 field name".to_owned())?;
+                if atlas_for.replace(value.to_owned()).is_some() {
+                    return Err("`--atlas-for` may only be supplied once".to_owned());
                 }
             }
             Some("--field") => {
@@ -232,6 +266,44 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let path = path.ok_or_else(|| "missing required `--path <path>`".to_owned())?;
     let bundle = tantalus_assets::pc::unity_raw::UnityRawBundle::open(&path)
         .map_err(|error| error.to_string())?;
+    if let Some(field) = atlas_for {
+        let bytes = bundle
+            .read_entry(0, 300 * 1024 * 1024)
+            .map_err(|error| error.to_string())?;
+        let serialized =
+            tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
+                .map_err(|error| error.to_string())?;
+        let (index, _) = serialized
+            .report()
+            .objects
+            .iter()
+            .enumerate()
+            .find(|(_, object)| object.class_id == 142)
+            .ok_or_else(|| "AssetBundle metadata object is missing".to_owned())?;
+        let metadata = tantalus_assets::pc::asset_bundle::AssetBundleMetadata::parse(
+            serialized
+                .object_data(index)
+                .map_err(|error| error.to_string())?,
+            &field,
+        )
+        .map_err(|error| error.to_string())?;
+        let info = metadata
+            .atlas_for(&field)
+            .ok_or_else(|| format!("no atlas is registered for `{field}`"))?;
+        let report = serde_json::json!({
+            "field": field,
+            "path_id": info.path_id,
+            "file_id": info.file_id,
+            "preload_index": info.preload_index,
+            "preload_size": info.preload_size,
+        });
+        if json {
+            println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        } else {
+            println!("{field}: atlas path ID {}", info.path_id);
+        }
+        return Ok(());
+    }
     if let Some(field) = field {
         let bytes = bundle
             .read_entry(0, 300 * 1024 * 1024)
@@ -457,7 +529,8 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         }
         return Ok(());
     }
-    if let Some(name) = texture {
+    if texture.is_some() || texture_id.is_some() {
+        let name = texture.clone().unwrap_or_else(|| "texture".to_owned());
         let bytes = bundle
             .read_entry(0, 300 * 1024 * 1024)
             .map_err(|error| error.to_string())?;
@@ -466,24 +539,32 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 .map_err(|error| error.to_string())?;
         let mut selected = None;
         for (index, object) in serialized.report().objects.iter().enumerate() {
-            if object.class_id != 28 {
+            if object.class_id != 28 || texture_id.is_some_and(|id| id != object.path_id) {
                 continue;
             }
-            let texture = tantalus_assets::pc::texture::Texture2D::parse(
+            let candidate = tantalus_assets::pc::texture::Texture2D::parse(
                 serialized
                     .object_data(index)
                     .map_err(|error| error.to_string())?,
                 &name,
             )
             .map_err(|error| error.to_string())?;
-            if texture.name == name {
-                selected = Some((object.path_id, texture));
+            if texture.as_deref().is_none_or(|name| candidate.name == name) {
+                selected = Some((object.path_id, candidate));
                 break;
             }
         }
         let (path_id, texture) =
             selected.ok_or_else(|| format!("Texture2D `{name}` was not found"))?;
         let rgba = texture.rgba_bytes().map_err(|error| error.to_string())?;
+        if let Some(output) = rgba_output {
+            if let Some(parent) = output.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
+            }
+            std::fs::write(&output, &rgba)
+                .map_err(|error| format!("could not write {}: {error}", output.display()))?;
+        }
         let report = serde_json::json!({
             "name": texture.name,
             "path_id": path_id,
@@ -555,11 +636,11 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, or `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--bgi <name>] [--bgs <name>] [--field <name>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, or `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--bgi <name>] [--bgs <name>] [--field <name>] [--json]\n\nInspect installations and UnityRaw bundles without modifying them, or import validated local asset packs."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]\n\nInspect installations and UnityRaw bundles without modifying them, or import validated local asset packs."
     );
 }

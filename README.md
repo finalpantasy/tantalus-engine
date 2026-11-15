@@ -39,6 +39,7 @@ The current source includes:
 - Deterministic content packs with bounded imports, atomic cache revisions, and dependency validation.
 - Real UnityRaw 3 and format-15 object-table decoding, plus reference-matched `.bgs`/`.bgi` TextAsset payload reads from the owned field archive.
 - Real DXT5 Texture2D decoding to RGBA with exact reference hash matching, without redistributing image assets.
+- Real AssetBundle container resolution for the selected field's 2048×2048 atlas, with exact compressed and decoded-reference hash matching.
 - Source-backed BGI navigation parsing with independently matched real field counts and offsets.
 - Real BGS scene/camera/overlay/sprite/animation parsing with independently matched header evidence.
 - Renderer-independent mapping of the real field's camera, actor anchor, navigation, overlays, and sprite atlas/depth data.
@@ -60,7 +61,7 @@ The current source includes:
 - Pure WASM module-state migration with schema/history updates and source-save preservation on failure.
 - Single-provider initialization, dispatch, snapshots, shutdown, and explicit failure without vanilla fallback.
 
-No original game assets are included. UnityFS containers are recognized, but real AssetBundle decoding is not implemented. Headless visual verification is failing after blank Tantalus and official Bevy control captures; see [`tasks/T05.md`](tasks/T05.md). No compatibility or performance claim is being made beyond the checks recorded in [`tasks/`](tasks/).
+No original game assets are included. Bounded real AssetBundle object decoding and selected-field atlas association are implemented; the complete asset dependency closure and actual field rendering remain incomplete. Headless visual verification is failing after blank Tantalus and official Bevy control captures; see [`tasks/T05.md`](tasks/T05.md). No compatibility or performance claim is being made beyond the checks recorded in [`tasks/`](tasks/).
 
 ## Planned platform
 
@@ -143,7 +144,7 @@ Inspection reads files only. It does not install Tantalus, modify the game, or i
 └────────────────────┘ └───────────────────┘ └────────────────────┘
 ```
 
-Bevy is the initial private presentation backend. Wasmtime is planned for sandboxed executable mods. Neither framework's private types will become the save format or public mod contract.
+Bevy is the initial private presentation backend. Wasmtime 49.0.5 provides the experimental sandboxed executable-mod host. Neither framework's private types will become the save format or public mod contract.
 
 ## For creators
 

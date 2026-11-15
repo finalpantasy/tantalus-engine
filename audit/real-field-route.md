@@ -26,6 +26,14 @@ The real TextAsset layout is length-prefixed `m_Name`, raw `m_Script`, and `m_Pa
 
 All 115 real textures use Unity format 12 (DXT5) with embedded data. The reader handles the exact format-15 layout and validates block-compressed sizes. A real 1024×1024 atlas matches UnityPy's compressed SHA-256 and vertically oriented RGBA SHA-256 exactly. See `audit/texture-p0data101.json`. No image payload is committed.
 
+DXT5 color always uses four-color interpolation. Alpha interpolation now uses seven interpolated entries when `first > second` and five otherwise; the endpoint weights are `(7 - index)` and `(5 - index)` respectively. Synthetic tests cover both branches.
+
+## AssetBundle container and selected-field atlas
+
+The format-15 AssetBundle reader decodes its preload table, path-to-asset container, main asset, compatibility fields, dependencies, and streamed-scene flag. For `FBG_N00_TSHP_MAP001_TH_CGR_0`, the real container path `assets/resources/fieldmaps/fbg_n00_tshp_map001_th_cgr_0/atlas.png` resolves to Texture2D path ID `-7866888658012748271` (preload index 111, size 1, file ID 0).
+
+That selected atlas is 2048×2048 DXT5 with 4,194,304 compressed bytes. Its compressed SHA-256 is `8b816640497f6d323a4db1dbe3284016e62a30b2a0bd665dd192b5bf51103bb7`; its vertically oriented RGBA SHA-256 is `bd5ede6e0a9864d3692db045915f43c726500fbb0ee1391ede6c72abc44e3506`. Both match UnityPy 1.25.0 exactly. The CLI can resolve the pointer with `--atlas-for`, select it unambiguously with `--texture-id`, and optionally write a local diagnostic buffer with `--rgba-output`.
+
 ## BGI navigation verification
 
 The source-backed BGI parser handles triangles, vertex/edge lists, floors, normals, and animation frame references. The selected real field contains 203 triangles, 164 vertices, 609 edges, 3 floors, 2 normals, and no animation list. Independent raw-header decoding matches every count and offset. Evidence: `audit/bgi-field.json`.

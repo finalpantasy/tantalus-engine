@@ -233,12 +233,12 @@ fn alpha_palette(first: u8, second: u8) -> [u8; 8] {
     if first > second {
         for index in 1..=6 {
             values[index + 1] =
-                (((8 - index) as u16 * first as u16 + index as u16 * second as u16) / 7) as u8;
+                (((7 - index) as u16 * first as u16 + index as u16 * second as u16) / 7) as u8;
         }
     } else {
         for index in 1..=4 {
             values[index + 1] =
-                (((6 - index) as u16 * first as u16 + index as u16 * second as u16) / 5) as u8;
+                (((5 - index) as u16 * first as u16 + index as u16 * second as u16) / 5) as u8;
         }
         values[6] = 0;
         values[7] = 255;
@@ -247,21 +247,14 @@ fn alpha_palette(first: u8, second: u8) -> [u8; 8] {
 }
 
 fn color_palette(first: u16, second: u16) -> [[u8; 3]; 4] {
-    let interpolate_three = first > second;
     let first = rgb565(first);
     let second = rgb565(second);
     let mut colors = [first, second, [0; 3], [0; 3]];
     for channel in 0..3 {
-        if interpolate_three {
-            colors[2][channel] =
-                ((2 * u16::from(first[channel]) + u16::from(second[channel])) / 3) as u8;
-            colors[3][channel] =
-                ((u16::from(first[channel]) + 2 * u16::from(second[channel])) / 3) as u8;
-        } else {
-            colors[2][channel] =
-                ((u16::from(first[channel]) + u16::from(second[channel])) / 2) as u8;
-            colors[3][channel] = 0;
-        }
+        colors[2][channel] =
+            ((2 * u16::from(first[channel]) + u16::from(second[channel])) / 3) as u8;
+        colors[3][channel] =
+            ((u16::from(first[channel]) + 2 * u16::from(second[channel])) / 3) as u8;
     }
     colors
 }

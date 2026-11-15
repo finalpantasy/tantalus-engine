@@ -11,5 +11,22 @@
   "rgba_bytes": 4194304,
   "rgba_sha256": "715479e82e49a27ec7e839c788fb1212bbfb2a25526b0f1bba0a3b6291daa854",
   "reference_match": "UnityPy 1.25.0 raw and vertically oriented RGBA hashes match exactly",
+  "selected_field_atlas": {
+    "field": "FBG_N00_TSHP_MAP001_TH_CGR_0",
+    "container_path": "assets/resources/fieldmaps/fbg_n00_tshp_map001_th_cgr_0/atlas.png",
+    "path_id": -7866888658012748271,
+    "preload_index": 111,
+    "preload_size": 1,
+    "file_id": 0,
+    "width": 2048,
+    "height": 2048,
+    "unity_texture_format": 12,
+    "codec": "DXT5",
+    "compressed_bytes": 4194304,
+    "dxt5_sha256": "8b816640497f6d323a4db1dbe3284016e62a30b2a0bd665dd192b5bf51103bb7",
+    "rgba_bytes": 16777216,
+    "rgba_sha256": "bd5ede6e0a9864d3692db045915f43c726500fbb0ee1391ede6c72abc44e3506",
+    "reference_match": "UnityPy 1.25.0 raw and vertically oriented RGBA hashes match exactly after DXT5 alpha interpolation correction"
+  },
   "payload_redistributed": false
 }

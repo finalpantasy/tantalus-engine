@@ -54,6 +54,23 @@ fn dxt5_texture_preserves_metadata_and_decodes_solid_pixels() {
 }
 
 #[test]
+fn dxt5_alpha_uses_the_correct_interpolation_weight() {
+    let mut block = solid_dxt5();
+    block[0] = 200;
+    block[1] = 100;
+    block[2] = 2;
+    let texture = Texture2D::parse(&fixture(4, 1, &block), "alpha").unwrap();
+    assert_eq!(texture.rgba_bytes().unwrap()[3], 185);
+
+    let mut block = solid_dxt5();
+    block[0] = 100;
+    block[1] = 200;
+    block[2] = 2;
+    let texture = Texture2D::parse(&fixture(4, 1, &block), "alpha").unwrap();
+    assert_eq!(texture.rgba_bytes().unwrap()[3], 120);
+}
+
+#[test]
 fn invalid_dimensions_sizes_formats_and_truncation_fail() {
     assert!(Texture2D::parse(&fixture(0, 1, &[]), "dimensions").is_err());
     assert!(Texture2D::parse(&fixture(4, 5, &solid_dxt5()), "size").is_err());
