@@ -589,6 +589,7 @@ impl EventVm {
                 | ExpressionOp::Multiply
                 | ExpressionOp::Divide
                 | ExpressionOp::Remainder
+                | ExpressionOp::ShiftLeft
                 | ExpressionOp::ShiftRight
                 | ExpressionOp::Angle2
                 | ExpressionOp::Less
@@ -603,6 +604,7 @@ impl EventVm {
                         ExpressionOp::Multiply => left.wrapping_mul(right),
                         ExpressionOp::Divide if right != 0 => left.wrapping_div(right),
                         ExpressionOp::Remainder if right != 0 => left.wrapping_rem(right),
+                        ExpressionOp::ShiftLeft => left.wrapping_shl(right as u32),
                         ExpressionOp::ShiftRight => left.wrapping_shr(right as u32),
                         ExpressionOp::Angle2 => angle2(host, left, right, offset, opcode)?,
                         ExpressionOp::Divide | ExpressionOp::Remainder => left,
@@ -1231,6 +1233,7 @@ fn operand_start(
         | ExpressionOp::Multiply
         | ExpressionOp::Divide
         | ExpressionOp::Remainder
+        | ExpressionOp::ShiftLeft
         | ExpressionOp::ShiftRight
         | ExpressionOp::Angle2
         | ExpressionOp::Less

@@ -474,6 +474,7 @@ impl Decoder<'_> {
                 EXPR_MULTIPLY => ExpressionOp::Multiply,
                 EXPR_DIVIDE => ExpressionOp::Divide,
                 EXPR_REMAINDER => ExpressionOp::Remainder,
+                22 => ExpressionOp::ShiftLeft,
                 23 => ExpressionOp::ShiftRight,
                 EXPR_LESS => ExpressionOp::Less,
                 EXPR_GREATER => ExpressionOp::Greater,

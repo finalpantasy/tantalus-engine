@@ -81,16 +81,17 @@
     "BGLATTACH 0x92 decodes tile, offsets, filter mode, and RGB operands and emits AttachTile",
     "EXT prefixes accumulate 0x100 and opcode metadata is widened to u32",
     "a lone trailing EXT reports a decode error at the following byte",
-    "entry function tables decode each tagged body independently with entry-relative diagnostics"
+    "entry function tables decode each tagged body independently with entry-relative diagnostics",
+    "B_SHIFT_LEFT 22 performs wrapping left shifts with the reference's masked shift count"
   ],
   "next_decode_boundary": {
     "entry": 1,
     "function": 1,
     "function_tag": 1,
-    "offset": 30,
-    "opcode": 22,
+    "offset": 31,
+    "opcode": 98,
     "kind": "UnsupportedOpcode",
-    "instruction": "B_SHIFT_LEFT expression at expression offset 12"
+    "instruction": "B_SIN expression at expression offset 12"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

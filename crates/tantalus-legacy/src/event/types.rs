@@ -45,6 +45,7 @@ pub enum ExpressionOp {
     Multiply,
     Divide,
     Remainder,
+    ShiftLeft,
     ShiftRight,
     Angle2,
     Less,
