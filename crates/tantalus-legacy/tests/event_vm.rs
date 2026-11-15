@@ -125,6 +125,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetTriangleActive { .. } => {}
                 HostEvent::RunSound { .. } => {}
                 HostEvent::AttachObjectOffset { .. } => {}
+                HostEvent::ResetWalkState { .. } => {}
                 HostEvent::SetMovementSpeed { .. } => {}
                 HostEvent::SetNavigationAttributeMask { .. } => {}
                 HostEvent::SetShadowEnabled { .. } => {}
@@ -1251,6 +1252,30 @@ fn bgimask_emits_the_wrapped_attribute_byte() {
         report.events,
         [HostEvent::SetNavigationAttributeMask { mask: 0xff }]
     );
+}
+
+#[test]
+fn clrdist_resets_the_current_actor_walk_state() {
+    let program = decode_program(&[37, 0, 4]).unwrap();
+    assert_eq!(
+        program.instructions[&0].kind,
+        InstructionKind::ResetWalkState
+    );
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ResetWalkState {
+            actor: EntityId::new(42)
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
+
+    let mut vm = EventVm::new(decode_program(&[37, 0, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
 }
 
 #[test]

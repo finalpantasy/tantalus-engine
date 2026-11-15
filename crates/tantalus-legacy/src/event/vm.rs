@@ -316,6 +316,18 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::AttachObjectOffset { actor, x, y, z });
                 }
+                InstructionKind::ResetWalkState => {
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "walk-state reset requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::ResetWalkState { actor });
+                }
                 InstructionKind::SetMovementSpeed(speed) => {
                     let speed = self.evaluate(host, &speed, instruction.offset, opcode)? as u8;
                     let Some(actor) = self.entity else {
@@ -1202,6 +1214,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetTriangleActive { .. } => 0x9a,
         InstructionKind::RunSound { .. } => 0xc5,
         InstructionKind::AttachObjectOffset { .. } => 0xd4,
+        InstructionKind::ResetWalkState => 0x25,
         InstructionKind::SetMovementSpeed(_) => 0x26,
         InstructionKind::SetNavigationAttributeMask(_) => 0x27,
         InstructionKind::Yield(opcode) => u32::from(*opcode),

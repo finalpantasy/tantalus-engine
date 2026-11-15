@@ -96,7 +96,8 @@
     "PUSHHIDE 0xD5 emits PreserveAndHideAll for host-owned flag preservation and visibility changes",
     "GLOBALCLEAR 0xD0 consumes its flag and continues through the reference's no-side-effect path",
     "JMP_SWITCH 0x0B decodes consecutive case offsets and consumes the retained prior EXPR result",
-    "MSPEED 0x26 emits actor-bound SetMovementSpeed with immediate/expression byte operands"
+    "MSPEED 0x26 emits actor-bound SetMovementSpeed with immediate/expression byte operands",
+    "CLRDIST 0x25 emits actor-bound ResetWalkState and rejects missing actor context"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -120,10 +121,10 @@
     "entry": 4,
     "function": 0,
     "function_tag": 0,
-    "offset": 9,
-    "opcode": 37,
+    "offset": 16,
+    "opcode": 28,
     "kind": "UnsupportedOpcode",
-    "instruction": "CLRDIST after actor-bound MSPEED support"
+    "instruction": "DELETE after actor-bound walk-state reset"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

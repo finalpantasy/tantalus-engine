@@ -28,6 +28,7 @@ const OP_INITIALIZE_CODE: u32 = 0x07;
 const OP_SET_TRIANGLE_ACTIVE: u32 = 0x9a;
 const OP_RUN_SOUND: u32 = 0xc5;
 const OP_ATTACH_OBJECT_OFFSET: u32 = 0xd4;
+const OP_RESET_WALK_STATE: u32 = 0x25;
 const OP_SET_MOVEMENT_SPEED: u32 = 0x26;
 const OP_SET_NAVIGATION_ATTRIBUTE_MASK: u32 = 0x27;
 const OP_YIELD: u32 = 0x0e;
@@ -303,6 +304,10 @@ impl Decoder<'_> {
                     y: argument(2)?,
                     z: argument(4)?,
                 }
+            }
+            OP_RESET_WALK_STATE => {
+                self.byte()?;
+                InstructionKind::ResetWalkState
             }
             OP_SET_MOVEMENT_SPEED => {
                 let flags = self.byte()?;

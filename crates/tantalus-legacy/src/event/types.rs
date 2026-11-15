@@ -162,6 +162,7 @@ pub enum InstructionKind {
         y: Expression,
         z: Expression,
     },
+    ResetWalkState,
     SetMovementSpeed(Expression),
     SetNavigationAttributeMask(Expression),
     Yield(u8),
@@ -314,6 +315,9 @@ pub enum HostEvent {
         x: i32,
         y: i32,
         z: i32,
+    },
+    ResetWalkState {
+        actor: EntityId,
     },
     SetMovementSpeed {
         actor: EntityId,
