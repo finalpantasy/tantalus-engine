@@ -194,7 +194,8 @@
     "pad0a 0x0A consumes its flag and yields once through the reference default path",
     "partial entry diagnostics preserve every successfully decoded function and every function-level error while decode_entry remains fail-fast",
     "B_DIV_LET_A 55 divides every selected member, preserves current values for zero divisors, and returns the last result or zero",
-    "MOVJ 0xA0 emits MoveActorToExit and yields, repeating while host-owned exit movement is active"
+    "MOVJ 0xA0 emits MoveActorToExit and yields, repeating while host-owned exit movement is active",
+    "B_MULT_LET_A 54 multiplies and writes every selected member, returning the last result or zero"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -333,10 +334,10 @@
       "function_tag": 1,
       "instruction_offset": 170,
       "expression_offset": 171,
-      "offset": 684,
-      "opcode": 54,
+      "offset": 769,
+      "opcode": 77,
       "kind": "UnsupportedOpcode",
-      "instruction": "JMP_IF contains unsupported B_MULT_LET_A expression opcode 0x36 after exit-walk support"
+      "instruction": "JMP_IF contains unsupported B_SELECT expression opcode 0x4D after all-member multiplication support"
     },
     {
       "entry": 13,
@@ -396,10 +397,10 @@
     "function_tag": 1,
     "instruction_offset": 170,
     "expression_offset": 171,
-    "offset": 684,
-    "opcode": 54,
+    "offset": 769,
+    "opcode": 77,
     "kind": "UnsupportedOpcode",
-    "instruction": "JMP_IF contains unsupported B_MULT_LET_A expression opcode 0x36 after exit-walk support"
+    "instruction": "JMP_IF contains unsupported B_SELECT expression opcode 0x4D after all-member multiplication support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

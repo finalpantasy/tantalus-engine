@@ -2062,6 +2062,7 @@ impl EventVm {
                 ExpressionOp::XorAssignAllMembers
                 | ExpressionOp::AndAssignAllMembers
                 | ExpressionOp::ShiftRightAssignAllMembers
+                | ExpressionOp::MultiplyAssignAllMembers
                 | ExpressionOp::DivideAssignAllMembers
                 | ExpressionOp::SubtractAssignAllMembers => {
                     if stack.len() < 3 {
@@ -2095,6 +2096,9 @@ impl EventVm {
                                 ExpressionOp::XorAssignAllMembers => current ^ operand,
                                 ExpressionOp::ShiftRightAssignAllMembers => {
                                     current.wrapping_shr(operand as u32)
+                                }
+                                ExpressionOp::MultiplyAssignAllMembers => {
+                                    current.wrapping_mul(operand)
                                 }
                                 ExpressionOp::DivideAssignAllMembers => {
                                     if operand == 0 {
@@ -2643,6 +2647,7 @@ fn operand_start(
         | ExpressionOp::XorAssignAllMembers
         | ExpressionOp::AndAssignAllMembers
         | ExpressionOp::ShiftRightAssignAllMembers
+        | ExpressionOp::MultiplyAssignAllMembers
         | ExpressionOp::DivideAssignAllMembers
         | ExpressionOp::SubtractAssignAllMembers
         | ExpressionOp::AssignAllMembers

@@ -95,6 +95,7 @@ pub enum ExpressionOp {
     ConsumeAndZero,
     ShiftRightAssignMembers,
     ShiftRightAssignAllMembers,
+    MultiplyAssignAllMembers,
     DivideAssignAllMembers,
     SubtractAssignAllMembers,
     AndAssignMembers,
