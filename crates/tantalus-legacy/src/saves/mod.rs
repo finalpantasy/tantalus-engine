@@ -1,5 +1,6 @@
 mod base;
 mod importer;
+mod preview;
 mod schema;
 mod simple_json;
 
@@ -12,6 +13,11 @@ pub use base::{
 pub use importer::{
     BASE_SAVE_CONTAINER_BYTES, BaseSaveObservation, DecodedBaseSave, LegacySaveImporter,
     LegacySaveLocation, LegacySaveReport, PairingStatus,
+};
+pub use preview::{
+    BASE_SAVE_PREVIEW_PLAINTEXT_BYTES, BASE_SAVE_PREVIEW_REGION_OFFSET,
+    BASE_SAVE_PREVIEW_RESERVED_BYTES, BaseSavePreview, BaseSavePreviewCharacter,
+    base_save_preview_offset,
 };
 pub use schema::{BaseSaveFieldType, BaseSavePayload, BaseSaveValue};
 pub use simple_json::{LegacySaveError, SimpleJsonDocument, SimpleJsonNode};

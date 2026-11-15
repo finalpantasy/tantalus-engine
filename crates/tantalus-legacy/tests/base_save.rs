@@ -276,3 +276,107 @@ fn schema_payload_reports_type_name_size_and_truncation_errors() {
         BaseSavePayload::decode(&invalid_utf8, &[BaseSaveFieldType::String128]).unwrap_err();
     assert!(error.context.contains("invalid UTF-8"));
 }
+
+#[test]
+fn slot_preview_offsets_match_the_reference_layout() {
+    assert_eq!(BASE_SAVE_PREVIEW_REGION_OFFSET, 320);
+    assert_eq!(BASE_SAVE_PREVIEW_PLAINTEXT_BYTES, 965);
+    assert_eq!(BASE_SAVE_PREVIEW_RESERVED_BYTES, 1024);
+    assert_eq!(base_save_preview_offset(0, 0).unwrap(), 320);
+    assert_eq!(base_save_preview_offset(0, 1).unwrap(), 320 + 1024);
+    assert_eq!(
+        base_save_preview_offset(9, 14).unwrap(),
+        320 + 1024 * (9 * 15 + 14)
+    );
+    assert!(base_save_preview_offset(10, 0).is_err());
+    assert!(base_save_preview_offset(0, 15).is_err());
+}
+
+#[test]
+fn slot_preview_round_trips_the_complete_source_record() {
+    let preview = BaseSavePreview {
+        has_data: true,
+        gil: -123_456,
+        play_duration: 9_999_999,
+        win_type: u64::MAX,
+        location: "Alexandria\0Castle".to_owned(),
+        timestamp: 1_700_000_000.25,
+        characters: [
+            Some(BaseSavePreviewCharacter::new(0, 12, "Zidane")),
+            Some(BaseSavePreviewCharacter::new(2, 11, "Garnet ☄")),
+            None,
+            Some(BaseSavePreviewCharacter::new(7, 99, "Quina")),
+        ],
+    };
+
+    let plain = preview.encode_plain().unwrap();
+    assert_eq!(plain.len(), BASE_SAVE_PREVIEW_PLAINTEXT_BYTES);
+    assert_eq!(
+        BaseSavePreview::decode_plain(&plain).unwrap(),
+        Some(preview.clone())
+    );
+
+    let mut container = vec![0_u8; BASE_SAVE_CONTAINER_BYTES];
+    let offset = base_save_preview_offset(2, 4).unwrap();
+    let cipher = preview.encode().unwrap();
+    container[offset..offset + cipher.len()].copy_from_slice(&cipher);
+    assert_eq!(
+        BaseSavePreview::decode(&container, 2, 4).unwrap(),
+        Some(preview.clone())
+    );
+    assert_eq!(
+        LegacySaveImporter::decode_preview(&container, 2, 4).unwrap(),
+        Some(preview)
+    );
+    assert!(BaseSavePreview::decode(&container, 2, 3).is_err());
+}
+
+#[test]
+fn slot_preview_decodes_empty_and_dataless_records_without_inventing_state() {
+    let mut empty = Vec::new();
+    empty.extend_from_slice(b"NONE");
+    empty.resize(BASE_SAVE_PREVIEW_PLAINTEXT_BYTES, 0);
+    assert_eq!(BaseSavePreview::decode_plain(&empty).unwrap(), None);
+
+    let mut dataless = Vec::new();
+    dataless.extend_from_slice(b"PREV");
+    dataless.push(0);
+    dataless.resize(BASE_SAVE_PREVIEW_PLAINTEXT_BYTES, 0);
+    assert_eq!(BaseSavePreview::decode_plain(&dataless).unwrap(), None);
+}
+
+#[test]
+fn slot_preview_rejects_corrupt_reserved_or_mismatched_data() {
+    assert!(BaseSavePreview::decode_plain(&[0; 10]).is_err());
+
+    let preview = BaseSavePreview {
+        has_data: true,
+        gil: 10,
+        play_duration: 20,
+        win_type: 30,
+        location: "Burmecia".to_owned(),
+        timestamp: 40.0,
+        characters: [None, None, None, None],
+    };
+    let mut bad_magic = preview.encode_plain().unwrap();
+    bad_magic[..4].copy_from_slice(b"JUNK");
+    assert!(BaseSavePreview::decode_plain(&bad_magic).is_err());
+
+    let mut nonzero_tail = preview.encode_plain().unwrap();
+    nonzero_tail[964] = 1;
+    let error = BaseSavePreview::decode_plain(&nonzero_tail).unwrap_err();
+    assert!(error.context.contains("reserved tail"));
+
+    let mut invalid_name = preview.encode_plain().unwrap();
+    invalid_name[165] = 0xFF;
+    assert!(BaseSavePreview::decode_plain(&invalid_name).is_err());
+
+    let mut reserved_serial = preview.clone();
+    reserved_serial.characters[0] = Some(BaseSavePreviewCharacter::new(-1, 1, "Invalid"));
+    assert!(reserved_serial.encode_plain().is_err());
+
+    let long_location = "x".repeat(129);
+    let mut long_preview = preview.clone();
+    long_preview.location = long_location;
+    assert!(long_preview.encode_plain().is_err());
+}

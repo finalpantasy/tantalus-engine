@@ -1,4 +1,6 @@
-use super::{BaseSaveBlock, BaseSaveMetadata, LegacySaveError, SimpleJsonDocument};
+use super::{
+    BaseSaveBlock, BaseSaveMetadata, BaseSavePreview, LegacySaveError, SimpleJsonDocument,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::Path;
@@ -66,6 +68,15 @@ impl LegacySaveImporter {
         let metadata = BaseSaveMetadata::decode(base)?;
         let block = BaseSaveBlock::decode(base, &metadata, location)?;
         Ok(DecodedBaseSave { metadata, block })
+    }
+
+    /// Decrypts and decodes one slot-preview reservation (read-only).
+    pub fn decode_preview(
+        base: &[u8],
+        slot_id: i32,
+        save_id: i32,
+    ) -> Result<Option<BaseSavePreview>, LegacySaveError> {
+        BaseSavePreview::decode(base, slot_id, save_id)
     }
 
     pub fn validate_pairing(
