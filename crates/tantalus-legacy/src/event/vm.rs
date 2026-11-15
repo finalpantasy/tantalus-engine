@@ -2143,6 +2143,10 @@ impl EventVm {
                         y,
                         steps,
                     });
+                    // End the step so a following JUMP3 observes the applied
+                    // jump state; the reference's immediate state updates are
+                    // modeled here by the apply boundary.
+                    break;
                 }
                 InstructionKind::SetDialogSignal { signal } => {
                     let signal = self.evaluate(host, &signal, instruction.offset, opcode)?;
