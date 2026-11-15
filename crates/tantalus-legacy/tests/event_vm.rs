@@ -1106,3 +1106,16 @@ fn bgimask_emits_the_wrapped_attribute_byte() {
         [HostEvent::SetNavigationAttributeMask { mask: 0xff }]
     );
 }
+
+#[test]
+fn cast_list_matches_the_reference_empty_implementation() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 28);
+    let program = decode_program(&[evaluate(assign(result, vec![74])), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 28), 0);
+    assert_eq!(vm.status(), VmStatus::Completed);
+}

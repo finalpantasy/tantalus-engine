@@ -58,14 +58,15 @@
     "BGIACTIVET 0x9A supports immediate and expression arguments, preserves unsigned triangle IDs, and emits SetTriangleActive",
     "FLDSND0 0xC5 decodes signed sound code and ID operands and emits RunSound with three zero arguments",
     "ATTACHOFFSET 0xD4 decodes three signed coordinates and emits an actor-bound AttachObjectOffset; missing actor context is explicit",
-    "BGIMASK 0x27 decodes an immediate or expression mask and emits its wrapped byte"
+    "BGIMASK 0x27 decodes an immediate or expression mask and emits its wrapped byte",
+    "B_CAST_LIST 74 matches the reference empty implementation and returns zero without consuming an operand"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 672,
-    "opcode": "0x4A",
-    "instruction": "B_CAST_LIST",
-    "expression_start": 473
+    "offset": 936,
+    "opcode": "0x17",
+    "instruction": "B_SHIFT_RIGHT",
+    "expression_start": 936
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

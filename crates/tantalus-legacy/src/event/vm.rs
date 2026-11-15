@@ -587,6 +587,10 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::CastList => stack.push(StackValue {
+                    value: 0,
+                    target: None,
+                }),
                 ExpressionOp::ShiftRightAssignMembers => {
                     if stack.len() < 3 {
                         return Err(expression_error(
@@ -970,6 +974,7 @@ fn operand_start(
         | ExpressionOp::Member(_)
         | ExpressionOp::SystemVariable(_)
         | ExpressionOp::CustomVariable(_)
+        | ExpressionOp::CastList
         | ExpressionOp::Pad => Ok(index),
         ExpressionOp::Negate
         | ExpressionOp::Not
