@@ -269,6 +269,10 @@ pub enum InstructionKind {
         animation: Expression,
         frame: Expression,
     },
+    OpenPartyMenu {
+        minimum_party_size: Expression,
+        fixed_members: Expression,
+    },
     AttachTile {
         overlay: Expression,
         x: Expression,
@@ -318,6 +322,7 @@ pub enum VmStatus {
 pub enum WaitState {
     Frames(u8),
     Window(u8),
+    PartyMenu,
     ScriptRequest,
 }
 
@@ -500,6 +505,10 @@ pub enum HostEvent {
         animation: i32,
         frame: i32,
     },
+    OpenPartyMenu {
+        minimum_party_size: i32,
+        fixed_members: i32,
+    },
     AttachTile {
         overlay: i32,
         x: i16,
@@ -608,6 +617,7 @@ pub trait LegacyEventHost {
     -> Result<i32, EngineError>;
     fn read_bgi_animation_frame(&mut self, animation: u32) -> Result<i32, EngineError>;
     fn party_contains(&mut self, character: i32) -> Result<bool, EngineError>;
+    fn party_menu_is_open(&self) -> bool;
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError>;
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError>;
 }

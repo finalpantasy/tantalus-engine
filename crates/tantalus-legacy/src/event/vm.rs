@@ -102,6 +102,14 @@ impl EventVm {
                     self.wait = None;
                     self.status = VmStatus::Running;
                 }
+                WaitState::PartyMenu => {
+                    self.status = VmStatus::Waiting;
+                    if host.party_menu_is_open() {
+                        return Ok(self.report(tick, 0, Vec::new()));
+                    }
+                    self.wait = None;
+                    self.status = VmStatus::Running;
+                }
                 WaitState::ScriptRequest => {
                     self.status = VmStatus::Waiting;
                     let Some(entity) = self.entity else {
@@ -754,6 +762,22 @@ impl EventVm {
                     let frame = self.evaluate(host, &frame, instruction.offset, opcode)?;
                     self.pc = next;
                     events.push(HostEvent::SetTileAnimationFrame { animation, frame });
+                }
+                InstructionKind::OpenPartyMenu {
+                    minimum_party_size,
+                    fixed_members,
+                } => {
+                    let minimum_party_size =
+                        self.evaluate(host, &minimum_party_size, instruction.offset, opcode)?;
+                    let fixed_members =
+                        self.evaluate(host, &fixed_members, instruction.offset, opcode)?;
+                    self.pc = next;
+                    self.wait = Some(WaitState::PartyMenu);
+                    self.status = VmStatus::Waiting;
+                    events.push(HostEvent::OpenPartyMenu {
+                        minimum_party_size,
+                        fixed_members,
+                    });
                 }
                 InstructionKind::AttachTile {
                     overlay,
@@ -1721,6 +1745,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetSimulationFloor { .. } => 0x104,
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
         InstructionKind::SetTileAnimationFrame { .. } => 0xe7,
+        InstructionKind::OpenPartyMenu { .. } => 0xb2,
         InstructionKind::AttachTile { .. } => 0x92,
     }
 }

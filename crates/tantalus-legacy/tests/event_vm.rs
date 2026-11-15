@@ -79,6 +79,7 @@ struct Host {
     animation_frames: BTreeMap<(EntityId, i32), i32>,
     bgi_animation_frames: BTreeMap<u32, i32>,
     party_members: Vec<i32>,
+    party_menu_open: bool,
     fail: bool,
 }
 
@@ -98,6 +99,7 @@ impl Host {
             animation_frames: BTreeMap::new(),
             bgi_animation_frames: BTreeMap::new(),
             party_members: Vec::new(),
+            party_menu_open: false,
             fail: false,
         }
     }
@@ -170,6 +172,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetSimulationFloor { .. } => {}
                 HostEvent::SetSimulationFrameRate { .. } => {}
                 HostEvent::SetTileAnimationFrame { .. } => {}
+                HostEvent::OpenPartyMenu { .. } => self.party_menu_open = true,
                 HostEvent::AttachTile { .. } => {}
             }
         }
@@ -273,6 +276,10 @@ impl LegacyEventHost for Host {
 
     fn party_contains(&mut self, character: i32) -> Result<bool, EngineError> {
         Ok(self.party_members.contains(&character))
+    }
+
+    fn party_menu_is_open(&self) -> bool {
+        self.party_menu_open
     }
 
     fn script_request_is_complete(&mut self, _entity: EntityId) -> Result<bool, EngineError> {
@@ -3001,6 +3008,50 @@ fn bgaframe_sets_tile_animation_frame_without_clamping() {
         }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn party_menu_emits_once_and_waits_for_host_closure() {
+    let program = decode_program(&[178, 0, 2, 5, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 5);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(
+        report.events,
+        [HostEvent::OpenPartyMenu {
+            minimum_party_size: 2,
+            fixed_members: 5
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Waiting);
+    assert_eq!(vm.wait_state(), Some(WaitState::PartyMenu));
+    assert!(host.party_menu_open);
+    assert!(vm.step(Tick::new(1), &mut host).unwrap().events.is_empty());
+    assert_eq!(vm.status(), VmStatus::Waiting);
+
+    host.party_menu_open = false;
+    assert_eq!(
+        vm.step(Tick::new(2), &mut host).unwrap().status,
+        VmStatus::Completed
+    );
+
+    let mut bytes = vec![178, 3];
+    append_expression(&mut bytes, constant(1));
+    append_expression(&mut bytes, constant(-2));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::OpenPartyMenu {
+            minimum_party_size: 1,
+            fixed_members: -2
+        }]
+    );
 }
 
 #[test]

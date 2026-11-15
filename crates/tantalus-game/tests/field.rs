@@ -145,6 +145,10 @@ impl LegacyEventHost for Host {
         ))
     }
 
+    fn party_menu_is_open(&self) -> bool {
+        false
+    }
+
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,
