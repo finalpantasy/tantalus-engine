@@ -60,6 +60,7 @@ pub enum ExpressionOp {
     GreaterOrEqual,
     Equal,
     NotEqual,
+    BitwiseAnd,
     Assign,
     AddAssign,
     SubtractAssign,
@@ -326,6 +327,10 @@ pub enum InstructionKind {
     SetCharacterRow {
         character: Expression,
         row: Expression,
+    },
+    ClearPartyStatus {
+        character: Expression,
+        statuses: Expression,
     },
     SetActorPitchRoll {
         pitch: Expression,
@@ -616,6 +621,10 @@ pub enum HostEvent {
     SetCharacterRow {
         character: i32,
         row: u8,
+    },
+    ClearPartyStatus {
+        character: i32,
+        statuses: i32,
     },
     SetActorPitchRoll {
         actor: EntityId,

@@ -936,6 +936,18 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetCharacterRow { character, row });
                 }
+                InstructionKind::ClearPartyStatus {
+                    character,
+                    statuses,
+                } => {
+                    let character = self.evaluate(host, &character, instruction.offset, opcode)?;
+                    let statuses = self.evaluate(host, &statuses, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::ClearPartyStatus {
+                        character,
+                        statuses,
+                    });
+                }
                 InstructionKind::SetActorPitchRoll { pitch, roll } => {
                     let pitch = self
                         .evaluate(host, &pitch, instruction.offset, opcode)?
@@ -1248,7 +1260,8 @@ impl EventVm {
                 | ExpressionOp::Greater
                 | ExpressionOp::GreaterOrEqual
                 | ExpressionOp::Equal
-                | ExpressionOp::NotEqual => {
+                | ExpressionOp::NotEqual
+                | ExpressionOp::BitwiseAnd => {
                     let (left, right) = binary(&mut stack, operation, host)?;
                     let value = match operation {
                         ExpressionOp::Add => left.wrapping_add(right),
@@ -1265,6 +1278,7 @@ impl EventVm {
                         ExpressionOp::GreaterOrEqual => i32::from(left >= right),
                         ExpressionOp::Equal => i32::from(left == right),
                         ExpressionOp::NotEqual => i32::from(left != right),
+                        ExpressionOp::BitwiseAnd => left & right,
                         _ => unreachable!(),
                     };
                     stack.push(StackValue {
@@ -1983,6 +1997,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::MoveTile { .. } => 0x5a,
         InstructionKind::SetCameraBounds { .. } => 0x1e,
         InstructionKind::SetCharacterRow { .. } => 0x61,
+        InstructionKind::ClearPartyStatus { .. } => 0xd9,
         InstructionKind::SetActorPitchRoll { .. } => 0x37,
         InstructionKind::AttachTile { .. } => 0x92,
     }
@@ -2125,6 +2140,7 @@ fn operand_start(
         | ExpressionOp::GreaterOrEqual
         | ExpressionOp::Equal
         | ExpressionOp::NotEqual
+        | ExpressionOp::BitwiseAnd
         | ExpressionOp::Assign
         | ExpressionOp::AddAssign
         | ExpressionOp::SubtractAssign

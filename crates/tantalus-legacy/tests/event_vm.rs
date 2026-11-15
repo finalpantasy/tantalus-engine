@@ -189,6 +189,7 @@ impl LegacyEventHost for Host {
                 HostEvent::AttachTile { .. } => {}
                 HostEvent::DispatchCinematic { .. } => {}
                 HostEvent::DefineRegion { .. } => {}
+                HostEvent::ClearPartyStatus { .. } => {}
             }
         }
         Ok(())
@@ -684,6 +685,75 @@ fn region_definition_decodes_bounded_signed_vertices_and_expression_operands() {
     assert_eq!(dynamic.kind, VmErrorKind::UnsupportedOpcode);
     assert!(dynamic.message.contains("vertex counts"));
     assert!(decode_program(&[41, 0]).is_err());
+}
+
+#[test]
+fn clear_party_status_preserves_character_and_status_mask() {
+    let program = decode_program(&[217, 0, 2, 127, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ClearPartyStatus {
+            character: 2,
+            statuses: 127
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![217, 3];
+    append_expression(&mut bytes, constant(120));
+    append_expression(&mut bytes, constant(85));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ClearPartyStatus {
+            character: 120,
+            statuses: 85
+        }]
+    );
+
+    let truncated = decode_program(&[217, 0, 2]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(217)"));
+}
+
+#[test]
+fn bitwise_and_evaluates_the_shared_binary_expression_path() {
+    let mut bytes = evaluate(binary(constant(90), constant(60), 36));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    assert_eq!(
+        program.instructions[&0].kind,
+        InstructionKind::Evaluate(Expression(vec![
+            ExpressionOp::Constant(90),
+            ExpressionOp::Constant(60),
+            ExpressionOp::BitwiseAnd,
+            ExpressionOp::End,
+        ]))
+    );
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![217, 3];
+    append_expression(&mut bytes, constant(120));
+    append_expression(&mut bytes, binary(constant(127), constant(85), 36));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ClearPartyStatus {
+            character: 120,
+            statuses: 85
+        }]
+    );
 }
 
 #[test]

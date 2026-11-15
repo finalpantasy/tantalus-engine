@@ -81,6 +81,7 @@ const OP_FULL_MEMBER: u32 = 0xb4;
 const OP_MOVE_TILE: u32 = 0x5a;
 const OP_SET_CAMERA_BOUNDS: u32 = 0x1e;
 const OP_SET_CHARACTER_ROW: u32 = 0x61;
+const OP_CLEAR_PARTY_STATUS: u32 = 0xd9;
 const OP_SET_ACTOR_PITCH_ROLL: u32 = 0x37;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
@@ -1059,6 +1060,23 @@ impl Decoder<'_> {
                     row: argument(2)?,
                 }
             }
+            OP_CLEAR_PARTY_STATUS => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::ClearPartyStatus {
+                    character: argument(1)?,
+                    statuses: argument(2)?,
+                }
+            }
             OP_SET_ACTOR_PITCH_ROLL => {
                 let flags = self.byte()?;
                 let mut argument = |bit: u8| {
@@ -1174,6 +1192,7 @@ impl Decoder<'_> {
                 27 => ExpressionOp::GreaterOrEqual,
                 EXPR_EQUAL => ExpressionOp::Equal,
                 EXPR_NOT_EQUAL => ExpressionOp::NotEqual,
+                36 => ExpressionOp::BitwiseAnd,
                 28 => ExpressionOp::LessMembers,
                 29 => ExpressionOp::GreaterMembers,
                 30 => ExpressionOp::LessOrEqualMembers,
