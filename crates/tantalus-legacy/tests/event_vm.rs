@@ -174,6 +174,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetTimerRunning { .. } => {}
                 HostEvent::RequestCallerAsync { .. } => {}
                 HostEvent::CalculateExitPosition => {}
+                HostEvent::CalculateScreenPosition { .. } => {}
                 HostEvent::RequestCallerSync { .. } => {}
                 HostEvent::SetSpsParameters { .. } => {}
                 HostEvent::SetTileShadeColor { .. } => {}
@@ -3927,6 +3928,31 @@ fn mjpos_requests_exit_position_calculation() {
 
     assert_eq!(report.events, [HostEvent::CalculateExitPosition]);
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn getscreen_requests_screen_position_for_the_selected_object() {
+    let program = decode_program(&[169, 0, 7, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 3);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::CalculateScreenPosition { object: 7 }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![169, 1];
+    append_expression(&mut bytes, constant(-1));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::CalculateScreenPosition { object: -1 }]
+    );
+    assert!(decode_program(&[169, 0]).is_err());
 }
 
 #[test]

@@ -301,6 +301,7 @@ pub enum InstructionKind {
         tag: u8,
     },
     CalculateExitPosition,
+    CalculateScreenPosition(Expression),
     ChangeField(Expression),
     RequestCallerSync {
         level: Expression,
@@ -639,6 +640,9 @@ pub enum HostEvent {
         tag: u8,
     },
     CalculateExitPosition,
+    CalculateScreenPosition {
+        object: i32,
+    },
     ChangeField {
         field: i16,
     },

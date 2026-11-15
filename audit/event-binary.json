@@ -176,7 +176,8 @@
     "B_MAXMP 111 evaluates a character operand and returns the host-owned maximum MP after legacy character resolution",
     "B_DISTANCEA 97 resolves an object UID and truncates the final fractional-position distance; current actor context is required",
     "B_XOR 37 evaluates ordinary bitwise exclusive-or through the shared binary expression path",
-    "B_NE_E 35 returns selected-member inequality flags without writes and zero for an empty selection"
+    "B_NE_E 35 returns selected-member inequality flags without writes and zero for an empty selection",
+    "GETSCREEN 0xA9 decodes an object operand and emits CalculateScreenPosition for host-owned projection"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -292,11 +293,11 @@
     "entry": 18,
     "function": 1,
     "function_tag": 1,
-    "instruction_offset": 245,
-    "offset": 336,
-    "opcode": 169,
+    "instruction_offset": 250,
+    "offset": 341,
+    "opcode": 86,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0xA9 after selected-member inequality support"
+    "instruction": "TURN event opcode 0x56 after screen-position support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

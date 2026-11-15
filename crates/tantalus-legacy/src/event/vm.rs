@@ -894,6 +894,11 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::CalculateExitPosition);
                 }
+                InstructionKind::CalculateScreenPosition(object) => {
+                    let object = self.evaluate(host, &object, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::CalculateScreenPosition { object });
+                }
                 InstructionKind::ChangeField(field) => {
                     let field = self.evaluate(host, &field, instruction.offset, opcode)? as i16;
                     self.pc = next;
@@ -2244,6 +2249,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::RequestCallerAsync { .. } => 0x16,
         InstructionKind::RequestCallerWhenReady { .. } => 0x18,
         InstructionKind::CalculateExitPosition => 0xa4,
+        InstructionKind::CalculateScreenPosition { .. } => 0xa9,
         InstructionKind::ChangeField { .. } => 0x2b,
         InstructionKind::RequestCallerSync { .. } => 0x14,
         InstructionKind::SetSimulationFloor { .. } => 0x104,
