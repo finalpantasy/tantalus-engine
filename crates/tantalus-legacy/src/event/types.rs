@@ -135,12 +135,14 @@ pub enum InstructionKind {
     Nop,
     NoOp(u32),
     Jump(i16),
+    /// Memoria `beq`: pops the previous `Evaluate` result; jumps forward by an
+    /// unsigned offset when it is zero.
     JumpIfNot {
-        condition: Expression,
-        relative: i16,
+        relative: u16,
     },
+    /// Memoria `bne`: pops the previous `Evaluate` result; jumps by a signed
+    /// offset when it is not zero.
     JumpIf {
-        condition: Expression,
         relative: i16,
     },
     JumpSwitch {

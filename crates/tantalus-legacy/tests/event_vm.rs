@@ -56,7 +56,7 @@ fn evaluate(expression: Vec<u8>) -> Vec<u8> {
 }
 
 fn movement(actor: i32, x: i32, z: i32) -> Vec<u8> {
-    let mut bytes = vec![0xbf, 0];
+    let mut bytes = vec![0xbf, 7];
     for expression in [actor, x, z] {
         bytes.extend(constant(expression));
         bytes.push(127);
@@ -510,15 +510,8 @@ fn expressions_assign_and_preserve_integer_widths() {
 #[test]
 fn conditional_jumps_select_the_correct_signed_target() {
     for (opcode, initial, expected_x) in [(3, 1, 50), (2, 0, 50), (3, 0, -50), (2, 1, -50)] {
-        let mut bytes = evaluate(assign(
-            variable(VariableScope::Global, VariableType::Int24, 0),
-            constant(initial),
-        ));
+        let mut bytes = evaluate(constant(initial));
         bytes.push(opcode);
-        append_expression(
-            &mut bytes,
-            variable(VariableScope::Global, VariableType::Int24, 0),
-        );
         let mut wrong = movement(1, -50, 0);
         wrong.push(4);
         let relative = wrong.len() as i16;
@@ -539,8 +532,57 @@ fn conditional_jumps_select_the_correct_signed_target() {
 }
 
 #[test]
+fn argument_less_opcodes_have_no_flag_byte_and_immediates_follow_flag_bits() {
+    // Memoria EBin.commandDefault un-consumes the flag byte when no operand is read.
+    for opcode in [
+        0x00u8, 0x25, 0x2c, 0x7f, 0x80, 0x84, 0xa4, 0xb8, 0xd5, 0xd6, 0xf0,
+    ] {
+        let program = decode_program(&[opcode, 4]).unwrap();
+        assert_eq!(program.instructions[&0].length, 1, "opcode {opcode:#04x}");
+        assert_eq!(program.instructions[&1].length, 1);
+    }
+
+    // WAIT with a clear flag bit reads an immediate byte, not an expression.
+    let program = decode_program(&[0x22, 0, 24, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 3);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Waiting);
+    assert_eq!(vm.wait_state(), Some(WaitState::Frames(23)));
+
+    // DELETE keeps its flag byte before the immediate object id.
+    let program = decode_program(&[0x1c, 0, 255, 4]).unwrap();
+    assert_eq!(
+        program.instructions[&0].kind,
+        InstructionKind::DeleteObject(255)
+    );
+    assert_eq!(program.instructions[&0].length, 3);
+
+    // Window commands read immediate byte, byte, then signed word operands.
+    let program = decode_program(&[0x1f, 0, 2, 0, 100, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 6);
+    let program = decode_program(&[0x21, 0, 3, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 3);
+}
+
+#[test]
+fn conditional_jumps_consume_the_previous_evaluate_result_and_a_bare_offset() {
+    // `05 <expr> 02 <u16 offset>`: the condition is the stack value left by the
+    // preceding EXPR opcode, as Memoria beq/bne pop it.
+    let mut bytes = evaluate(constant(0));
+    bytes.extend_from_slice(&[0x02, 3, 0]);
+    bytes.extend(movement(1, -50, 0));
+    bytes.extend(movement(1, 50, 0));
+    bytes.push(4);
+    let jump_offset = evaluate(constant(0)).len();
+    let program = decode_program(&bytes).unwrap();
+    assert_eq!(program.instructions[&(jump_offset as u32)].length, 3);
+}
+
+#[test]
 fn timed_wait_resumes_on_the_declared_tick() {
-    let mut bytes = vec![0x22, 0];
+    let mut bytes = vec![0x22, 1];
     append_expression(&mut bytes, constant(3));
     bytes.extend(movement(1, 50, 0));
     bytes.push(4);
@@ -622,7 +664,7 @@ fn wait_animation_continues_immediately_or_waits_for_completion() {
 
 #[test]
 fn synchronous_window_waits_for_close_while_async_continues() {
-    let mut sync = vec![0x1f, 0];
+    let mut sync = vec![0x1f, 7];
     append_expression(&mut sync, constant(2));
     append_expression(&mut sync, constant(0));
     append_expression(&mut sync, constant(100));
@@ -640,7 +682,7 @@ fn synchronous_window_waits_for_close_while_async_continues() {
         VmStatus::Completed
     );
 
-    let mut async_program = vec![0x20, 0];
+    let mut async_program = vec![0x20, 7];
     append_expression(&mut async_program, constant(3));
     append_expression(&mut async_program, constant(0));
     append_expression(&mut async_program, constant(101));
@@ -656,12 +698,12 @@ fn synchronous_window_waits_for_close_while_async_continues() {
 
 #[test]
 fn close_window_and_actor_movement_reach_the_host_once() {
-    let mut bytes = vec![0x20, 0];
+    let mut bytes = vec![0x20, 7];
     append_expression(&mut bytes, constant(3));
     append_expression(&mut bytes, constant(0));
     append_expression(&mut bytes, constant(101));
     bytes.push(0x21);
-    bytes.push(0);
+    bytes.push(1);
     append_expression(&mut bytes, constant(3));
     bytes.extend(movement(7, -100, 200));
     bytes.push(4);
@@ -704,7 +746,7 @@ fn jump_switch_selects_consecutive_cases_and_uses_default_outside_range() {
     fn switch_program(value: i32) -> Vec<u8> {
         let mut bytes = vec![5];
         append_expression(&mut bytes, constant(value));
-        bytes.extend_from_slice(&[11, 2, 5, 0, 11, 0, 9, 0, 9, 0, 0, 0, 4]);
+        bytes.extend_from_slice(&[11, 2, 5, 0, 11, 0, 9, 0, 9, 0, 0, 4, 4]);
         bytes
     }
 
@@ -727,7 +769,7 @@ fn jump_switch_selects_consecutive_cases_and_uses_default_outside_range() {
         let mut host = Host::new();
         let report = vm.step(Tick::new(0), &mut host).unwrap();
         assert_eq!(report.status, VmStatus::Running);
-        assert_eq!(vm.pc(), 19);
+        assert_eq!(vm.pc(), 18);
         assert_eq!(
             vm.step(Tick::new(1), &mut host).unwrap().status,
             VmStatus::Completed
@@ -775,7 +817,7 @@ fn jump_switch_ex_matches_explicit_values_and_masks_the_expression() {
     assert_eq!(*default_relative, 12);
     assert_eq!(cases, &[[100, 8], [u16::MAX, 10]]);
 
-    for (value, expected_pc) in [(100, 21), (u16::MAX.into(), 23), (-1, 23)] {
+    for (value, expected_pc) in [(100, 20), (u16::MAX.into(), 22), (-1, 22)] {
         let mut vm = EventVm::new(decode_program(&switch_program(value)).unwrap());
         let mut host = Host::new();
         let report = vm.step(Tick::new(0), &mut host).unwrap();
@@ -843,7 +885,7 @@ fn wide_jump_switch_supports_more_than_255_cases_and_uses_default() {
     assert_eq!(case_relative[0], 605);
     assert_eq!(case_relative[299], 607);
 
-    for (value, expected_pc) in [(5, 616), (304, 618)] {
+    for (value, expected_pc) in [(5, 615), (304, 617)] {
         let mut vm = EventVm::new(decode_program(&switch_program(value)).unwrap());
         let mut host = Host::new();
         let report = vm.step(Tick::new(0), &mut host).unwrap();
@@ -1989,12 +2031,12 @@ fn pos_sets_current_actor_xz_and_reference_default_height() {
 
 #[test]
 fn delete_terminates_self_and_emits_typed_target_for_other_objects() {
-    let program = decode_program(&[28, 255, 4]).unwrap();
+    let program = decode_program(&[28, 0, 255, 4]).unwrap();
     assert_eq!(
         program.instructions[&0].kind,
         InstructionKind::DeleteObject(255)
     );
-    assert_eq!(program.instructions[&0].length, 2);
+    assert_eq!(program.instructions[&0].length, 3);
     let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
     let mut host = Host::new();
     let report = vm.step(Tick::new(0), &mut host).unwrap();
@@ -2007,7 +2049,7 @@ fn delete_terminates_self_and_emits_typed_target_for_other_objects() {
         }]
     );
 
-    let program = decode_program(&[28, 7, 0, 0, 4]).unwrap();
+    let program = decode_program(&[28, 0, 7, 0, 4]).unwrap();
     let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
     let report = vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(report.status, VmStatus::Running);
@@ -2022,7 +2064,7 @@ fn delete_terminates_self_and_emits_typed_target_for_other_objects() {
         VmStatus::Completed
     );
 
-    let mut vm = EventVm::new(decode_program(&[28, 255, 4]).unwrap());
+    let mut vm = EventVm::new(decode_program(&[28, 0, 255, 4]).unwrap());
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("object context"));
@@ -2148,14 +2190,14 @@ fn host_failure_rolls_back_the_vm_step() {
 
 #[test]
 fn nop_yields_before_the_remaining_program() {
-    let bytes = [0, 0, 4];
+    let bytes = [0, 4];
     let mut vm = EventVm::new(decode_program(&bytes).unwrap());
     let mut host = Host::new();
     assert_eq!(
         vm.step(Tick::new(0), &mut host).unwrap().status,
         VmStatus::Running
     );
-    assert_eq!(vm.pc(), 2);
+    assert_eq!(vm.pc(), 1);
     assert_eq!(
         vm.step(Tick::new(1), &mut host).unwrap().status,
         VmStatus::Completed
@@ -2218,8 +2260,8 @@ fn direct_post_decrement_writes_back_the_normalized_value() {
 
 #[test]
 fn aim_instruction_consumes_its_flag_and_defers_to_the_host() {
-    let program = decode_program(&[0xb8, 0, 4]).unwrap();
-    assert_eq!(program.instructions[&0].length, 2);
+    let program = decode_program(&[0xb8, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 1);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
     let report = vm.step(Tick::new(0), &mut host).unwrap();
@@ -2229,8 +2271,8 @@ fn aim_instruction_consumes_its_flag_and_defers_to_the_host() {
 
 #[test]
 fn player_control_instruction_requires_actor_context() {
-    let program = decode_program(&[0x2c, 0, 4]).unwrap();
-    assert_eq!(program.instructions[&0].length, 2);
+    let program = decode_program(&[0x2c, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 1);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
@@ -2240,7 +2282,7 @@ fn player_control_instruction_requires_actor_context() {
 
 #[test]
 fn player_control_uses_the_current_entity_when_available() {
-    let program = decode_program(&[0x2c, 0, 4]).unwrap();
+    let program = decode_program(&[0x2c, 4]).unwrap();
     let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
     let mut host = Host::new();
     let report = vm.step(Tick::new(0), &mut host).unwrap();
@@ -2357,7 +2399,7 @@ fn empty_member_increment_and_decrement_follow_the_reference_stack_path() {
 
 #[test]
 fn twist_sets_both_control_directions() {
-    let mut bytes = vec![0x67, 0];
+    let mut bytes = vec![0x67, 3];
     append_expression(&mut bytes, constant(90));
     append_expression(&mut bytes, constant(-90));
     bytes.push(4);
@@ -2423,7 +2465,7 @@ fn empty_expressions_evaluate_to_zero() {
 
 #[test]
 fn bgsmove_consumes_three_operands_and_continues_without_invented_side_effects() {
-    let mut bytes = vec![0x58, 0];
+    let mut bytes = vec![0x58, 7];
     for value in [10, -20, 30] {
         append_expression(&mut bytes, constant(value));
     }
@@ -3845,7 +3887,7 @@ fn model_sets_actor_model_and_scaled_eye_height() {
 
 #[test]
 fn clrdist_resets_the_current_actor_walk_state() {
-    let program = decode_program(&[37, 0, 4]).unwrap();
+    let program = decode_program(&[37, 4]).unwrap();
     assert_eq!(
         program.instructions[&0].kind,
         InstructionKind::ResetWalkState
@@ -3861,7 +3903,7 @@ fn clrdist_resets_the_current_actor_walk_state() {
     );
     assert_eq!(vm.status(), VmStatus::Completed);
 
-    let mut vm = EventVm::new(decode_program(&[37, 0, 4]).unwrap());
+    let mut vm = EventVm::new(decode_program(&[37, 4]).unwrap());
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));
@@ -4438,7 +4480,7 @@ fn pad15_consumes_its_flag_and_yields_through_the_default_path() {
 
 #[test]
 fn shadowon_enables_the_current_actor_shadow() {
-    let program = decode_program(&[127, 0, 4]).unwrap();
+    let program = decode_program(&[127, 4]).unwrap();
     let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
     let mut host = Host::new();
 
@@ -4452,7 +4494,7 @@ fn shadowon_enables_the_current_actor_shadow() {
         }]
     );
 
-    let mut vm = EventVm::new(decode_program(&[127, 0, 4]).unwrap());
+    let mut vm = EventVm::new(decode_program(&[127, 4]).unwrap());
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));
@@ -4460,7 +4502,7 @@ fn shadowon_enables_the_current_actor_shadow() {
 
 #[test]
 fn shadowoff_disables_the_current_actor_shadow_and_preserves_its_opcode() {
-    let program = decode_program(&[128, 0, 4]).unwrap();
+    let program = decode_program(&[128, 4]).unwrap();
     assert_eq!(
         program.instructions[&0].kind,
         InstructionKind::SetShadowEnabled {
@@ -4481,7 +4523,7 @@ fn shadowoff_disables_the_current_actor_shadow_and_preserves_its_opcode() {
         }]
     );
 
-    let mut vm = EventVm::new(decode_program(&[128, 0, 4]).unwrap());
+    let mut vm = EventVm::new(decode_program(&[128, 4]).unwrap());
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert_eq!(error.opcode, Some(128));
@@ -4721,8 +4763,8 @@ fn direct_post_increment_stores_the_new_value_and_returns_the_old_value() {
 
 #[test]
 fn popshow_emits_scene_visibility_restoration() {
-    let program = decode_program(&[214, 0, 4]).unwrap();
-    assert_eq!(program.instructions[&0].length, 2);
+    let program = decode_program(&[214, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 1);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
 
@@ -4803,8 +4845,8 @@ fn replysw_waits_for_caller_acceptance_and_requests_once() {
 
 #[test]
 fn mjpos_requests_exit_position_calculation() {
-    let program = decode_program(&[164, 0, 4]).unwrap();
-    assert_eq!(program.instructions[&0].length, 2);
+    let program = decode_program(&[164, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 1);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
 
@@ -5251,7 +5293,7 @@ fn sps_decodes_byte_ids_and_signed_wide_arguments() {
 
 #[test]
 fn pushhide_emits_visibility_preservation_command() {
-    let program = decode_program(&[213, 0, 4]).unwrap();
+    let program = decode_program(&[213, 4]).unwrap();
     assert_eq!(
         program.instructions[&0].kind,
         InstructionKind::PreserveAndHideAll
@@ -5265,9 +5307,9 @@ fn pushhide_emits_visibility_preservation_command() {
 
 #[test]
 fn printquad_consumes_its_flag_and_continues_without_side_effects() {
-    let program = decode_program(&[120, 0, 4]).unwrap();
+    let program = decode_program(&[120, 4]).unwrap();
     assert_eq!(program.instructions[&0].kind, InstructionKind::NoOp(120));
-    assert_eq!(program.instructions[&0].length, 2);
+    assert_eq!(program.instructions[&0].length, 1);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
     let report = vm.step(Tick::new(0), &mut host).unwrap();
@@ -5732,7 +5774,7 @@ fn shadow_commands_decode_operands_and_bind_to_the_current_actor() {
         }]
     );
 
-    let mut vm = EventVm::new(decode_program(&[132, 0, 4]).unwrap()).with_entity(actor);
+    let mut vm = EventVm::new(decode_program(&[132, 4]).unwrap()).with_entity(actor);
     let report = vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(report.events, [HostEvent::UnlockShadowRotation { actor }]);
 
@@ -6375,7 +6417,7 @@ fn chrfx_dispatches_model_code_and_signed_arguments_for_the_current_object() {
 
 #[test]
 fn dashon_enables_running() {
-    let program = decode_program(&[240, 0, 4]).unwrap();
+    let program = decode_program(&[240, 4]).unwrap();
     assert_eq!(
         program.instructions[&0].kind,
         InstructionKind::SetRunEnabled {
@@ -6383,7 +6425,7 @@ fn dashon_enables_running() {
             opcode: 240
         }
     );
-    assert_eq!(program.instructions[&0].length, 2);
+    assert_eq!(program.instructions[&0].length, 1);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
     let report = vm.step(Tick::new(0), &mut host).unwrap();

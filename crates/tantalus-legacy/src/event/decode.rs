@@ -18,7 +18,8 @@ const OP_SET_WALK_ANIMATION: u32 = 0x34;
 const OP_SET_RUN_ANIMATION: u32 = 0x35;
 const OP_PLAY_ANIMATION: u32 = 0x40;
 const OP_SET_ANIMATION_RANGE: u32 = 0x3d;
-const OP_PRINT_QUAD: u32 = 0x78;
+const OP_PRINT_QUAD: u32 = 0x79;
+const OP_TRACK_ADD_VERTEX: u32 = 0x78;
 const OP_SET_LEFT_TURN_ANIMATION: u32 = 0x7a;
 const OP_SET_RIGHT_TURN_ANIMATION: u32 = 0x7b;
 const OP_SET_JUMP_ANIMATION: u32 = 0x94;
@@ -224,6 +225,24 @@ struct Decoder<'a> {
 }
 
 impl Decoder<'_> {
+    /// Memoria `getv1`/`getv2`: one flag bit per argument; set reads an
+    /// expression, clear reads an immediate byte (`short` false) or signed word.
+    fn operand(&mut self, flags: u8, bit: u8, short: bool) -> Result<Expression, VmError> {
+        if flags & bit != 0 {
+            self.expression()
+        } else {
+            let value = if short {
+                i32::from(self.i16()?)
+            } else {
+                i32::from(self.byte()?)
+            };
+            Ok(Expression(vec![
+                ExpressionOp::Constant(value),
+                ExpressionOp::End,
+            ]))
+        }
+    }
+
     fn instruction(&mut self) -> Result<Instruction, VmError> {
         let offset = self.position as u32;
         let mut code = 0u32;
@@ -235,22 +254,14 @@ impl Decoder<'_> {
         let opcode = code + u32::from(code_byte);
         self.current_opcode = Some(opcode);
         let kind = match opcode {
-            OP_NOP => {
-                self.byte()?;
-                InstructionKind::Nop
-            }
+            OP_NOP => InstructionKind::Nop,
             OP_UNUSED_PRINT => InstructionKind::NoOp(opcode),
-            OP_PRINT_QUAD => {
-                self.byte()?;
-                InstructionKind::NoOp(opcode)
-            }
+            OP_PRINT_QUAD | OP_TRACK_ADD_VERTEX => InstructionKind::NoOp(opcode),
             OP_JUMP => InstructionKind::Jump(self.i16()?),
             OP_JUMP_IF_NOT => InstructionKind::JumpIfNot {
-                condition: self.expression()?,
-                relative: self.i16()?,
+                relative: self.i16()? as u16,
             },
             OP_JUMP_IF => InstructionKind::JumpIf {
-                condition: self.expression()?,
                 relative: self.i16()?,
             },
             OP_JUMP_SWITCH_EX => {
@@ -291,7 +302,10 @@ impl Decoder<'_> {
                     }
                 }
             }
-            OP_DELETE_OBJECT => InstructionKind::DeleteObject(self.byte()?),
+            OP_DELETE_OBJECT => {
+                self.byte()?;
+                InstructionKind::DeleteObject(self.byte()?)
+            }
             OP_SET_ACTOR_POSITION => {
                 let flags = self.byte()?;
                 let mut argument = |bit: u8| {
@@ -542,16 +556,16 @@ impl Decoder<'_> {
             OP_RETURN => InstructionKind::Return,
             OP_EVALUATE => InstructionKind::Evaluate(self.expression()?),
             OP_WAIT => {
-                self.byte()?;
-                InstructionKind::Wait(self.expression()?)
+                let flags = self.byte()?;
+                InstructionKind::Wait(self.operand(flags, 1, false)?)
             }
             OP_WAIT_ANIMATION => InstructionKind::WaitAnimation,
             OP_WAIT_TURN => InstructionKind::WaitTurn,
             OP_WINDOW_SYNC | OP_WINDOW_ASYNC => {
-                self.byte()?;
-                let window = self.expression()?;
-                let flags = self.expression()?;
-                let text = self.expression()?;
+                let operand_flags = self.byte()?;
+                let window = self.operand(operand_flags, 1, false)?;
+                let flags = self.operand(operand_flags, 2, false)?;
+                let text = self.operand(operand_flags, 4, true)?;
                 if opcode == OP_WINDOW_SYNC {
                     InstructionKind::WindowSync {
                         window,
@@ -567,12 +581,12 @@ impl Decoder<'_> {
                 }
             }
             OP_WAIT_WINDOW => {
-                self.byte()?;
-                InstructionKind::WaitWindow(self.expression()?)
+                let flags = self.byte()?;
+                InstructionKind::WaitWindow(self.operand(flags, 1, false)?)
             }
             OP_CLOSE_WINDOW => {
-                self.byte()?;
-                InstructionKind::CloseWindow(self.expression()?)
+                let flags = self.byte()?;
+                InstructionKind::CloseWindow(self.operand(flags, 1, false)?)
             }
             OP_WALK_ACTOR => {
                 let flags = self.byte()?;
@@ -592,26 +606,20 @@ impl Decoder<'_> {
                 }
             }
             OP_MOVE_ACTOR => {
-                self.byte()?;
+                let flags = self.byte()?;
                 InstructionKind::MoveActor {
-                    actor: self.expression()?,
-                    x: self.expression()?,
-                    z: self.expression()?,
+                    actor: self.operand(flags, 1, false)?,
+                    x: self.operand(flags, 2, true)?,
+                    z: self.operand(flags, 4, true)?,
                 }
             }
-            OP_AIM_AT_CAMERA => {
-                self.byte()?;
-                InstructionKind::AimAtCamera
-            }
-            OP_DEFINE_PLAYER_CONTROL => {
-                self.byte()?;
-                InstructionKind::DefinePlayerControl
-            }
+            OP_AIM_AT_CAMERA => InstructionKind::AimAtCamera,
+            OP_DEFINE_PLAYER_CONTROL => InstructionKind::DefinePlayerControl,
             OP_SET_CONTROL_DIRECTION => {
-                self.byte()?;
+                let flags = self.byte()?;
                 InstructionKind::SetControlDirection {
-                    arrow: self.expression()?,
-                    analog: self.expression()?,
+                    arrow: self.operand(flags, 1, false)?,
+                    analog: self.operand(flags, 2, false)?,
                 }
             }
             OP_CINEMATIC => {
@@ -668,11 +676,11 @@ impl Decoder<'_> {
                 InstructionKind::DefineRegion { vertices }
             }
             OP_BACKGROUND_MOVE => {
-                self.byte()?;
+                let flags = self.byte()?;
                 InstructionKind::BackgroundMove {
-                    x: self.expression()?,
-                    y: self.expression()?,
-                    z: self.expression()?,
+                    x: self.operand(flags, 1, true)?,
+                    y: self.operand(flags, 2, true)?,
+                    z: self.operand(flags, 4, true)?,
                 }
             }
             OP_SET_TILE_SHADE_COLOR => {
@@ -816,10 +824,7 @@ impl Decoder<'_> {
                     z: argument(4)?,
                 }
             }
-            OP_RESET_WALK_STATE => {
-                self.byte()?;
-                InstructionKind::ResetWalkState
-            }
+            OP_RESET_WALK_STATE => InstructionKind::ResetWalkState,
             OP_SET_MOVEMENT_SPEED => {
                 let flags = self.byte()?;
                 let speed = if flags & 1 != 0 {
@@ -868,13 +873,10 @@ impl Decoder<'_> {
                 self.byte()?;
                 InstructionKind::Yield(opcode as u8)
             }
-            OP_SHADOW_ON | OP_SHADOW_OFF => {
-                self.byte()?;
-                InstructionKind::SetShadowEnabled {
-                    enabled: opcode == OP_SHADOW_ON,
-                    opcode: opcode as u8,
-                }
-            }
+            OP_SHADOW_ON | OP_SHADOW_OFF => InstructionKind::SetShadowEnabled {
+                enabled: opcode == OP_SHADOW_ON,
+                opcode: opcode as u8,
+            },
             OP_SET_TEXT_VARIABLE => {
                 let flags = self.byte()?;
                 let script = if flags & 1 != 0 {
@@ -1162,14 +1164,8 @@ impl Decoder<'_> {
                 self.byte()?;
                 InstructionKind::NoOp(opcode)
             }
-            OP_PRESERVE_AND_HIDE_ALL => {
-                self.byte()?;
-                InstructionKind::PreserveAndHideAll
-            }
-            OP_RESTORE_ALL_VISIBILITY => {
-                self.byte()?;
-                InstructionKind::RestoreAllVisibility
-            }
+            OP_PRESERVE_AND_HIDE_ALL => InstructionKind::PreserveAndHideAll,
+            OP_RESTORE_ALL_VISIBILITY => InstructionKind::RestoreAllVisibility,
             OP_SET_TIMER_RUNNING => {
                 let flags = self.byte()?;
                 let running = if flags & 1 != 0 {
@@ -1212,10 +1208,7 @@ impl Decoder<'_> {
                     tag: self.byte()?,
                 }
             }
-            OP_CALCULATE_EXIT_POSITION => {
-                self.byte()?;
-                InstructionKind::CalculateExitPosition
-            }
+            OP_CALCULATE_EXIT_POSITION => InstructionKind::CalculateExitPosition,
             OP_WALK_TO_EXIT => InstructionKind::WalkToExit,
             OP_CALCULATE_SCREEN_POSITION => {
                 let flags = self.byte()?;
@@ -1658,11 +1651,7 @@ impl Decoder<'_> {
                     rotation: argument(1, false)?,
                 }
             }
-            OP_UNLOCK_SHADOW_ROTATION => {
-                let flags = self.byte()?;
-                let _ = flags;
-                InstructionKind::UnlockShadowRotation
-            }
+            OP_UNLOCK_SHADOW_ROTATION => InstructionKind::UnlockShadowRotation,
             OP_SET_SHADOW_AMPLIFIER => {
                 let flags = self.byte()?;
                 let mut argument = |bit: u8, short: bool| {
@@ -2431,13 +2420,10 @@ impl Decoder<'_> {
                 };
                 InstructionKind::SetPartyAvailability(mask)
             }
-            OP_DASH_ON => {
-                self.byte()?;
-                InstructionKind::SetRunEnabled {
-                    enabled: true,
-                    opcode: opcode as u8,
-                }
-            }
+            OP_DASH_ON => InstructionKind::SetRunEnabled {
+                enabled: true,
+                opcode: opcode as u8,
+            },
             OP_MOVE_TILE => {
                 let flags = self.byte()?;
                 let mut argument = |bit: u8, short: bool| {

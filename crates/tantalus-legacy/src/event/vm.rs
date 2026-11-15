@@ -249,21 +249,20 @@ impl EventVm {
                 InstructionKind::Jump(relative) => {
                     self.pc = jump_target(&instruction, relative)?;
                 }
-                InstructionKind::JumpIfNot {
-                    ref condition,
-                    relative,
-                } => {
-                    let target = jump_target(&instruction, relative)?;
-                    let value = self.evaluate(host, condition, instruction.offset, opcode)?;
-                    self.pc = if value == 0 { target } else { next };
+                InstructionKind::JumpIfNot { relative } => {
+                    self.pc = if self.expression_value == 0 {
+                        switch_target(&instruction, relative, instruction.length)?
+                    } else {
+                        next
+                    };
                 }
-                InstructionKind::JumpIf {
-                    ref condition,
-                    relative,
-                } => {
+                InstructionKind::JumpIf { relative } => {
                     let target = jump_target(&instruction, relative)?;
-                    let value = self.evaluate(host, condition, instruction.offset, opcode)?;
-                    self.pc = if value != 0 { target } else { next };
+                    self.pc = if self.expression_value != 0 {
+                        target
+                    } else {
+                        next
+                    };
                 }
                 InstructionKind::JumpSwitch {
                     base,
