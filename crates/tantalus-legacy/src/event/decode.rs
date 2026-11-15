@@ -19,6 +19,7 @@ const OP_DEFINE_PLAYER_CONTROL: u8 = 0x2c;
 const OP_SET_CONTROL_DIRECTION: u8 = 0x67;
 const OP_BACKGROUND_MOVE: u8 = 0x58;
 const OP_INITIALIZE_OBJECT: u8 = 0x09;
+const OP_INITIALIZE_REGION: u8 = 0x08;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -135,6 +136,10 @@ impl Decoder<'_> {
                 }
             }
             OP_INITIALIZE_OBJECT => InstructionKind::InitializeObject {
+                source: self.byte()?,
+                unique_id: self.byte()?,
+            },
+            OP_INITIALIZE_REGION => InstructionKind::InitializeRegion {
                 source: self.byte()?,
                 unique_id: self.byte()?,
             },

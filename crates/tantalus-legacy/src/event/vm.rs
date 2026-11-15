@@ -238,6 +238,10 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::InitializeObject { source, unique_id });
                 }
+                InstructionKind::InitializeRegion { source, unique_id } => {
+                    self.pc = next;
+                    events.push(HostEvent::InitializeRegion { source, unique_id });
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -828,6 +832,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::SetControlDirection { .. } => 0x67,
         InstructionKind::BackgroundMove { .. } => 0x58,
         InstructionKind::InitializeObject { .. } => 0x09,
+        InstructionKind::InitializeRegion { .. } => 0x08,
     }
 }
 

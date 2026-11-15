@@ -118,6 +118,7 @@ impl LegacyEventHost for Host {
                 HostEvent::DefinePlayerControl { .. } => {}
                 HostEvent::SetControlDirection { .. } => {}
                 HostEvent::InitializeObject { .. } => {}
+                HostEvent::InitializeRegion { .. } => {}
             }
         }
         Ok(())
@@ -946,6 +947,32 @@ fn new3_emits_object_initialization_and_preserves_the_default_id_for_the_host() 
         [HostEvent::InitializeObject {
             source: 7,
             unique_id: 0
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn new2_emits_region_initialization_with_a_distinct_host_command() {
+    let program = decode_program(&[8, 11, 130, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 3);
+    assert_eq!(
+        program.instructions[&0].kind,
+        InstructionKind::InitializeRegion {
+            source: 11,
+            unique_id: 130
+        }
+    );
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(
+        report.events,
+        [HostEvent::InitializeRegion {
+            source: 11,
+            unique_id: 130
         }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);
