@@ -91,12 +91,16 @@ const OP_CALCULATE_EXIT_POSITION: u32 = 0xa4;
 const OP_WALK_TO_EXIT: u32 = 0xa0;
 const OP_CALCULATE_SCREEN_POSITION: u32 = 0xa9;
 const OP_CHANGE_FIELD: u32 = 0x2b;
-const OP_REQUEST_CALLER_SYNC: u32 = 0x14;
+const OP_REQUEST_CALLER_SYNC: u32 = 0x1a;
+const OP_REQUEST_SCRIPT_SYNC: u32 = 0x14;
 const OP_ATTACH_TILE: u32 = 0x92;
 const OP_BATTLE_SCENE_START: u32 = 0x100;
 const OP_SET_SIMULATION_FLOOR: u32 = 0x104;
 const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
 const OP_SET_TILE_ANIMATION_RATE: u32 = 0x61;
+const OP_END_SHARED_SCRIPT: u32 = 0x45;
+const OP_ENABLE_MENU: u32 = 0xaa;
+const OP_DISABLE_MENU: u32 = 0xab;
 const OP_DISABLE_USER_CONTROL: u32 = 0x2d;
 const OP_ENABLE_USER_CONTROL: u32 = 0x2e;
 const OP_RUN_SHARED_SCRIPT: u32 = 0x43;
@@ -878,7 +882,6 @@ impl Decoder<'_> {
                 InstructionKind::SetNavigationAttributeMask(mask)
             }
             OP_YIELD | OP_PADDING10 | OP_PADDING15 | OP_PADDING17 => {
-                self.byte()?;
                 InstructionKind::Yield(opcode as u8)
             }
             OP_SHADOW_ON | OP_SHADOW_OFF => InstructionKind::SetShadowEnabled {
@@ -1085,6 +1088,14 @@ impl Decoder<'_> {
                     tag: self.byte()?,
                 }
             }
+            OP_REQUEST_SCRIPT_SYNC => {
+                let flags = self.byte()?;
+                InstructionKind::RequestScriptSync {
+                    level: self.operand(flags, 1, false)?,
+                    target: self.operand(flags, 2, false)?,
+                    tag: self.byte()?,
+                }
+            }
             OP_REQUEST_SCRIPT_WHEN_READY => {
                 let flags = self.byte()?;
                 let mut argument = |bit: u8| {
@@ -1168,10 +1179,12 @@ impl Decoder<'_> {
                 };
                 InstructionKind::ShowBattleMessage(text)
             }
-            OP_GLOBAL_CLEAR | OP_DEBUG_SAVE | OP_DEBUG_LOAD => {
-                self.byte()?;
-                InstructionKind::NoOp(opcode)
-            }
+            OP_GLOBAL_CLEAR | OP_DEBUG_SAVE | OP_DEBUG_LOAD => InstructionKind::NoOp(opcode),
+            OP_END_SHARED_SCRIPT => InstructionKind::EndSharedScript,
+            OP_ENABLE_MENU | OP_DISABLE_MENU => InstructionKind::SetMenuControl {
+                enabled: opcode == OP_ENABLE_MENU,
+                opcode: opcode as u8,
+            },
             OP_PRESERVE_AND_HIDE_ALL => InstructionKind::PreserveAndHideAll,
             OP_RESTORE_ALL_VISIBILITY => InstructionKind::RestoreAllVisibility,
             OP_SET_TIMER_RUNNING => {

@@ -197,6 +197,7 @@ impl LegacyEventHost for Host {
                 HostEvent::CalculateExitPosition => {}
                 HostEvent::CalculateScreenPosition { .. } => {}
                 HostEvent::RequestCallerSync { .. } => {}
+                HostEvent::RequestScriptSync { .. } => {}
                 HostEvent::SetSpsParameters { .. } => {}
                 HostEvent::SetTileShadeColor { .. } => {}
                 HostEvent::SetSimulationFloor { .. } => {}
@@ -248,6 +249,8 @@ impl LegacyEventHost for Host {
                 HostEvent::TurnTowardObject { .. } => {}
                 HostEvent::ShowBubbleIcon { .. } => {}
                 HostEvent::SetFieldCamera { .. } => {}
+                HostEvent::EndSharedScript { .. } => {}
+                HostEvent::SetMenuControl { .. } => {}
                 HostEvent::SetTileAnimationRate { .. } => {}
                 HostEvent::SetTileAnimationFrameWait { .. } => {}
                 HostEvent::SetTileAnimationFlags { .. } => {}
@@ -4431,15 +4434,15 @@ fn angle_subtracts_fractional_actor_positions_before_fixed_point_conversion() {
 
 #[test]
 fn pad0e_consumes_its_flag_and_yields_before_continuing() {
-    let program = decode_program(&[14, 0, 4]).unwrap();
+    let program = decode_program(&[14, 4]).unwrap();
     assert_eq!(program.instructions[&0].kind, InstructionKind::Yield(14));
-    assert_eq!(program.instructions[&0].length, 2);
+    assert_eq!(program.instructions[&0].length, 1);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
 
     let report = vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(report.status, VmStatus::Running);
-    assert_eq!(vm.pc(), 2);
+    assert_eq!(vm.pc(), 1);
     assert!(report.events.is_empty());
     assert_eq!(
         vm.step(Tick::new(1), &mut host).unwrap().status,
@@ -4449,40 +4452,40 @@ fn pad0e_consumes_its_flag_and_yields_before_continuing() {
 
 #[test]
 fn pad10_consumes_its_flag_and_yields_through_the_default_path() {
-    let program = decode_program(&[10, 0, 4]).unwrap();
+    let program = decode_program(&[10, 4]).unwrap();
     assert_eq!(program.instructions[&0].kind, InstructionKind::Yield(10));
-    assert_eq!(program.instructions[&0].length, 2);
+    assert_eq!(program.instructions[&0].length, 1);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
 
     let report = vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(report.status, VmStatus::Running);
-    assert_eq!(vm.pc(), 2);
+    assert_eq!(vm.pc(), 1);
     assert!(report.events.is_empty());
     assert_eq!(
         vm.step(Tick::new(1), &mut host).unwrap().status,
         VmStatus::Completed
     );
-    assert!(decode_program(&[10]).is_err());
+    assert!(decode_program(&[10]).is_ok());
 }
 
 #[test]
 fn pad15_consumes_its_flag_and_yields_through_the_default_path() {
-    let program = decode_program(&[15, 0, 4]).unwrap();
+    let program = decode_program(&[15, 4]).unwrap();
     assert_eq!(program.instructions[&0].kind, InstructionKind::Yield(15));
-    assert_eq!(program.instructions[&0].length, 2);
+    assert_eq!(program.instructions[&0].length, 1);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
 
     let report = vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(report.status, VmStatus::Running);
-    assert_eq!(vm.pc(), 2);
+    assert_eq!(vm.pc(), 1);
     assert!(report.events.is_empty());
     assert_eq!(
         vm.step(Tick::new(1), &mut host).unwrap().status,
         VmStatus::Completed
     );
-    assert!(decode_program(&[15]).is_err());
+    assert!(decode_program(&[15]).is_ok());
 }
 
 #[test]
@@ -4539,16 +4542,16 @@ fn shadowoff_disables_the_current_actor_shadow_and_preserves_its_opcode() {
 
 #[test]
 fn pad17_yields_while_retaining_its_opcode() {
-    let program = decode_program(&[23, 0, 4]).unwrap();
+    let program = decode_program(&[23, 4]).unwrap();
     assert_eq!(program.instructions[&0].kind, InstructionKind::Yield(23));
-    assert_eq!(program.instructions[&0].length, 2);
+    assert_eq!(program.instructions[&0].length, 1);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
 
     let report = vm.step(Tick::new(0), &mut host).unwrap();
 
     assert_eq!(report.status, VmStatus::Running);
-    assert_eq!(vm.pc(), 2);
+    assert_eq!(vm.pc(), 1);
     assert_eq!(
         vm.step(Tick::new(1), &mut host).unwrap().status,
         VmStatus::Completed
@@ -5188,7 +5191,7 @@ fn getscreen_requests_screen_position_for_the_selected_object() {
 
 #[test]
 fn replyew_requests_once_and_waits_for_script_completion() {
-    let program = decode_program(&[20, 0, 2, 11, 4]).unwrap();
+    let program = decode_program(&[26, 0, 2, 11, 4]).unwrap();
     let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
     let mut host = Host::new();
 
@@ -5327,9 +5330,9 @@ fn printquad_consumes_its_flag_and_continues_without_side_effects() {
 
 #[test]
 fn globalclear_consumes_its_flag_and_continues_without_side_effects() {
-    let program = decode_program(&[209, 0, 4]).unwrap();
+    let program = decode_program(&[209, 4]).unwrap();
     assert_eq!(program.instructions[&0].kind, InstructionKind::NoOp(209));
-    assert_eq!(program.instructions[&0].length, 2);
+    assert_eq!(program.instructions[&0].length, 1);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
     let report = vm.step(Tick::new(0), &mut host).unwrap();
@@ -5360,12 +5363,12 @@ fn mesb_emits_battle_message_text() {
 #[test]
 fn debug_save_and_load_follow_the_reference_noop_path() {
     for opcode in [210, 211] {
-        let program = decode_program(&[opcode, 0, 4]).unwrap();
+        let program = decode_program(&[opcode, 4]).unwrap();
         assert_eq!(
             program.instructions[&0].kind,
             InstructionKind::NoOp(u32::from(opcode))
         );
-        assert_eq!(program.instructions[&0].length, 2);
+        assert_eq!(program.instructions[&0].length, 1);
         let mut vm = EventVm::new(program);
         let mut host = Host::new();
         let report = vm.step(Tick::new(0), &mut host).unwrap();
@@ -6171,6 +6174,36 @@ fn camera_bubble_script_and_turn_commands_decode_flag_bit_operands() {
     let truncated = decode_program(&[0x51, 0, 1]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(81)"));
+}
+
+#[test]
+fn menu_control_and_end_shared_script_are_operand_less_and_menuoff_yields() {
+    let actor = EntityId::new(7);
+    let mut host = Host::new();
+
+    let mut vm = EventVm::new(decode_program(&[0xaa, 4]).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::SetMenuControl { enabled: true }]);
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let program = decode_program(&[0xab, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 1);
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetMenuControl { enabled: false }]
+    );
+    assert_eq!(report.status, VmStatus::Running);
+    assert_eq!(vm.pc(), 1);
+    assert!(vm.traces().any(|trace| trace.opcode == Some(0xab)));
+
+    let mut vm = EventVm::new(decode_program(&[0x45, 4]).unwrap()).with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::EndSharedScript { actor }]);
+    let mut vm = EventVm::new(decode_program(&[0x45, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("actor context"));
 }
 
 #[test]

@@ -935,6 +935,31 @@ impl EventVm {
                         tag,
                     });
                 }
+                InstructionKind::RequestScriptSync { level, target, tag } => {
+                    let level = self.evaluate(host, &level, instruction.offset, opcode)?;
+                    let target = self.evaluate(host, &target, instruction.offset, opcode)?;
+                    if target < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "script target cannot be negative",
+                        ));
+                    }
+                    let target = EntityId::new(target as u64);
+                    if host
+                        .script_request_acceptable(target, level)
+                        .map_err(|error| VmError::host(error, instruction.offset, opcode))?
+                    {
+                        self.pc = next;
+                        self.wait = Some(WaitState::ScriptRequest);
+                        self.status = VmStatus::Waiting;
+                        events.push(HostEvent::RequestScriptSync { level, target, tag });
+                    } else {
+                        // Memoria stay(): retry this instruction on the next step.
+                        self.pc = instruction.offset;
+                        break;
+                    }
+                }
                 InstructionKind::RequestScriptWhenReady { level, target, tag } => {
                     let level = self.evaluate(host, &level, instruction.offset, opcode)?;
                     let target = self.evaluate(host, &target, instruction.offset, opcode)?;
@@ -1640,6 +1665,26 @@ impl EventVm {
                     let camera = self.evaluate(host, &camera, instruction.offset, opcode)?;
                     self.pc = next;
                     events.push(HostEvent::SetFieldCamera { camera });
+                }
+                InstructionKind::EndSharedScript => {
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "shared script termination requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::EndSharedScript { actor });
+                }
+                InstructionKind::SetMenuControl { enabled, .. } => {
+                    self.pc = next;
+                    events.push(HostEvent::SetMenuControl { enabled });
+                    if !enabled {
+                        // Memoria MENUOFF returns FLOW_STATE_WAIT: yield after the command.
+                        break;
+                    }
                 }
                 InstructionKind::SetTileAnimationRate {
                     animation,
@@ -3270,11 +3315,14 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::WalkToExit => 0xa0,
         InstructionKind::CalculateScreenPosition { .. } => 0xa9,
         InstructionKind::ChangeField { .. } => 0x2b,
-        InstructionKind::RequestCallerSync { .. } => 0x14,
+        InstructionKind::RequestCallerSync { .. } => 0x1a,
+        InstructionKind::RequestScriptSync { .. } => 0x14,
         InstructionKind::SetSimulationFloor { .. } => 0x104,
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
         InstructionKind::SetTileAnimationFlags { .. } => 0x64,
         InstructionKind::SetTileAnimationRange { .. } => 0x65,
+        InstructionKind::EndSharedScript => 0x45,
+        InstructionKind::SetMenuControl { opcode, .. } => u32::from(*opcode),
         InstructionKind::SetUserControl { opcode, .. } => u32::from(*opcode),
         InstructionKind::RaiseWindows => 0x8e,
         InstructionKind::CalculateScreenOrigin => 0xea,

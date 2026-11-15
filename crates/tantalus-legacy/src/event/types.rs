@@ -330,6 +330,11 @@ pub enum InstructionKind {
         target: Expression,
         tag: u8,
     },
+    RequestScriptSync {
+        level: Expression,
+        target: Expression,
+        tag: u8,
+    },
     RequestScriptWhenReady {
         level: Expression,
         target: Expression,
@@ -553,6 +558,11 @@ pub enum InstructionKind {
     },
     SetFieldCamera {
         camera: Expression,
+    },
+    EndSharedScript,
+    SetMenuControl {
+        enabled: bool,
+        opcode: u8,
     },
     SetTileAnimationRate {
         animation: Expression,
@@ -951,6 +961,11 @@ pub enum HostEvent {
         target: EntityId,
         tag: u8,
     },
+    RequestScriptSync {
+        level: i32,
+        target: EntityId,
+        tag: u8,
+    },
     DefineTileViewport {
         viewport: i32,
         x: i16,
@@ -1180,6 +1195,12 @@ pub enum HostEvent {
     },
     SetFieldCamera {
         camera: i32,
+    },
+    EndSharedScript {
+        actor: EntityId,
+    },
+    SetMenuControl {
+        enabled: bool,
     },
     SetTileAnimationRate {
         animation: i32,
