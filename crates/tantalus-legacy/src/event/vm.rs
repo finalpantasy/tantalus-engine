@@ -283,6 +283,18 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetNavigationAttributeMask { mask });
                 }
+                InstructionKind::SetShadowEnabled(enabled) => {
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "shadow visibility requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetShadowEnabled { actor, enabled });
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -888,6 +900,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::AttachObjectOffset { .. } => 0xd4,
         InstructionKind::SetNavigationAttributeMask(_) => 0x27,
         InstructionKind::Yield => 0x0e,
+        InstructionKind::SetShadowEnabled(_) => 0x7f,
     }
 }
 

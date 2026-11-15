@@ -26,6 +26,7 @@ const OP_RUN_SOUND: u8 = 0xc5;
 const OP_ATTACH_OBJECT_OFFSET: u8 = 0xd4;
 const OP_SET_NAVIGATION_ATTRIBUTE_MASK: u8 = 0x27;
 const OP_YIELD: u8 = 0x0e;
+const OP_SHADOW_ON: u8 = 0x7f;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -226,6 +227,10 @@ impl Decoder<'_> {
             OP_YIELD => {
                 self.byte()?;
                 InstructionKind::Yield
+            }
+            OP_SHADOW_ON => {
+                self.byte()?;
+                InstructionKind::SetShadowEnabled(true)
             }
             _ => {
                 return Err(VmError::new(

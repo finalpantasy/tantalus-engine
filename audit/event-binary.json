@@ -62,14 +62,15 @@
     "B_CAST_LIST 74 matches the reference empty implementation and returns zero without consuming an operand",
     "B_SHIFT_RIGHT 23 performs signed arithmetic shifts with the reference's masked shift count",
     "B_ANGLE2 102 ports the reference quadrant logic and host-provided arctangent table reads with equivalent integer output",
-    "pad0e 0x0E consumes its flag and yields before continuing, matching the default FLOW_STATE_WAIT path"
+    "pad0e 0x0E consumes its flag and yields before continuing, matching the default FLOW_STATE_WAIT path",
+    "SHADOWON 0x7F consumes its flag and emits SetShadowEnabled for the current actor"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 968,
-    "opcode": "0x7F",
+    "offset": 970,
+    "opcode": "0x17",
     "kind": "event",
-    "instruction": "SHADOWON"
+    "instruction": "pad17"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

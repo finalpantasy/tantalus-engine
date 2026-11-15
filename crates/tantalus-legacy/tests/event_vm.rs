@@ -124,6 +124,7 @@ impl LegacyEventHost for Host {
                 HostEvent::RunSound { .. } => {}
                 HostEvent::AttachObjectOffset { .. } => {}
                 HostEvent::SetNavigationAttributeMask { .. } => {}
+                HostEvent::SetShadowEnabled { .. } => {}
             }
         }
         Ok(())
@@ -1187,4 +1188,26 @@ fn pad0e_consumes_its_flag_and_yields_before_continuing() {
         vm.step(Tick::new(1), &mut host).unwrap().status,
         VmStatus::Completed
     );
+}
+
+#[test]
+fn shadowon_enables_the_current_actor_shadow() {
+    let program = decode_program(&[127, 0, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(
+        report.events,
+        [HostEvent::SetShadowEnabled {
+            actor: EntityId::new(42),
+            enabled: true
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[127, 0, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
 }
