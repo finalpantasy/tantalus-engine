@@ -294,6 +294,36 @@ pub enum InstructionKind {
         z: Expression,
     },
     AimAtCamera,
+    /// `DTURN` 0xBB: animated turn of an object chosen by entry.
+    StartObjectTurn {
+        object: Expression,
+        angle: Expression,
+        speed: Expression,
+    },
+    /// `DANIM` 0xBD: play an animation on an object chosen by entry.
+    PlayObjectAnimation {
+        object: Expression,
+        animation: Expression,
+    },
+    /// `TEXPLAY` 0xC0 (loop) and `TEXPLAY1` 0xC1 (`once`).
+    PlayTextureAnimation {
+        object: Expression,
+        animation: Expression,
+        once: bool,
+    },
+    /// `DASHOFF` 0x6A.
+    DisableRun,
+    /// `BGVSET` 0xC3.
+    SetTileCamera {
+        overlay: Expression,
+        camera: Expression,
+    },
+    /// `GAMEOVER` 0xF5.
+    GameOver,
+    /// `MINIGAME` 0xAE.
+    StartCardGame {
+        opponent: Expression,
+    },
     /// `ENCOUNT` 0x2A (`group: None`) and `ENCOUNT2` 0x8C: start a scripted battle.
     StartBattle {
         rush: Expression,
@@ -1068,6 +1098,20 @@ pub enum HostEvent {
         speed: i32,
     },
     AimAtCamera,
+    PlayTextureAnimation {
+        object: i32,
+        animation: i32,
+        once: bool,
+    },
+    DisableRun,
+    SetTileCamera {
+        overlay: i32,
+        camera: i32,
+    },
+    GameOver,
+    StartCardGame {
+        opponent: u16,
+    },
     StartBattle {
         rush: i32,
         group: Option<i32>,

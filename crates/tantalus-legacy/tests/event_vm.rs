@@ -181,6 +181,11 @@ impl LegacyEventHost for Host {
                 HostEvent::SetActorFacing { .. } => {}
                 HostEvent::StartActorTurn { .. } => {}
                 HostEvent::AimAtCamera => {}
+                HostEvent::PlayTextureAnimation { .. } => {}
+                HostEvent::DisableRun => {}
+                HostEvent::SetTileCamera { .. } => {}
+                HostEvent::GameOver => {}
+                HostEvent::StartCardGame { .. } => {}
                 HostEvent::StartBattle { .. } => {}
                 HostEvent::ChangeWorldMap { .. } => {}
                 HostEvent::SyncPartyUid => {}
@@ -4985,6 +4990,75 @@ fn pick_reads_the_member_of_the_first_active_slot_and_zero_for_an_empty_mask() {
         vm.step(Tick::new(0), &mut host).unwrap_err().kind,
         VmErrorKind::InvalidExpression
     );
+}
+
+#[test]
+fn entry_addressed_turn_animation_and_texture_commands_decode_flag_bit_operands() {
+    let mut host = Host::new();
+
+    // DTURN: entry, angle byte (shifted left four bits), speed byte.
+    let program = decode_program(&[0xbb, 0, 9, 0x40, 2, 0xbd, 0, 9, 0x2c, 0x01, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 5);
+    let mut vm = EventVm::new(program);
+    assert_eq!(
+        vm.step(Tick::new(0), &mut host).unwrap().events,
+        [
+            HostEvent::StartActorTurn {
+                actor: EntityId::new(9),
+                angle: 0x400,
+                speed: 2,
+            },
+            HostEvent::PlayAnimation {
+                actor: EntityId::new(9),
+                animation: 300,
+            },
+        ]
+    );
+
+    let program = decode_program(&[0xc0, 0, 9, 3, 0xc1, 0, 9, 4, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    assert_eq!(
+        vm.step(Tick::new(0), &mut host).unwrap().events,
+        [
+            HostEvent::PlayTextureAnimation {
+                object: 9,
+                animation: 3,
+                once: false,
+            },
+            HostEvent::PlayTextureAnimation {
+                object: 9,
+                animation: 4,
+                once: true,
+            },
+        ]
+    );
+}
+
+#[test]
+fn run_lock_tile_camera_card_game_and_game_over_commands() {
+    let mut host = Host::new();
+
+    let program = decode_program(&[0x6a, 0xc3, 0, 2, 1, 0xae, 0, 0x05, 0x00, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 1);
+    let mut vm = EventVm::new(program);
+    assert_eq!(
+        vm.step(Tick::new(0), &mut host).unwrap().events,
+        [
+            HostEvent::DisableRun,
+            HostEvent::SetTileCamera {
+                overlay: 2,
+                camera: 1
+            },
+            HostEvent::StartCardGame { opponent: 5 },
+        ]
+    );
+
+    let program = decode_program(&[0xf5, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 1);
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::GameOver]);
+    assert_eq!(report.status, VmStatus::Completed);
 }
 
 #[test]
