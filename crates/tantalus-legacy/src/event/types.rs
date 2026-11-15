@@ -130,6 +130,10 @@ pub enum InstructionKind {
         source: u8,
         unique_id: u8,
     },
+    InitializeCode {
+        source: u8,
+        unique_id: u8,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -183,6 +187,7 @@ pub enum HostEvent {
     SetControlDirection { arrow: i16, analog: i16 },
     InitializeObject { source: u8, unique_id: u8 },
     InitializeRegion { source: u8, unique_id: u8 },
+    InitializeCode { source: u8, unique_id: u8 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

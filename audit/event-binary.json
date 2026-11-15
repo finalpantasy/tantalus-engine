@@ -53,14 +53,15 @@
     "B_EQ_E 34 returns selected-member equality flags without writes; empty masks return zero without target selection",
     "B_SYSVAR 122 reads the serialized system-variable ID through the host and reports unknown IDs",
     "NEW3 0x09 decodes source and unique IDs and emits InitializeObject; party aliases, default ID resolution, replacement, and model loading remain host work",
-    "NEW2 0x08 decodes source and unique IDs and emits the distinct InitializeRegion host command"
+    "NEW2 0x08 decodes source and unique IDs and emits the distinct InitializeRegion host command",
+    "NEW 0x07 decodes source and unique IDs and emits the distinct InitializeCode host command"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 386,
-    "opcode": "0x07",
+    "offset": 395,
+    "opcode": "0x9A",
     "kind": "event",
-    "instruction": "NEW"
+    "instruction": "BGIACTIVET"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
