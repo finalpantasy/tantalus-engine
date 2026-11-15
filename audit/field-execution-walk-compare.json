@@ -1,5 +1,5 @@
 {
-  "note": "Smart-walk (stand by default, one 64-tick leg after 256 stagnant ticks under user control) is still worse than standing (15/20), and net-zero jiggle legs fare the same: ANY player displacement or direction input during these scenes breaks their choreography, because scenes pin the player at a scripted anchor. The only movement that helps is a detected facing gate (street A). Conclusion: the scripted player must stand absolutely still unless a facing gate is positively detected (a scene polling object facing with <), which needs a trace-level watch - tantalus-trace lane.",
+  "note": "Smart-walk (stand by default, one 64-tick leg after 256 stagnant ticks under user control) is still worse than standing (15/20), and net-zero jiggle legs fare the same: ANY player displacement or direction input during these scenes breaks their choreography, because scenes pin the player at a scripted anchor. The only movement that helps is a detected facing gate (street A). Conclusion: the scripted player must stand absolutely still unless a facing gate is positively detected (a scene polling object facing with <), which needs a trace-level watch - tantalus-trace lane. Follow-up: facing-gate detection via host-side player-facing-read counting is NOT distinctive - entry 0 (the player controller) reads its own facing constantly, so the poll counter rises in every archive and the gated policy fires identically to the timer policy. A genuine gate signal needs trace-level introspection (which entries wait on which conditions mid-scene), which is the tantalus-trace lane.",
   "rows": [
     {
       "name": "EVT_ALEX1_AT_STREET_A.eb",
@@ -158,6 +158,148 @@
       "completed": 12,
       "tag3": 1,
       "regions": 0,
+      "legs": 1,
+      "error": false
+    }
+  ],
+  "gated_rows": [
+    {
+      "name": "EVT_ALEX1_AT_STREET_A.eb",
+      "completed": 26,
+      "tag3": 7,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_STREET_B.eb",
+      "completed": 19,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_STREET_C.eb",
+      "completed": 12,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_CENTER.eb",
+      "completed": 28,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_INN.eb",
+      "completed": 14,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_PUB.eb",
+      "completed": 14,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_WEAPON.eb",
+      "completed": 8,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_MAGIC.eb",
+      "completed": 9,
+      "tag3": 2,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_ITEM.eb",
+      "completed": 6,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX2_AC_GUARD.eb",
+      "completed": 13,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX2_AC_LIB.eb",
+      "completed": 12,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX2_AC_ENT_2F.eb",
+      "completed": 10,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX2_AC_PRISON_A.eb",
+      "completed": 10,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX2_AC_R_HALL.eb",
+      "completed": 10,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_TRENO2_TR_TOT_0.eb",
+      "completed": 15,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_LIND1_TN_LB_LDH_0.eb",
+      "completed": 9,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX3_AT_HOUSE_2.eb",
+      "completed": 12,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX3_AT_SENTOU.eb",
+      "completed": 24,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX5_AT_STREET_C.eb",
+      "completed": 11,
+      "tag3": 0,
+      "legs": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_LIND2_CS_LB_ASD_1.eb",
+      "completed": 12,
+      "tag3": 1,
       "legs": 1,
       "error": false
     }

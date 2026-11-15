@@ -374,6 +374,11 @@ impl LegacyEventHost for FieldHost<'_> {
         {
             return Ok(value);
         }
+        // Facing-gate detection: scenes polling the player actor's facing
+        // (member 3) are waiting for the player to face a direction.
+        if reference.member == 3 && self.world.player() == Some(reference.object) {
+            self.world.player_facing_polls += 1;
+        }
         // Referenced objects always exist in the reference's object table;
         // implicitly register a zero-state actor for uids no event declared
         // yet (dynamic NEW3 objects observed before their init runs).

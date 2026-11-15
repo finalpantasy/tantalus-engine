@@ -175,6 +175,9 @@ pub struct FieldWorld {
     /// Direction-bit mapping `(up, down, left, right)` for player movement;
     /// none means input never moves the player (no layout guessed).
     walk_bits: Option<(i32, i32, i32, i32)>,
+    /// How often scenes have read the player actor's facing (member 3) -
+    /// a rising count means a facing gate is polling.
+    pub player_facing_polls: u64,
     /// Movie frame-count provider for the FMV service, keyed by
     /// `(disc, number)`. Runtime-only; snapshots do not carry it.
     #[serde(skip)]
@@ -292,6 +295,7 @@ impl FieldWorld {
             player: None,
             confirm_mask: None,
             walk_bits: None,
+            player_facing_polls: 0,
             fmv_frame_counts: None,
         }
     }

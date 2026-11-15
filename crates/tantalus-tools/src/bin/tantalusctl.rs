@@ -1286,9 +1286,9 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         // Smart walk: stand by default; when user control is on and the
         // scene has not progressed for a while, walk one leg, then re-
         // evaluate. Naive constant walking disrupts scene choreography.
-        let mut last_progress = 0u64;
         let mut leg_remaining = 0u64;
         let mut leg_phase = 0usize;
+        let mut facing_polls_seen = 0u64;
         for tick in 0..ticks {
             if wander {
                 // 64 ticks per leg: 1024-unit square covering the field.
@@ -1302,7 +1302,15 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 if tick == 0 {
                     director.set_input_mask(confirm_only);
                 }
-                if director.world().user_control && tick - last_progress > 256 && leg_remaining == 0
+                // Walk only on a positively detected facing gate: user
+                // control on and the scene is polling the player actor's
+                // facing (member 3).
+                let facing_polled = director.world().player_facing_polls > facing_polls_seen;
+                facing_polls_seen = director.world().player_facing_polls;
+                if smart_walk
+                    && director.world().user_control
+                    && facing_polled
+                    && leg_remaining == 0
                 {
                     leg_remaining = 64;
                     leg_phase = (leg_phase + 1) % 4;
@@ -1325,9 +1333,6 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 Ok(step) => {
                     operations += step.operations;
                     ticks_run += 1;
-                    if !step.completed_entries.is_empty() {
-                        last_progress = tick;
-                    }
                     for region in &step.region_occupancy {
                         regions_visited.insert(region.get());
                     }
