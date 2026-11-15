@@ -1,0 +1,418 @@
+{
+  "completed_entries": 26,
+  "entries": [
+    {
+      "entry": 0,
+      "tag": 0
+    },
+    {
+      "entry": 1,
+      "tag": 0
+    },
+    {
+      "entry": 2,
+      "tag": 0
+    },
+    {
+      "entry": 3,
+      "tag": 0
+    },
+    {
+      "entry": 4,
+      "tag": 0
+    },
+    {
+      "entry": 5,
+      "tag": 0
+    },
+    {
+      "entry": 6,
+      "tag": 0
+    },
+    {
+      "entry": 7,
+      "tag": 0
+    },
+    {
+      "entry": 8,
+      "tag": 0
+    },
+    {
+      "entry": 9,
+      "tag": 0
+    },
+    {
+      "entry": 10,
+      "tag": 0
+    },
+    {
+      "entry": 11,
+      "tag": 0
+    },
+    {
+      "entry": 12,
+      "tag": 0
+    },
+    {
+      "entry": 13,
+      "tag": 0
+    },
+    {
+      "entry": 14,
+      "tag": 0
+    },
+    {
+      "entry": 15,
+      "tag": 0
+    },
+    {
+      "entry": 16,
+      "tag": 0
+    },
+    {
+      "entry": 17,
+      "tag": 0
+    },
+    {
+      "entry": 19,
+      "tag": 0
+    },
+    {
+      "entry": 1,
+      "tag": 3
+    },
+    {
+      "entry": 2,
+      "tag": 3
+    },
+    {
+      "entry": 3,
+      "tag": 3
+    },
+    {
+      "entry": 4,
+      "tag": 3
+    },
+    {
+      "entry": 6,
+      "tag": 3
+    },
+    {
+      "entry": 7,
+      "tag": 3
+    },
+    {
+      "entry": 8,
+      "tag": 3
+    }
+  ],
+  "error": null,
+  "final_states": [
+    {
+      "entry": 0,
+      "pc": 842,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 256,
+      "pc": 87,
+      "position": [
+        0.0,
+        32768.0,
+        -350.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 259,
+      "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 512,
+      "pc": 94,
+      "position": [
+        1073.0,
+        32768.0,
+        1069.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 514,
+      "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 768,
+      "pc": 120,
+      "position": [
+        315.0,
+        -324.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 770,
+      "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 1024,
+      "pc": 143,
+      "position": [
+        370.0,
+        -324.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 1026,
+      "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 1280,
+      "pc": 70,
+      "position": [
+        370.0,
+        -324.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 1536,
+      "pc": 110,
+      "position": [
+        400.0,
+        32768.0,
+        -324.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 1538,
+      "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 1792,
+      "pc": 110,
+      "position": [
+        -40.0,
+        32768.0,
+        -400.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 1794,
+      "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 2048,
+      "pc": 105,
+      "position": [
+        531.0,
+        3618.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 2050,
+      "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 2304,
+      "pc": 62,
+      "position": [
+        0.0,
+        32768.0,
+        1030.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 2560,
+      "pc": 260,
+      "position": [
+        300.0,
+        4500.0,
+        3000.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 2816,
+      "pc": 23,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 3072,
+      "pc": 0,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 3328,
+      "pc": 0,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 3584,
+      "pc": 0,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 3840,
+      "pc": 19,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 4096,
+      "pc": 19,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 4352,
+      "pc": 23,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 4864,
+      "pc": 491,
+      "position": [
+        0.0,
+        32768.0,
+        100.0
+      ],
+      "status": "Completed",
+      "wait": null
+    }
+  ],
+  "name": "EVT_ALEX1_AT_STREET_A.eb",
+  "operations": 375,
+  "orchestrated": true,
+  "regions_defined": 4,
+  "regions_visited": 1,
+  "skipped_empty_entries": [
+    18,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26
+  ],
+  "spawned_functions": 0,
+  "ticks_requested": 8192,
+  "ticks_run": 8192,
+  "unspawned_requests": 0,
+  "_note": "End-to-end proof of the map-100 input gate: a walking player (wander demo bits + held confirm) advances the real Alexandria Street A scene - 26 VMs complete (vs ~14 parked without walking), entry 1 finishes at its scene position [0, 32768, -350], entry 2 walks to [1073, 32768, 1069], 1 region visited, zero errors. The scene director waits for the player character facing >= 162; walking satisfies it."
+}
