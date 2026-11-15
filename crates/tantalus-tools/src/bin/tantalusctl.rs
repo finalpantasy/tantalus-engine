@@ -339,6 +339,8 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut field_execute = None;
     let mut all_functions = false;
     let mut atan_table = None;
+    let mut navigation_bundle = None;
+    let mut navigation_bgi = None;
     let mut ticks = 64u64;
     let mut probe = false;
     let mut inventory = false;
@@ -382,6 +384,25 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 }
             }
             Some("--all-functions") => all_functions = true,
+            Some("--navigation-bundle") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| "`--navigation-bundle` requires a path".to_owned())?;
+                if navigation_bundle.replace(PathBuf::from(value)).is_some() {
+                    return Err("`--navigation-bundle` may only be supplied once".to_owned());
+                }
+            }
+            Some("--navigation-bgi") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--navigation-bgi` requires a UTF-8 asset name".to_owned())?;
+                if navigation_bgi.replace(value.to_owned()).is_some() {
+                    return Err("`--navigation-bgi` may only be supplied once".to_owned());
+                }
+            }
             Some("--atan-table") => {
                 index += 1;
                 let value = args
@@ -709,6 +730,42 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             let table = std::fs::read(&table_path)
                 .map_err(|error| format!("cannot read {}: {error}", table_path.display()))?;
             director.world_mut().provide_atan_table(table);
+        }
+        if let (Some(bundle_path), Some(bgi_name)) = (&navigation_bundle, &navigation_bgi) {
+            let nav_bundle = tantalus_assets::pc::unity_raw::UnityRawBundle::open(bundle_path)
+                .map_err(|error| error.to_string())?;
+            let nav_bytes = nav_bundle
+                .read_entry(0, 300 * 1024 * 1024)
+                .map_err(|error| error.to_string())?;
+            let nav_serialized = tantalus_assets::pc::serialized::SerializedFile::parse(
+                &nav_bytes,
+                &bundle_path.to_string_lossy(),
+            )
+            .map_err(|error| error.to_string())?;
+            let mut nav_asset = None;
+            for (index, object) in nav_serialized.report().objects.iter().enumerate() {
+                if object.class_id != 49 {
+                    continue;
+                }
+                let asset = tantalus_assets::pc::text_asset::TextAsset::parse(
+                    nav_serialized
+                        .object_data(index)
+                        .map_err(|error| error.to_string())?,
+                    bgi_name,
+                )
+                .map_err(|error| error.to_string())?;
+                if asset.name == *bgi_name {
+                    nav_asset = Some(asset.script);
+                    break;
+                }
+            }
+            let script =
+                nav_asset.ok_or_else(|| format!("BGI asset `{bgi_name}` was not found"))?;
+            let bgi = tantalus_assets::pc::bgi::BgiFile::parse(&script, bgi_name)
+                .map_err(|error| error.to_string())?;
+            let mesh = tantalus_assets::pc::field::bgi_to_navigation_mesh(&bgi)
+                .map_err(|error| error.to_string())?;
+            director.world_mut().provide_navigation(mesh);
         }
         let mut entry_tags = Vec::new();
         let mut skipped = Vec::new();

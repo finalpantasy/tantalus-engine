@@ -173,6 +173,12 @@ fn padded_rect(layout: PaddedAtlas, ordinal: usize) -> [u32; 4] {
     [x, y, x + layout.tile_size, y + layout.tile_size]
 }
 
+pub fn bgi_to_navigation_mesh(
+    value: &BgiFile,
+) -> Result<tantalus_contracts::FieldNavigationMesh, ImportError> {
+    map_navigation(value)
+}
+
 fn map_navigation(value: &BgiFile) -> Result<tantalus_contracts::FieldNavigationMesh, ImportError> {
     let mut triangles = Vec::with_capacity(value.triangles.len());
     for triangle in &value.triangles {
