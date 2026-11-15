@@ -55,14 +55,15 @@
     "NEW3 0x09 decodes source and unique IDs and emits InitializeObject; party aliases, default ID resolution, replacement, and model loading remain host work",
     "NEW2 0x08 decodes source and unique IDs and emits the distinct InitializeRegion host command",
     "NEW 0x07 decodes source and unique IDs and emits the distinct InitializeCode host command",
-    "BGIACTIVET 0x9A supports immediate and expression arguments, preserves unsigned triangle IDs, and emits SetTriangleActive"
+    "BGIACTIVET 0x9A supports immediate and expression arguments, preserves unsigned triangle IDs, and emits SetTriangleActive",
+    "FLDSND0 0xC5 decodes signed sound code and ID operands and emits RunSound with three zero arguments"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 400,
-    "opcode": "0xC5",
+    "offset": 437,
+    "opcode": "0xD4",
     "kind": "event",
-    "instruction": "FLDSND0"
+    "instruction": "ATTACHOFFSET"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

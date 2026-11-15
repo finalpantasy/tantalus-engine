@@ -138,6 +138,10 @@ pub enum InstructionKind {
         triangle: Expression,
         active: Expression,
     },
+    RunSound {
+        code: Expression,
+        sound: Expression,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -183,16 +187,48 @@ pub enum WaitState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HostEvent {
-    ShowWindow { window: u8, flags: u8, text: u16 },
-    CloseWindow { window: u8 },
-    MoveActor { actor: EntityId, x: i32, z: i32 },
+    ShowWindow {
+        window: u8,
+        flags: u8,
+        text: u16,
+    },
+    CloseWindow {
+        window: u8,
+    },
+    MoveActor {
+        actor: EntityId,
+        x: i32,
+        z: i32,
+    },
     AimAtCamera,
-    DefinePlayerControl { actor: EntityId },
-    SetControlDirection { arrow: i16, analog: i16 },
-    InitializeObject { source: u8, unique_id: u8 },
-    InitializeRegion { source: u8, unique_id: u8 },
-    InitializeCode { source: u8, unique_id: u8 },
-    SetTriangleActive { triangle: u32, active: bool },
+    DefinePlayerControl {
+        actor: EntityId,
+    },
+    SetControlDirection {
+        arrow: i16,
+        analog: i16,
+    },
+    InitializeObject {
+        source: u8,
+        unique_id: u8,
+    },
+    InitializeRegion {
+        source: u8,
+        unique_id: u8,
+    },
+    InitializeCode {
+        source: u8,
+        unique_id: u8,
+    },
+    SetTriangleActive {
+        triangle: u32,
+        active: bool,
+    },
+    RunSound {
+        code: i32,
+        sound: i32,
+        arguments: [i32; 3],
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

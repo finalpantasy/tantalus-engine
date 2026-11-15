@@ -121,6 +121,7 @@ impl LegacyEventHost for Host {
                 HostEvent::InitializeRegion { .. } => {}
                 HostEvent::InitializeCode { .. } => {}
                 HostEvent::SetTriangleActive { .. } => {}
+                HostEvent::RunSound { .. } => {}
             }
         }
         Ok(())
@@ -1034,4 +1035,24 @@ fn bgiactivet_supports_immediate_and_expression_arguments() {
             active: false
         }]
     );
+}
+
+#[test]
+fn fldsnd0_preserves_signed_ids_and_supplies_zero_audio_arguments() {
+    let program = decode_program(&[197, 0, 0x00, 0xd0, 0xe3, 0x0a, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 6);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(
+        report.events,
+        [HostEvent::RunSound {
+            code: -12288,
+            sound: 2787,
+            arguments: [0, 0, 0]
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
 }

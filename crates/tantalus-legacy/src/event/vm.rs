@@ -253,6 +253,16 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetTriangleActive { triangle, active });
                 }
+                InstructionKind::RunSound { code, sound } => {
+                    let code = self.evaluate(host, &code, instruction.offset, opcode)?;
+                    let sound = self.evaluate(host, &sound, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::RunSound {
+                        code,
+                        sound,
+                        arguments: [0, 0, 0],
+                    });
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -846,6 +856,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::InitializeRegion { .. } => 0x08,
         InstructionKind::InitializeCode { .. } => 0x07,
         InstructionKind::SetTriangleActive { .. } => 0x9a,
+        InstructionKind::RunSound { .. } => 0xc5,
     }
 }
 

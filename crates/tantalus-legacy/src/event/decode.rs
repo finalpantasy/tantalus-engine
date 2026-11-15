@@ -22,6 +22,7 @@ const OP_INITIALIZE_OBJECT: u8 = 0x09;
 const OP_INITIALIZE_REGION: u8 = 0x08;
 const OP_INITIALIZE_CODE: u8 = 0x07;
 const OP_SET_TRIANGLE_ACTIVE: u8 = 0x9a;
+const OP_RUN_SOUND: u8 = 0xc5;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -168,6 +169,26 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::SetTriangleActive { triangle, active }
+            }
+            OP_RUN_SOUND => {
+                let flags = self.byte()?;
+                let code = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.i16()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                let sound = if flags & 2 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.i16()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::RunSound { code, sound }
             }
             _ => {
                 return Err(VmError::new(
