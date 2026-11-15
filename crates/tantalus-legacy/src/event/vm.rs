@@ -3798,23 +3798,30 @@ impl EventVm {
                     value: 0,
                     target: None,
                 }),
-                ExpressionOp::AssignMembers => {
-                    if stack.len() < 2 {
+                ExpressionOp::AssignMembers
+                | ExpressionOp::AndAssignMembers
+                | ExpressionOp::XorAssignMembers
+                | ExpressionOp::OrAssignMembers => {
+                    // Memoria `OperatorExtractLet`: the stack ends with [lvalue, mask, member].
+                    // The result is the bit set of slots whose member is nonzero; ops 67-69
+                    // combine it with the lvalue's current value before storing.
+                    let combines = !matches!(operation, ExpressionOp::AssignMembers);
+                    if stack.len() < if combines { 3 } else { 2 } {
                         return Err(expression_error(
                             offset,
                             opcode,
-                            "member assignment requires target and mask inputs",
+                            "member extraction requires a mask and a member input",
                         ));
                     }
-                    let Some(StackTarget::Member(_)) = stack[stack.len() - 2].target else {
+                    let Some(StackTarget::Member(_)) = stack[stack.len() - 1].target else {
                         return Err(expression_error(
                             offset,
                             opcode,
-                            "member assignment input is not a selected member",
+                            "member extraction input is not a selected member",
                         ));
                     };
-                    let mask = read_value(host, stack[stack.len() - 1], offset, opcode)?;
-                    let target = stack[stack.len() - 2];
+                    let mask = read_value(host, stack[stack.len() - 2], offset, opcode)?;
+                    let member = stack[stack.len() - 1];
                     let mut result = 0i32;
                     for slot in 0..8 {
                         result >>= 1;
@@ -3822,16 +3829,25 @@ impl EventVm {
                             host.select_object_member_target(Some(slot))
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
                             result |=
-                                i32::from(read_value(host, target, offset, opcode)? != 0) << 7;
+                                i32::from(read_value(host, member, offset, opcode)? != 0) << 7;
                         }
                     }
                     stack.truncate(stack.len() - 2);
-                    if let Some(target) = stack.pop() {
-                        match target.target {
+                    let lvalue = stack.pop();
+                    if let Some(lvalue) = lvalue {
+                        if combines {
+                            let current = read_value(host, lvalue, offset, opcode)?;
+                            result = match operation {
+                                ExpressionOp::AndAssignMembers => result & current,
+                                ExpressionOp::XorAssignMembers => result ^ current,
+                                _ => result | current,
+                            };
+                        }
+                        match lvalue.target {
                             Some(StackTarget::Variable(variable)) => {
-                                let value = normalize(result, variable.value_type);
+                                let stored = normalize(result, variable.value_type);
                                 self.variables
-                                    .insert((variable.scope, variable.index), value);
+                                    .insert((variable.scope, variable.index), stored);
                             }
                             Some(StackTarget::Member(member)) => {
                                 let object = host
@@ -3855,54 +3871,6 @@ impl EventVm {
                     }
                     stack.push(StackValue {
                         value: result,
-                        target: None,
-                    });
-                }
-                ExpressionOp::AndAssignMembers
-                | ExpressionOp::XorAssignMembers
-                | ExpressionOp::OrAssignMembers => {
-                    if stack.len() < 3 {
-                        return Err(expression_error(
-                            offset,
-                            opcode,
-                            "member bitwise assignment requires target, mask, and value inputs",
-                        ));
-                    }
-                    let Some(StackTarget::Member(member)) = stack[stack.len() - 3].target else {
-                        return Err(expression_error(
-                            offset,
-                            opcode,
-                            "member bitwise assignment target is not a selected member",
-                        ));
-                    };
-                    let mask = read_value(host, stack[stack.len() - 2], offset, opcode)?;
-                    let operand = read_value(host, stack[stack.len() - 1], offset, opcode)?;
-                    let target = stack[stack.len() - 3];
-                    let mut selected_values = 0i32;
-                    for slot in 0..8 {
-                        selected_values >>= 1;
-                        if mask & (1 << slot) != 0 {
-                            host.select_object_member_target(Some(slot))
-                                .map_err(|error| VmError::host(error, offset, opcode))?;
-                            selected_values |=
-                                i32::from(read_value(host, target, offset, opcode)? != 0) << 7;
-                        }
-                    }
-                    let object = host
-                        .select_object_member_target(None)
-                        .map_err(|error| VmError::host(error, offset, opcode))?;
-                    let reference = ObjectMemberRef { object, member };
-                    let value = match operation {
-                        ExpressionOp::AndAssignMembers => selected_values & operand,
-                        ExpressionOp::XorAssignMembers => selected_values ^ operand,
-                        ExpressionOp::OrAssignMembers => selected_values | operand,
-                        _ => unreachable!(),
-                    };
-                    host.write_object_member(reference, value)
-                        .map_err(|error| VmError::host(error, offset, opcode))?;
-                    stack.truncate(stack.len() - 3);
-                    stack.push(StackValue {
-                        value,
                         target: None,
                     });
                 }
