@@ -46,6 +46,7 @@ pub enum ExpressionOp {
     Remainder,
     Less,
     Greater,
+    GreaterOrEqual,
     Equal,
     NotEqual,
     Assign,
@@ -54,6 +55,7 @@ pub enum ExpressionOp {
     PreDecrement,
     PostDecrement,
     ReadObjectMember(ObjectMemberRef),
+    CustomVariable(u16),
     ShiftRightAssignMembers,
     LogicalAnd,
     LogicalOr,
@@ -240,4 +242,5 @@ pub trait LegacyEventHost {
     fn apply(&mut self, events: &[HostEvent]) -> Result<(), EngineError>;
     fn window_is_open(&self, window: u8) -> bool;
     fn read_object_member(&mut self, reference: ObjectMemberRef) -> Result<i32, EngineError>;
+    fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError>;
 }

@@ -141,7 +141,6 @@ impl Decoder<'_> {
     }
 
     fn expression(&mut self) -> Result<Expression, VmError> {
-        let start = self.position as u32;
         let mut operations = Vec::new();
         loop {
             let opcode_position = self.position as u32;
@@ -164,6 +163,7 @@ impl Decoder<'_> {
                 EXPR_REMAINDER => ExpressionOp::Remainder,
                 EXPR_LESS => ExpressionOp::Less,
                 EXPR_GREATER => ExpressionOp::Greater,
+                27 => ExpressionOp::GreaterOrEqual,
                 EXPR_EQUAL => ExpressionOp::Equal,
                 EXPR_NOT_EQUAL => ExpressionOp::NotEqual,
                 39 => ExpressionOp::LogicalAnd,
@@ -184,6 +184,13 @@ impl Decoder<'_> {
                         Some(opcode),
                         "custom variable functions are not implemented",
                     ));
+                }
+                _ if opcode >= 0x80 && opcode & 3 == 3 => {
+                    let mut variable = u16::from(self.byte()?);
+                    if opcode & 0x20 != 0 {
+                        variable |= u16::from(self.byte()?) << 8;
+                    }
+                    ExpressionOp::CustomVariable(variable)
                 }
                 _ if opcode >= 0x80 => {
                     let scope = match opcode & 3 {
@@ -230,14 +237,6 @@ impl Decoder<'_> {
                 }
             };
             operations.push(operation);
-        }
-        if operations.len() == 1 {
-            return Err(VmError::new(
-                VmErrorKind::InvalidExpression,
-                start,
-                None,
-                "expression contains no value",
-            ));
         }
         Ok(Expression(operations))
     }

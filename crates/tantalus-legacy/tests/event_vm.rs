@@ -117,6 +117,19 @@ impl LegacyEventHost for Host {
     fn read_object_member(&mut self, reference: ObjectMemberRef) -> Result<i32, EngineError> {
         Ok(((reference.object.get() as i32) << 8) | reference.member as i32)
     }
+
+    fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError> {
+        if variable == 0 {
+            Ok(17)
+        } else {
+            Err(EngineError::new(
+                ErrorCategory::UnknownContent,
+                format!("unknown custom variable {variable}"),
+                "fixture-host",
+                true,
+            ))
+        }
+    }
 }
 
 #[test]
@@ -505,4 +518,37 @@ fn direct_pre_decrement_returns_the_new_value() {
     vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(vm.variable(VariableScope::Map, 8), -1);
     assert_eq!(vm.variable(VariableScope::Global, 11), -1);
+}
+
+#[test]
+fn custom_variables_read_through_the_host_by_serialized_id() {
+    let target = variable(VariableScope::Global, VariableType::Int16, 12);
+    let program =
+        decode_program(&[evaluate(assign(target, vec![0xe3, 0, 0])), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 12), 17);
+}
+
+#[test]
+fn greater_or_equal_assigns_the_comparison_result() {
+    let target = variable(VariableScope::Global, VariableType::Int16, 13);
+    let comparison = binary(constant(2), constant(2), 27);
+    let program =
+        decode_program(&[evaluate(assign(target, comparison)), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 13), 1);
+}
+
+#[test]
+fn empty_expressions_evaluate_to_zero() {
+    let program = decode_program(&[evaluate(Vec::new()), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 14), 0);
+    assert_eq!(vm.status(), VmStatus::Completed);
 }

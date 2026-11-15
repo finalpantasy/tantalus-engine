@@ -337,6 +337,7 @@ impl EventVm {
                 | ExpressionOp::Remainder
                 | ExpressionOp::Less
                 | ExpressionOp::Greater
+                | ExpressionOp::GreaterOrEqual
                 | ExpressionOp::Equal
                 | ExpressionOp::NotEqual => {
                     let (left, right) = binary(&mut stack, operation)?;
@@ -351,6 +352,7 @@ impl EventVm {
                         ExpressionOp::Divide | ExpressionOp::Remainder => left,
                         ExpressionOp::Less => i32::from(left < right),
                         ExpressionOp::Greater => i32::from(left > right),
+                        ExpressionOp::GreaterOrEqual => i32::from(left >= right),
                         ExpressionOp::Equal => i32::from(left == right),
                         ExpressionOp::NotEqual => i32::from(left != right),
                         _ => unreachable!(),
@@ -432,6 +434,15 @@ impl EventVm {
                         variable: None,
                     });
                 }
+                ExpressionOp::CustomVariable(variable) => {
+                    let value = host
+                        .read_custom_variable(*variable)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    stack.push(StackValue {
+                        value,
+                        variable: None,
+                    });
+                }
                 ExpressionOp::ShiftRightAssignMembers => {
                     if stack.len() < 3 {
                         return Err(expression_error(
@@ -492,10 +503,7 @@ impl EventVm {
             }
             index += 1;
         }
-        stack
-            .last()
-            .map(|value| value.value)
-            .ok_or_else(|| expression_error(offset, opcode, "expression produced no value"))
+        Ok(stack.last().map(|value| value.value).unwrap_or(0))
     }
 
     fn evaluate_u8(
@@ -657,6 +665,7 @@ fn operand_start(
         ExpressionOp::Constant(_)
         | ExpressionOp::Variable(_)
         | ExpressionOp::ReadObjectMember(_)
+        | ExpressionOp::CustomVariable(_)
         | ExpressionOp::Pad => Ok(index),
         ExpressionOp::Negate
         | ExpressionOp::Not
@@ -671,6 +680,7 @@ fn operand_start(
         | ExpressionOp::Remainder
         | ExpressionOp::Less
         | ExpressionOp::Greater
+        | ExpressionOp::GreaterOrEqual
         | ExpressionOp::Equal
         | ExpressionOp::NotEqual
         | ExpressionOp::Assign
