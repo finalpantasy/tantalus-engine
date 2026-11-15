@@ -152,6 +152,9 @@ pub struct FieldWorld {
     /// Confirm-button bit for talk triggers; none disables detection until
     /// the caller configures the pad layout.
     confirm_mask: Option<i32>,
+    /// Direction-bit mapping `(up, down, left, right)` for player movement;
+    /// none means input never moves the player (no layout guessed).
+    walk_bits: Option<(i32, i32, i32, i32)>,
 }
 
 impl Default for FieldWorld {
@@ -201,6 +204,7 @@ impl FieldWorld {
             current_actor: None,
             player: None,
             confirm_mask: None,
+            walk_bits: None,
         }
     }
 
@@ -230,6 +234,45 @@ impl FieldWorld {
 
     pub fn confirm_mask(&self) -> Option<i32> {
         self.confirm_mask
+    }
+
+    pub fn set_walk_bits(&mut self, bits: Option<(i32, i32, i32, i32)>) {
+        self.walk_bits = bits;
+    }
+
+    /// Move the player actor by the configured direction bits (straight XZ
+    /// at walk speed; walkmesh clamping is future work).
+    pub(crate) fn apply_walk_input(&mut self) {
+        let (Some(player), Some((up, down, left, right))) = (self.player, self.walk_bits) else {
+            return;
+        };
+        let mask = self.input_mask;
+        let mut dx = 0.0f32;
+        let mut dz = 0.0f32;
+        if mask & up != 0 {
+            dz -= self.walk_speed;
+        }
+        if mask & down != 0 {
+            dz += self.walk_speed;
+        }
+        if mask & left != 0 {
+            dx -= self.walk_speed;
+        }
+        if mask & right != 0 {
+            dx += self.walk_speed;
+        }
+        if dx == 0.0 && dz == 0.0 {
+            return;
+        }
+        if let Some(state) = self.actors.get_mut(&player) {
+            if dx != 0.0 && dz != 0.0 {
+                dx *= std::f32::consts::FRAC_1_SQRT_2;
+                dz *= std::f32::consts::FRAC_1_SQRT_2;
+            }
+            state.position[0] += dx;
+            state.position[2] += dz;
+            state.movement = None;
+        }
     }
 
     pub fn set_talk_radius(&mut self, actor: EntityId, radius: u8) {
@@ -336,6 +379,7 @@ impl FieldWorld {
 
     /// Advance movement, turns, and animations by one tick.
     pub fn advance(&mut self) {
+        self.apply_walk_input();
         for state in self.actors.values_mut() {
             if let Some(movement) = &state.movement {
                 let [dx, dz] = [

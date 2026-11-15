@@ -118,6 +118,12 @@ impl FieldDirector {
         self.world.set_confirm_mask(mask);
     }
 
+    /// Configure the direction-bit mapping that moves the player actor;
+    /// `None` means input never moves the player.
+    pub fn set_walk_bits(&mut self, bits: Option<(i32, i32, i32, i32)>) {
+        self.world.set_walk_bits(bits);
+    }
+
     /// Observed per-entry VM state (entity, pc, status, wait).
     pub fn entry_states(
         &self,

@@ -289,3 +289,40 @@ fn region_occupancy_reports_containing_regions_for_the_player() {
     let step = director.step().unwrap();
     assert_eq!(step.region_occupancy, [EntityId::new(3)]);
 }
+
+#[test]
+fn walk_input_moves_the_player_by_the_configured_direction_bits() {
+    let mut director = FieldDirector::new(FieldWorld::new());
+    director.world_mut().add_actor(EntityId::new(1), [0.0; 3]);
+    director.set_player(EntityId::new(1));
+    // No mapping: input never moves the player.
+    director.set_input_mask(0x08);
+    director.step().unwrap();
+    assert_eq!(
+        director.world().actors[&EntityId::new(1)].position,
+        [0.0; 3]
+    );
+
+    director.set_walk_bits(Some((0x01, 0x02, 0x04, 0x08)));
+    // Right at the default walk speed (16) per tick.
+    director.set_input_mask(0x08);
+    director.step().unwrap();
+    assert_eq!(
+        director.world().actors[&EntityId::new(1)].position,
+        [16.0, 0.0, 0.0]
+    );
+    // Up moves negative Z; diagonals normalize.
+    director.set_input_mask(0x01);
+    director.step().unwrap();
+    assert_eq!(
+        director.world().actors[&EntityId::new(1)].position,
+        [16.0, 0.0, -16.0]
+    );
+    director.set_input_mask(0x08 | 0x02);
+    let before = director.world().actors[&EntityId::new(1)].position;
+    director.step().unwrap();
+    let after = director.world().actors[&EntityId::new(1)].position;
+    let expected = 16.0f32 * std::f32::consts::FRAC_1_SQRT_2;
+    assert!((after[0] - before[0] - expected).abs() < 1e-4);
+    assert!((after[2] - before[2] - expected).abs() < 1e-4);
+}

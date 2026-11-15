@@ -436,6 +436,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut scan_requests = false;
     let mut talk_confirm = None;
     let mut talk_radius = None;
+    let mut wander = false;
     let mut atan_table = None;
     let mut navigation_bundle = None;
     let mut navigation_bgi = None;
@@ -510,6 +511,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                         .map_err(|_| "`--talk-radius` requires a byte".to_owned())?,
                 );
             }
+            Some("--wander") => wander = true,
             Some("--talk-confirm") => {
                 index += 1;
                 let value = args
@@ -1129,6 +1131,12 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             director.set_confirm_mask(Some(mask));
             director.set_input_mask(mask);
         }
+        // Demo direction mapping (synthetic bits, not the pad layout):
+        // 0x01 up, 0x02 down, 0x04 left, 0x08 right; confirm bit preserved.
+        let confirm_only = talk_confirm.unwrap_or(0);
+        if wander {
+            director.set_walk_bits(Some((0x01, 0x02, 0x04, 0x08)));
+        }
         if let Some(radius) = talk_radius {
             // Demo aid: the real engine assigns talk radii from field init
             // data we do not import yet; assign uniformly so the tag-3
@@ -1146,7 +1154,12 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         let mut unspawned_requests = 0usize;
         let mut regions_visited: std::collections::BTreeSet<u64> =
             std::collections::BTreeSet::new();
-        for _ in 0..ticks {
+        for tick in 0..ticks {
+            if wander {
+                let phase = (tick / 8) % 4;
+                let direction = [0x08u32, 0x02, 0x04, 0x01][phase as usize];
+                director.set_input_mask(confirm_only | i32::from(direction as u8));
+            }
             match director.step() {
                 Ok(step) => {
                     operations += step.operations;
