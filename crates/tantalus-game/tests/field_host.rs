@@ -53,6 +53,44 @@ fn window_waits_until_the_director_closes_the_window() {
 }
 
 #[test]
+fn shown_text_raises_its_signals_one_per_tick_into_sysvar_8() {
+    // WindowSync 0x1F: window 3, flags 0, text 7.
+    let program = decode_program(&[0x1f, 0, 3, 0, 7, 0, 4]).unwrap();
+    let mut scene = FieldScene::new();
+    scene.add_entry(actor(1), program).unwrap();
+    let mut world = FieldWorld::new();
+    world.add_actor(actor(1), [0.0; 3]);
+    world.dialog_signals.insert(7, vec![5, -1]);
+    world.mes_signal = 1;
+
+    scene
+        .step(Tick::new(0), &mut FieldHost::new(&mut world))
+        .unwrap();
+    assert_eq!(FieldHost::new(&mut world).read_system_variable(8), Ok(1));
+    world.advance();
+    assert_eq!(FieldHost::new(&mut world).read_system_variable(8), Ok(5));
+    // A negative signal increments (DialogBoxSymbols.OnSignal).
+    world.advance();
+    assert_eq!(world.mes_signal, 6);
+    world.advance();
+    assert_eq!(world.mes_signal, 6);
+}
+
+#[test]
+fn set_signal_opcode_sets_dialog_progression() {
+    // SETSIGNAL 0xE3 with value 2.
+    let program = decode_program(&[0xe3, 0, 2, 4]).unwrap();
+    let mut scene = FieldScene::new();
+    scene.add_entry(actor(1), program).unwrap();
+    let mut world = FieldWorld::new();
+    world.add_actor(actor(1), [0.0; 3]);
+    scene
+        .step(Tick::new(0), &mut FieldHost::new(&mut world))
+        .unwrap();
+    assert_eq!(world.mes_signal, 2);
+}
+
+#[test]
 fn gil_and_items_account_through_host_events() {
     // AddGil 0xCE with a 24-bit amount of 100; AddItem 0x48 item 12 count 3.
     let program = decode_program(&[0xce, 0, 100, 0, 0, 0x48, 0, 12, 0, 3, 4]).unwrap();

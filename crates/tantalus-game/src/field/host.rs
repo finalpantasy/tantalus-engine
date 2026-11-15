@@ -105,9 +105,19 @@ impl LegacyEventHost for FieldHost<'_> {
                 _ => {}
             }
             match event {
-                HostEvent::ShowWindow { window, .. }
-                | HostEvent::ShowObjectWindow { window, .. } => {
+                HostEvent::ShowWindow { window, text, .. } => {
                     self.world.windows.insert(*window, true);
+                    self.world.window_texts.insert(*window, *text);
+                    self.world.raise_text_signals(*text);
+                }
+                HostEvent::ShowObjectWindow { window, text, .. } => {
+                    self.world.windows.insert(*window, true);
+                    self.world.window_texts.insert(*window, *text);
+                    self.world.raise_text_signals(*text);
+                }
+                HostEvent::SetDialogSignal { signal } => {
+                    // SETSIGNAL (EventEngine.DoEventCode.cs:2927).
+                    self.world.mes_signal = *signal;
                 }
                 HostEvent::CloseWindow { window } => {
                     self.world.windows.insert(*window, false);
@@ -425,6 +435,10 @@ impl LegacyEventHost for FieldHost<'_> {
         match variable {
             // 2 IsMovementEnabled: `EventContext.usercontrol`.
             2 => return Ok(i32::from(self.world.user_control)),
+            // 8 GetDialogProgression: `ETb.gMesSignal`.
+            8 => return Ok(self.world.mes_signal),
+            // 9 GetDialogChoice: `ETb.GetChoose()`.
+            9 => return Ok(self.world.dialog_choice),
             14 => return Ok(self.world.fmv.frame),
             15 => return Ok(self.world.fmv.sync()),
             _ => {}

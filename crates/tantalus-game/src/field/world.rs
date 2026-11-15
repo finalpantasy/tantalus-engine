@@ -119,6 +119,22 @@ pub struct FieldWorld {
     /// Reference user control flag (`SetUserControl`); region and talk checks
     /// only run while it is on.
     pub user_control: bool,
+    /// `ETb.gMesSignal`, read as system variable 8 (`GetDialogProgression`).
+    /// Set by `SETSIGNAL` (0xE3) and by `[SIGL=n]` tags in displayed text.
+    pub mes_signal: i32,
+    /// `ETb.sChoose`, read as system variable 9 (`GetDialogChoice`): the
+    /// option picked in the last choice window. Set by the player (or a
+    /// scripted stand-in) when it closes a window.
+    pub dialog_choice: i32,
+    /// Text id each window last showed.
+    pub window_texts: BTreeMap<u8, u16>,
+    /// Field text id -> the `[SIGL=n]` values its text carries, in order.
+    /// Loaded by the caller from the field's `.mes` file (this crate embeds
+    /// no game text). Empty means windows raise no signals.
+    pub dialog_signals: BTreeMap<u16, Vec<i32>>,
+    /// Signals raised by shown windows and not yet applied; the reference
+    /// applies at most one per event tick (`DialogBoxSymbols.OnSignal`).
+    pending_signals: std::collections::VecDeque<i32>,
     pending_requests: BTreeSet<EntityId>,
     pending_callers: BTreeSet<i32>,
     shared_scripts: BTreeSet<EntityId>,
@@ -184,6 +200,11 @@ impl FieldWorld {
             regions: BTreeMap::new(),
             control_actor: None,
             user_control: false,
+            mes_signal: 0,
+            dialog_choice: 0,
+            window_texts: BTreeMap::new(),
+            dialog_signals: BTreeMap::new(),
+            pending_signals: std::collections::VecDeque::new(),
             pending_requests: BTreeSet::new(),
             pending_callers: BTreeSet::new(),
             shared_scripts: BTreeSet::new(),
@@ -380,6 +401,7 @@ impl FieldWorld {
     /// Advance movement, turns, and animations by one tick.
     pub fn advance(&mut self) {
         self.apply_walk_input();
+        self.apply_dialog_signal();
         for state in self.actors.values_mut() {
             if let Some(movement) = &state.movement {
                 let [dx, dz] = [
@@ -415,6 +437,29 @@ impl FieldWorld {
         self.rng ^= self.rng << 25;
         self.rng ^= self.rng >> 27;
         (self.rng.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 56) as u8
+    }
+
+    /// Queues the `[SIGL]` signals of a text a window just showed.
+    ///
+    /// Approximation: the reference raises each signal when the typewriter
+    /// reaches its tag; here they are applied one per tick from the next
+    /// tick on, without waiting for text speed, `[WAIT]` or page breaks.
+    pub(crate) fn raise_text_signals(&mut self, text: u16) {
+        if let Some(signals) = self.dialog_signals.get(&text) {
+            self.pending_signals.extend(signals.iter().copied());
+        }
+    }
+
+    /// `DialogBoxSymbols.OnSignal`: a negative signal increments the value,
+    /// any other replaces it.
+    fn apply_dialog_signal(&mut self) {
+        if let Some(signal) = self.pending_signals.pop_front() {
+            if signal < 0 {
+                self.mes_signal = self.mes_signal.wrapping_add(1);
+            } else {
+                self.mes_signal = signal;
+            }
+        }
     }
 
     pub(crate) fn system_variable(&self, variable: u8) -> Option<i32> {

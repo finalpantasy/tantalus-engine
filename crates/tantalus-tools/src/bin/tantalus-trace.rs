@@ -30,7 +30,7 @@ fn main() -> ExitCode {
 }
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--character-data <Data/Characters dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--character-data <Data/Characters dir>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N,...]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -46,6 +46,10 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut confirm_after = 0u64;
     let mut explore = false;
     let mut character_data: Option<PathBuf> = None;
+    let mut game_data: Option<PathBuf> = None;
+    let mut mes_map: Option<PathBuf> = None;
+    let mut language = String::from("us");
+    let mut choices: BTreeMap<(i32, u16), i32> = BTreeMap::new();
     while let Some(flag) = iter.next() {
         let mut value = || {
             iter.next()
@@ -62,6 +66,20 @@ fn run(args: Vec<String>) -> Result<(), String> {
             "--ticks" => ticks = parse_number(&value()?, "--ticks")?,
             "--character-data" => character_data = Some(PathBuf::from(value()?)),
             "--explore" => explore = true,
+            "--game-data" => game_data = Some(PathBuf::from(value()?)),
+            "--mes-map" => mes_map = Some(PathBuf::from(value()?)),
+            "--language" => language = value()?,
+            "--choices" => {
+                for part in value()?.split(',') {
+                    let parsed = part.trim().split_once(':').and_then(|(map, rest)| {
+                        let (text, answer) = rest.split_once('=')?;
+                        Some((map.parse().ok()?, text.parse().ok()?, answer.parse().ok()?))
+                    });
+                    let (map, text, answer) = parsed
+                        .ok_or_else(|| format!("bad --choices entry `{part}`, want MAP:TEXT=N"))?;
+                    choices.insert((map, text), answer);
+                }
+            }
             "--confirm-after" => confirm_after = parse_number(&value()?, "--confirm-after")?,
             other => return Err(format!("unrecognized argument `{other}`\n{USAGE}")),
         }
@@ -99,6 +117,15 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 }
                 None => BTreeMap::new(),
             };
+            let text = match (game_data, mes_map) {
+                (Some(data), Some(map_path)) => {
+                    let source = std::fs::read_to_string(&map_path)
+                        .map_err(|error| format!("cannot read {}: {error}", map_path.display()))?;
+                    Some(FieldText::open(&data, &source, language)?)
+                }
+                (None, None) => None,
+                _ => return Err("--game-data and --mes-map go together".into()),
+            };
             chain(
                 &bundle,
                 &db,
@@ -110,6 +137,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     confirm_after,
                     explore,
                     stats,
+                    text,
+                    choices,
                 },
             )
         }
@@ -309,6 +338,154 @@ struct ChainOptions {
     confirm_after: u64,
     explore: bool,
     stats: BTreeMap<i32, tantalus_game::field::CharacterStats>,
+    text: Option<FieldText>,
+    /// Scripted answers for choice windows by (field map, text id); 0 when
+    /// absent, the reference's default cursor position.
+    choices: BTreeMap<(i32, u16), i32>,
+}
+
+/// Per-field text facts the scripted player needs.
+#[derive(Default)]
+struct FieldTextInfo {
+    signals: BTreeMap<u16, Vec<i32>>,
+    /// Text ids that contain a `[CHOO]` choice list.
+    choices: BTreeSet<u16>,
+}
+
+/// Field dialog text, for the `[SIGL=n]` signals windows raise.
+///
+/// Memoria loads `EmbeddedAsset/Text/<lang>/Field/<zone>.mes`, where the zone
+/// is `EventEngineUtils.eventIDToMESID[fldMapNo]` (`HonoluluFieldMain`,
+/// `FF9TextTool.UpdateFieldText`). The path resolves through the Unity
+/// `ResourceManager` container in `mainData`. The map table is read at run
+/// time from the pinned Memoria source, not copied here.
+struct FieldText {
+    data_dir: PathBuf,
+    language: String,
+    zones: BTreeMap<i32, i32>,
+    /// Lower-case resource path -> (file name, path id).
+    container: BTreeMap<String, (String, i64)>,
+}
+
+impl FieldText {
+    fn open(data_dir: &Path, map_source: &str, language: String) -> Result<Self, String> {
+        use tantalus_assets::pc::resource_container::{
+            RESOURCE_MANAGER_CLASS_ID, parse_resource_container,
+        };
+        use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
+        let main = data_dir.join("mainData");
+        let mut file = StandaloneSerialized::open(&main).map_err(|error| error.to_string())?;
+        let manager = file
+            .objects()
+            .iter()
+            .find(|object| object.class_id == RESOURCE_MANAGER_CLASS_ID)
+            .cloned()
+            .ok_or("mainData has no ResourceManager")?;
+        let bytes = file
+            .read_object(&manager)
+            .map_err(|error| error.to_string())?;
+        let externals = file.inventory().external_paths.clone();
+        let mut container = BTreeMap::new();
+        for entry in parse_resource_container(&bytes, &main.display().to_string())
+            .map_err(|error| error.to_string())?
+        {
+            let file_name = match usize::try_from(entry.file_id) {
+                Ok(0) => "mainData".to_owned(),
+                Ok(index) => match externals.get(index - 1) {
+                    Some(path) => path.rsplit(['/', '\\']).next().unwrap_or(path).to_owned(),
+                    None => continue,
+                },
+                Err(_) => continue,
+            };
+            container.insert(entry.path.to_lowercase(), (file_name, entry.path_id));
+        }
+        Ok(Self {
+            data_dir: data_dir.to_path_buf(),
+            language,
+            zones: parse_mes_map(map_source),
+            container,
+        })
+    }
+
+    /// `[SIGL]` values and choice texts for one field map, or why none were
+    /// loaded.
+    fn info(&self, map: i32) -> Result<FieldTextInfo, String> {
+        use tantalus_assets::pc::mes::{MesToken, parse_mes_bytes};
+        use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
+        let zone = self
+            .zones
+            .get(&map)
+            .ok_or_else(|| format!("map {map} has no eventIDToMESID entry"))?;
+        let key = format!("embeddedasset/text/{}/field/{zone}", self.language);
+        let (file_name, path_id) = self
+            .container
+            .get(&key)
+            .or_else(|| self.container.get(&format!("{key}.mes")))
+            .ok_or_else(|| format!("resource `{key}` not in the container"))?;
+        let path = self.data_dir.join(file_name);
+        let mut file = StandaloneSerialized::open(&path).map_err(|error| error.to_string())?;
+        let object = file
+            .objects()
+            .iter()
+            .find(|object| object.path_id == *path_id)
+            .cloned()
+            .ok_or_else(|| format!("{file_name} has no object {path_id}"))?;
+        let asset = file
+            .read_text_asset(&object)
+            .map_err(|error| error.to_string())?;
+        let mes = parse_mes_bytes(&asset.script, &key).map_err(|error| error.to_string())?;
+        let mut info = FieldTextInfo::default();
+        for entry in &mes.entries {
+            let Ok(id) = u16::try_from(entry.id) else {
+                continue;
+            };
+            if entry
+                .tokens
+                .iter()
+                .any(|token| matches!(token, MesToken::Tag(tag) if tag.code == "Choice"))
+            {
+                info.choices.insert(id);
+            }
+            let values: Vec<i32> = entry
+                .tokens
+                .iter()
+                .filter_map(|token| match token {
+                    MesToken::Tag(tag) if tag.code == "Signal" => tag.params.first()?.parse().ok(),
+                    _ => None,
+                })
+                .collect();
+            if !values.is_empty() {
+                info.signals.insert(id, values);
+            }
+        }
+        Ok(info)
+    }
+}
+
+/// `EventEngineUtils.eventIDToMESID` entries (`{map, zone},`), read from the
+/// Memoria source after the dictionary's declaration.
+fn parse_mes_map(source: &str) -> BTreeMap<i32, i32> {
+    let Some(start) = source.find("eventIDToMESID") else {
+        return BTreeMap::new();
+    };
+    let mut map = BTreeMap::new();
+    for line in source[start..].lines().skip(1) {
+        let line = line.trim();
+        if line.starts_with("};") {
+            break;
+        }
+        let Some(body) = line.strip_prefix('{') else {
+            continue;
+        };
+        let mut parts = body.trim_end_matches(',').trim_end_matches('}').split(',');
+        if let (Some(Ok(map_no)), Some(Ok(zone))) = (
+            parts.next().map(|part| part.trim().parse()),
+            parts.next().map(|part| part.trim().parse()),
+        ) {
+            map.insert(map_no, zone);
+        }
+    }
+    map
 }
 
 fn chain(
@@ -324,6 +501,8 @@ fn chain(
         confirm_after,
         explore,
         stats,
+        text,
+        choices,
     } = options;
     let mut world = tantalus_game::FieldWorld::new();
     // FF9Play_Init: every character has a player record from new game on.
@@ -355,6 +534,26 @@ fn chain(
         world.field_map_no = map;
         // EventEngine.InitEvents zeroes mapvar for every field (EventEngine.cs:556).
         world.map_memory.clear();
+        let mut choice_texts = BTreeSet::new();
+        let text_status = match &text {
+            Some(text) => match text.info(map) {
+                Ok(info) => {
+                    let status = format!(
+                        "{} texts with signals, {} with choices",
+                        info.signals.len(),
+                        info.choices.len()
+                    );
+                    world.dialog_signals = info.signals;
+                    choice_texts = info.choices;
+                    status
+                }
+                Err(error) => {
+                    world.dialog_signals.clear();
+                    error
+                }
+            },
+            None => "not loaded".to_owned(),
+        };
         world.take_field_transitions();
         let mut director = tantalus_game::FieldDirector::new(world.clone());
         for entry in 0..pool.len() {
@@ -381,6 +580,7 @@ fn chain(
         // is closed as if confirm were pressed (0 disables).
         let mut open_since: BTreeMap<u8, u64> = BTreeMap::new();
         let mut confirms = 0usize;
+        let mut choices_made: Vec<(u16, i32)> = Vec::new();
         // Scripted player (--explore): while user control is on, step the
         // controlled actor into each region that has a tag-2 function, run
         // that function once (the reference `Request(quad, 1, 2)` from
@@ -471,6 +671,12 @@ fn chain(
                 for window in open {
                     let since = *open_since.entry(window).or_insert(ticks_run);
                     if ticks_run - since >= confirm_after {
+                        let shown = director.world().window_texts.get(&window).copied();
+                        if let Some(text) = shown.filter(|text| choice_texts.contains(text)) {
+                            let answer = choices.get(&(map, text)).copied().unwrap_or(0);
+                            director.world_mut().dialog_choice = answer;
+                            choices_made.push((text, answer));
+                        }
                         director.world_mut().close_window(window);
                         open_since.remove(&window);
                         confirms += 1;
@@ -572,6 +778,9 @@ fn chain(
                 "map_memory": nonzero(director.world().map_memory.bytes()),
                 "global_memory": nonzero(director.world().global_memory.bytes()),
                 "confirms": confirms,
+                "field_text": text_status,
+                "mes_signal": director.world().mes_signal,
+                "choices_made": choices_made,
                 "battles_skipped": battles,
                 "region_triggers": region_triggers,
                 "confirm_presses": presses,
