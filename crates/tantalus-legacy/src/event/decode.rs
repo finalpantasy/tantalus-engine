@@ -1376,6 +1376,7 @@ impl Decoder<'_> {
                 EXPR_EQUAL => ExpressionOp::Equal,
                 EXPR_NOT_EQUAL => ExpressionOp::NotEqual,
                 36 => ExpressionOp::BitwiseAnd,
+                37 => ExpressionOp::BitwiseXor,
                 38 => ExpressionOp::BitwiseOr,
                 28 => ExpressionOp::LessMembers,
                 29 => ExpressionOp::GreaterMembers,

@@ -858,6 +858,34 @@ fn bitwise_and_evaluates_the_shared_binary_expression_path() {
 }
 
 #[test]
+fn bitwise_xor_evaluates_the_shared_binary_expression_path() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 63);
+    let expression = assign(result, binary(constant(90), constant(60), 37));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 63), 102);
+
+    let mut bytes = vec![61, 1];
+    append_expression(
+        &mut bytes,
+        binary(constant(16), binary(constant(3), constant(5), 37), 38),
+    );
+    bytes.extend_from_slice(&[42, 4]);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap()).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetAnimationRange {
+            actor: EntityId::new(42),
+            start: 22,
+            end: 42
+        }]
+    );
+}
+
+#[test]
 fn bitwise_or_evaluates_the_shared_binary_expression_path() {
     let result = variable(VariableScope::Global, VariableType::Int16, 62);
     let expression = assign(result, binary(constant(90), constant(60), 38));

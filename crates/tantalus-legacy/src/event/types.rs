@@ -66,6 +66,7 @@ pub enum ExpressionOp {
     Equal,
     NotEqual,
     BitwiseAnd,
+    BitwiseXor,
     BitwiseOr,
     Assign,
     AddAssign,

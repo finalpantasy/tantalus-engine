@@ -1485,6 +1485,7 @@ impl EventVm {
                 | ExpressionOp::Equal
                 | ExpressionOp::NotEqual
                 | ExpressionOp::BitwiseAnd
+                | ExpressionOp::BitwiseXor
                 | ExpressionOp::BitwiseOr => {
                     let (left, right) = binary(&mut stack, operation, host)?;
                     let value = match operation {
@@ -1522,6 +1523,7 @@ impl EventVm {
                         ExpressionOp::Equal => i32::from(left == right),
                         ExpressionOp::NotEqual => i32::from(left != right),
                         ExpressionOp::BitwiseAnd => left & right,
+                        ExpressionOp::BitwiseXor => left ^ right,
                         ExpressionOp::BitwiseOr => left | right,
                         _ => unreachable!(),
                     };
@@ -2404,6 +2406,7 @@ fn operand_start(
         | ExpressionOp::Equal
         | ExpressionOp::NotEqual
         | ExpressionOp::BitwiseAnd
+        | ExpressionOp::BitwiseXor
         | ExpressionOp::BitwiseOr
         | ExpressionOp::Assign
         | ExpressionOp::AddAssign
