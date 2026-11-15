@@ -30,6 +30,7 @@ const OP_PADDING17: u8 = 0x17;
 const OP_SHADOW_ON: u8 = 0x7f;
 const OP_SET_TEXT_VARIABLE: u8 = 0x66;
 const OP_SET_OBJECT_SCALE: u8 = 0x9f;
+const OP_SET_VIBRATION_FRAME_RATE: u8 = 0xfa;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -273,6 +274,18 @@ impl Decoder<'_> {
                     z: argument(4)?,
                     y: argument(8)?,
                 }
+            }
+            OP_SET_VIBRATION_FRAME_RATE => {
+                let flags = self.byte()?;
+                let rate = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.i16()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::SetVibrationFrameRate(rate)
             }
             _ => {
                 return Err(VmError::new(

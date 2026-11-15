@@ -127,6 +127,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetShadowEnabled { .. } => {}
                 HostEvent::SetTextVariable { .. } => {}
                 HostEvent::SetObjectScale { .. } => {}
+                HostEvent::SetVibrationFrameRate { .. } => {}
             }
         }
         Ok(())
@@ -1312,6 +1313,21 @@ fn chrscale_preserves_renderer_scale_and_vertical_ratio() {
             scale: [4096, 2048, 1024],
             vertical_scale: 32
         }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn vibrate_sets_the_signed_frame_rate() {
+    let program = decode_program(&[250, 0, 0x00, 0xff, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(
+        report.events,
+        [HostEvent::SetVibrationFrameRate { rate: -256 }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);
 }

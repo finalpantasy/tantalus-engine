@@ -321,6 +321,11 @@ impl EventVm {
                         vertical_scale: z as u8,
                     });
                 }
+                InstructionKind::SetVibrationFrameRate(rate) => {
+                    let rate = self.evaluate(host, &rate, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::SetVibrationFrameRate { rate });
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -985,6 +990,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::SetShadowEnabled(_) => 0x7f,
         InstructionKind::SetTextVariable { .. } => 0x66,
         InstructionKind::SetObjectScale { .. } => 0x9f,
+        InstructionKind::SetVibrationFrameRate(_) => 0xfa,
     }
 }
 

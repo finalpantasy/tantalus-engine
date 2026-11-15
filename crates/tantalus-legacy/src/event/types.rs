@@ -164,6 +164,7 @@ pub enum InstructionKind {
         z: Expression,
         y: Expression,
     },
+    SetVibrationFrameRate(Expression),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -272,6 +273,9 @@ pub enum HostEvent {
         actor: EntityId,
         scale: [i32; 3],
         vertical_scale: u8,
+    },
+    SetVibrationFrameRate {
+        rate: i16,
     },
 }
 
