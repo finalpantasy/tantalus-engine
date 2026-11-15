@@ -37,6 +37,7 @@ const OP_RESTORE_ALL_VISIBILITY: u8 = 0xd6;
 const OP_SET_TIMER_RUNNING: u8 = 0x7d;
 const OP_REQUEST_CALLER_ASYNC: u8 = 0x16;
 const OP_CALCULATE_EXIT_POSITION: u8 = 0xa4;
+const OP_REQUEST_CALLER_SYNC: u8 = 0x14;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -373,6 +374,21 @@ impl Decoder<'_> {
             OP_CALCULATE_EXIT_POSITION => {
                 self.byte()?;
                 InstructionKind::CalculateExitPosition
+            }
+            OP_REQUEST_CALLER_SYNC => {
+                let flags = self.byte()?;
+                let level = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::RequestCallerSync {
+                    level,
+                    tag: self.byte()?,
+                }
             }
             _ => {
                 return Err(VmError::new(

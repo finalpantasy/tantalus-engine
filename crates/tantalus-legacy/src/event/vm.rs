@@ -100,6 +100,25 @@ impl EventVm {
                     self.wait = None;
                     self.status = VmStatus::Running;
                 }
+                WaitState::ScriptRequest => {
+                    self.status = VmStatus::Waiting;
+                    let Some(entity) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            self.pc,
+                            None,
+                            "script wait requires current actor context",
+                        ));
+                    };
+                    if !host
+                        .script_request_is_complete(entity)
+                        .map_err(|error| VmError::host(error, self.pc, 0))?
+                    {
+                        return Ok(self.report(tick, 0, Vec::new()));
+                    }
+                    self.wait = None;
+                    self.status = VmStatus::Running;
+                }
             }
         }
 
@@ -381,6 +400,21 @@ impl EventVm {
                 InstructionKind::CalculateExitPosition => {
                     self.pc = next;
                     events.push(HostEvent::CalculateExitPosition);
+                }
+                InstructionKind::RequestCallerSync { level, tag } => {
+                    let level = self.evaluate(host, &level, instruction.offset, opcode)?;
+                    if self.entity.is_none() {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "synchronous caller request requires current actor context",
+                        ));
+                    }
+                    self.pc = next;
+                    self.wait = Some(WaitState::ScriptRequest);
+                    self.status = VmStatus::Waiting;
+                    events.push(HostEvent::RequestCallerSync { level, tag });
                 }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
@@ -1060,6 +1094,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::SetTimerRunning(_) => 0x7d,
         InstructionKind::RequestCallerAsync { .. } => 0x16,
         InstructionKind::CalculateExitPosition => 0xa4,
+        InstructionKind::RequestCallerSync { .. } => 0x14,
     }
 }
 

@@ -72,6 +72,7 @@ struct Host {
     member_target: Option<EntityId>,
     object_members: BTreeMap<ObjectMemberRef, i32>,
     member_writes: Vec<(ObjectMemberRef, i32)>,
+    script_request_complete: bool,
     fail: bool,
 }
 
@@ -84,6 +85,7 @@ impl Host {
             member_target: None,
             object_members: BTreeMap::new(),
             member_writes: Vec::new(),
+            script_request_complete: false,
             fail: false,
         }
     }
@@ -134,6 +136,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetTimerRunning { .. } => {}
                 HostEvent::RequestCallerAsync { .. } => {}
                 HostEvent::CalculateExitPosition => {}
+                HostEvent::RequestCallerSync { .. } => {}
             }
         }
         Ok(())
@@ -196,6 +199,10 @@ impl LegacyEventHost for Host {
                 "unknown arctangent table offset {offset}"
             ))),
         }
+    }
+
+    fn script_request_is_complete(&mut self, _entity: EntityId) -> Result<bool, EngineError> {
+        Ok(self.script_request_complete)
     }
 
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError> {
@@ -1454,4 +1461,27 @@ fn mjpos_requests_exit_position_calculation() {
 
     assert_eq!(report.events, [HostEvent::CalculateExitPosition]);
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn replyew_requests_once_and_waits_for_script_completion() {
+    let program = decode_program(&[20, 0, 2, 11, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RequestCallerSync { level: 2, tag: 11 }]
+    );
+    assert_eq!(report.status, VmStatus::Waiting);
+    assert_eq!(vm.wait_state(), Some(WaitState::ScriptRequest));
+
+    assert!(vm.step(Tick::new(1), &mut host).unwrap().events.is_empty());
+    assert_eq!(vm.status(), VmStatus::Waiting);
+    host.script_request_complete = true;
+    assert_eq!(
+        vm.step(Tick::new(2), &mut host).unwrap().status,
+        VmStatus::Completed
+    );
 }

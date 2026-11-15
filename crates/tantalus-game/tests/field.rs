@@ -87,6 +87,15 @@ impl LegacyEventHost for Host {
         ))
     }
 
+    fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            format!("field fixture cannot track script completion for {entity}"),
+            "fixture-host",
+            true,
+        ))
+    }
+
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,

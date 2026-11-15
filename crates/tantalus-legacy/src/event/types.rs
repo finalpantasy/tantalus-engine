@@ -185,6 +185,10 @@ pub enum InstructionKind {
         tag: u8,
     },
     CalculateExitPosition,
+    RequestCallerSync {
+        level: Expression,
+        tag: u8,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -225,6 +229,7 @@ pub enum VmStatus {
 pub enum WaitState {
     Frames(u8),
     Window(u8),
+    ScriptRequest,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -318,6 +323,10 @@ pub enum HostEvent {
         tag: u8,
     },
     CalculateExitPosition,
+    RequestCallerSync {
+        level: i32,
+        tag: u8,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -412,5 +421,6 @@ pub trait LegacyEventHost {
     ) -> Result<(), EngineError>;
     fn read_system_variable(&mut self, variable: u8) -> Result<i32, EngineError>;
     fn read_atan_entry(&mut self, offset: i32) -> Result<u16, EngineError>;
+    fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError>;
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError>;
 }

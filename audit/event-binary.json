@@ -76,14 +76,15 @@
     "POPSHOW 0xD6 consumes its flag and emits RestoreAllVisibility",
     "TIMERCONTROL 0x7D decodes a boolean operand and emits SetTimerRunning",
     "REPLY 0x16 decodes level and function tag and emits caller-targeted RequestCallerAsync",
-    "MJPOS 0xA4 consumes its flag and emits CalculateExitPosition for region/actor host state"
+    "MJPOS 0xA4 consumes its flag and emits CalculateExitPosition for region/actor host state",
+    "REPLYEW 0x14 emits RequestCallerSync once and waits on the host completion state"
   ],
   "next_decode_boundary": {
     "entry": 1,
-    "offset": 39,
-    "opcode": "0x14",
+    "offset": 69,
+    "opcode": "0x92",
     "kind": "event",
-    "instruction": "REPLYEW"
+    "instruction": "BGLATTACH"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
