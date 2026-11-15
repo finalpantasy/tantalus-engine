@@ -18,6 +18,9 @@
     "path_id": -6802362953403846455,
     "asset_bytes": 10924,
     "entries": 22,
+    "functions": 36,
+    "decoded_functions": 1,
+    "decode_error_count": 17,
     "script_bytes": 10620,
     "script_sha256": "c6033b9d6da5043468ae416074644cf64002e86d1c40be8f80cc16891579f16e",
     "reference_match": "UnityPy 1.25.0 independently reproduces the entry count, byte count, and concatenated script SHA-256"
@@ -84,16 +87,26 @@
     "entry function tables decode each tagged body independently with entry-relative diagnostics",
     "B_SHIFT_LEFT 22 performs wrapping left shifts with the reference's masked shift count",
     "B_SIN 98 shifts its angle by four and applies the reference f32 fixed-point sine conversion",
-    "BGLCOLOR 0x59 decodes overlay and byte-color operands and emits SetTileShadeColor"
+    "BGLCOLOR 0x59 decodes overlay and byte-color operands and emits SetTileShadeColor",
+    "CLI reports every failing entry plus decoded and total function counts"
   ],
-  "next_decode_boundary": {
+  "malformed_entry_boundary": {
     "entry": 1,
     "function": 1,
     "function_tag": 1,
     "offset": 92,
-    "opcode": null,
+    "opcode": 175,
     "kind": "Decode",
-    "instruction": "terminal EXT prefix at final byte 91; reachability and padding semantics pending"
+    "instruction": "custom variable 0xAF has only low index byte 0xFF; high byte and expression terminator are absent"
+  },
+  "next_decode_boundary": {
+    "entry": 2,
+    "function": 1,
+    "function_tag": 1,
+    "offset": 54,
+    "opcode": 179,
+    "kind": "UnsupportedOpcode",
+    "instruction": "first unsupported event opcode after the independently malformed entry 1"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

@@ -528,7 +528,14 @@ impl Decoder<'_> {
                 _ if opcode >= 0x80 && opcode & 3 == 3 => {
                     let mut variable = u16::from(self.byte()?);
                     if opcode & 0x20 != 0 {
-                        variable |= u16::from(self.byte()?) << 8;
+                        let high = self.byte().map_err(|mut error| {
+                            error.opcode = Some(u32::from(opcode));
+                            error.message = format!(
+                                "truncated two-byte custom variable index (expression starts at {start})"
+                            );
+                            error
+                        })?;
+                        variable |= u16::from(high) << 8;
                     }
                     ExpressionOp::CustomVariable(variable)
                 }
@@ -559,7 +566,14 @@ impl Decoder<'_> {
                     };
                     let mut index = u16::from(self.byte()?);
                     if opcode & 0x20 != 0 {
-                        index |= u16::from(self.byte()?) << 8;
+                        let high = self.byte().map_err(|mut error| {
+                            error.opcode = Some(u32::from(opcode));
+                            error.message = format!(
+                                "truncated two-byte variable index (expression starts at {start})"
+                            );
+                            error
+                        })?;
+                        index |= u16::from(high) << 8;
                     }
                     ExpressionOp::Variable(VariableRef {
                         scope,

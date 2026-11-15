@@ -311,29 +311,45 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 digest.update(script);
             }
             let mut decoded_entries = 0_usize;
-            let mut first_decode_error = None;
+            let mut decoded_functions = 0_usize;
+            let function_count = binary
+                .entries
+                .iter()
+                .map(|entry| {
+                    binary
+                        .entry_bytes(entry.index)
+                        .and_then(|bytes| bytes.get(1))
+                        .copied()
+                        .unwrap_or(0) as usize
+                })
+                .sum::<usize>();
+            let mut decode_errors = Vec::new();
             for entry in &binary.entries {
                 match binary.decode_entry(entry.index) {
-                    Ok(_) => decoded_entries += 1,
-                    Err(error) if first_decode_error.is_none() => {
-                        first_decode_error = Some(serde_json::json!({
-                            "entry": entry.index,
-                            "kind": format!("{:?}", error.kind),
-                            "offset": error.offset,
-                            "opcode": error.opcode,
-                            "message": error.message,
-                        }));
+                    Ok(decoded) => {
+                        decoded_entries += 1;
+                        decoded_functions += decoded.functions.len();
                     }
-                    Err(_) => {}
+                    Err(error) => decode_errors.push(serde_json::json!({
+                        "entry": entry.index,
+                        "kind": format!("{:?}", error.kind),
+                        "offset": error.offset,
+                        "opcode": error.opcode,
+                        "message": error.message,
+                    })),
                 }
             }
+            let first_decode_error = decode_errors.first().cloned();
             candidates.push(serde_json::json!({
                 "path_id": object.path_id,
                 "asset_bytes": asset.script.len(),
                 "version": binary.version,
                 "entries": binary.entries.len(),
+                "functions": function_count,
                 "decoded_entries": decoded_entries,
+                "decoded_functions": decoded_functions,
                 "first_decode_error": first_decode_error,
+                "decode_errors": decode_errors,
                 "script_bytes": script_bytes,
                 "script_sha256": format!("{:x}", digest.finalize()),
             }));
