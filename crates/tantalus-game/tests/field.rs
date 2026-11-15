@@ -46,6 +46,15 @@ impl LegacyEventHost for Host {
             true,
         ))
     }
+
+    fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            format!("field fixture has no custom variable {variable}"),
+            "fixture-host",
+            true,
+        ))
+    }
 }
 
 #[test]
