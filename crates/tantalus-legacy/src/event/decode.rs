@@ -1265,6 +1265,7 @@ impl Decoder<'_> {
                 79 => ExpressionOp::KeyOn,
                 84 => ExpressionOp::AndMembers,
                 90 | 92 => ExpressionOp::ConsumeAndZero,
+                93 => ExpressionOp::Angle,
                 96 => ExpressionOp::AngleToObject,
                 98 => ExpressionOp::Sine,
                 100 => ExpressionOp::ItemCount,

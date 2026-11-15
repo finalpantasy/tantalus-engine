@@ -3083,7 +3083,7 @@ fn angle_to_object_resolves_uid_and_truncates_position_deltas() {
 
     vm.step(Tick::new(0), &mut host).unwrap();
 
-    assert_eq!(vm.variable(VariableScope::Global, 43), -4);
+    assert_eq!(vm.variable(VariableScope::Global, 43), -64);
 
     let result = variable(VariableScope::Global, VariableType::Int16, 43);
     let expression = assign(result, binary(constant(7), vec![], 96));
@@ -3098,11 +3098,11 @@ fn angle_to_object_resolves_uid_and_truncates_position_deltas() {
 fn angle2_uses_the_reference_quadrants_and_atan_table() {
     for (delta_x, delta_z, expected) in [
         (0, 0, 0),
-        (1, 0, -4),
-        (0, 1, -8),
-        (-1, 0, 4),
+        (1, 0, -64),
+        (0, 1, -128),
+        (-1, 0, 64),
         (0, -1, 0),
-        (2, 1, -5),
+        (2, 1, -72),
     ] {
         let result = variable(VariableScope::Global, VariableType::Int16, 30);
         let expression = assign(result, binary(constant(delta_x), constant(delta_z), 102));
@@ -3118,6 +3118,28 @@ fn angle2_uses_the_reference_quadrants_and_atan_table() {
             "delta_x={delta_x}, delta_z={delta_z}"
         );
     }
+}
+
+#[test]
+fn angle_subtracts_fractional_actor_positions_before_fixed_point_conversion() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 31);
+    let expression = assign(result, binary(constant(12), constant(20), 93));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let actor = EntityId::new(42);
+    let mut vm = EventVm::new(program).with_entity(actor);
+    let mut host = Host::new();
+    host.object_positions.insert(actor, [10.25, 0.0, 20.75]);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 31), -64);
+
+    let result = variable(VariableScope::Global, VariableType::Int16, 31);
+    let expression = assign(result, binary(constant(12), constant(20), 93));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::InvalidExpression);
+    assert!(error.message.contains("object context"));
 }
 
 #[test]

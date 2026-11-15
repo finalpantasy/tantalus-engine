@@ -1317,6 +1317,7 @@ impl EventVm {
                 | ExpressionOp::Remainder
                 | ExpressionOp::ShiftLeft
                 | ExpressionOp::ShiftRight
+                | ExpressionOp::Angle
                 | ExpressionOp::Angle2
                 | ExpressionOp::Less
                 | ExpressionOp::Greater
@@ -1333,6 +1334,25 @@ impl EventVm {
                         ExpressionOp::Remainder if right != 0 => left.wrapping_rem(right),
                         ExpressionOp::ShiftLeft => left.wrapping_shl(right as u32),
                         ExpressionOp::ShiftRight => left.wrapping_shr(right as u32),
+                        ExpressionOp::Angle => {
+                            let actor = self.entity.ok_or_else(|| {
+                                expression_error(
+                                    offset,
+                                    opcode,
+                                    "coordinate angle requires object context",
+                                )
+                            })?;
+                            let position = host
+                                .read_object_position(actor)
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            angle2(
+                                host,
+                                (left as f32 - position[0]) as i32,
+                                (right as f32 - position[2]) as i32,
+                                offset,
+                                opcode,
+                            )?
+                        }
                         ExpressionOp::Angle2 => angle2(host, left, right, offset, opcode)?,
                         ExpressionOp::Divide | ExpressionOp::Remainder => left,
                         ExpressionOp::Less => i32::from(left < right),
@@ -2203,6 +2223,7 @@ fn operand_start(
         | ExpressionOp::Remainder
         | ExpressionOp::ShiftLeft
         | ExpressionOp::ShiftRight
+        | ExpressionOp::Angle
         | ExpressionOp::Angle2
         | ExpressionOp::Less
         | ExpressionOp::Greater
@@ -2312,5 +2333,5 @@ fn angle2(
     } else {
         entry(scaled_x.wrapping_div(delta_z).wrapping_shl(1))?
     };
-    Ok(i32::from((fixed as i16) >> 8))
+    Ok(i32::from((fixed as i16) >> 4))
 }

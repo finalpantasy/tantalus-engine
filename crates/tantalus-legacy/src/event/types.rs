@@ -48,6 +48,7 @@ pub enum ExpressionOp {
     Remainder,
     ShiftLeft,
     ShiftRight,
+    Angle,
     Angle2,
     AngleToObject,
     ItemCount,
