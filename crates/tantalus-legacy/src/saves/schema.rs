@@ -121,6 +121,155 @@ impl BaseSavePayload {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BaseSaveSchemaNode {
+    Field(BaseSaveFieldType),
+    Array(Vec<BaseSaveSchemaNode>),
+    Class(Vec<(String, BaseSaveSchemaNode)>),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum BaseSaveDataNode {
+    Value(BaseSaveValue),
+    Array(Vec<BaseSaveDataNode>),
+    Class(Vec<(String, BaseSaveDataNode)>),
+}
+
+impl BaseSaveSchemaNode {
+    pub fn field_count(&self) -> usize {
+        match self {
+            Self::Field(_) => 1,
+            Self::Array(children) => children.iter().map(Self::field_count).sum(),
+            Self::Class(children) => children.iter().map(|(_, child)| child.field_count()).sum(),
+        }
+    }
+}
+
+impl BaseSavePayload {
+    /// Decodes a payload into a named schema tree using the reference traversal: class keys are
+    /// visited in sorted order and arrays in index order.
+    pub fn decode_tree(
+        payload: &[u8],
+        schema: &BaseSaveSchemaNode,
+    ) -> Result<BaseSaveDataNode, LegacySaveError> {
+        let mut cursor = Cursor {
+            bytes: payload,
+            position: 0,
+        };
+        let tree = decode_schema_node(schema, &mut cursor)?;
+        if cursor.position != payload.len() {
+            return Err(LegacySaveError::new(
+                cursor.position,
+                format!(
+                    "schema tree consumed {} of {} payload bytes",
+                    cursor.position,
+                    payload.len()
+                ),
+            ));
+        }
+        Ok(tree)
+    }
+
+    /// Encodes a named schema tree in the same deterministic traversal order.
+    pub fn encode_tree(
+        tree: &BaseSaveDataNode,
+        schema: &BaseSaveSchemaNode,
+    ) -> Result<Vec<u8>, LegacySaveError> {
+        let mut output = Vec::with_capacity(schema.field_count() * 8);
+        encode_schema_node(tree, schema, &mut output)?;
+        Ok(output)
+    }
+}
+
+fn decode_schema_node(
+    schema: &BaseSaveSchemaNode,
+    cursor: &mut Cursor<'_>,
+) -> Result<BaseSaveDataNode, LegacySaveError> {
+    match schema {
+        BaseSaveSchemaNode::Field(field_type) => {
+            Ok(BaseSaveDataNode::Value(cursor.value(*field_type)?))
+        }
+        BaseSaveSchemaNode::Array(children) => {
+            let mut values = Vec::with_capacity(children.len());
+            for child in children {
+                values.push(decode_schema_node(child, cursor)?);
+            }
+            Ok(BaseSaveDataNode::Array(values))
+        }
+        BaseSaveSchemaNode::Class(children) => {
+            let mut fields = children.clone();
+            fields.sort_by(|left, right| left.0.cmp(&right.0));
+            let mut values = Vec::with_capacity(fields.len());
+            for (key, child) in fields {
+                values.push((key, decode_schema_node(&child, cursor)?));
+            }
+            Ok(BaseSaveDataNode::Class(values))
+        }
+    }
+}
+
+fn encode_schema_node(
+    tree: &BaseSaveDataNode,
+    schema: &BaseSaveSchemaNode,
+    output: &mut Vec<u8>,
+) -> Result<(), LegacySaveError> {
+    match (tree, schema) {
+        (BaseSaveDataNode::Value(value), BaseSaveSchemaNode::Field(field_type)) => {
+            encode_value(value, *field_type, output)
+                .map_err(|context| LegacySaveError::new(output.len(), context))
+        }
+        (BaseSaveDataNode::Array(values), BaseSaveSchemaNode::Array(children)) => {
+            if values.len() != children.len() {
+                return Err(LegacySaveError::new(
+                    output.len(),
+                    format!(
+                        "array has {} values for a {}-element schema",
+                        values.len(),
+                        children.len()
+                    ),
+                ));
+            }
+            for (value, child) in values.iter().zip(children) {
+                encode_schema_node(value, child, output)?;
+            }
+            Ok(())
+        }
+        (BaseSaveDataNode::Class(values), BaseSaveSchemaNode::Class(children)) => {
+            let mut fields = children.clone();
+            fields.sort_by(|left, right| left.0.cmp(&right.0));
+            let mut data = std::collections::BTreeMap::new();
+            for (key, value) in values {
+                if data.insert(key.clone(), value).is_some() {
+                    return Err(LegacySaveError::new(
+                        output.len(),
+                        format!("duplicate class key `{key}`"),
+                    ));
+                }
+            }
+            for (key, child) in fields {
+                let Some(value) = data.remove(&key) else {
+                    return Err(LegacySaveError::new(
+                        output.len(),
+                        format!("missing class key `{key}`"),
+                    ));
+                };
+                encode_schema_node(value, &child, output)?;
+            }
+            if let Some((key, _)) = data.iter().next() {
+                return Err(LegacySaveError::new(
+                    output.len(),
+                    format!("unexpected class key `{key}`"),
+                ));
+            }
+            Ok(())
+        }
+        _ => Err(LegacySaveError::new(
+            output.len(),
+            format!("data node {tree:?} does not match schema node {schema:?}"),
+        )),
+    }
+}
+
 struct Cursor<'a> {
     bytes: &'a [u8],
     position: usize,

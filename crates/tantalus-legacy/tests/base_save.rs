@@ -380,3 +380,107 @@ fn slot_preview_rejects_corrupt_reserved_or_mismatched_data() {
     long_preview.location = long_location;
     assert!(long_preview.encode_plain().is_err());
 }
+
+#[test]
+fn schema_tree_round_trips_named_classes_and_arrays_in_sorted_key_order() {
+    use BaseSaveDataNode::{Array as DataArray, Class as DataClass, Value};
+    use BaseSaveSchemaNode::{Array as SchemaArray, Class as SchemaClass, Field};
+
+    let schema = SchemaClass(vec![
+        ("z".to_owned(), Field(BaseSaveFieldType::Int32)),
+        (
+            "a".to_owned(),
+            SchemaArray(vec![
+                Field(BaseSaveFieldType::Boolean),
+                Field(BaseSaveFieldType::String128),
+            ]),
+        ),
+        (
+            "m".to_owned(),
+            SchemaClass(vec![("b".to_owned(), Field(BaseSaveFieldType::Byte))]),
+        ),
+    ]);
+    let data = DataClass(vec![
+        ("z".to_owned(), Value(BaseSaveValue::I32(0x0102_0304))),
+        (
+            "a".to_owned(),
+            DataArray(vec![
+                Value(BaseSaveValue::Bool(true)),
+                Value(BaseSaveValue::String("x".to_owned())),
+            ]),
+        ),
+        (
+            "m".to_owned(),
+            DataClass(vec![("b".to_owned(), Value(BaseSaveValue::U8(7)))]),
+        ),
+    ]);
+
+    let encoded = BaseSavePayload::encode_tree(&data, &schema).unwrap();
+    assert_eq!(encoded.len(), 4 + 1 + 128 + 1);
+    assert_eq!(encoded[0], 1);
+    assert_eq!(encoded[1], b'x');
+    assert_eq!(encoded[128], 0);
+    assert_eq!(encoded[129], 7);
+    assert_eq!(encoded[130..134], 0x0102_0304_i32.to_le_bytes());
+
+    let decoded = BaseSavePayload::decode_tree(&encoded, &schema).unwrap();
+    let expected = DataClass(vec![
+        (
+            "a".to_owned(),
+            DataArray(vec![
+                Value(BaseSaveValue::Bool(true)),
+                Value(BaseSaveValue::String("x".to_owned())),
+            ]),
+        ),
+        (
+            "m".to_owned(),
+            DataClass(vec![("b".to_owned(), Value(BaseSaveValue::U8(7)))]),
+        ),
+        ("z".to_owned(), Value(BaseSaveValue::I32(0x0102_0304))),
+    ]);
+    assert_eq!(decoded, expected);
+}
+
+#[test]
+fn schema_tree_reports_shape_mismatches_without_partial_output() {
+    use BaseSaveDataNode::{Array as DataArray, Class as DataClass, Value};
+    use BaseSaveSchemaNode::{Array as SchemaArray, Class as SchemaClass, Field};
+
+    let schema = SchemaClass(vec![
+        ("a".to_owned(), Field(BaseSaveFieldType::Int32)),
+        ("b".to_owned(), Field(BaseSaveFieldType::Boolean)),
+    ]);
+    let valid = DataClass(vec![
+        ("b".to_owned(), Value(BaseSaveValue::Bool(false))),
+        ("a".to_owned(), Value(BaseSaveValue::I32(1))),
+    ]);
+    let encoded = BaseSavePayload::encode_tree(&valid, &schema).unwrap();
+
+    assert!(BaseSavePayload::decode_tree(&encoded[..2], &schema).is_err());
+    let mut trailing = encoded.clone();
+    trailing.push(0);
+    let error = BaseSavePayload::decode_tree(&trailing, &schema).unwrap_err();
+    assert!(error.context.contains("consumed 5 of 6"));
+
+    let missing = DataClass(vec![("a".to_owned(), Value(BaseSaveValue::I32(1)))]);
+    assert!(BaseSavePayload::encode_tree(&missing, &schema).is_err());
+    let extra = DataClass(vec![
+        ("a".to_owned(), Value(BaseSaveValue::I32(1))),
+        ("b".to_owned(), Value(BaseSaveValue::Bool(false))),
+        ("c".to_owned(), Value(BaseSaveValue::Bool(true))),
+    ]);
+    assert!(BaseSavePayload::encode_tree(&extra, &schema).is_err());
+    let duplicate = DataClass(vec![
+        ("a".to_owned(), Value(BaseSaveValue::I32(1))),
+        ("a".to_owned(), Value(BaseSaveValue::I32(2))),
+        ("b".to_owned(), Value(BaseSaveValue::Bool(false))),
+    ]);
+    assert!(BaseSavePayload::encode_tree(&duplicate, &schema).is_err());
+
+    let wrong_shape = DataClass(vec![
+        ("a".to_owned(), DataArray(vec![])),
+        ("b".to_owned(), Value(BaseSaveValue::Bool(false))),
+    ]);
+    assert!(BaseSavePayload::encode_tree(&wrong_shape, &schema).is_err());
+    assert!(BaseSavePayload::encode_tree(&valid, &SchemaArray(vec![])).is_err());
+}

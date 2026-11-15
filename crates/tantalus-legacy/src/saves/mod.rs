@@ -19,5 +19,7 @@ pub use preview::{
     BASE_SAVE_PREVIEW_RESERVED_BYTES, BaseSavePreview, BaseSavePreviewCharacter,
     base_save_preview_offset,
 };
-pub use schema::{BaseSaveFieldType, BaseSavePayload, BaseSaveValue};
+pub use schema::{
+    BaseSaveDataNode, BaseSaveFieldType, BaseSavePayload, BaseSaveSchemaNode, BaseSaveValue,
+};
 pub use simple_json::{LegacySaveError, SimpleJsonDocument, SimpleJsonNode};
