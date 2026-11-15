@@ -70,3 +70,29 @@ fn real_mbg_and_map_config_parse_completely() {
     assert_eq!(mbg, 56);
     assert_eq!(config, 818);
 }
+
+#[test]
+fn real_fmv005_has_a_measurable_frame_count() {
+    let Some(root) = bundle_path().and_then(|path| {
+        path.parent()
+            .and_then(|parent| parent.parent())
+            .map(|install| install.to_path_buf())
+    }) else {
+        eprintln!("skipping: install root not found");
+        return;
+    };
+    let movie = root.join("StreamingAssets/ma/FMV005.bytes");
+    if !movie.is_file() {
+        eprintln!("skipping: FMV005.bytes not found");
+        return;
+    }
+    let report = tantalus_assets::pc::ogg::scan_ogg_file(&movie, false).unwrap();
+    let theora = report
+        .streams
+        .iter()
+        .find(|stream| stream.codec.name() == "theora")
+        .expect("theora stream");
+    let frames = theora.frame_count.expect("frame count");
+    assert!(frames > 100, "FMV005 should run seconds, got {frames} frames");
+    eprintln!("FMV005: {frames} frames, {:?}", theora.duration_seconds);
+}
