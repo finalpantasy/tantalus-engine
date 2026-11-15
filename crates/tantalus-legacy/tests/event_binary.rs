@@ -5,9 +5,9 @@ fn fixture() -> Vec<u8> {
     bytes[..2].copy_from_slice(b"EV");
     bytes[2] = 2;
     bytes[3] = 2;
-    bytes[128..136].copy_from_slice(&[16, 0, 13, 0, 3, 1, 0, 0]);
-    bytes[136..144].copy_from_slice(&[29, 0, 0, 0, 0, 0, 0, 0]);
-    bytes.extend_from_slice(&[7, 2, 0, 0, 8, 0, 3, 0, 10, 0, 0, 4, 4]);
+    bytes[128..136].copy_from_slice(&[16, 0, 14, 0, 3, 1, 0, 0]);
+    bytes[136..144].copy_from_slice(&[30, 0, 0, 0, 0, 0, 0, 0]);
+    bytes.extend_from_slice(&[7, 2, 0, 0, 8, 0, 3, 0, 11, 0, 0, 0, 4, 4]);
     bytes
 }
 
@@ -21,7 +21,7 @@ fn vanilla_entries_use_the_header_as_their_offset_base() {
     assert_eq!(binary.entries[0].flags, 1);
     assert_eq!(
         binary.entry_bytes(0),
-        Some(&[7, 2, 0, 0, 8, 0, 3, 0, 10, 0, 0, 4, 4][..])
+        Some(&[7, 2, 0, 0, 8, 0, 3, 0, 11, 0, 0, 0, 4, 4][..])
     );
     assert_eq!(binary.entry_bytes(1), Some(&[][..]));
 
@@ -31,13 +31,13 @@ fn vanilla_entries_use_the_header_as_their_offset_base() {
     assert_eq!(entry.functions[0].tag, 0);
     assert_eq!(entry.functions[0].offset, 10);
     assert_eq!(entry.functions[1].tag, 3);
-    assert_eq!(entry.functions[1].offset, 12);
+    assert_eq!(entry.functions[1].offset, 13);
     assert!(matches!(
         entry.functions[0].program.instructions[&0].kind,
         InstructionKind::Nop
     ));
     assert!(matches!(
-        entry.functions[0].program.instructions[&1].kind,
+        entry.functions[0].program.instructions[&2].kind,
         InstructionKind::Return
     ));
     assert!(matches!(

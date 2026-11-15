@@ -88,7 +88,10 @@ impl Decoder<'_> {
         }
         let opcode = code + u32::from(code_byte);
         let kind = match opcode {
-            OP_NOP => InstructionKind::Nop,
+            OP_NOP => {
+                self.byte()?;
+                InstructionKind::Nop
+            }
             OP_JUMP => InstructionKind::Jump(self.i16()?),
             OP_JUMP_IF_NOT => InstructionKind::JumpIfNot {
                 condition: self.expression()?,
@@ -516,6 +519,7 @@ impl Decoder<'_> {
                 74 => ExpressionOp::CastList,
                 98 => ExpressionOp::Sine,
                 102 => ExpressionOp::Angle2,
+                114 => ExpressionOp::NoOp,
                 EXPR_CONST_I16 => ExpressionOp::Constant(i32::from(self.i16()?)),
                 EXPR_CONST_I32 => ExpressionOp::Constant(self.i32()?),
                 EXPR_POST_INCREMENT_MEMBERS => ExpressionOp::PostIncrementMembers,

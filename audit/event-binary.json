@@ -19,13 +19,13 @@
     "asset_bytes": 10924,
     "entries": 22,
     "functions": 36,
-    "decoded_functions": 1,
-    "decode_error_count": 17,
+    "decoded_functions": 0,
+    "decode_error_count": 18,
     "script_bytes": 10620,
     "script_sha256": "c6033b9d6da5043468ae416074644cf64002e86d1c40be8f80cc16891579f16e",
     "reference_match": "UnityPy 1.25.0 independently reproduces the entry count, byte count, and concatenated script SHA-256"
   },
-  "decoded_entries_per_candidate": 5,
+  "decoded_entries_per_candidate": 4,
   "supported_followup": [
     "member post-increment 0x08 decoded; execution requires object-member host",
     "padding 0x00 through 0x03 produce zero",
@@ -74,7 +74,6 @@
     "VIBRATE 0xFA decodes a signed frame-rate operand and emits SetVibrationFrameRate",
     "REQ 0x10 decodes level, target, and immediate function tag and emits RequestScriptAsync",
     "BGVDEFINE 0xC8 decodes viewport ID and signed rectangle operands and emits DefineTileViewport",
-    "entry 0 decodes completely",
     "B_POST_PLUS 4 stores the incremented target and returns its original value",
     "POPSHOW 0xD6 consumes its flag and emits RestoreAllVisibility",
     "TIMERCONTROL 0x7D decodes a boolean operand and emits SetTimerRunning",
@@ -89,7 +88,9 @@
     "B_SIN 98 shifts its angle by four and applies the reference f32 fixed-point sine conversion",
     "BGLCOLOR 0x59 decodes overlay and byte-color operands and emits SetTileShadeColor",
     "CLI reports every failing entry plus decoded and total function counts",
-    "SPS 0xB3 decodes byte IDs and three signed-wide arguments and emits SetSpsParameters"
+    "SPS 0xB3 decodes byte IDs and three signed-wide arguments and emits SetSpsParameters",
+    "unnamed expression 114 matches the reference no-dispatch path without a stack effect",
+    "NOP consumes the argument-flag byte read by the reference event dispatcher"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -100,15 +101,24 @@
     "kind": "Decode",
     "instruction": "custom variable 0xAF has only low index byte 0xFF; high byte and expression terminator are absent"
   },
-  "next_decode_boundary": {
+  "additional_malformed_boundary": {
     "entry": 2,
     "function": 1,
     "function_tag": 1,
-    "offset": 151,
-    "expression_offset": 138,
-    "opcode": 114,
+    "offset": 156,
+    "opcode": null,
+    "kind": "Decode",
+    "instruction": "function ends while its final expression is still active"
+  },
+  "next_decode_boundary": {
+    "entry": 0,
+    "function": 0,
+    "function_tag": 0,
+    "offset": 187,
+    "expression_offset": 180,
+    "opcode": 30,
     "kind": "UnsupportedOpcode",
-    "instruction": "expression operation after SPS support"
+    "instruction": "B_LE_E expression after corrected NOP alignment"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

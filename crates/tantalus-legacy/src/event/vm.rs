@@ -620,6 +620,7 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::NoOp => {}
                 ExpressionOp::Sine => {
                     let value = stack
                         .pop()
@@ -1307,11 +1308,13 @@ fn operand_start(
             let mask = operand_start(operations, value, offset, opcode)?;
             operand_start(operations, mask, offset, opcode)
         }
-        ExpressionOp::ShiftRightAssignMembers | ExpressionOp::End => Err(expression_error(
-            offset,
-            opcode,
-            "unsupported stack shape for a short-circuit operand",
-        )),
+        ExpressionOp::NoOp | ExpressionOp::ShiftRightAssignMembers | ExpressionOp::End => {
+            Err(expression_error(
+                offset,
+                opcode,
+                "unsupported stack shape for a short-circuit operand",
+            ))
+        }
     }
 }
 

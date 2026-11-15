@@ -71,6 +71,7 @@ pub enum ExpressionOp {
     CastI16,
     CastU16,
     CastList,
+    NoOp,
     ShiftRightAssignMembers,
     XorAssignMembers,
     AssignMembers,

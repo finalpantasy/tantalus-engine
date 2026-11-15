@@ -409,14 +409,14 @@ fn host_failure_rolls_back_the_vm_step() {
 
 #[test]
 fn nop_yields_before_the_remaining_program() {
-    let bytes = [0, 4];
+    let bytes = [0, 0, 4];
     let mut vm = EventVm::new(decode_program(&bytes).unwrap());
     let mut host = Host::new();
     assert_eq!(
         vm.step(Tick::new(0), &mut host).unwrap().status,
         VmStatus::Running
     );
-    assert_eq!(vm.pc(), 1);
+    assert_eq!(vm.pc(), 2);
     assert_eq!(
         vm.step(Tick::new(1), &mut host).unwrap().status,
         VmStatus::Completed
@@ -1203,6 +1203,20 @@ fn sine_uses_fixed_point_degrees_and_truncates_the_result() {
 
         assert_eq!(vm.variable(VariableScope::Global, 32), expected);
     }
+}
+
+#[test]
+fn unnamed_expression_114_has_no_stack_effect() {
+    let result = variable(VariableScope::Global, VariableType::Int24, 33);
+    let expression = assign(result, binary(constant(41), vec![], 114));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 33), 41);
+    assert_eq!(vm.status(), VmStatus::Completed);
 }
 
 #[test]
