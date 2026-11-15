@@ -593,11 +593,14 @@ impl LegacyEventHost for FieldHost<'_> {
         character: i32,
         stat: CharacterStat,
     ) -> Result<i32, EngineError> {
+        // Characters without registered stats read as zero, matching the
+        // zero-initialized engine state convention.
         let stats = self
             .world
             .character_stats
             .get(&character)
-            .ok_or_else(|| Self::unknown("character stat"))?;
+            .copied()
+            .unwrap_or_default();
         Ok(match stat {
             CharacterStat::CurrentHp => stats.current_hp,
             CharacterStat::MaxHp => stats.max_hp,
