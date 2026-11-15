@@ -1,0 +1,1382 @@
+{
+  "files": [
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level0",
+      "fonts": [],
+      "mono_behaviours": 1,
+      "scripts": {
+        "SplashScreen": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level1",
+      "fonts": [],
+      "mono_behaviours": 8794,
+      "scripts": {
+        "AbilityUI": 1,
+        "ActiveTimeEvent": 1,
+        "AppArgumentsCheck": 1,
+        "BatteryUI": 2,
+        "BattleHUD": 1,
+        "BattleResultUI": 1,
+        "BitmapIconManager": 1,
+        "BoosterSlider": 1,
+        "BubbleButton": 5,
+        "BubbleGrid": 1,
+        "BubbleUI": 1,
+        "BundleScene": 1,
+        "ButtonGroupState": 467,
+        "CanvasScaler": 1,
+        "CardUI": 1,
+        "ChocographUI": 1,
+        "ClockUI": 2,
+        "CloudUI": 1,
+        "ConfigUI": 1,
+        "DialogManager": 1,
+        "DragOneDirectionScrollView": 1,
+        "EndGameHUD": 1,
+        "EndingUI": 1,
+        "EquipUI": 1,
+        "FieldHUD": 1,
+        "GameOverUI": 1,
+        "HUDMessage": 1,
+        "HelpDialog": 1,
+        "HonoAvatarTweenPosition": 3,
+        "HonoFading": 17,
+        "HonoInputManager": 1,
+        "HonoTweenClipping": 14,
+        "HonoTweenPosition": 21,
+        "Image": 25,
+        "ItemUI": 1,
+        "MainMenuUI": 1,
+        "ModelButton": 8,
+        "ModelButtonManager": 1,
+        "NameSettingUI": 1,
+        "NoneUI": 1,
+        "OnScreenButton": 90,
+        "OverlayBoosterUI": 1,
+        "OverlayCanvas": 1,
+        "PartySettingUI": 1,
+        "PauseUI": 1,
+        "PillarBoxOverrideManager": 1,
+        "PointerManager": 1,
+        "QuadMistUI": 1,
+        "QuitUI": 1,
+        "RecycleListPopulator": 10,
+        "SaveLoadUI": 1,
+        "ScrollButton": 13,
+        "ScrollItemKeyNavigation": 56,
+        "ShopUI": 1,
+        "SlideshowUI": 1,
+        "SnapDragScrollView": 13,
+        "StatusUI": 1,
+        "TimeoutHandler": 5,
+        "TitleUI": 1,
+        "TutorialUI": 1,
+        "TweenAlpha": 34,
+        "TweenColor": 6,
+        "TweenPosition": 16,
+        "TweenScale": 4,
+        "UI2DSprite": 11,
+        "UIButton": 674,
+        "UICamera": 1,
+        "UICenterOnChild": 2,
+        "UIDragScrollView": 162,
+        "UIFieldMapFollowTarget": 1,
+        "UIFollowTarget": 1,
+        "UIGrid": 10,
+        "UIInputaaaaExtension": 1,
+        "UIKeyNavigation": 469,
+        "UIKeyTrigger": 1,
+        "UILabel": 1412,
+        "UILocalize": 451,
+        "UIManager": 1,
+        "UIPanel": 99,
+        "UIProgressBar": 9,
+        "UIRoot": 1,
+        "UIScrollBar": 13,
+        "UIScrollView": 15,
+        "UISlider": 57,
+        "UISprite": 2995,
+        "UISpriteAnimation": 206,
+        "UITable": 49,
+        "UITexture": 3,
+        "UIToggle": 21,
+        "UIWidget": 1264,
+        "UIWidgetContainer": 7,
+        "VirtualAnalog": 1,
+        "WorldHUD": 1,
+        "XInputManager": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level10",
+      "fonts": [],
+      "mono_behaviours": 2,
+      "scripts": {
+        "EndGameMain": 1,
+        "EndGameResourceManager": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level11",
+      "fonts": [],
+      "mono_behaviours": 6,
+      "scripts": {
+        "ChangeUI": 1,
+        "FieldMap": 1,
+        "FieldMapLocalMain": 1,
+        "FieldMapUIButton": 1,
+        "FieldSPS": 1,
+        "PSXCameraAspect": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level12",
+      "fonts": [],
+      "mono_behaviours": 1,
+      "scripts": {
+        "LoadingScene": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level13",
+      "fonts": [],
+      "mono_behaviours": 3,
+      "scripts": {
+        "ModelDebugRoomMain": 1,
+        "ModelDebugRoomView": 1,
+        "MyMouseOrbitImproved": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level14",
+      "fonts": [],
+      "mono_behaviours": 2,
+      "scripts": {
+        "ControllingCameraAspect": 1,
+        "MovieTestScript": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level15",
+      "fonts": [],
+      "mono_behaviours": 61,
+      "scripts": {
+        "Board": 1,
+        "ButtonInputHandler": 1,
+        "CardPreviewUI": 1,
+        "Coin": 1,
+        "Collection": 1,
+        "Combo": 1,
+        "EnemyAI": 1,
+        "EnemyData": 1,
+        "EnemyInputHandler": 1,
+        "Hand": 2,
+        "HonoTweenPosition": 1,
+        "InputDelegatorHandler": 1,
+        "MouseInputHandler": 1,
+        "PlayGame": 1,
+        "PreBoard": 1,
+        "PreGame": 1,
+        "QuadMistCameraController": 1,
+        "QuadMistCardCursor": 3,
+        "QuadMistCardNameDialog": 1,
+        "QuadMistCardNameDialogSlider": 1,
+        "QuadMistConfiguration": 1,
+        "QuadMistConfirmDialog": 1,
+        "QuadMistCursor": 3,
+        "QuadMistDebugGui": 1,
+        "QuadMistDialogResourceMapper": 1,
+        "QuadMistGame": 1,
+        "QuadMistGameResourceMapper": 1,
+        "QuadMistGetCardDialog": 1,
+        "QuadMistResourceManager": 1,
+        "QuadMistStockDialog": 1,
+        "ResultText": 1,
+        "Score": 1,
+        "SpriteClickable": 3,
+        "SpriteDisplay": 14,
+        "SpriteText": 6,
+        "TweenPosition": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level16",
+      "fonts": [],
+      "mono_behaviours": 1,
+      "scripts": {
+        "SoundView": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level17",
+      "fonts": [],
+      "mono_behaviours": 1,
+      "scripts": {
+        "SpecialEffectView": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level18",
+      "fonts": [],
+      "mono_behaviours": 1,
+      "scripts": {
+        "SystemInfoScene": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level19",
+      "fonts": [],
+      "mono_behaviours": 491,
+      "scripts": {
+        "GlobalFog": 1,
+        "PSXCameraAspect": 1,
+        "WMAnimationBank": 1,
+        "WMBeeMenu": 1,
+        "WMBlock": 480,
+        "WMRenderTextureBank": 1,
+        "WMScriptDirector": 1,
+        "WMTweaker": 1,
+        "WMWatcher": 1,
+        "WMWorld": 1,
+        "WMWorldSettings": 1,
+        "WorldRainRenderer": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level2",
+      "fonts": [],
+      "mono_behaviours": 8809,
+      "scripts": {
+        "AbilityUI": 1,
+        "ActiveTimeEvent": 1,
+        "AndroidExpansionUI": 1,
+        "AppArgumentsCheck": 1,
+        "BatteryUI": 2,
+        "BattleHUD": 1,
+        "BattleResultUI": 1,
+        "BitmapIconManager": 1,
+        "BoosterSlider": 1,
+        "BubbleButton": 5,
+        "BubbleGrid": 1,
+        "BubbleUI": 1,
+        "BundleSceneIOS": 1,
+        "ButtonGroupState": 467,
+        "CanvasScaler": 1,
+        "CardUI": 1,
+        "ChocographUI": 1,
+        "ClockUI": 2,
+        "CloudUI": 1,
+        "ConfigUI": 1,
+        "DialogManager": 1,
+        "DragOneDirectionScrollView": 1,
+        "EndGameHUD": 1,
+        "EndingUI": 1,
+        "EquipUI": 1,
+        "FieldHUD": 1,
+        "GameOverUI": 1,
+        "HUDMessage": 1,
+        "HelpDialog": 1,
+        "HonoAvatarTweenPosition": 3,
+        "HonoFading": 18,
+        "HonoTweenClipping": 14,
+        "HonoTweenPosition": 21,
+        "Image": 25,
+        "ItemUI": 1,
+        "MainMenuUI": 1,
+        "ModelButton": 8,
+        "ModelButtonManager": 1,
+        "NameSettingUI": 1,
+        "NoneUI": 1,
+        "OnScreenButton": 90,
+        "OverlayBoosterUI": 1,
+        "OverlayCanvas": 1,
+        "PartySettingUI": 1,
+        "PauseUI": 1,
+        "PillarBoxOverrideManager": 1,
+        "PointerManager": 1,
+        "QuadMistUI": 1,
+        "QuitUI": 1,
+        "RecycleListPopulator": 10,
+        "SaveLoadUI": 1,
+        "ScrollButton": 13,
+        "ScrollItemKeyNavigation": 56,
+        "ShopUI": 1,
+        "SlideshowUI": 1,
+        "SnapDragScrollView": 13,
+        "StatusUI": 1,
+        "TimeoutHandler": 5,
+        "TitleUI": 1,
+        "TutorialUI": 1,
+        "TweenAlpha": 35,
+        "TweenColor": 7,
+        "TweenPosition": 16,
+        "TweenScale": 4,
+        "UI2DSprite": 11,
+        "UIButton": 674,
+        "UICamera": 2,
+        "UICenterOnChild": 2,
+        "UIDragScrollView": 162,
+        "UIFieldMapFollowTarget": 1,
+        "UIFollowTarget": 1,
+        "UIGrid": 10,
+        "UIInputaaaaExtension": 1,
+        "UIKeyNavigation": 469,
+        "UIKeyTrigger": 1,
+        "UILabel": 1412,
+        "UILocalize": 451,
+        "UIManager": 1,
+        "UIPanel": 100,
+        "UIProgressBar": 9,
+        "UIRoot": 2,
+        "UIScrollBar": 13,
+        "UIScrollView": 15,
+        "UISlider": 58,
+        "UISprite": 3004,
+        "UISpriteAnimation": 206,
+        "UITable": 49,
+        "UITexture": 3,
+        "UIToggle": 21,
+        "UIWidget": 1263,
+        "UIWidgetContainer": 8,
+        "VirtualAnalog": 1,
+        "WorldHUD": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level20",
+      "fonts": [],
+      "mono_behaviours": 5,
+      "scripts": {
+        "BattleMapCameraController": 1,
+        "BattleRainRenderer": 1,
+        "BattleTexAnimWatcher": 1,
+        "ControllingCameraAspect": 1,
+        "HonoluluBattleMain": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level21",
+      "fonts": [],
+      "mono_behaviours": 2,
+      "scripts": {
+        "QuadMistDebugMenu": 2
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level22",
+      "fonts": [],
+      "mono_behaviours": 60,
+      "scripts": {
+        "SocialTestScript": 1,
+        "UIButton": 8,
+        "UICamera": 1,
+        "UILabel": 8,
+        "UIPanel": 1,
+        "UIRoot": 1,
+        "UISprite": 24,
+        "UIWidget": 16
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level23",
+      "fonts": [],
+      "mono_behaviours": 3,
+      "scripts": {
+        "OnScreenLog": 1,
+        "SharedDataLoadingAnimationDebug": 1,
+        "SharedDataSerializerDebugUI": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level24",
+      "fonts": [],
+      "mono_behaviours": 46,
+      "scripts": {
+        "CloudSaveDebug": 1,
+        "UIButton": 6,
+        "UICamera": 1,
+        "UILabel": 6,
+        "UIPanel": 1,
+        "UIRoot": 1,
+        "UISprite": 18,
+        "UIWidget": 12
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level25",
+      "fonts": [],
+      "mono_behaviours": 1,
+      "scripts": {
+        "EndingMain": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level26",
+      "fonts": [],
+      "mono_behaviours": 33,
+      "scripts": {
+        "CheatingUIManager": 1,
+        "UIButton": 4,
+        "UICamera": 1,
+        "UILabel": 5,
+        "UIPanel": 1,
+        "UIRoot": 1,
+        "UISprite": 12,
+        "UIWidget": 8
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level27",
+      "fonts": [],
+      "mono_behaviours": 1,
+      "scripts": {
+        "XInputTestCS": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level3",
+      "fonts": [],
+      "mono_behaviours": 1,
+      "scripts": {
+        "GUIManager": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level4",
+      "fonts": [],
+      "mono_behaviours": 2,
+      "scripts": {
+        "BattleSwirl": 1,
+        "PSXCameraAspect": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level5",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level6",
+      "fonts": [],
+      "mono_behaviours": 2,
+      "scripts": {
+        "HonoluluFieldMain": 1,
+        "PSXCameraAspect": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level7",
+      "fonts": [],
+      "mono_behaviours": 491,
+      "scripts": {
+        "GlobalFog": 1,
+        "PSXCameraAspect": 1,
+        "WMAnimationBank": 1,
+        "WMBeeMenu": 1,
+        "WMBlock": 480,
+        "WMRenderTextureBank": 1,
+        "WMScriptDirector": 1,
+        "WMTweaker": 1,
+        "WMWatcher": 1,
+        "WMWorld": 1,
+        "WMWorldSettings": 1,
+        "WorldRainRenderer": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level8",
+      "fonts": [],
+      "mono_behaviours": 6,
+      "scripts": {
+        "BattleMapCameraController": 1,
+        "BattleRainRenderer": 1,
+        "BattleTexAnimWatcher": 1,
+        "BattleUI": 1,
+        "ControllingCameraAspect": 1,
+        "HonoluluBattleMain": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "level9",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "mainData",
+      "fonts": [],
+      "mono_behaviours": 2,
+      "scripts": {
+        "AppArgumentsCheck": 1,
+        "BundleSceneSelector": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [
+        {
+          "coordinates": 0,
+          "file": "resources.assets",
+          "material": "Ending Text FR IT ES Atlas",
+          "name": "Ending_Text_FR_IT_ES_Atlas",
+          "path_id": 8726,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 24,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "resources.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "Ending Text FR IT ES Atlas",
+            "path_id": 163,
+            "width": 2048
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "resources.assets",
+          "material": "QuadMist Text ES Atlas",
+          "name": "QuadMist Text ES Atlas",
+          "path_id": 8739,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 61,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "resources.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "quadmist_text_es",
+            "path_id": 336,
+            "width": 2048
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "resources.assets",
+          "material": "QuadMist Text JP Atlas",
+          "name": "QuadMist Text JP Atlas",
+          "path_id": 8782,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 61,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "resources.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "quadmist_text_jp",
+            "path_id": 165,
+            "width": 2048
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "resources.assets",
+          "material": "QuadMist Text UK Atlas",
+          "name": "QuadMist Text UK Atlas",
+          "path_id": 8828,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 61,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "resources.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "quadmist_text_uk",
+            "path_id": 236,
+            "width": 2048
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "resources.assets",
+          "material": "QuadMist Text GR Atlas",
+          "name": "QuadMist Text GR Atlas",
+          "path_id": 8855,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 61,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "resources.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "quadmist_text_gr",
+            "path_id": 222,
+            "width": 2048
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "resources.assets",
+          "material": "QuadMist Text FR Atlas",
+          "name": "QuadMist Text FR Atlas",
+          "path_id": 8947,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 61,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "resources.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "quadmist_text_fr",
+            "path_id": 315,
+            "width": 2048
+          }
+        }
+      ],
+      "failures": [],
+      "file": "resources.assets",
+      "fonts": [],
+      "mono_behaviours": 647,
+      "scripts": {
+        "?": 3,
+        "EndGameHUD": 1,
+        "EventButton": 2,
+        "GameCircleManager": 1,
+        "GlobalFog": 1,
+        "NewIconAnimation": 1,
+        "OnScreenButton": 28,
+        "PSXCameraAspect": 1,
+        "TimerUI": 1,
+        "UIAtlas": 6,
+        "UIButton": 31,
+        "UILabel": 14,
+        "UIPanel": 2,
+        "UISprite": 41,
+        "UIWidget": 16,
+        "UIWidgetContainer": 1,
+        "WMActor": 6,
+        "WMAnimationBank": 1,
+        "WMBeeChocobo": 1,
+        "WMBeeMenu": 1,
+        "WMBeeMovementAnimation": 1,
+        "WMBlock": 480,
+        "WMRenderTextureBank": 1,
+        "WMScriptDirector": 1,
+        "WMTweaker": 1,
+        "WMWatcher": 1,
+        "WMWorld": 1,
+        "WMWorldSettings": 1,
+        "WorldRainRenderer": 1
+      },
+      "unresolved_scripts": [
+        [
+          8659,
+          1,
+          12001
+        ],
+        [
+          8660,
+          1,
+          12001
+        ],
+        [
+          8661,
+          1,
+          12001
+        ]
+      ]
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets0.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets1.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets10.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets11.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets12.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets13.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets14.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets15.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets16.assets",
+      "fonts": [],
+      "mono_behaviours": 76,
+      "scripts": {
+        "CardArrow": 16,
+        "CardArrows": 2,
+        "CardDisplay": 1,
+        "CardEffect": 1,
+        "CardIconUI": 1,
+        "QuadMistCardUI": 1,
+        "SpriteClickable": 3,
+        "SpriteDisplay": 25,
+        "SpriteFont": 6,
+        "SpriteSheet": 18,
+        "SpriteText": 2
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets17.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets18.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets19.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "Blue Atlas",
+          "name": "Blue Atlas",
+          "path_id": 334,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 13,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 256,
+            "name": "Blue Atlas",
+            "path_id": 34,
+            "width": 512
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "QuadMist Image Atlas 0",
+          "name": "QuadMist Image Atlas 0",
+          "path_id": 343,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 115,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "quadmist_image0",
+            "path_id": 20,
+            "width": 2048
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "Gray Atlas",
+          "name": "Gray Atlas",
+          "path_id": 360,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 13,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 256,
+            "name": "Gray Atlas",
+            "path_id": 31,
+            "width": 512
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "Screen Button Atlas",
+          "name": "Screen Button Atlas",
+          "path_id": 362,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 89,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "Screen Button Atlas",
+            "path_id": 46,
+            "width": 2048
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "General Atlas",
+          "name": "General Atlas",
+          "path_id": 389,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 195,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "General Atlas",
+            "path_id": 45,
+            "width": 2048
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "Icon Atlas",
+          "name": "Icon Atlas",
+          "path_id": 397,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 377,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 1024,
+            "name": "Icon Atlas",
+            "path_id": 41,
+            "width": 2048
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "Movie Gallery Atlas",
+          "name": "Movie Gallery Atlas",
+          "path_id": 441,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 42,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "Movie Gallery Atlas",
+            "path_id": 35,
+            "width": 2048
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "Face Atlas",
+          "name": "Face Atlas",
+          "path_id": 443,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 13,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 512,
+            "name": "Face Atlas",
+            "path_id": 26,
+            "width": 1024
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "QuadMist Text US Atlas",
+          "name": "QuadMist Text US Atlas",
+          "path_id": 444,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 63,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "quadmist_text_us",
+            "path_id": 29,
+            "width": 2048
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "Chocograph Atlas",
+          "name": "Chocograph Atlas",
+          "path_id": 460,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 36,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 1024,
+            "name": "Chocograph Atlas",
+            "path_id": 30,
+            "width": 1024
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "EndGame Atlas",
+          "name": "EndGame Atlas",
+          "path_id": 476,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 72,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 1024,
+            "name": "card_image",
+            "path_id": 37,
+            "width": 1024
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "TutorialUI Atlas",
+          "name": "TutorialUI Atlas",
+          "path_id": 479,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 26,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "TutorialUI Atlas",
+            "path_id": 36,
+            "width": 2048
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "QuadMist Image Atlas 1",
+          "name": "QuadMist Image Atlas 1",
+          "path_id": 481,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 100,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "quadmist_image1",
+            "path_id": 44,
+            "width": 2048
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "QuadMist Text IT Atlas",
+          "name": "QuadMist Text IT Atlas",
+          "path_id": 498,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 61,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "quadmist_text_it",
+            "path_id": 28,
+            "width": 2048
+          }
+        },
+        {
+          "coordinates": 0,
+          "file": "sharedassets2.assets",
+          "material": "Ending Text US JP GR Atlas",
+          "name": "Ending_Text_US_JP_GR_Atlas",
+          "path_id": 506,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 24,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets2.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "Ending Text US JP GR Atlas",
+            "path_id": 24,
+            "width": 2048
+          }
+        }
+      ],
+      "failures": [],
+      "file": "sharedassets2.assets",
+      "fonts": [],
+      "mono_behaviours": 188,
+      "scripts": {
+        "ButtonGroupState": 12,
+        "Dialog": 1,
+        "DialogAnimator": 1,
+        "HUDMessageChild": 1,
+        "NewIconAnimation": 1,
+        "OnScreenButton": 1,
+        "RecycleListItem": 10,
+        "ScrollItemKeyNavigation": 10,
+        "TweenAlpha": 2,
+        "TweenPosition": 1,
+        "TweenScale": 1,
+        "TypewriterEffect": 1,
+        "UIAtlas": 15,
+        "UIButton": 13,
+        "UIDragScrollView": 11,
+        "UIFollowTarget": 1,
+        "UIKeyNavigation": 12,
+        "UILabel": 22,
+        "UIPanel": 3,
+        "UIPointer": 1,
+        "UISprite": 44,
+        "UISpriteAnimation": 1,
+        "UIWidget": 23
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets20.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets21.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets22.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets23.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets24.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets25.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets26.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets27.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets28.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [
+        {
+          "coordinates": 0,
+          "file": "sharedassets3.assets",
+          "material": "Android Atlas",
+          "name": "Android Atlas",
+          "path_id": 6,
+          "pixel_size": 1.0,
+          "shader": 49,
+          "sprite_count": 58,
+          "sprites_outside_texture": 0,
+          "texture": {
+            "file": "sharedassets3.assets",
+            "format": 5,
+            "height": 2048,
+            "name": "Android Atlas",
+            "path_id": 3,
+            "width": 2048
+          }
+        }
+      ],
+      "failures": [],
+      "file": "sharedassets3.assets",
+      "fonts": [],
+      "mono_behaviours": 1,
+      "scripts": {
+        "UIAtlas": 1
+      },
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets4.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets5.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets6.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets7.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets8.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    },
+    {
+      "atlases": [],
+      "failures": [],
+      "file": "sharedassets9.assets",
+      "fonts": [],
+      "mono_behaviours": 0,
+      "scripts": {},
+      "unresolved_scripts": []
+    }
+  ],
+  "note": "UIAtlas/UIFont MonoBehaviours decoded from standalone Unity files; names, counts and sizes only, no pixel data.",
+  "unreadable": []
+}
