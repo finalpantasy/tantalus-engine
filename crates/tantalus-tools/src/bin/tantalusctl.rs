@@ -345,6 +345,8 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut ticks = 64u64;
     let mut probe = false;
     let mut inventory = false;
+    let mut mbg_all = false;
+    let mut map_config_all = false;
     let mut texture = None;
     let mut texture_id = None;
     let mut rgba_output = None;
@@ -522,6 +524,8 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             Some("--objects") => objects = true,
             Some("--probe") => probe = true,
             Some("--inventory") => inventory = true,
+            Some("--mbg-all") => mbg_all = true,
+            Some("--map-config-all") => map_config_all = true,
             _ => {
                 return Err(format!(
                     "unrecognized argument: {}",
@@ -967,6 +971,9 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             );
         }
         return Ok(());
+    }
+    if mbg_all || map_config_all {
+        return run_parse_all(&bundle, &path, mbg_all, map_config_all);
     }
     if inventory {
         let bytes = bundle
@@ -1464,12 +1471,12 @@ fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 
@@ -1562,5 +1569,155 @@ fn run_battle_scene_report(path: &std::path::Path, one: Option<&str>) -> Result<
         "unknown_fields": tantalus_assets::pc::battle_scene::UNKNOWN_FIELDS,
     });
     println!("{}", serde_json::to_string_pretty(&report).unwrap());
+    Ok(())
+}
+
+/// Parses every `mbgdata` and/or `mapconfigdata` container entry in a bundle
+/// and prints a JSON summary (parsed/failed counts, frames, unconsumed bytes).
+fn run_parse_all(
+    bundle: &tantalus_assets::pc::unity_raw::UnityRawBundle,
+    path: &std::path::Path,
+    mbg_all: bool,
+    map_config_all: bool,
+) -> Result<(), String> {
+    let bytes = bundle
+        .read_entry(0, 600 * 1024 * 1024)
+        .map_err(|error| error.to_string())?;
+    let source = path.to_string_lossy();
+    let serialized = tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &source)
+        .map_err(|error| error.to_string())?;
+    let report = serialized.report();
+    let by_path_id: std::collections::BTreeMap<i64, usize> = report
+        .objects
+        .iter()
+        .enumerate()
+        .map(|(index, object)| (object.path_id, index))
+        .collect();
+    let (container_index, _) = report
+        .objects
+        .iter()
+        .enumerate()
+        .find(|(_, object)| object.class_id == 142)
+        .ok_or_else(|| "AssetBundle metadata object is missing".to_owned())?;
+    let metadata = tantalus_assets::pc::asset_bundle::AssetBundleMetadata::parse(
+        serialized
+            .object_data(container_index)
+            .map_err(|error| error.to_string())?,
+        &source,
+    )
+    .map_err(|error| error.to_string())?;
+    let script_of = |asset_path: &str, path_id: i64| -> Result<Vec<u8>, String> {
+        let index = by_path_id
+            .get(&path_id)
+            .ok_or_else(|| format!("{asset_path}: path ID {path_id} has no object"))?;
+        let data = serialized
+            .object_data(*index)
+            .map_err(|error| error.to_string())?;
+        tantalus_assets::pc::text_asset::TextAsset::parse(data, asset_path)
+            .map(|asset| asset.script)
+            .map_err(|error| error.to_string())
+    };
+    let mut output = serde_json::Map::new();
+    if mbg_all {
+        let (mut parsed, mut failed, mut total_frames, mut unconsumed) = (0, 0, 0usize, 0usize);
+        let (mut trailing, mut files, mut errors) = (0usize, Vec::new(), Vec::new());
+        for (asset_path, info) in &metadata.container {
+            if !asset_path.to_ascii_lowercase().ends_with(".mbgdata.bytes") {
+                continue;
+            }
+            let result = script_of(asset_path, info.path_id).and_then(|script| {
+                tantalus_assets::pc::mbg::MbgFile::parse(&script, asset_path)
+                    .map(|file| (script.len(), file))
+                    .map_err(|error| error.to_string())
+            });
+            match result {
+                Ok((size, file)) => {
+                    parsed += 1;
+                    total_frames += file.frames.len();
+                    unconsumed += file.unconsumed_bytes();
+                    trailing += file.trailing.len();
+                    files.push(serde_json::json!({
+                        "path": asset_path,
+                        "bytes": size,
+                        "frames": file.frames.len(),
+                        "declared_frames": file.frame_count,
+                        "unread_record_bytes": file.unconsumed_bytes() - file.trailing.len(),
+                        "trailing_bytes": file.trailing.len(),
+                    }));
+                }
+                Err(error) => {
+                    failed += 1;
+                    errors.push(serde_json::json!({"path": asset_path, "error": error}));
+                }
+            }
+        }
+        output.insert(
+            "mbg".to_owned(),
+            serde_json::json!({
+                "parsed": parsed,
+                "failed": failed,
+                "total_frames": total_frames,
+                "unconsumed_bytes": unconsumed,
+                "trailing_bytes": trailing,
+                "failures": errors,
+                "files": files,
+            }),
+        );
+    }
+    if map_config_all {
+        let (mut parsed, mut failed, mut trailing) = (0, 0, 0usize);
+        let (mut lights, mut chars, mut errors) = (0usize, 0usize, Vec::new());
+        let mut trailing_files = Vec::new();
+        let mut versions = std::collections::BTreeMap::<u16, usize>::new();
+        for (asset_path, info) in &metadata.container {
+            if !asset_path.to_ascii_lowercase().contains("/mapconfigdata/") {
+                continue;
+            }
+            let result = script_of(asset_path, info.path_id).and_then(|script| {
+                tantalus_assets::pc::map_config::MapConfig::parse(&script, asset_path)
+                    .map(|config| (script.len(), config))
+                    .map_err(|error| error.to_string())
+            });
+            match result {
+                Ok((size, config)) => {
+                    parsed += 1;
+                    lights += config.lights.len();
+                    chars += config.chars.len();
+                    trailing += config.trailing.len();
+                    *versions.entry(config.version).or_default() += 1;
+                    if !config.trailing.is_empty() {
+                        trailing_files.push(serde_json::json!({
+                            "path": asset_path,
+                            "bytes": size,
+                            "trailing_bytes": config.trailing.len(),
+                            "evt_count": config.evt_count,
+                            "memoria_size": config.memoria_size(),
+                        }));
+                    }
+                }
+                Err(error) => {
+                    failed += 1;
+                    errors.push(serde_json::json!({"path": asset_path, "error": error}));
+                }
+            }
+        }
+        output.insert(
+            "map_config".to_owned(),
+            serde_json::json!({
+                "parsed": parsed,
+                "failed": failed,
+                "total_lights": lights,
+                "total_chars": chars,
+                "trailing_bytes": trailing,
+                "versions": versions,
+                "failures": errors,
+                "files_with_trailing_bytes": trailing_files,
+            }),
+        );
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::Value::Object(output)).unwrap()
+    );
     Ok(())
 }

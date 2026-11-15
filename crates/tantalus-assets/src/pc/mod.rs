@@ -4,6 +4,8 @@ pub mod bgi;
 pub mod bgs;
 pub mod bundled_field;
 pub mod field;
+pub mod map_config;
+pub mod mbg;
 pub mod serialized;
 pub mod text_asset;
 pub mod texture;
