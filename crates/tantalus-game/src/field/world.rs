@@ -110,6 +110,9 @@ pub struct FieldWorld {
     pub exit_arrivals: BTreeSet<EntityId>,
     /// Reward resolutions already applied to this world (exactly-once ledger).
     applied_resolutions: BTreeSet<u64>,
+    /// Fixed-point atan lookup table from the owned install
+    /// (`ratan_tbl.bin`); absent until the caller provides it.
+    atan_table: Option<Vec<u8>>,
 }
 
 impl Default for FieldWorld {
@@ -147,6 +150,7 @@ impl FieldWorld {
             animation_default_ticks: 32,
             exit_arrivals: BTreeSet::new(),
             applied_resolutions: BTreeSet::new(),
+            atan_table: None,
         }
     }
 
@@ -313,5 +317,15 @@ impl FieldWorld {
 
     pub fn add_gil(&mut self, amount: u32) {
         self.gil = self.gil.saturating_add(amount).min(MAX_GIL);
+    }
+
+    pub fn provide_atan_table(&mut self, bytes: Vec<u8>) {
+        self.atan_table = Some(bytes);
+    }
+
+    pub(crate) fn atan_entry(&self, offset: usize) -> Option<u16> {
+        let table = self.atan_table.as_ref()?;
+        let entry = table.get(offset..offset.checked_add(2)?)?;
+        Some(u16::from_le_bytes(entry.try_into().ok()?))
     }
 }

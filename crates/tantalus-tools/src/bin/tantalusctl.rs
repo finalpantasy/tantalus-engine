@@ -28,9 +28,192 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
         (Some("install"), Some("inspect")) => run_install_inspect(args),
         (Some("assets"), Some("import")) => run_assets_import(args),
         (Some("assets"), Some("inspect-bundle")) => run_assets_inspect_bundle(args),
+        (Some("assets"), Some("extract-resource")) => run_assets_extract_resource(args),
+        (Some("assets"), Some("extract-text")) => run_assets_extract_text(args),
         (Some("scenario"), Some("run")) => run_scenario(args),
         _ => Err(usage().to_owned()),
     }
+}
+
+fn run_assets_extract_resource(args: Vec<OsString>) -> Result<(), String> {
+    let mut dll = None;
+    let mut name = None;
+    let mut output = None;
+    let mut json = false;
+    let mut index = 2;
+    while index < args.len() {
+        match args[index].to_str() {
+            Some("--dll") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| "`--dll` requires a path".to_owned())?;
+                if dll.replace(PathBuf::from(value)).is_some() {
+                    return Err("`--dll` may only be supplied once".to_owned());
+                }
+            }
+            Some("--name") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--name` requires a UTF-8 resource name".to_owned())?;
+                if name.replace(value.to_owned()).is_some() {
+                    return Err("`--name` may only be supplied once".to_owned());
+                }
+            }
+            Some("--output") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| "`--output` requires a path".to_owned())?;
+                if output.replace(PathBuf::from(value)).is_some() {
+                    return Err("`--output` may only be supplied once".to_owned());
+                }
+            }
+            Some("--json") => json = true,
+            _ => {
+                return Err(format!(
+                    "unrecognized argument: {}",
+                    args[index].to_string_lossy()
+                ));
+            }
+        }
+        index += 1;
+    }
+    let dll = dll.ok_or_else(|| "missing required `--dll <path>`".to_owned())?;
+    let name = name.ok_or_else(|| "missing required `--name <resource>`".to_owned())?;
+    let bytes =
+        std::fs::read(&dll).map_err(|error| format!("cannot read {}: {error}", dll.display()))?;
+    let data = tantalus_assets::pc::managed::extract_resource(&bytes, &name)
+        .map_err(|error| error.to_string())?;
+    let digest = format!("{:x}", Sha256::digest(&data));
+    let written_to = match &output {
+        Some(target) => {
+            std::fs::write(target, &data)
+                .map_err(|error| format!("cannot write {}: {error}", target.display()))?;
+            Some(target.to_string_lossy().into_owned())
+        }
+        None => None,
+    };
+    let report = serde_json::json!({
+        "dll": dll.file_name().map(|n| n.to_string_lossy().into_owned()),
+        "name": name,
+        "bytes": data.len(),
+        "sha256": digest,
+        "written_to": written_to,
+    });
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+    } else {
+        println!("{name}: {} bytes", data.len());
+    }
+    Ok(())
+}
+
+fn run_assets_extract_text(args: Vec<OsString>) -> Result<(), String> {
+    let mut path = None;
+    let mut name = None;
+    let mut output = None;
+    let mut json = false;
+    let mut index = 2;
+    while index < args.len() {
+        match args[index].to_str() {
+            Some("--path") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| "`--path` requires a path".to_owned())?;
+                if path.replace(PathBuf::from(value)).is_some() {
+                    return Err("`--path` may only be supplied once".to_owned());
+                }
+            }
+            Some("--name") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--name` requires a UTF-8 asset name".to_owned())?;
+                if name.replace(value.to_owned()).is_some() {
+                    return Err("`--name` may only be supplied once".to_owned());
+                }
+            }
+            Some("--output") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| "`--output` requires a path".to_owned())?;
+                if output.replace(PathBuf::from(value)).is_some() {
+                    return Err("`--output` may only be supplied once".to_owned());
+                }
+            }
+            Some("--json") => json = true,
+            _ => {
+                return Err(format!(
+                    "unrecognized argument: {}",
+                    args[index].to_string_lossy()
+                ));
+            }
+        }
+        index += 1;
+    }
+    let path = path.ok_or_else(|| "missing required `--path <file>`".to_owned())?;
+    let name = name.ok_or_else(|| "missing required `--name <asset>`".to_owned())?;
+    let bytes =
+        std::fs::read(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    let serialized =
+        tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
+            .map_err(|error| error.to_string())?;
+    let mut found = None;
+    let mut text_assets = 0usize;
+    let mut sample_names = Vec::new();
+    for (index, object) in serialized.report().objects.iter().enumerate() {
+        if object.class_id != 49 {
+            continue;
+        }
+        text_assets += 1;
+        let asset = tantalus_assets::pc::text_asset::TextAsset::parse(
+            serialized
+                .object_data(index)
+                .map_err(|error| error.to_string())?,
+            &name,
+        )
+        .map_err(|error| error.to_string())?;
+        if sample_names.len() < 8
+            && (asset.name.contains("atan") || asset.name.contains("Embedded"))
+        {
+            sample_names.push(asset.name.clone());
+        }
+        if asset.name == name || asset.name.ends_with(&format!("/{name}")) {
+            found = Some(asset.script);
+            break;
+        }
+    }
+    let data = found.ok_or_else(|| {
+        format!("text asset `{name}` was not found (scanned {text_assets} text assets; atan/embedded samples: {sample_names:?})")
+    })?;
+    let digest = format!("{:x}", Sha256::digest(&data));
+    let written_to = match &output {
+        Some(target) => {
+            std::fs::write(target, &data)
+                .map_err(|error| format!("cannot write {}: {error}", target.display()))?;
+            Some(target.to_string_lossy().into_owned())
+        }
+        None => None,
+    };
+    let report = serde_json::json!({
+        "file": path.file_name().map(|n| n.to_string_lossy().into_owned()),
+        "name": name,
+        "bytes": data.len(),
+        "sha256": digest,
+        "written_to": written_to,
+    });
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+    } else {
+        println!("{name}: {} bytes", data.len());
+    }
+    Ok(())
 }
 
 fn run_install_inspect(args: Vec<OsString>) -> Result<(), String> {
@@ -154,6 +337,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut text_asset = None;
     let mut event = None;
     let mut field_execute = None;
+    let mut atan_table = None;
     let mut ticks = 64u64;
     let mut probe = false;
     let mut inventory = false;
@@ -194,6 +378,15 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     .ok_or_else(|| "`--field-execute` requires a UTF-8 asset name".to_owned())?;
                 if field_execute.replace(value.to_owned()).is_some() {
                     return Err("`--field-execute` may only be supplied once".to_owned());
+                }
+            }
+            Some("--atan-table") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| "`--atan-table` requires a path".to_owned())?;
+                if atan_table.replace(PathBuf::from(value)).is_some() {
+                    return Err("`--atan-table` may only be supplied once".to_owned());
                 }
             }
             Some("--ticks") => {
@@ -508,6 +701,11 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         // orchestration (function tags beyond the first) is host-owned and
         // not part of this probe.
         let mut director = tantalus_game::FieldDirector::new(tantalus_game::FieldWorld::new());
+        if let Some(table_path) = atan_table {
+            let table = std::fs::read(&table_path)
+                .map_err(|error| format!("cannot read {}: {error}", table_path.display()))?;
+            director.world_mut().provide_atan_table(table);
+        }
         let mut entry_tags = Vec::new();
         let mut skipped = Vec::new();
         for entry in &binary.entries {
@@ -541,22 +739,17 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             }
         }
         let states = director
-            .save()
-            .map(|snapshot| {
-                snapshot
-                    .entries
-                    .iter()
-                    .map(|entry| {
-                        serde_json::json!({
-                            "entry": entry.entity.get(),
-                            "pc": entry.pc,
-                            "status": format!("{:?}", entry.status),
-                        })
-                    })
-                    .collect::<Vec<_>>()
+            .entry_states()
+            .into_iter()
+            .map(|(entity, pc, status, wait)| {
+                serde_json::json!({
+                    "entry": entity.get(),
+                    "pc": pc,
+                    "status": format!("{status:?}"),
+                    "wait": wait.map(|wait| format!("{wait:?}")),
+                })
             })
-            .map_err(|e| format!("{e}"))
-            .unwrap_or_else(|e| vec![serde_json::json!({"snapshot_error": e})]);
+            .collect::<Vec<_>>();
         let completed = states
             .iter()
             .filter(|state| {

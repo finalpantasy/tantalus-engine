@@ -72,6 +72,18 @@ impl FieldDirector {
         self.tick
     }
 
+    /// Observed per-entry VM state (entity, pc, status, wait).
+    pub fn entry_states(
+        &self,
+    ) -> Vec<(
+        EntityId,
+        u32,
+        tantalus_legacy::VmStatus,
+        Option<tantalus_legacy::WaitState>,
+    )> {
+        self.scene.entry_states()
+    }
+
     /// Decode and register an entry program; the raw bytes become its save
     /// source. Duplicate entities are a conflict.
     pub fn add_entry(&mut self, entity: EntityId, program_bytes: &[u8]) -> Result<(), EngineError> {

@@ -301,8 +301,13 @@ impl LegacyEventHost for FieldHost<'_> {
         Ok(())
     }
 
-    fn read_atan_entry(&mut self, _offset: i32) -> Result<u16, EngineError> {
-        Err(Self::unknown("atan table"))
+    fn read_atan_entry(&mut self, offset: i32) -> Result<u16, EngineError> {
+        if offset < 0 {
+            return Err(Self::unknown("negative atan table offset"));
+        }
+        self.world
+            .atan_entry(offset as usize)
+            .ok_or_else(|| Self::unknown("atan table offset outside the provided table"))
     }
 
     fn resolve_object_uid(&mut self, uid: i32) -> Result<EntityId, EngineError> {
