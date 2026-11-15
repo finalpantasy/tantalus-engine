@@ -1500,6 +1500,17 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::CosineShifted => {
+                    let angle = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing shifted cosine operand")
+                    })?;
+                    let angle = read_value(host, angle, offset, opcode)?.wrapping_shl(4);
+                    let radians = angle as f32 / 4096.0 * 360.0 * 0.017_453_292;
+                    stack.push(StackValue {
+                        value: (radians.cos() * 4096.0) as i32,
+                        target: None,
+                    });
+                }
                 ExpressionOp::AngleToObject => {
                     let value = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing angle-target operand")
@@ -2614,6 +2625,7 @@ fn operand_start(
         | ExpressionOp::Sine
         | ExpressionOp::SineUnshifted
         | ExpressionOp::Cosine
+        | ExpressionOp::CosineShifted
         | ExpressionOp::AngleToObject
         | ExpressionOp::DistanceToObject
         | ExpressionOp::ItemCount

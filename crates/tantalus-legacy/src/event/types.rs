@@ -43,6 +43,7 @@ pub enum ExpressionOp {
     Sine,
     SineUnshifted,
     Cosine,
+    CosineShifted,
     Add,
     Subtract,
     Multiply,

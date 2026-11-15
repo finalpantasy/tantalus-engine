@@ -3630,6 +3630,28 @@ fn sine2_uses_the_unshifted_fixed_point_angle() {
 }
 
 #[test]
+fn cosine_uses_a_shifted_fixed_point_angle() {
+    for (angle, expected) in [(0, 4096), (64, 0), (128, -4096), (192, 0)] {
+        let result = variable(VariableScope::Global, VariableType::Int24, 73);
+        let expression = assign(result, binary(constant(angle), vec![], 99));
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+
+        vm.step(Tick::new(0), &mut host).unwrap();
+
+        assert_eq!(vm.variable(VariableScope::Global, 73), expected);
+    }
+
+    let program = decode_program(&[5, 99, 127, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::InvalidExpression);
+    assert!(error.message.contains("shifted cosine operand"));
+}
+
+#[test]
 fn cosine2_uses_the_unshifted_fixed_point_angle() {
     for (angle, expected) in [(0, 4096), (1024, 0), (2048, -4096)] {
         let result = variable(VariableScope::Global, VariableType::Int24, 65);
