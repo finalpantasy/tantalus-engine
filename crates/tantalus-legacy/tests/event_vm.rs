@@ -2704,155 +2704,58 @@ fn real_member_cast_sequence_decodes() {
     assert!(program.instructions.contains_key(&17));
 }
 
-#[test]
-fn member_xor_assignment_uses_the_last_selected_target() {
+fn extract_let(op: u8, initial: i32, mask: i32, first: i32, last: i32) -> (EventVm, Host) {
     let result = variable(VariableScope::Global, VariableType::Int16, 16);
-    let expression = assign(
-        result,
-        [vec![41, 2], constant(0b101), constant(-1), vec![68]].concat(),
-    );
-    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let preset = assign(result.clone(), constant(initial));
+    let expression = [result, constant(mask), vec![41, 2], vec![op]].concat();
+    let program =
+        decode_program(&[evaluate(preset), evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
     host.slots.insert(0, EntityId::new(10));
     host.slots.insert(2, EntityId::new(12));
-    let first = ObjectMemberRef {
-        object: EntityId::new(10),
-        member: 2,
-    };
-    let last = ObjectMemberRef {
-        object: EntityId::new(12),
-        member: 2,
-    };
-    host.object_members.insert(first, 0);
-    host.object_members.insert(last, 9);
-
+    for (object, value) in [(10, first), (12, last)] {
+        host.object_members.insert(
+            ObjectMemberRef {
+                object: EntityId::new(object),
+                member: 2,
+            },
+            value,
+        );
+    }
     vm.step(Tick::new(0), &mut host).unwrap();
+    (vm, host)
+}
 
-    assert_eq!(vm.variable(VariableScope::Global, 16), -5);
-    assert_eq!(host.object_members[&first], 0);
-    assert_eq!(host.object_members[&last], -5);
+#[test]
+fn member_xor_assignment_xors_the_selected_nonzero_bits_into_the_lvalue() {
+    // Slots 0 and 2 selected; slot 0 member is zero, slot 2 member is nonzero: bits 0b100.
+    let (vm, host) = extract_let(68, 6, 0b101, 0, 9);
+    assert_eq!(vm.variable(VariableScope::Global, 16), 0b100 ^ 6);
     assert_eq!(host.member_target, Some(EntityId::new(12)));
-    assert_eq!(host.member_writes, [(last, -5)]);
+    assert!(host.member_writes.is_empty());
 }
 
 #[test]
-fn member_and_assignment_uses_the_last_selected_target() {
-    let result = variable(VariableScope::Global, VariableType::Int16, 51);
-    let expression = assign(
-        result,
-        [vec![41, 2], constant(0b101), constant(5), vec![67]].concat(),
-    );
-    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
-    let mut vm = EventVm::new(program);
-    let mut host = Host::new();
-    host.slots.insert(0, EntityId::new(10));
-    host.slots.insert(2, EntityId::new(12));
-    let last = ObjectMemberRef {
-        object: EntityId::new(12),
-        member: 2,
-    };
-    host.object_members.insert(last, 255);
-
-    vm.step(Tick::new(0), &mut host).unwrap();
-
-    assert_eq!(vm.variable(VariableScope::Global, 51), 5);
-    assert_eq!(host.object_members[&last], 5);
-    assert_eq!(host.member_target, Some(last.object));
-    assert_eq!(host.member_writes, [(last, 5)]);
-
-    let result = variable(VariableScope::Global, VariableType::Int16, 51);
-    let expression = assign(
-        result,
-        [vec![41, 4], constant(0), constant(1), vec![67]].concat(),
-    );
-    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
-    let mut vm = EventVm::new(program);
-    let current = ObjectMemberRef {
-        object: EntityId::new(42),
-        member: 4,
-    };
-    let mut host = Host::new();
-    host.member_target = Some(current.object);
-    host.object_members.insert(current, 15);
-    vm.step(Tick::new(0), &mut host).unwrap();
-    assert_eq!(vm.variable(VariableScope::Global, 51), 0);
-    assert_eq!(host.member_target, Some(current.object));
-    assert_eq!(host.member_writes, [(current, 0)]);
+fn member_and_assignment_ands_the_selected_nonzero_bits_into_the_lvalue() {
+    let (vm, host) = extract_let(67, 6, 0b101, 3, 9);
+    assert_eq!(vm.variable(VariableScope::Global, 16), 0b101 & 6);
+    assert!(host.member_writes.is_empty());
 }
 
 #[test]
-fn member_or_assignment_uses_the_last_selected_target() {
-    let result = variable(VariableScope::Global, VariableType::Int16, 52);
-    let expression = assign(
-        result,
-        [vec![41, 2], constant(0b101), constant(2), vec![69]].concat(),
-    );
-    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
-    let mut vm = EventVm::new(program);
-    let mut host = Host::new();
-    host.slots.insert(0, EntityId::new(10));
-    host.slots.insert(2, EntityId::new(12));
-    let first = ObjectMemberRef {
-        object: EntityId::new(10),
-        member: 2,
-    };
-    let last = ObjectMemberRef {
-        object: EntityId::new(12),
-        member: 2,
-    };
-    host.object_members.insert(first, 0);
-    host.object_members.insert(last, 255);
-
-    vm.step(Tick::new(0), &mut host).unwrap();
-
-    assert_eq!(vm.variable(VariableScope::Global, 52), 6);
-    assert_eq!(host.object_members[&last], 6);
-    assert_eq!(host.member_target, Some(last.object));
-    assert_eq!(host.member_writes, [(last, 6)]);
-
-    let result = variable(VariableScope::Global, VariableType::Int16, 52);
-    let expression = assign(
-        result,
-        [vec![41, 4], constant(0), constant(3), vec![69]].concat(),
-    );
-    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
-    let mut vm = EventVm::new(program);
-    let current = ObjectMemberRef {
-        object: EntityId::new(42),
-        member: 4,
-    };
-    let mut host = Host::new();
-    host.member_target = Some(current.object);
-    host.object_members.insert(current, 15);
-    vm.step(Tick::new(0), &mut host).unwrap();
-    assert_eq!(vm.variable(VariableScope::Global, 52), 3);
-    assert_eq!(host.member_target, Some(current.object));
-    assert_eq!(host.member_writes, [(current, 3)]);
+fn member_or_assignment_ors_the_selected_nonzero_bits_into_the_lvalue() {
+    let (vm, _) = extract_let(69, 2, 0b101, 3, 9);
+    assert_eq!(vm.variable(VariableScope::Global, 16), 0b101 | 2);
 }
 
 #[test]
-fn empty_member_xor_mask_preserves_and_writes_the_current_target() {
-    let result = variable(VariableScope::Global, VariableType::Int16, 17);
-    let expression = assign(
-        result,
-        [vec![41, 4], constant(0), constant(1), vec![68]].concat(),
-    );
-    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
-    let mut vm = EventVm::new(program);
-    let mut host = Host::new();
-    let current = ObjectMemberRef {
-        object: EntityId::new(42),
-        member: 4,
-    };
-    host.member_target = Some(current.object);
-    host.object_members.insert(current, 15);
-
-    vm.step(Tick::new(0), &mut host).unwrap();
-
-    assert_eq!(vm.variable(VariableScope::Global, 17), 1);
-    assert_eq!(host.member_target, Some(current.object));
-    assert_eq!(host.member_writes, [(current, 1)]);
+fn an_empty_mask_extracts_no_bits_so_and_clears_while_or_and_xor_keep_the_lvalue() {
+    for (op, expected) in [(67_u8, 0), (68, 15), (69, 15)] {
+        let (vm, host) = extract_let(op, 15, 0, 3, 9);
+        assert_eq!(vm.variable(VariableScope::Global, 16), expected, "op {op}");
+        assert!(host.member_writes.is_empty());
+    }
 }
 
 #[test]
@@ -5416,39 +5319,16 @@ fn mesvalue_sets_the_script_keyed_text_variable() {
 }
 
 #[test]
-fn member_assignment_writes_the_lower_target_without_changing_members() {
-    let result = variable(VariableScope::Global, VariableType::Int16, 31);
-    let expression = [result, vec![41, 2], constant(0b101), vec![46]].concat();
-    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
-    let mut vm = EventVm::new(program);
-    let mut host = Host::new();
-    host.slots.insert(0, EntityId::new(10));
-    host.slots.insert(2, EntityId::new(12));
-    host.object_members.insert(
-        ObjectMemberRef {
-            object: EntityId::new(10),
-            member: 2,
-        },
-        0,
-    );
-    host.object_members.insert(
-        ObjectMemberRef {
-            object: EntityId::new(12),
-            member: 2,
-        },
-        9,
-    );
-
-    vm.step(Tick::new(0), &mut host).unwrap();
-
-    assert_eq!(vm.variable(VariableScope::Global, 31), 4);
+fn member_assignment_stores_the_nonzero_slot_bits_without_changing_members() {
+    let (vm, host) = extract_let(46, 99, 0b101, 0, 9);
+    assert_eq!(vm.variable(VariableScope::Global, 16), 0b100);
     assert_eq!(host.member_target, Some(EntityId::new(12)));
     assert!(host.member_writes.is_empty());
 }
 
 #[test]
 fn empty_member_assignment_uses_the_reference_global_bit_fallback() {
-    let expression = [vec![41, 4], constant(0), vec![46]].concat();
+    let expression = [constant(0), vec![41, 4], vec![46]].concat();
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
