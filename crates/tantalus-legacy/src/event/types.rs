@@ -277,6 +277,13 @@ pub enum InstructionKind {
         minimum_party_size: Expression,
         fixed_members: Expression,
     },
+    InitializeCharacter {
+        character: Expression,
+        enable_leveling: Expression,
+        equipment_set: Expression,
+        category: Expression,
+        menu_preset: Expression,
+    },
     AttachTile {
         overlay: Expression,
         x: Expression,
@@ -517,6 +524,13 @@ pub enum HostEvent {
     OpenPartyMenu {
         minimum_party_size: i32,
         fixed_members: i32,
+    },
+    InitializeCharacter {
+        character: i32,
+        enable_leveling: bool,
+        equipment_set: i32,
+        category: i32,
+        menu_preset: i32,
     },
     AttachTile {
         overlay: i32,

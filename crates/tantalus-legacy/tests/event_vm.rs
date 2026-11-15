@@ -174,6 +174,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetSimulationFrameRate { .. } => {}
                 HostEvent::SetTileAnimationFrame { .. } => {}
                 HostEvent::OpenPartyMenu { .. } => self.party_menu_open = true,
+                HostEvent::InitializeCharacter { .. } => {}
                 HostEvent::AttachTile { .. } => {}
             }
         }
@@ -441,10 +442,10 @@ fn close_window_and_actor_movement_reach_the_host_once() {
 
 #[test]
 fn unsupported_and_truncated_programs_report_the_byte_offset() {
-    let unsupported = decode_program(&[0xfe]).unwrap_err();
+    let unsupported = decode_program(&[0xfd]).unwrap_err();
     assert_eq!(unsupported.kind, VmErrorKind::UnsupportedOpcode);
     assert_eq!(unsupported.offset, 0);
-    assert_eq!(unsupported.opcode, Some(0xfe));
+    assert_eq!(unsupported.opcode, Some(0xfd));
 
     let truncated = decode_program(&[5, 126, 1]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
@@ -3090,6 +3091,45 @@ fn party_menu_emits_once_and_waits_for_host_closure() {
         [HostEvent::OpenPartyMenu {
             minimum_party_size: 1,
             fixed_members: -2
+        }]
+    );
+}
+
+#[test]
+fn join_emits_complete_character_initialization() {
+    let program = decode_program(&[254, 0, 2, 1, 3, 255, 4, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 7);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::InitializeCharacter {
+            character: 2,
+            enable_leveling: true,
+            equipment_set: 3,
+            category: 255,
+            menu_preset: 4
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
+
+    let mut bytes = vec![254, 31];
+    for value in [2, 0, 3, 4, 5] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::InitializeCharacter {
+            character: 2,
+            enable_leveling: false,
+            equipment_set: 3,
+            category: 4,
+            menu_preset: 5
         }]
     );
 }

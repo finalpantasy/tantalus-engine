@@ -805,6 +805,30 @@ impl EventVm {
                         fixed_members,
                     });
                 }
+                InstructionKind::InitializeCharacter {
+                    character,
+                    enable_leveling,
+                    equipment_set,
+                    category,
+                    menu_preset,
+                } => {
+                    let character = self.evaluate(host, &character, instruction.offset, opcode)?;
+                    let enable_leveling =
+                        self.evaluate(host, &enable_leveling, instruction.offset, opcode)? != 0;
+                    let equipment_set =
+                        self.evaluate(host, &equipment_set, instruction.offset, opcode)?;
+                    let category = self.evaluate(host, &category, instruction.offset, opcode)?;
+                    let menu_preset =
+                        self.evaluate(host, &menu_preset, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::InitializeCharacter {
+                        character,
+                        enable_leveling,
+                        equipment_set,
+                        category,
+                        menu_preset,
+                    });
+                }
                 InstructionKind::AttachTile {
                     overlay,
                     x,
@@ -1773,6 +1797,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
         InstructionKind::SetTileAnimationFrame { .. } => 0xe7,
         InstructionKind::OpenPartyMenu { .. } => 0xb2,
+        InstructionKind::InitializeCharacter { .. } => 0xfe,
         InstructionKind::AttachTile { .. } => 0x92,
     }
 }
