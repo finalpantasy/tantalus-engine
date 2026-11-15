@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use tantalus_contracts::{EngineError, ErrorCategory, Tick};
+use tantalus_contracts::{EngineError, EntityId, ErrorCategory, Tick};
 use tantalus_legacy::*;
 
 fn constant(value: i32) -> Vec<u8> {
@@ -103,6 +103,7 @@ impl LegacyEventHost for Host {
                     self.movements.push((actor.get(), *x, *z));
                 }
                 HostEvent::AimAtCamera => {}
+                HostEvent::DefinePlayerControl { .. } => {}
             }
         }
         Ok(())
@@ -365,4 +366,19 @@ fn player_control_instruction_requires_actor_context() {
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));
+}
+
+#[test]
+fn player_control_uses_the_current_entity_when_available() {
+    let program = decode_program(&[0x2c, 0, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::DefinePlayerControl {
+            actor: EntityId::new(42)
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
 }

@@ -29,7 +29,8 @@ impl FieldScene {
                 true,
             ));
         }
-        self.entries.insert(entity, EventVm::new(program));
+        self.entries
+            .insert(entity, EventVm::new(program).with_entity(entity));
         Ok(())
     }
 

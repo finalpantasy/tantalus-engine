@@ -28,7 +28,7 @@
     "padding 0x00 through 0x03 produce zero",
     "direct post-decrement 0x05 writes the normalized value back",
     "AIM 0xB8 emits a host event",
-    "CC 0x2C decoded; execution requires actor context"
+    "CC 0x2C emits DefinePlayerControl with the current entity; missing context is an explicit error"
   ],
   "next_decode_boundary": {
     "entry": 0,

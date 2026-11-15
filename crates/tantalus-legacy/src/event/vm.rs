@@ -8,6 +8,7 @@ const TRACE_CAPACITY: usize = 256;
 #[derive(Debug, Clone)]
 pub struct EventVm {
     program: EventProgram,
+    entity: Option<EntityId>,
     pc: u32,
     variables: BTreeMap<(VariableScope, u16), i32>,
     wait: Option<WaitState>,
@@ -20,6 +21,7 @@ impl EventVm {
     pub fn new(program: EventProgram) -> Self {
         Self {
             program,
+            entity: None,
             pc: 0,
             variables: BTreeMap::new(),
             wait: None,
@@ -27,6 +29,11 @@ impl EventVm {
             instruction_budget: DEFAULT_INSTRUCTION_BUDGET,
             traces: VecDeque::with_capacity(TRACE_CAPACITY),
         }
+    }
+
+    pub fn with_entity(mut self, entity: EntityId) -> Self {
+        self.entity = Some(entity);
+        self
     }
 
     pub fn with_instruction_budget(mut self, budget: u32) -> Self {
@@ -200,12 +207,16 @@ impl EventVm {
                     events.push(HostEvent::CloseWindow { window });
                 }
                 InstructionKind::DefinePlayerControl => {
-                    return Err(VmError::new(
-                        VmErrorKind::Host,
-                        instruction.offset,
-                        Some(opcode),
-                        "player control requires current actor context",
-                    ));
+                    let Some(entity) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "player control requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::DefinePlayerControl { actor: entity });
                 }
                 InstructionKind::AimAtCamera => {
                     self.pc = next;

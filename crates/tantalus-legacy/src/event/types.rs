@@ -142,6 +142,7 @@ pub enum HostEvent {
     CloseWindow { window: u8 },
     MoveActor { actor: EntityId, x: i32, z: i32 },
     AimAtCamera,
+    DefinePlayerControl { actor: EntityId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

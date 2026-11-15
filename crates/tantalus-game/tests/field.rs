@@ -16,13 +16,16 @@ fn movement_program(actor: i32) -> tantalus_legacy::EventProgram {
 #[derive(Default)]
 struct Host {
     actors: Vec<u64>,
+    controls: Vec<u64>,
 }
 
 impl LegacyEventHost for Host {
     fn apply(&mut self, events: &[HostEvent]) -> Result<(), EngineError> {
         for event in events {
-            if let HostEvent::MoveActor { actor, .. } = event {
-                self.actors.push(actor.get());
+            match event {
+                HostEvent::MoveActor { actor, .. } => self.actors.push(actor.get()),
+                HostEvent::DefinePlayerControl { actor } => self.controls.push(actor.get()),
+                _ => {}
             }
         }
         Ok(())
@@ -67,4 +70,15 @@ fn duplicate_entries_are_rejected() {
         .add_entry(EntityId::new(1), movement_program(100))
         .unwrap_err();
     assert_eq!(error.category, ErrorCategory::Conflict);
+}
+
+#[test]
+fn field_entries_supply_actor_identity_for_player_control() {
+    let mut field = FieldScene::new();
+    field
+        .add_entry(EntityId::new(42), decode_program(&[0x2c, 0, 4]).unwrap())
+        .unwrap();
+    let mut host = Host::default();
+    field.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(host.controls, [42]);
 }
