@@ -11,6 +11,19 @@ pub struct EventEntry {
     pub absolute_offset: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventFunction {
+    pub tag: u16,
+    pub offset: u32,
+    pub program: EventProgram,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventEntryProgram {
+    pub entry_type: u8,
+    pub functions: Vec<EventFunction>,
+}
+
 #[derive(Debug, Clone)]
 pub struct EventBinary {
     pub version: u8,
@@ -93,7 +106,7 @@ impl EventBinary {
             .get(entry.absolute_offset..entry.absolute_offset + entry.size as usize)
     }
 
-    pub fn decode_entry(&self, index: usize) -> Result<EventProgram, VmError> {
+    pub fn decode_entry(&self, index: usize) -> Result<EventEntryProgram, VmError> {
         let bytes = self.entry_bytes(index).ok_or_else(|| {
             VmError::new(
                 VmErrorKind::Decode,
@@ -102,7 +115,67 @@ impl EventBinary {
                 format!("event entry {index} does not exist"),
             )
         })?;
-        decode_program(bytes)
+        if bytes.is_empty() {
+            return Ok(EventEntryProgram {
+                entry_type: 0xff,
+                functions: Vec::new(),
+            });
+        }
+
+        let entry_type = bytes[0];
+        let function_count = *bytes.get(1).ok_or_else(|| {
+            error(
+                1,
+                format!("event entry {index} is missing its function count"),
+            )
+        })? as usize;
+        let table_end = 2 + function_count * 4;
+        if table_end > bytes.len() {
+            return Err(error(
+                2,
+                format!("event entry {index} has a truncated function table"),
+            ));
+        }
+
+        let mut functions = Vec::with_capacity(function_count);
+        for function_index in 0..function_count {
+            let table_position = 2 + function_index * 4;
+            let tag = u16::from_le_bytes([bytes[table_position], bytes[table_position + 1]]);
+            let start =
+                2 + u16::from_le_bytes([bytes[table_position + 2], bytes[table_position + 3]])
+                    as usize;
+            let end = if function_index + 1 < function_count {
+                2 + u16::from_le_bytes([bytes[table_position + 6], bytes[table_position + 7]])
+                    as usize
+            } else {
+                bytes.len()
+            };
+            if start < table_end || end > bytes.len() || end < start {
+                return Err(error(
+                    table_position as u32,
+                    format!(
+                        "event entry {index} function {function_index} (tag {tag}) has an invalid range {start}..{end}"
+                    ),
+                ));
+            }
+            let program = decode_program(&bytes[start..end]).map_err(|mut error| {
+                error.offset += start as u32;
+                error.message = format!(
+                    "event entry {index} function {function_index} (tag {tag}): {}",
+                    error.message
+                );
+                error
+            })?;
+            functions.push(EventFunction {
+                tag,
+                offset: start as u32,
+                program,
+            });
+        }
+        Ok(EventEntryProgram {
+            entry_type,
+            functions,
+        })
     }
 }
 

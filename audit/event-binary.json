@@ -80,14 +80,17 @@
     "REPLYEW 0x14 emits RequestCallerSync once and waits on the host completion state",
     "BGLATTACH 0x92 decodes tile, offsets, filter mode, and RGB operands and emits AttachTile",
     "EXT prefixes accumulate 0x100 and opcode metadata is widened to u32",
-    "a lone trailing EXT reports a decode error at the following byte"
+    "a lone trailing EXT reports a decode error at the following byte",
+    "entry function tables decode each tagged body independently with entry-relative diagnostics"
   ],
   "next_decode_boundary": {
     "entry": 1,
-    "offset": 92,
-    "opcode": null,
-    "kind": "Decode",
-    "instruction": "unexpected end after trailing EXT prefix at offset 91"
+    "function": 1,
+    "function_tag": 1,
+    "offset": 30,
+    "opcode": 22,
+    "kind": "UnsupportedOpcode",
+    "instruction": "B_SHIFT_LEFT expression at expression offset 12"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
