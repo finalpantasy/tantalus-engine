@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod bridge;
 pub mod coordinator;
 pub mod results;
 pub mod rules;

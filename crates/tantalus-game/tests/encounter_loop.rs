@@ -328,3 +328,173 @@ fn reference_exp_split_divides_across_eligible_party_members() {
     assert_eq!(world.character_exp.get(&0), None);
     assert_eq!(world.character_exp[&1], 100);
 }
+
+#[test]
+fn legacy_battle_reward_converts_and_commits_through_the_field_path() {
+    use tantalus_game::battle::bridge::bundle_from_battle_reward;
+    use tantalus_game::field::world::default_item_id_map;
+    use tantalus_legacy::battle::rewards::{
+        BaseStats, BattleBonus, BattleReward, LevelBonus, PartyMember, PartySnapshot,
+    };
+
+    fn member(hp: u32) -> PartyMember {
+        let base = BaseStats {
+            dex: 23,
+            str_: 21,
+            mgc: 18,
+            wpr: 23,
+            gems: 18,
+        };
+        PartyMember {
+            in_battle: true,
+            cur_hp: hp,
+            cur_mp: 36,
+            rewards_disabled: false,
+            level: 1,
+            exp: 0,
+            base,
+            bonus: LevelBonus::default(),
+            basis: [base.dex, base.str_, base.mgc, base.wpr],
+            max_hp: 250,
+            max_mp: 36,
+            max_capa: u32::from(base.gems),
+            cur_capa: u32::from(base.gems),
+            elem: [base.dex, base.str_, base.mgc, base.wpr],
+            equip_stat_bonus: [0; 4],
+            equipped_abilities: vec![],
+            learnable: vec![],
+            pa: vec![],
+        }
+    }
+
+    // Lines 0 and 2 took part; line 2 is dead, so only line 0 is eligible
+    // for the EXP split. Two potions and one ether drop.
+    let mut bonus = BattleBonus::new(0, 0b0101, false);
+    bonus.gil = 500;
+    bonus.exp = 101;
+    bonus.items = vec![12, 12, 30];
+    let mut party = PartySnapshot {
+        gil: 0,
+        members: [None, None, None, None],
+        items: vec![],
+        cards: vec![],
+    };
+    party.members[0] = Some(member(50));
+    party.members[2] = Some(member(0));
+    let reward = BattleReward::from_bonus(&bonus, &party);
+    assert_eq!(reward.shares[0].exp, Some(101));
+    assert_eq!(reward.shares[2].exp, None, "dead line is excluded");
+
+    let bundle = bundle_from_battle_reward(&reward, [Some(0), None, Some(1), None], 42);
+
+    let mut world = tantalus_game::FieldWorld::new();
+    world.party = vec![0, 1];
+    for character in [0, 1] {
+        world.character_stats.insert(
+            character,
+            tantalus_game::field::CharacterStats {
+                current_hp: 50,
+                max_hp: 100,
+                current_mp: 20,
+                max_mp: 36,
+            },
+        );
+    }
+    world.item_id_map = Some(default_item_id_map([12, 30]));
+    {
+        let mut services = WorldGameServices::new(&mut world);
+        services.commit_rewards(&bundle).unwrap();
+    }
+
+    assert_eq!(world.gil, 500);
+    assert_eq!(
+        world.character_exp[&0], 101,
+        "living character gets the share"
+    );
+    assert_eq!(
+        world.character_exp.get(&1),
+        None,
+        "mapped-out line gets nothing"
+    );
+    assert_eq!(
+        world.items[&12], 2,
+        "stack expanded to one identity per unit"
+    );
+    assert_eq!(world.items[&30], 1);
+
+    // Converting again with the same resolution id cannot double-pay.
+    {
+        let mut services = WorldGameServices::new(&mut world);
+        services.commit_rewards(&bundle).unwrap();
+    }
+    assert_eq!(world.gil, 500);
+    assert_eq!(world.character_exp[&0], 101);
+}
+
+#[test]
+fn legacy_battle_reward_with_no_eligible_line_pays_nobody() {
+    use tantalus_game::battle::bridge::bundle_from_battle_reward;
+    use tantalus_legacy::battle::rewards::{BattleBonus, BattleReward, PartySnapshot};
+
+    let mut bonus = BattleBonus::new(0, 0b0001, false);
+    bonus.exp = 200;
+    let mut party = PartySnapshot {
+        gil: 0,
+        members: [None, None, None, None],
+        items: vec![],
+        cards: vec![],
+    };
+    party.members[0] = Some(party_member_dead());
+    let reward = BattleReward::from_bonus(&bonus, &party);
+    let bundle = bundle_from_battle_reward(&reward, [Some(0), None, None, None], 7);
+
+    let mut world = tantalus_game::FieldWorld::new();
+    world.party = vec![0];
+    world.character_stats.insert(
+        0,
+        tantalus_game::field::CharacterStats {
+            current_hp: 0,
+            max_hp: 100,
+            current_mp: 0,
+            max_mp: 36,
+        },
+    );
+    {
+        let mut services = WorldGameServices::new(&mut world);
+        services.commit_rewards(&bundle).unwrap();
+    }
+    assert!(
+        world.character_exp.is_empty(),
+        "an all-empty share set suppresses the full-grant fallback"
+    );
+}
+
+fn party_member_dead() -> tantalus_legacy::battle::rewards::PartyMember {
+    let base = tantalus_legacy::battle::rewards::BaseStats {
+        dex: 23,
+        str_: 21,
+        mgc: 18,
+        wpr: 23,
+        gems: 18,
+    };
+    tantalus_legacy::battle::rewards::PartyMember {
+        in_battle: true,
+        cur_hp: 0,
+        cur_mp: 0,
+        rewards_disabled: false,
+        level: 1,
+        exp: 0,
+        base,
+        bonus: tantalus_legacy::battle::rewards::LevelBonus::default(),
+        basis: [base.dex, base.str_, base.mgc, base.wpr],
+        max_hp: 250,
+        max_mp: 36,
+        max_capa: u32::from(base.gems),
+        cur_capa: u32::from(base.gems),
+        elem: [base.dex, base.str_, base.mgc, base.wpr],
+        equip_stat_bonus: [0; 4],
+        equipped_abilities: vec![],
+        learnable: vec![],
+        pa: vec![],
+    }
+}
