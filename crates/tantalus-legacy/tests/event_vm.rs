@@ -66,6 +66,7 @@ fn movement(actor: i32, x: i32, z: i32) -> Vec<u8> {
 
 #[derive(Debug)]
 struct Host {
+    shared: Option<(VariableMemory, VariableMemory)>,
     windows: BTreeMap<u8, bool>,
     movements: Vec<(u64, i32, i32)>,
     slots: BTreeMap<u8, EntityId>,
@@ -99,6 +100,7 @@ struct Host {
 impl Host {
     fn new() -> Self {
         Self {
+            shared: None,
             windows: BTreeMap::new(),
             movements: Vec::new(),
             slots: BTreeMap::new(),
@@ -605,6 +607,15 @@ impl LegacyEventHost for Host {
             ))
         }
     }
+
+    fn variable_memory(&mut self, scope: VariableScope) -> Option<&mut VariableMemory> {
+        let (global, map) = self.shared.as_mut()?;
+        match scope {
+            VariableScope::Global => Some(global),
+            VariableScope::Map => Some(map),
+            VariableScope::Instance => None,
+        }
+    }
 }
 
 #[test]
@@ -637,6 +648,58 @@ fn expressions_assign_and_preserve_integer_widths() {
     assert_eq!(vm.variable(VariableScope::Map, 1), 44);
     assert_eq!(vm.variable(VariableScope::Instance, 2), -1);
     assert_eq!(vm.variable(VariableScope::Global, 3), 9);
+}
+
+#[test]
+fn host_variable_memory_is_shared_between_vms_and_overlaps_types() {
+    let mut writer = Vec::new();
+    writer.extend(evaluate(assign(
+        variable(VariableScope::Map, VariableType::Byte, 44),
+        constant(7),
+    )));
+    writer.extend(evaluate(assign(
+        variable(VariableScope::Global, VariableType::Int16, 2),
+        constant(-2),
+    )));
+    writer.extend(evaluate(assign(
+        variable(VariableScope::Instance, VariableType::Byte, 0),
+        constant(5),
+    )));
+    writer.push(4);
+    let mut reader = Vec::new();
+    reader.extend(evaluate(assign(
+        variable(VariableScope::Instance, VariableType::Int24, 0),
+        variable(VariableScope::Map, VariableType::Byte, 44),
+    )));
+    reader.extend(evaluate(assign(
+        variable(VariableScope::Instance, VariableType::Int24, 1),
+        variable(VariableScope::Global, VariableType::Byte, 3),
+    )));
+    reader.push(4);
+
+    let mut host = Host::new();
+    host.shared = Some((VariableMemory::global(), VariableMemory::map()));
+    let mut first = EventVm::new(decode_program(&writer).unwrap());
+    let mut second = EventVm::new(decode_program(&reader).unwrap());
+    assert_eq!(
+        first.step(Tick::new(0), &mut host).unwrap().status,
+        VmStatus::Completed
+    );
+    assert_eq!(
+        second.step(Tick::new(0), &mut host).unwrap().status,
+        VmStatus::Completed
+    );
+
+    assert_eq!(second.variable(VariableScope::Instance, 0), 7);
+    // High byte of Int16 -2 at Global 2..4.
+    assert_eq!(second.variable(VariableScope::Instance, 1), 0xFF);
+    // Instance scope stays private to each VM.
+    assert_eq!(first.variable(VariableScope::Instance, 0), 5);
+    let (global, map) = host.shared.as_ref().unwrap();
+    assert_eq!(map.get(44, VariableType::Byte), Some(7));
+    assert_eq!(global.get(2, VariableType::Int16), Some(-2));
+    // Shared scopes bypass the VM's private map.
+    assert_eq!(first.variable(VariableScope::Map, 44), 0);
 }
 
 #[test]

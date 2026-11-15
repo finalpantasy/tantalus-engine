@@ -30,7 +30,7 @@ fn main() -> ExitCode {
 }
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--character-data <Data/Characters dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -43,6 +43,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut start = 70i32;
     let mut max_fields = 12usize;
     let mut ticks = 4000u64;
+    let mut confirm_after = 0u64;
+    let mut character_data: Option<PathBuf> = None;
     while let Some(flag) = iter.next() {
         let mut value = || {
             iter.next()
@@ -57,6 +59,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
             "--start" => start = parse_number(&value()?, "--start")?,
             "--max-fields" => max_fields = parse_number(&value()?, "--max-fields")?,
             "--ticks" => ticks = parse_number(&value()?, "--ticks")?,
+            "--character-data" => character_data = Some(PathBuf::from(value()?)),
+            "--confirm-after" => confirm_after = parse_number(&value()?, "--confirm-after")?,
             other => return Err(format!("unrecognized argument `{other}`\n{USAGE}")),
         }
     }
@@ -80,7 +84,31 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 ),
                 None => None,
             };
-            chain(&bundle, &db, atan, start, max_fields, ticks)
+            let stats = match character_data {
+                Some(dir) => {
+                    let read = |name: &str| {
+                        let path = dir.join(name);
+                        std::fs::read_to_string(&path)
+                            .map_err(|error| format!("cannot read {}: {error}", path.display()))
+                    };
+                    let base = tantalus_game::new_game::parse_base_stats(&read("BaseStats.csv")?)?;
+                    let levels = tantalus_game::new_game::parse_leveling(&read("Leveling.csv")?)?;
+                    tantalus_game::new_game::new_game_character_stats(&base, &levels)
+                }
+                None => BTreeMap::new(),
+            };
+            chain(
+                &bundle,
+                &db,
+                atan,
+                ChainOptions {
+                    start,
+                    max_fields,
+                    ticks,
+                    confirm_after,
+                    stats,
+                },
+            )
         }
         other => Err(format!("unknown command `{other}`\n{USAGE}")),
     }
@@ -241,15 +269,40 @@ fn decode_pool(binary: &EventBinary) -> Result<(Pool, usize), String> {
     Ok((pool, decode_errors))
 }
 
+/// Nonzero bytes as `{offset: value}` for compact memory dumps.
+fn nonzero(bytes: &[u8]) -> BTreeMap<usize, u8> {
+    bytes
+        .iter()
+        .enumerate()
+        .filter(|(_, byte)| **byte != 0)
+        .map(|(offset, byte)| (offset, *byte))
+        .collect()
+}
+
+struct ChainOptions {
+    start: i32,
+    max_fields: usize,
+    ticks: u64,
+    confirm_after: u64,
+    stats: BTreeMap<i32, tantalus_game::field::CharacterStats>,
+}
+
 fn chain(
     bundle: &Path,
     db: &BTreeMap<i32, String>,
     atan: Option<Vec<u8>>,
-    start: i32,
-    max_fields: usize,
-    ticks: u64,
+    options: ChainOptions,
 ) -> Result<(), String> {
+    let ChainOptions {
+        start,
+        max_fields,
+        ticks,
+        confirm_after,
+        stats,
+    } = options;
     let mut world = tantalus_game::FieldWorld::new();
+    // FF9Play_Init: every character has a player record from new game on.
+    world.character_stats = stats;
     if let Some(table) = atan {
         world.provide_atan_table(table);
     }
@@ -275,6 +328,8 @@ fn chain(
         };
         let (pool, decode_errors) = decode_pool(&binary)?;
         world.field_map_no = map;
+        // EventEngine.InitEvents zeroes mapvar for every field (EventEngine.cs:556).
+        world.map_memory.clear();
         world.take_field_transitions();
         let mut director = tantalus_game::FieldDirector::new(world.clone());
         for entry in 0..pool.len() {
@@ -287,9 +342,20 @@ fn chain(
             director.world_mut().add_actor(entity, [0.0; 3]);
             director.world_mut().map_uid(slot as i32, entity);
         }
+        // Objects still in their init function (tag 0). When it returns,
+        // EventEngine.Return (EventEngine.cs:1178) moves the object to
+        // stateRunning and starts its loop function (tag 1) at level 7.
+        let mut initializing: Vec<(EntityId, usize)> = Vec::new();
         for entry in 0..pool.len() {
-            register(&mut director, &pool, entry, Some(0))?;
+            if let Some(entity) = register(&mut director, &pool, entry, Some(0))? {
+                initializing.push((entity, entry));
+            }
         }
+        let mut loops_started = 0usize;
+        // Scripted player: with --confirm-after N, a window open for N ticks
+        // is closed as if confirm were pressed (0 disables).
+        let mut open_since: BTreeMap<u8, u64> = BTreeMap::new();
+        let mut confirms = 0usize;
         let mut operations = 0u64;
         let mut ticks_run = 0u64;
         let mut error = None;
@@ -336,6 +402,41 @@ fn chain(
             for base in done {
                 director.world_mut().complete_request(EntityId::new(base));
             }
+            let mut ready = Vec::new();
+            initializing.retain(|(entity, entry)| {
+                let complete = states
+                    .iter()
+                    .any(|(e, _, status, _)| e == entity && *status == VmStatus::Completed);
+                if complete {
+                    ready.push(*entry);
+                }
+                !complete
+            });
+            for entry in ready {
+                if pool[entry].iter().any(|(tag, _)| *tag == 1)
+                    && register(&mut director, &pool, entry, Some(1))?.is_some()
+                {
+                    loops_started += 1;
+                }
+            }
+            if confirm_after > 0 {
+                let open: Vec<u8> = director
+                    .world()
+                    .windows
+                    .iter()
+                    .filter(|(_, open)| **open)
+                    .map(|(window, _)| *window)
+                    .collect();
+                open_since.retain(|window, _| open.contains(window));
+                for window in open {
+                    let since = *open_since.entry(window).or_insert(ticks_run);
+                    if ticks_run - since >= confirm_after {
+                        director.world_mut().close_window(window);
+                        open_since.remove(&window);
+                        confirms += 1;
+                    }
+                }
+            }
             let transitions = director.world_mut().take_field_transitions();
             if let Some(next) = transitions.first() {
                 transition = Some(i32::from(*next));
@@ -356,6 +457,10 @@ fn chain(
                 "decode_errors": decode_errors,
                 "ticks": ticks_run,
                 "operations": operations,
+                "loops_started": loops_started,
+                "map_memory": nonzero(director.world().map_memory.bytes()),
+                "global_memory": nonzero(director.world().global_memory.bytes()),
+                "confirms": confirms,
                 "vms": states.len(),
                 "spawned_pending": spawned.len(),
                 "unspawned_requests": unspawned,

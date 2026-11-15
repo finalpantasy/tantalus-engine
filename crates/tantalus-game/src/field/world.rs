@@ -105,6 +105,12 @@ pub struct FieldWorld {
     pub fmv: super::FieldFmv,
     /// Reference `FF9.fldMapNo` of the running field (0 when unknown).
     pub field_map_no: i32,
+    /// Reference `gEventGlobal`: Global-scope event variables (2048 bytes),
+    /// shared by every entry and kept across fields.
+    pub global_memory: tantalus_legacy::VariableMemory,
+    /// Reference `EventContext.mapvar`: Map-scope event variables (80 bytes),
+    /// shared by every entry and zeroed when a field loads.
+    pub map_memory: tantalus_legacy::VariableMemory,
     pending_requests: BTreeSet<EntityId>,
     pending_callers: BTreeSet<i32>,
     shared_scripts: BTreeSet<EntityId>,
@@ -162,6 +168,8 @@ impl FieldWorld {
             world_transitions: Vec::new(),
             fmv: super::FieldFmv::new(),
             field_map_no: 0,
+            global_memory: tantalus_legacy::VariableMemory::global(),
+            map_memory: tantalus_legacy::VariableMemory::map(),
             pending_requests: BTreeSet::new(),
             pending_callers: BTreeSet::new(),
             shared_scripts: BTreeSet::new(),

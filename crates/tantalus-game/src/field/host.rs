@@ -8,7 +8,10 @@
 
 use super::world::{EncounterRequest, FieldWorld, Jump, Movement, Turn};
 use tantalus_contracts::{EngineError, EntityId, ErrorCategory};
-use tantalus_legacy::{CharacterStat, HostEvent, KeyState, LegacyEventHost, ObjectMemberRef};
+use tantalus_legacy::{
+    CharacterStat, HostEvent, KeyState, LegacyEventHost, ObjectMemberRef, VariableMemory,
+    VariableScope,
+};
 
 pub struct FieldHost<'a> {
     world: &'a mut FieldWorld,
@@ -626,5 +629,13 @@ impl LegacyEventHost for FieldHost<'_> {
 
     fn read_custom_variable(&mut self, _variable: u16) -> Result<i32, EngineError> {
         Err(Self::unknown("custom variable"))
+    }
+
+    fn variable_memory(&mut self, scope: VariableScope) -> Option<&mut VariableMemory> {
+        match scope {
+            VariableScope::Global => Some(&mut self.world.global_memory),
+            VariableScope::Map => Some(&mut self.world.map_memory),
+            VariableScope::Instance => None,
+        }
     }
 }
