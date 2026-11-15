@@ -2130,6 +2130,20 @@ fn keyon2_consumes_its_operand_and_returns_zero() {
 }
 
 #[test]
+fn key2_consumes_its_operand_and_returns_zero() {
+    let result = variable(VariableScope::Global, VariableType::Int24, 42);
+    let expression = assign(result, binary(constant(99), vec![], 92));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 42), 0);
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
 fn angle2_uses_the_reference_quadrants_and_atan_table() {
     for (delta_x, delta_z, expected) in [
         (0, 0, 0),
