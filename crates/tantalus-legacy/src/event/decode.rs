@@ -96,6 +96,19 @@ const OP_BATTLE_SCENE_START: u32 = 0x100;
 const OP_SET_SIMULATION_FLOOR: u32 = 0x104;
 const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
 const OP_SET_TILE_ANIMATION_RATE: u32 = 0x61;
+const OP_SHOW_OBJECT_MESHES: u32 = 0x39;
+const OP_HIDE_OBJECT_MESHES: u32 = 0x3a;
+const OP_SET_OBJECT_INDEX: u32 = 0x3b;
+const OP_SET_ANIMATION_FLAGS: u32 = 0x3f;
+const OP_SET_INACTIVE_ANIMATION: u32 = 0x52;
+const OP_SET_FOLLOW_FOCUS_TURN: u32 = 0x91;
+const OP_SET_ANIMATION_LOOP_COUNT: u32 = 0x98;
+const OP_SET_TURN_SPEED: u32 = 0x99;
+const OP_SET_RUN_SPEED_LIMIT: u32 = 0xa6;
+const OP_TURN_TO_ANGLE: u32 = 0xa7;
+const OP_SET_TIMER_TIME: u32 = 0x69;
+const OP_ENABLE_DIALOG_CHOICES: u32 = 0x7c;
+const OP_SET_FIELD_NAME: u32 = 0xb0;
 const OP_SET_RANDOM_BATTLES: u32 = 0x3c;
 const OP_SET_RANDOM_BATTLE_FREQUENCY: u32 = 0x57;
 const OP_SET_BACKGROUND_COLOR: u32 = 0x6b;
@@ -1872,6 +1885,283 @@ impl Decoder<'_> {
                 InstructionKind::RemoveControllerMask {
                     pad: argument(1, false)?,
                     buttons: argument(2, true)?,
+                }
+            }
+            OP_SHOW_OBJECT_MESHES => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::ShowObjectMeshes {
+                    object: argument(1, false)?,
+                    mesh: argument(2, false)?,
+                }
+            }
+            OP_HIDE_OBJECT_MESHES => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::HideObjectMeshes {
+                    object: argument(1, false)?,
+                    mesh: argument(2, false)?,
+                }
+            }
+            OP_SET_OBJECT_INDEX => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetObjectIndex {
+                    index: argument(1, false)?,
+                }
+            }
+            OP_SET_ANIMATION_FLAGS => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetAnimationFlags {
+                    flags: argument(1, false)?,
+                    loop_count: argument(2, false)?,
+                }
+            }
+            OP_SET_INACTIVE_ANIMATION => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetInactiveAnimation {
+                    animation: argument(1, true)?,
+                }
+            }
+            OP_SET_FOLLOW_FOCUS_TURN => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetFollowFocusTurn {
+                    enabled: argument(1, false)?,
+                }
+            }
+            OP_SET_ANIMATION_LOOP_COUNT => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetAnimationLoopCount {
+                    count: argument(1, false)?,
+                }
+            }
+            OP_SET_TURN_SPEED => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetTurnSpeed {
+                    speed: argument(1, false)?,
+                }
+            }
+            OP_SET_RUN_SPEED_LIMIT => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetRunSpeedLimit {
+                    limit: argument(1, false)?,
+                }
+            }
+            OP_TURN_TO_ANGLE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::TurnToAngle {
+                    angle: argument(1, false)?,
+                }
+            }
+            OP_SET_TIMER_TIME => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetTimerTime {
+                    seconds: argument(1, true)?,
+                }
+            }
+            OP_ENABLE_DIALOG_CHOICES => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::EnableDialogChoices {
+                    choices: argument(1, true)?,
+                    default_choice: argument(2, false)?,
+                }
+            }
+            OP_SET_FIELD_NAME => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetFieldName {
+                    text: argument(1, true)?,
                 }
             }
             OP_SET_TILE_ANIMATION_FLAGS => {

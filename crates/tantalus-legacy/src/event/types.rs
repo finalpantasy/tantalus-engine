@@ -490,6 +490,49 @@ pub enum InstructionKind {
         pad: Expression,
         buttons: Expression,
     },
+    ShowObjectMeshes {
+        object: Expression,
+        mesh: Expression,
+    },
+    HideObjectMeshes {
+        object: Expression,
+        mesh: Expression,
+    },
+    SetObjectIndex {
+        index: Expression,
+    },
+    SetAnimationFlags {
+        flags: Expression,
+        loop_count: Expression,
+    },
+    SetInactiveAnimation {
+        animation: Expression,
+    },
+    SetFollowFocusTurn {
+        enabled: Expression,
+    },
+    SetAnimationLoopCount {
+        count: Expression,
+    },
+    SetTurnSpeed {
+        speed: Expression,
+    },
+    SetRunSpeedLimit {
+        limit: Expression,
+    },
+    TurnToAngle {
+        angle: Expression,
+    },
+    SetTimerTime {
+        seconds: Expression,
+    },
+    EnableDialogChoices {
+        choices: Expression,
+        default_choice: Expression,
+    },
+    SetFieldName {
+        text: Expression,
+    },
     SetTileAnimationRate {
         animation: Expression,
         frame_rate: Expression,
@@ -1045,6 +1088,57 @@ pub enum HostEvent {
     RemoveControllerMask {
         pad: i32,
         buttons: u32,
+    },
+    ShowObjectMeshes {
+        object: EntityId,
+        mesh: i32,
+    },
+    HideObjectMeshes {
+        object: EntityId,
+        mesh: i32,
+    },
+    SetObjectIndex {
+        actor: EntityId,
+        index: u8,
+    },
+    SetAnimationFlags {
+        actor: EntityId,
+        flags: u8,
+        loop_count: u8,
+    },
+    SetInactiveAnimation {
+        actor: EntityId,
+        animation: u16,
+    },
+    SetFollowFocusTurn {
+        actor: EntityId,
+        enabled: bool,
+    },
+    SetAnimationLoopCount {
+        actor: EntityId,
+        count: u8,
+    },
+    SetTurnSpeed {
+        actor: EntityId,
+        speed: u8,
+    },
+    SetRunSpeedLimit {
+        actor: EntityId,
+        limit: u8,
+    },
+    TurnToAngle {
+        actor: EntityId,
+        angle: i16,
+    },
+    SetTimerTime {
+        seconds: i32,
+    },
+    EnableDialogChoices {
+        choices: i32,
+        default_choice: i32,
+    },
+    SetFieldName {
+        text: i32,
     },
     SetTileAnimationRate {
         animation: i32,

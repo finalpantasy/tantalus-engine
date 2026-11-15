@@ -1417,6 +1417,171 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::RemoveControllerMask { pad, buttons });
                 }
+                InstructionKind::ShowObjectMeshes { object, mesh } => {
+                    let object = self.evaluate(host, &object, instruction.offset, opcode)?;
+                    if object < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let object = EntityId::new(object as u64);
+                    let mesh = self.evaluate(host, &mesh, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::ShowObjectMeshes { object, mesh });
+                }
+                InstructionKind::HideObjectMeshes { object, mesh } => {
+                    let object = self.evaluate(host, &object, instruction.offset, opcode)?;
+                    if object < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let object = EntityId::new(object as u64);
+                    let mesh = self.evaluate(host, &mesh, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::HideObjectMeshes { object, mesh });
+                }
+                InstructionKind::SetObjectIndex { index } => {
+                    let index = self.evaluate(host, &index, instruction.offset, opcode)? as u8;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetObjectIndex { actor, index });
+                }
+                InstructionKind::SetAnimationFlags { flags, loop_count } => {
+                    let flags = ((self.evaluate(host, &flags, instruction.offset, opcode)?)
+                        .wrapping_shl(3)
+                        & 56) as u8;
+                    let loop_count =
+                        self.evaluate(host, &loop_count, instruction.offset, opcode)? as u8;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetAnimationFlags {
+                        actor,
+                        flags,
+                        loop_count,
+                    });
+                }
+                InstructionKind::SetInactiveAnimation { animation } => {
+                    let animation =
+                        self.evaluate(host, &animation, instruction.offset, opcode)? as u16;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetInactiveAnimation { actor, animation });
+                }
+                InstructionKind::SetFollowFocusTurn { enabled } => {
+                    let enabled = self.evaluate(host, &enabled, instruction.offset, opcode)? != 0;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetFollowFocusTurn { actor, enabled });
+                }
+                InstructionKind::SetAnimationLoopCount { count } => {
+                    let count = self.evaluate(host, &count, instruction.offset, opcode)? as u8;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetAnimationLoopCount { actor, count });
+                }
+                InstructionKind::SetTurnSpeed { speed } => {
+                    let speed = self.evaluate(host, &speed, instruction.offset, opcode)? as u8;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetTurnSpeed { actor, speed });
+                }
+                InstructionKind::SetRunSpeedLimit { limit } => {
+                    let limit = self.evaluate(host, &limit, instruction.offset, opcode)? as u8;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetRunSpeedLimit { actor, limit });
+                }
+                InstructionKind::TurnToAngle { angle } => {
+                    let angle = (self.evaluate(host, &angle, instruction.offset, opcode)?)
+                        .wrapping_shl(4) as i16;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::TurnToAngle { actor, angle });
+                }
+                InstructionKind::SetTimerTime { seconds } => {
+                    let seconds = self.evaluate(host, &seconds, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetTimerTime { seconds });
+                }
+                InstructionKind::EnableDialogChoices {
+                    choices,
+                    default_choice,
+                } => {
+                    let choices = self.evaluate(host, &choices, instruction.offset, opcode)?;
+                    let default_choice =
+                        self.evaluate(host, &default_choice, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::EnableDialogChoices {
+                        choices,
+                        default_choice,
+                    });
+                }
+                InstructionKind::SetFieldName { text } => {
+                    let text = self.evaluate(host, &text, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetFieldName { text });
+                }
                 InstructionKind::SetTileAnimationRate {
                     animation,
                     frame_rate,
@@ -3051,6 +3216,19 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
         InstructionKind::SetTileAnimationFlags { .. } => 0x64,
         InstructionKind::SetTileAnimationRange { .. } => 0x65,
+        InstructionKind::ShowObjectMeshes { .. } => 0x39,
+        InstructionKind::HideObjectMeshes { .. } => 0x3a,
+        InstructionKind::SetObjectIndex { .. } => 0x3b,
+        InstructionKind::SetAnimationFlags { .. } => 0x3f,
+        InstructionKind::SetInactiveAnimation { .. } => 0x52,
+        InstructionKind::SetFollowFocusTurn { .. } => 0x91,
+        InstructionKind::SetAnimationLoopCount { .. } => 0x98,
+        InstructionKind::SetTurnSpeed { .. } => 0x99,
+        InstructionKind::SetRunSpeedLimit { .. } => 0xa6,
+        InstructionKind::TurnToAngle { .. } => 0xa7,
+        InstructionKind::SetTimerTime { .. } => 0x69,
+        InstructionKind::EnableDialogChoices { .. } => 0x7c,
+        InstructionKind::SetFieldName { .. } => 0xb0,
         InstructionKind::SetRandomBattles { .. } => 0x3c,
         InstructionKind::SetRandomBattleFrequency { .. } => 0x57,
         InstructionKind::SetBackgroundColor { .. } => 0x6b,

@@ -228,6 +228,19 @@ impl LegacyEventHost for Host {
                 HostEvent::SetBackgroundColor { .. } => {}
                 HostEvent::AddControllerMask { .. } => {}
                 HostEvent::RemoveControllerMask { .. } => {}
+                HostEvent::ShowObjectMeshes { .. } => {}
+                HostEvent::HideObjectMeshes { .. } => {}
+                HostEvent::SetObjectIndex { .. } => {}
+                HostEvent::SetAnimationFlags { .. } => {}
+                HostEvent::SetInactiveAnimation { .. } => {}
+                HostEvent::SetFollowFocusTurn { .. } => {}
+                HostEvent::SetAnimationLoopCount { .. } => {}
+                HostEvent::SetTurnSpeed { .. } => {}
+                HostEvent::SetRunSpeedLimit { .. } => {}
+                HostEvent::TurnToAngle { .. } => {}
+                HostEvent::SetTimerTime { .. } => {}
+                HostEvent::EnableDialogChoices { .. } => {}
+                HostEvent::SetFieldName { .. } => {}
                 HostEvent::SetTileAnimationRate { .. } => {}
                 HostEvent::SetTileAnimationFrameWait { .. } => {}
                 HostEvent::SetTileAnimationFlags { .. } => {}
@@ -5918,6 +5931,125 @@ fn background_color_and_controller_masks_emit_raw_operands() {
     let mut vm = EventVm::new(decode_program(&bytes).unwrap());
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert!(error.message.contains("cannot be negative"));
+}
+
+#[test]
+fn current_object_commands_bind_to_the_vm_entity() {
+    let actor = EntityId::new(42);
+    let mut host = Host::new();
+    let mut run = |bytes: &[u8]| {
+        let mut vm = EventVm::new(decode_program(bytes).unwrap()).with_entity(actor);
+        vm.step(Tick::new(0), &mut host).unwrap().events
+    };
+
+    assert_eq!(
+        run(&[59, 0, 5, 4]),
+        [HostEvent::SetObjectIndex { actor, index: 5 }]
+    );
+    assert_eq!(
+        run(&[63, 0, 3, 2, 4]),
+        [HostEvent::SetAnimationFlags {
+            actor,
+            flags: 24,
+            loop_count: 2,
+        }]
+    );
+    assert_eq!(
+        run(&[63, 0, 15, 0, 4]),
+        [HostEvent::SetAnimationFlags {
+            actor,
+            flags: 56,
+            loop_count: 0,
+        }]
+    );
+    assert_eq!(
+        run(&[82, 0, 0x2c, 0x01, 4]),
+        [HostEvent::SetInactiveAnimation {
+            actor,
+            animation: 300,
+        }]
+    );
+    assert_eq!(
+        run(&[145, 0, 1, 4]),
+        [HostEvent::SetFollowFocusTurn {
+            actor,
+            enabled: true,
+        }]
+    );
+    assert_eq!(
+        run(&[152, 0, 7, 4]),
+        [HostEvent::SetAnimationLoopCount { actor, count: 7 }]
+    );
+    assert_eq!(
+        run(&[153, 0, 0, 4]),
+        [HostEvent::SetTurnSpeed { actor, speed: 0 }]
+    );
+    assert_eq!(
+        run(&[166, 0, 31, 4]),
+        [HostEvent::SetRunSpeedLimit { actor, limit: 31 }]
+    );
+    assert_eq!(
+        run(&[167, 0, 0xff, 4]),
+        [HostEvent::TurnToAngle { actor, angle: 4080 }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[59, 0, 5, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut Host::new()).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
+}
+
+#[test]
+fn mesh_timer_and_dialog_commands_decode_operands() {
+    let mut host = Host::new();
+    let mut run = |bytes: &[u8]| {
+        let mut vm = EventVm::new(decode_program(bytes).unwrap());
+        vm.step(Tick::new(0), &mut host).unwrap().events
+    };
+
+    assert_eq!(
+        run(&[57, 0, 7, 0b101, 4]),
+        [HostEvent::ShowObjectMeshes {
+            object: EntityId::new(7),
+            mesh: 5,
+        }]
+    );
+    assert_eq!(
+        run(&[58, 0, 8, 2, 4]),
+        [HostEvent::HideObjectMeshes {
+            object: EntityId::new(8),
+            mesh: 2,
+        }]
+    );
+    let mut bytes = vec![105, 0];
+    bytes.extend_from_slice(&(-5i16).to_le_bytes());
+    bytes.push(4);
+    assert_eq!(run(&bytes), [HostEvent::SetTimerTime { seconds: -5 }]);
+    let mut bytes = vec![124, 0];
+    bytes.extend_from_slice(&0b101i16.to_le_bytes());
+    bytes.extend_from_slice(&[2, 4]);
+    assert_eq!(
+        run(&bytes),
+        [HostEvent::EnableDialogChoices {
+            choices: 5,
+            default_choice: 2,
+        }]
+    );
+    let mut bytes = vec![176, 0];
+    bytes.extend_from_slice(&1234i16.to_le_bytes());
+    bytes.push(4);
+    assert_eq!(run(&bytes), [HostEvent::SetFieldName { text: 1234 }]);
+
+    let mut bytes = vec![58, 1];
+    append_expression(&mut bytes, constant(-1));
+    bytes.extend_from_slice(&[3, 4]);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let error = vm.step(Tick::new(0), &mut Host::new()).unwrap_err();
+    assert!(error.message.contains("cannot be negative"));
+
+    let truncated = decode_program(&[105, 0, 1]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(105)"));
 }
 
 #[test]
