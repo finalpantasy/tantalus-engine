@@ -352,6 +352,8 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut bgs = None;
     let mut field = None;
     let mut atlas_for = None;
+    let mut battle_scenes = false;
+    let mut battle_scene = None;
     let mut index = 2;
     while index < args.len() {
         match args[index].to_str() {
@@ -505,6 +507,17 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     return Err("`--bgi` may only be supplied once".to_owned());
                 }
             }
+            Some("--battle-scenes") => battle_scenes = true,
+            Some("--battle-scene") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--battle-scene` requires a UTF-8 scene name".to_owned())?;
+                if battle_scene.replace(value.to_owned()).is_some() {
+                    return Err("`--battle-scene` may only be supplied once".to_owned());
+                }
+            }
             Some("--json") => json = true,
             Some("--objects") => objects = true,
             Some("--probe") => probe = true,
@@ -519,6 +532,9 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         index += 1;
     }
     let path = path.ok_or_else(|| "missing required `--path <path>`".to_owned())?;
+    if battle_scenes || battle_scene.is_some() {
+        return run_battle_scene_report(&path, battle_scene.as_deref());
+    }
     let bundle = tantalus_assets::pc::unity_raw::UnityRawBundle::open(&path)
         .map_err(|error| error.to_string())?;
     if let Some(name) = event {
@@ -1448,11 +1464,103 @@ fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
+}
+
+/// `--battle-scenes` (whole bundle) or `--battle-scene <name>` (one scene), always JSON.
+fn run_battle_scene_report(path: &std::path::Path, one: Option<&str>) -> Result<(), String> {
+    use tantalus_assets::pc::battle_scene::BattleBundleData;
+    let data = BattleBundleData::load(path).map_err(|error| error.to_string())?;
+    if let Some(name) = one {
+        let (key, scene) = data
+            .scene(name)
+            .ok_or_else(|| format!("battle scene `{name}` was not found"))?;
+        let scene = scene.as_ref().map_err(|error| error.to_string())?;
+        let sequence = data.sequences.get(key).map(|(file, parsed)| match parsed {
+            Ok(header) => serde_json::json!({"file": file, "header": header}),
+            Err(error) => serde_json::json!({"file": file, "error": error.to_string()}),
+        });
+        let report = serde_json::json!({
+            "name": key,
+            "flags": scene.header.flag_names(),
+            "scene": scene,
+            "sequence": sequence,
+        });
+        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        return Ok(());
+    }
+    let mut parsed = 0_usize;
+    let mut failed = Vec::new();
+    let mut trailing = Vec::new();
+    let mut versions: std::collections::BTreeMap<u8, usize> = std::collections::BTreeMap::new();
+    let (mut patterns, mut types, mut attacks) = (0_usize, 0_usize, 0_usize);
+    for (name, scene) in &data.scenes {
+        match scene {
+            Ok(scene) => {
+                parsed += 1;
+                patterns += scene.patterns.len();
+                types += scene.monster_types.len();
+                attacks += scene.attacks.len();
+                *versions.entry(scene.header.version).or_insert(0) += 1;
+                if scene.trailing_bytes != 0 {
+                    trailing.push(
+                        serde_json::json!({"scene": name, "trailing_bytes": scene.trailing_bytes, "all_zero": scene.trailing_all_zero, "nonzero_bytes_after_first_dword": scene.trailing.iter().skip(4).filter(|b| **b != 0).count(), "head": scene.trailing.iter().take(16).map(|b| format!("{b:02x}")).collect::<String>(), "file_len": scene.file_len}),
+                    );
+                }
+            }
+            Err(error) => {
+                failed.push(serde_json::json!({"scene": name, "error": error.to_string()}))
+            }
+        }
+    }
+    let seq_ok = data.sequences.values().filter(|(_, r)| r.is_ok()).count();
+    let seq_failed: Vec<_> = data
+        .sequences
+        .iter()
+        .filter_map(|(name, (_, r))| {
+            r.as_ref()
+                .err()
+                .map(|e| serde_json::json!({"scene": name, "error": e.to_string()}))
+        })
+        .collect();
+    let info_ok = data.infos.values().filter(|r| r.is_ok()).count();
+    let info_trailing = data
+        .infos
+        .values()
+        .filter(|r| r.as_ref().is_ok_and(|info| info.trailing_bytes != 0))
+        .count();
+    let info_failed: Vec<_> = data
+        .infos
+        .iter()
+        .filter_map(|(name, r)| {
+            r.as_ref()
+                .err()
+                .map(|e| serde_json::json!({"info": name, "error": e.to_string()}))
+        })
+        .collect();
+    let report = serde_json::json!({
+        "scenes_total": data.scenes.len(),
+        "scenes_parsed": parsed,
+        "scenes_failed": failed.len(),
+        "failures": failed,
+        "trailing_bytes_cases": trailing,
+        "header_versions": versions,
+        "total_patterns": patterns,
+        "total_monster_types": types,
+        "total_attacks": attacks,
+        "sequences_parsed": seq_ok,
+        "sequences_failed": seq_failed,
+        "battle_infos_parsed": info_ok,
+        "battle_infos_with_trailing_bytes": info_trailing,
+        "battle_infos_failed": info_failed,
+        "unknown_fields": tantalus_assets::pc::battle_scene::UNKNOWN_FIELDS,
+    });
+    println!("{}", serde_json::to_string_pretty(&report).unwrap());
+    Ok(())
 }

@@ -1,4 +1,5 @@
 pub mod asset_bundle;
+pub mod battle_scene;
 pub mod bgi;
 pub mod bgs;
 pub mod bundled_field;
