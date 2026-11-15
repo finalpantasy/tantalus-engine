@@ -286,6 +286,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetPlayerName { .. } => {}
                 HostEvent::SetupJump { .. } => {}
                 HostEvent::SetDialogSignal { .. } => {}
+                HostEvent::ApplyFadeFilter { .. } => {}
                 HostEvent::SetCameraBounds { .. } => {}
                 HostEvent::SetCharacterRow { .. } => {}
                 HostEvent::SetActorPitchRoll { .. } => {}
@@ -7188,4 +7189,45 @@ fn set_dialog_signal_emits_the_progression_value() {
     let mut host = Host::new();
     let report = vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(report.events, [HostEvent::SetDialogSignal { signal: 2 }]);
+}
+
+#[test]
+fn wipe_rgb_emits_fade_filter_operands() {
+    // mode=2 (subtract), frame=60, unknown=0, cyan=130, magenta=160, yellow=170.
+    let program = decode_program(&[0xec, 0, 2, 60, 0, 130, 160, 170, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ApplyFadeFilter {
+            mode: 2,
+            frame: 60,
+            cyan: 130,
+            magenta: 160,
+            yellow: 170,
+        }]
+    );
+
+    // The third operand may be an expression; it is consumed and discarded
+    // like the reference.
+    let mut bytes = vec![0xec, 4, 0, 16];
+    append_expression(&mut bytes, constant(99));
+    bytes.extend_from_slice(&[1, 2, 3, 4]);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ApplyFadeFilter {
+            mode: 0,
+            frame: 16,
+            cyan: 1,
+            magenta: 2,
+            yellow: 3,
+        }]
+    );
+
+    let truncated = decode_program(&[0xec, 0, 2, 60, 0, 130]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(236)"));
 }

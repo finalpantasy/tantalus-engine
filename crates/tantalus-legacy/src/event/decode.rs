@@ -195,6 +195,7 @@ const OP_ENABLE_VICTORY_POSE: u32 = 0xdb;
 const OP_REMOVE_PARTY: u32 = 0xdd;
 const OP_SET_PLAYER_NAME: u32 = 0xde;
 const OP_SET_DIALOG_SIGNAL: u32 = 0xe3;
+const OP_APPLY_FADE_FILTER: u32 = 0xec;
 const OP_SETUP_JUMP: u32 = 0xe2;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
@@ -2433,6 +2434,27 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::SetDialogSignal { signal }
+            }
+            OP_APPLY_FADE_FILTER => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::ApplyFadeFilter {
+                    mode: argument(1)?,
+                    frame: argument(2)?,
+                    unknown: argument(4)?,
+                    cyan: argument(8)?,
+                    magenta: argument(16)?,
+                    yellow: argument(32)?,
+                }
             }
             OP_DISABLE_USER_CONTROL | OP_ENABLE_USER_CONTROL => InstructionKind::SetUserControl {
                 enabled: opcode == OP_ENABLE_USER_CONTROL,

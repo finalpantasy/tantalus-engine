@@ -1816,6 +1816,31 @@ impl EventVm {
                         screen_anchored,
                     });
                 }
+                InstructionKind::ApplyFadeFilter {
+                    mode,
+                    frame,
+                    unknown: _,
+                    cyan,
+                    magenta,
+                    yellow,
+                } => {
+                    // The reference discards the third operand; fade-mode
+                    // mapping (`mode & 2`), timing, and color presentation
+                    // stay host-owned, as do map-specific color patches.
+                    let mode = self.evaluate(host, &mode, instruction.offset, opcode)?;
+                    let frame = self.evaluate(host, &frame, instruction.offset, opcode)?;
+                    let cyan = self.evaluate(host, &cyan, instruction.offset, opcode)?;
+                    let magenta = self.evaluate(host, &magenta, instruction.offset, opcode)?;
+                    let yellow = self.evaluate(host, &yellow, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::ApplyFadeFilter {
+                        mode,
+                        frame,
+                        cyan,
+                        magenta,
+                        yellow,
+                    });
+                }
                 InstructionKind::SetUserControl { enabled, .. } => {
                     self.pc = next;
                     events.push(HostEvent::SetUserControl { enabled });
@@ -3622,6 +3647,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetPlayerName { .. } => 0xde,
         InstructionKind::SetupJump { .. } => 0xe2,
         InstructionKind::SetDialogSignal { .. } => 0xe3,
+        InstructionKind::ApplyFadeFilter { .. } => 0xec,
         InstructionKind::SetCameraBounds { .. } => 0x1e,
         InstructionKind::SetCharacterRow { .. } => 0x62,
         InstructionKind::ClearPartyStatus { .. } => 0xd9,

@@ -238,7 +238,8 @@
     "WINPOSE 0xDB decodes a byte character plus a byte flag and PARTYDELETE 0xDD a byte character (each an immediate or expression); both emit raw-operand host events, as does PLAYERNAME 0xDE (byte character plus signed 16-bit text id); party membership and naming stay host-owned",
     "SETVY3 0xE2 decodes signed 16-bit X/Z/Y destination operands plus a byte step count for the current object (each an immediate or expression), negates the height like the reference, substitutes 8 for a zero step count, and emits SetupJump; the jump animation/arc stays host-owned",
     "SETSIGNAL 0xE3 decodes a byte dialog-progression value (immediate or expression) and emits SetDialogSignal; dialog progression stays host-owned",
-    "BGVALPHA is corrected to 0xED (viewport plus two signed 16-bit alpha factors) matching the pinned dispatcher enum; the earlier 0xE6 mapping moves to BGLLOOPTYPE 0xE6, which decodes a byte overlay plus a byte screen-anchored flag and emits SetTileLoopType"
+    "BGVALPHA is corrected to 0xED (viewport plus two signed 16-bit alpha factors) matching the pinned dispatcher enum; the earlier 0xE6 mapping moves to BGLLOOPTYPE 0xE6, which decodes a byte overlay plus a byte screen-anchored flag and emits SetTileLoopType",
+    "WIPERGB 0xEC decodes six byte operands (filter mode, frame, a discarded unknown, cyan, magenta, yellow; each an immediate or expression, the third consumed and dropped like the reference) and emits ApplyFadeFilter with raw operands; fade-mode mapping, timing, color presentation, and the map-1819 color patch stay host-owned"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -447,9 +448,9 @@
     "command": "tantalusctl assets inspect-bundle --path <owned-install>/StreamingAssets/p0data7.bin --event EVT_ALEX1_TS_CARGO_3.eb --json",
     "note": "the event asset name carries the .eb suffix; the bare EVT_ALEX1_TS_CARGO_3 name resolves to a non-EV placeholder asset and the inspect command aborts on it",
     "candidates": 7,
-    "decoded_entries_per_candidate": 4,
-    "decoded_functions": "14/36",
-    "decode_errors": 22,
-    "unchanged_by": "the attach/track/sound/dialog batch; the cargo-ship script reaches its known truncated boundaries first (entry 13 function 1 unknown extended 0x180, entry 16 function 1 unknown extended 0x1C8, truncated WindowSync/WAIT/wide-switch records)"
+    "decoded_entries_per_candidate": 22,
+    "decoded_functions": "36/36",
+    "decode_errors": 0,
+    "status": "the real EVT_ALEX1_TS_CARGO_3.eb archive fully decodes; the remaining previously unsupported opcode was WIPERGB 0xEC, and the earlier SETSIGNAL 0xE3/SEPVA 0x8A errors were resolved by the attach/track/sound/dialog batch"
   }
 }

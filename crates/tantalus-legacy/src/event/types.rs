@@ -605,6 +605,14 @@ pub enum InstructionKind {
         overlay: Expression,
         screen_anchored: Expression,
     },
+    ApplyFadeFilter {
+        mode: Expression,
+        frame: Expression,
+        unknown: Expression,
+        cyan: Expression,
+        magenta: Expression,
+        yellow: Expression,
+    },
     SetUserControl {
         enabled: bool,
         opcode: u8,
@@ -1310,6 +1318,13 @@ pub enum HostEvent {
     SetTileLoopType {
         overlay: i32,
         screen_anchored: bool,
+    },
+    ApplyFadeFilter {
+        mode: i32,
+        frame: i32,
+        cyan: i32,
+        magenta: i32,
+        yellow: i32,
     },
     SetUserControl {
         enabled: bool,
