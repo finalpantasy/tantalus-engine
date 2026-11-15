@@ -219,6 +219,10 @@ impl LegacyEventHost for Host {
                 HostEvent::LockShadowRotation { .. } => {}
                 HostEvent::UnlockShadowRotation { .. } => {}
                 HostEvent::SetShadowAmplifier { .. } => {}
+                HostEvent::MoveCamera { .. } => {}
+                HostEvent::ReleaseCamera { .. } => {}
+                HostEvent::EnableCameraServices { .. } => {}
+                HostEvent::SetCameraFollowHeight { .. } => {}
                 HostEvent::SetTileAnimationRate { .. } => {}
                 HostEvent::SetTileAnimationFrameWait { .. } => {}
                 HostEvent::SetTileAnimationFlags { .. } => {}
@@ -5732,6 +5736,86 @@ fn shadow_commands_decode_operands_and_bind_to_the_current_actor() {
     let truncated = decode_program(&[130, 0, 1, 0, 2]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(130)"));
+}
+
+#[test]
+fn camera_commands_decode_signed_words_and_cast_unsigned_operands() {
+    let mut host = Host::new();
+
+    let mut bytes = vec![111, 0];
+    bytes.extend_from_slice(&(-160i16).to_le_bytes());
+    bytes.extend_from_slice(&90i16.to_le_bytes());
+    bytes.extend_from_slice(&[30, 8, 4]);
+    let program = decode_program(&bytes).unwrap();
+    assert_eq!(program.instructions[&0].length, 8);
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::MoveCamera {
+            x: -160,
+            y: 90,
+            duration: 30,
+            mode: 8,
+        }]
+    );
+    assert!(vm.traces().any(|trace| trace.opcode == Some(111)));
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![111, 0b0100];
+    bytes.extend_from_slice(&1i16.to_le_bytes());
+    bytes.extend_from_slice(&2i16.to_le_bytes());
+    append_expression(&mut bytes, constant(0x1_0005));
+    bytes.extend_from_slice(&[0, 4]);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::MoveCamera {
+            x: 1,
+            y: 2,
+            duration: 5,
+            mode: 0,
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[112, 0, 20, 8, 4]).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ReleaseCamera {
+            duration: 20,
+            mode: 8,
+        }]
+    );
+
+    let mut bytes = vec![113, 0b010, 1];
+    append_expression(&mut bytes, constant(-1));
+    bytes.extend_from_slice(&[0, 4]);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::EnableCameraServices {
+            active: 1,
+            frame_count: -1,
+            mode: 0,
+        }]
+    );
+
+    let mut bytes = vec![114, 0];
+    bytes.extend_from_slice(&(-24i16).to_le_bytes());
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetCameraFollowHeight { height: -24 }]
+    );
+
+    let truncated = decode_program(&[111, 0, 1, 0, 2]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(111)"));
 }
 
 #[test]

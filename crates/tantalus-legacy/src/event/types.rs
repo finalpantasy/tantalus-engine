@@ -449,6 +449,24 @@ pub enum InstructionKind {
     SetShadowAmplifier {
         factor: Expression,
     },
+    MoveCamera {
+        x: Expression,
+        y: Expression,
+        duration: Expression,
+        mode: Expression,
+    },
+    ReleaseCamera {
+        duration: Expression,
+        mode: Expression,
+    },
+    EnableCameraServices {
+        active: Expression,
+        frame_count: Expression,
+        mode: Expression,
+    },
+    SetCameraFollowHeight {
+        height: Expression,
+    },
     SetTileAnimationRate {
         animation: Expression,
         frame_rate: Expression,
@@ -966,6 +984,24 @@ pub enum HostEvent {
     SetShadowAmplifier {
         actor: EntityId,
         factor: i32,
+    },
+    MoveCamera {
+        x: i16,
+        y: i16,
+        duration: u16,
+        mode: u32,
+    },
+    ReleaseCamera {
+        duration: i32,
+        mode: u32,
+    },
+    EnableCameraServices {
+        active: u32,
+        frame_count: i32,
+        mode: u32,
+    },
+    SetCameraFollowHeight {
+        height: i16,
     },
     SetTileAnimationRate {
         animation: i32,

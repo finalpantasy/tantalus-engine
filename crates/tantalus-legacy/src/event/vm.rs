@@ -1314,6 +1314,52 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetShadowAmplifier { actor, factor });
                 }
+                InstructionKind::MoveCamera {
+                    x,
+                    y,
+                    duration,
+                    mode,
+                } => {
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
+                    let y = self.evaluate(host, &y, instruction.offset, opcode)? as i16;
+                    let duration =
+                        self.evaluate(host, &duration, instruction.offset, opcode)? as u16;
+                    let mode = self.evaluate(host, &mode, instruction.offset, opcode)? as u32;
+                    self.pc = next;
+                    events.push(HostEvent::MoveCamera {
+                        x,
+                        y,
+                        duration,
+                        mode,
+                    });
+                }
+                InstructionKind::ReleaseCamera { duration, mode } => {
+                    let duration = self.evaluate(host, &duration, instruction.offset, opcode)?;
+                    let mode = self.evaluate(host, &mode, instruction.offset, opcode)? as u32;
+                    self.pc = next;
+                    events.push(HostEvent::ReleaseCamera { duration, mode });
+                }
+                InstructionKind::EnableCameraServices {
+                    active,
+                    frame_count,
+                    mode,
+                } => {
+                    let active = self.evaluate(host, &active, instruction.offset, opcode)? as u32;
+                    let frame_count =
+                        self.evaluate(host, &frame_count, instruction.offset, opcode)?;
+                    let mode = self.evaluate(host, &mode, instruction.offset, opcode)? as u32;
+                    self.pc = next;
+                    events.push(HostEvent::EnableCameraServices {
+                        active,
+                        frame_count,
+                        mode,
+                    });
+                }
+                InstructionKind::SetCameraFollowHeight { height } => {
+                    let height = self.evaluate(host, &height, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::SetCameraFollowHeight { height });
+                }
                 InstructionKind::SetTileAnimationRate {
                     animation,
                     frame_rate,
@@ -2948,6 +2994,10 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
         InstructionKind::SetTileAnimationFlags { .. } => 0x64,
         InstructionKind::SetTileAnimationRange { .. } => 0x65,
+        InstructionKind::MoveCamera { .. } => 0x6f,
+        InstructionKind::ReleaseCamera { .. } => 0x70,
+        InstructionKind::EnableCameraServices { .. } => 0x71,
+        InstructionKind::SetCameraFollowHeight { .. } => 0x72,
         InstructionKind::SetShadowSize { .. } => 0x81,
         InstructionKind::SetShadowOffset { .. } => 0x82,
         InstructionKind::LockShadowRotation { .. } => 0x83,
