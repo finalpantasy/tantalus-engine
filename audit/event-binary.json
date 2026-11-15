@@ -93,7 +93,8 @@
     "NOP consumes the argument-flag byte read by the reference event dispatcher",
     "B_LE_E 30 returns per-slot less-or-equal flags without writes, including zero for an empty mask",
     "PPRINT 0x6C consumes only its opcode and continues without yielding or side effects",
-    "PUSHHIDE 0xD5 emits PreserveAndHideAll for host-owned flag preservation and visibility changes"
+    "PUSHHIDE 0xD5 emits PreserveAndHideAll for host-owned flag preservation and visibility changes",
+    "GLOBALCLEAR 0xD0 consumes its flag and continues through the reference's no-side-effect path"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -117,10 +118,10 @@
     "entry": 0,
     "function": 0,
     "function_tag": 0,
-    "offset": 1113,
-    "opcode": 208,
+    "offset": 1115,
+    "opcode": 11,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode after PUSHHIDE support"
+    "instruction": "JMP_SWITCH control-flow opcode after GLOBALCLEAR"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

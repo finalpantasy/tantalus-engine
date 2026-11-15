@@ -1707,6 +1707,19 @@ fn pushhide_emits_visibility_preservation_command() {
 }
 
 #[test]
+fn globalclear_consumes_its_flag_and_continues_without_side_effects() {
+    let program = decode_program(&[208, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].kind, InstructionKind::NoOp(208));
+    assert_eq!(program.instructions[&0].length, 2);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Completed);
+    assert_eq!(report.operations, 2);
+    assert!(report.events.is_empty());
+}
+
+#[test]
 fn extended_prefixes_preserve_the_accumulated_opcode_in_errors() {
     for (bytes, opcode) in [(&[255, 0, 0][..], 256), (&[255, 255, 1, 0][..], 513)] {
         let error = decode_program(bytes).unwrap_err();
