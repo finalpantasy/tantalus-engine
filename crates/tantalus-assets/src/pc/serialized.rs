@@ -40,6 +40,17 @@ pub struct SerializedFile<'a> {
 
 impl<'a> SerializedFile<'a> {
     pub fn parse(bytes: &'a [u8], source: &str) -> Result<Self, ImportError> {
+        Self::parse_prefix(bytes, bytes.len() as u64, source)
+    }
+
+    /// Parses the metadata from a prefix of a serialized file whose full length is
+    /// `total_len`. The prefix must cover the metadata block (`data_offset` bytes);
+    /// object payloads are not required, so large standalone files can be streamed.
+    pub fn parse_prefix(
+        bytes: &'a [u8],
+        total_len: u64,
+        source: &str,
+    ) -> Result<Self, ImportError> {
         let mut cursor = Cursor { bytes, position: 0 };
         let metadata_size = cursor.be_u32(source)?;
         let file_size = cursor.be_u32(source)?;
@@ -51,13 +62,10 @@ impl<'a> SerializedFile<'a> {
                 format!("only serialized format 15 is supported, found {format_version}"),
             ));
         }
-        if file_size as usize != bytes.len() {
+        if u64::from(file_size) != total_len {
             return Err(invalid(
                 source,
-                format!(
-                    "header declares {file_size} bytes, input has {}",
-                    bytes.len()
-                ),
+                format!("header declares {file_size} bytes, input has {total_len}"),
             ));
         }
         let little_endian = match cursor.byte(source)? {
@@ -98,7 +106,7 @@ impl<'a> SerializedFile<'a> {
                 tree_nodes,
             });
         }
-        let object_count = cursor.count(source, 100_000, "object")?;
+        let object_count = cursor.count(source, 1_000_000, "object")?;
         let mut objects = Vec::with_capacity(object_count);
         let mut path_ids = std::collections::BTreeSet::new();
         for _ in 0..object_count {
@@ -120,7 +128,7 @@ impl<'a> SerializedFile<'a> {
             let end = absolute_offset
                 .checked_add(u64::from(size))
                 .ok_or_else(|| invalid(source, "object range overflow"))?;
-            if end > bytes.len() as u64 {
+            if end > total_len {
                 return Err(invalid(
                     source,
                     format!("object {path_id} lies outside the serialized file"),

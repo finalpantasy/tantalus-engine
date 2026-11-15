@@ -30,6 +30,7 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
         (Some("assets"), Some("inspect-bundle")) => run_assets_inspect_bundle(args),
         (Some("assets"), Some("extract-resource")) => run_assets_extract_resource(args),
         (Some("assets"), Some("extract-text")) => run_assets_extract_text(args),
+        (Some("assets"), Some("inspect-serialized")) => run_assets_inspect_serialized(args),
         (Some("scenario"), Some("run")) => run_scenario(args),
         _ => Err(usage().to_owned()),
     }
@@ -1471,8 +1472,7 @@ fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
-}
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"}
 
 fn print_help() {
     println!(
@@ -1719,5 +1719,183 @@ fn run_parse_all(
         "{}",
         serde_json::to_string_pretty(&serde_json::Value::Object(output)).unwrap()
     );
+    Ok(())
+}
+
+fn run_assets_inspect_serialized(args: Vec<OsString>) -> Result<(), String> {
+    use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
+    let mut path = None;
+    let mut json = false;
+    let mut out = None;
+    let mut mes = None;
+    let mut mes_all = false;
+    let mut index = 2;
+    while index < args.len() {
+        match args[index].to_str() {
+            Some("--json") => json = true,
+            Some("--mes-all") => mes_all = true,
+            Some(flag @ ("--path" | "--out" | "--mes")) => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| format!("`{flag}` requires a value"))?;
+                let slot_taken = match flag {
+                    "--path" => path.replace(PathBuf::from(value)).is_some(),
+                    "--out" => out.replace(PathBuf::from(value)).is_some(),
+                    _ => mes.replace(value.to_string_lossy().into_owned()).is_some(),
+                };
+                if slot_taken {
+                    return Err(format!("`{flag}` may only be supplied once"));
+                }
+            }
+            _ => {
+                return Err(format!(
+                    "unrecognized argument: {}",
+                    args[index].to_string_lossy()
+                ));
+            }
+        }
+        index += 1;
+    }
+    let path = path.ok_or_else(|| "missing required `--path <file>`".to_owned())?;
+    let mut file = StandaloneSerialized::open(&path).map_err(|error| error.to_string())?;
+    if mes.is_some() || mes_all {
+        return run_mes_dump(&mut file, mes.as_deref(), json);
+    }
+    let inventory = file.inventory();
+    let rendered = serde_json::to_string_pretty(inventory)
+        .map_err(|error| format!("could not serialize inventory: {error}"))?;
+    if let Some(out) = out {
+        std::fs::write(
+            &out,
+            format!(
+                "{rendered}
+"
+            ),
+        )
+        .map_err(|error| format!("could not write {}: {error}", out.display()))?;
+    }
+    if json {
+        println!("{rendered}");
+    } else {
+        println!(
+            "{}: {} bytes, format {}, Unity {}, {} objects",
+            inventory.file_name,
+            inventory.file_size,
+            inventory.format_version,
+            inventory.unity_version,
+            inventory.object_count
+        );
+        for class in &inventory.classes {
+            println!(
+                "  class {:>4} {:<14} x{}",
+                class.class_id, class.class_name, class.count
+            );
+            for name in class.names.iter().take(20) {
+                println!("      {name}");
+            }
+            if class.names.len() > 20 {
+                println!("      ... {} more names", class.names.len() - 20);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn run_mes_dump(
+    file: &mut tantalus_assets::pc::serialized_inventory::StandaloneSerialized,
+    name: Option<&str>,
+    json: bool,
+) -> Result<(), String> {
+    use std::collections::BTreeMap;
+    use tantalus_assets::pc::mes::{MesFile, MesToken, parse_mes_bytes};
+    let assets = file.text_assets().map_err(|error| error.to_string())?;
+    let mut parsed_files = 0usize;
+    let mut entry_total = 0usize;
+    let mut tag_counts: BTreeMap<String, usize> = BTreeMap::new();
+    let mut unknown: BTreeMap<String, usize> = BTreeMap::new();
+    let mut layouts: BTreeMap<String, usize> = BTreeMap::new();
+    let mut failures = Vec::new();
+    let mut sample_printed = false;
+    for (asset_name, object) in assets {
+        let selected = match name {
+            Some(wanted) => asset_name == wanted,
+            None => asset_name.ends_with(".mes"),
+        };
+        if !selected {
+            continue;
+        }
+        let asset = file
+            .read_text_asset(&object)
+            .map_err(|error| error.to_string())?;
+        let mes = match parse_mes_bytes(&asset.script, &asset_name) {
+            Ok(mes) => mes,
+            Err(error) => {
+                failures.push(format!("{asset_name}: {error}"));
+                continue;
+            }
+        };
+        parsed_files += 1;
+        entry_total += mes.entries.len();
+        *layouts.entry(format!("{:?}", mes.layout)).or_default() += 1;
+        for entry in &mes.entries {
+            for token in &entry.tokens {
+                if let MesToken::Tag(tag) = token {
+                    *tag_counts.entry(tag.code.clone()).or_default() += 1;
+                }
+            }
+        }
+        for (raw, count) in mes.unknown_tags() {
+            if name.is_none() {
+                eprintln!("unknown {raw} x{count} in {asset_name}");
+            }
+            *unknown.entry(raw).or_default() += count;
+        }
+        if name.is_some() {
+            println!(
+                "# {asset_name} ({}) layout={:?} entries={}",
+                asset.path_name,
+                mes.layout,
+                mes.entries.len()
+            );
+            for entry in &mes.entries {
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::to_string(entry).map_err(|error| error.to_string())?
+                    );
+                } else {
+                    println!("[{}] {}", entry.id, MesFile::entry_source(entry));
+                }
+            }
+        } else if !sample_printed && !mes.entries.is_empty() {
+            sample_printed = true;
+            let entry = &mes.entries[0];
+            println!(
+                "sample {asset_name} ({}) entry {}:",
+                asset.path_name, entry.id
+            );
+            println!(
+                "{}",
+                serde_json::to_string_pretty(entry).map_err(|e| e.to_string())?
+            );
+        }
+    }
+    if name.is_none() || parsed_files == 0 {
+        println!("mes files parsed: {parsed_files}");
+        println!("entries: {entry_total}");
+        println!("layouts: {layouts:?}");
+        println!("tags: {tag_counts:?}");
+        println!("unknown tags: {}", unknown.len());
+        for (raw, count) in &unknown {
+            println!("  {raw} x{count}");
+        }
+        for failure in &failures {
+            println!("failure: {failure}");
+        }
+    }
+    if parsed_files == 0 {
+        return Err("no matching `.mes` TextAsset".to_owned());
+    }
     Ok(())
 }
