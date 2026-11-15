@@ -122,6 +122,9 @@ impl FieldDirector {
     /// world, then drain queued encounter requests for the caller.
     pub fn step(&mut self) -> Result<DirectorStep, EngineError> {
         let tick = Tick::new(self.tick);
+        // HonoluluFieldMain.FF9FieldMapMain services the movie before events.
+        let map = self.world.field_map_no;
+        self.world.fmv.service(map);
         let mut host = FieldHost::new(&mut self.world);
         let steps = self.scene.step(tick, &mut host).map_err(|error| {
             EngineError::new(
