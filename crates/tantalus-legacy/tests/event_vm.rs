@@ -316,6 +316,15 @@ impl LegacyEventHost for Host {
         }
     }
 
+    fn read_character_max_mp(&mut self, character: i32) -> Result<i32, EngineError> {
+        match character {
+            7 => Ok(80),
+            _ => Err(Self::target_error(format!(
+                "unknown maximum MP for character {character}"
+            ))),
+        }
+    }
+
     fn party_contains(&mut self, character: i32) -> Result<bool, EngineError> {
         Ok(self.party_members.contains(&character))
     }
@@ -3354,6 +3363,26 @@ fn bgiid_reads_the_characters_navigation_triangle() {
     assert_eq!(error.kind, VmErrorKind::InvalidExpression);
     assert!(error.message.contains("BGI character operand"));
     assert!(decode_program(&[5, 112]).is_err());
+}
+
+#[test]
+fn maxmp_reads_the_characters_host_owned_maximum() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 46);
+    let expression = assign(result, binary(constant(7), vec![], 111));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 46), 80);
+
+    let program = decode_program(&[5, 111, 127, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::InvalidExpression);
+    assert!(error.message.contains("maximum-MP character operand"));
+    assert!(decode_program(&[5, 111]).is_err());
 }
 
 #[test]

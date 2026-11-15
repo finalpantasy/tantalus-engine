@@ -56,6 +56,7 @@ pub enum ExpressionOp {
     AnimationFrame,
     BgiAnimationFrame,
     BgiCharacterTriangle,
+    CharacterMaxMp,
     PartyContains,
     KeyOn,
     Less,
@@ -824,6 +825,7 @@ pub trait LegacyEventHost {
     -> Result<i32, EngineError>;
     fn read_bgi_animation_frame(&mut self, animation: u32) -> Result<i32, EngineError>;
     fn read_bgi_character_triangle(&mut self, character: i32) -> Result<i32, EngineError>;
+    fn read_character_max_mp(&mut self, character: i32) -> Result<i32, EngineError>;
     fn party_contains(&mut self, character: i32) -> Result<bool, EngineError>;
     fn party_menu_is_open(&self) -> bool;
     fn read_key_on(&mut self) -> Result<i32, EngineError>;

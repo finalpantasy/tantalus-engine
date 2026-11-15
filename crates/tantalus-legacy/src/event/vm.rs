@@ -1405,6 +1405,19 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::CharacterMaxMp => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing maximum-MP character operand")
+                    })?;
+                    let character = read_value(host, value, offset, opcode)?;
+                    let maximum = host
+                        .read_character_max_mp(character)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    stack.push(StackValue {
+                        value: maximum,
+                        target: None,
+                    });
+                }
                 ExpressionOp::PartyContains => {
                     let value = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing party-check operand")
@@ -2337,6 +2350,7 @@ fn operand_start(
         | ExpressionOp::AnimationFrame
         | ExpressionOp::BgiAnimationFrame
         | ExpressionOp::BgiCharacterTriangle
+        | ExpressionOp::CharacterMaxMp
         | ExpressionOp::PartyContains
         | ExpressionOp::KeyOn
         | ExpressionOp::ConsumeAndZero

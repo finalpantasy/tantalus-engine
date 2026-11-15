@@ -149,6 +149,15 @@ impl LegacyEventHost for Host {
         ))
     }
 
+    fn read_character_max_mp(&mut self, character: i32) -> Result<i32, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            format!("field fixture has no maximum MP for character {character}"),
+            "fixture-host",
+            true,
+        ))
+    }
+
     fn party_contains(&mut self, character: i32) -> Result<bool, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,

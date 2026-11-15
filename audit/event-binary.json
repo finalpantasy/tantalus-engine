@@ -172,7 +172,8 @@
     "NECKFLAG 0x47 emits SetHeadFocusFlags with the current actor and operand masked to 0x07; missing actor context is explicit",
     "MROT 0x55 emits SetWalkTurnSpeed with exact zero mapped to 255 before byte conversion; missing actor context is explicit",
     "B_PTR 95 consumes a raw byte UID and returns the host-resolved legacy UID or zero for an absent object",
-    "B_BGIID 112 evaluates a character operand and returns the host-provided BGI navigation triangle"
+    "B_BGIID 112 evaluates a character operand and returns the host-provided BGI navigation triangle",
+    "B_MAXMP 111 evaluates a character operand and returns the host-owned maximum MP after legacy character resolution"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -284,16 +285,16 @@
     "kind": "Decode",
     "instruction": "conditional jump expression/operands do not complete before the function boundary after B_BGIID support"
   },
-  "unsupported_max_mp_entry_18": {
+  "unsupported_distance_to_object_entry_18": {
     "entry": 18,
     "function": 1,
     "function_tag": 1,
     "instruction_offset": 32,
     "expression_offset": 34,
-    "offset": 189,
-    "opcode": 111,
+    "offset": 216,
+    "opcode": 97,
     "kind": "UnsupportedOpcode",
-    "instruction": "WAIT contains unsupported B_MAXMP expression opcode 0x6F"
+    "instruction": "WAIT contains unsupported B_DISTANCEA expression opcode 0x61 after maximum-MP support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
