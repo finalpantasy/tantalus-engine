@@ -30,7 +30,7 @@ pub struct LegacySaveLocation {
     pub save_id: i32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LegacySaveReport {
     pub base: BaseSaveObservation,
     pub extra: Option<SimpleJsonDocument>,
@@ -38,7 +38,7 @@ pub struct LegacySaveReport {
 }
 
 /// Decrypted base metadata and one decrypted `SAVE`/`NONE` block. Field mapping is not decoded.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DecodedBaseSave {
     pub metadata: BaseSaveMetadata,
     pub block: BaseSaveBlock,
@@ -46,7 +46,7 @@ pub struct DecodedBaseSave {
 
 /// One decoded legacy slot: base metadata/block, its preview when the location has one, and the
 /// optional Memoria sidecar. This is an inspection aggregate, not a native save import.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DecodedLegacySlot {
     pub metadata: BaseSaveMetadata,
     pub block: BaseSaveBlock,

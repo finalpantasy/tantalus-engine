@@ -543,3 +543,64 @@ fn decode_slot_omits_the_autosave_preview_and_rejects_bad_sidecars() {
     let error = LegacySaveImporter::decode_slot(&container, Some(&[9, 0, 0, 0]), &at).unwrap_err();
     assert!(error.context.contains("unsupported SimpleJSON binary tag"));
 }
+
+#[test]
+fn decoded_legacy_reports_round_trip_as_json() {
+    let metadata = BaseSaveMetadata {
+        save_version: 1.0,
+        data_size: 4,
+        latest_slot: 2,
+        latest_save: 7,
+        latest_timestamp: 1234.5,
+        is_game_finish_flag: 1,
+        selected_language: 1,
+        is_auto_login: -1,
+        system_achievement_status: 0x21,
+        screen_rotation: 3,
+    };
+    let block = BaseSaveBlock {
+        offset: 153_920,
+        state: BaseSaveBlockState::Saved,
+        payload: vec![1, 2, 3, 4],
+    };
+    let sidecar = SimpleJsonDocument {
+        root: SimpleJsonNode::Class(vec![(
+            "Synthetic".to_owned(),
+            SimpleJsonNode::Array(vec![
+                SimpleJsonNode::Int(1),
+                SimpleJsonNode::Bool(true),
+                SimpleJsonNode::String("slot".to_owned()),
+            ]),
+        )]),
+        trailing_bytes: 0,
+    };
+    let slot = DecodedLegacySlot {
+        metadata: metadata.clone(),
+        block: block.clone(),
+        preview: None,
+        extra: Some(sidecar.clone()),
+    };
+
+    let encoded = serde_json::to_string(&slot).unwrap();
+    let decoded: DecodedLegacySlot = serde_json::from_str(&encoded).unwrap();
+    assert_eq!(decoded, slot);
+
+    let report = LegacySaveReport {
+        base: BaseSaveObservation {
+            bytes: BASE_SAVE_CONTAINER_BYTES,
+            sha256: "synthetic".to_owned(),
+            fixed_container_size_matches: true,
+            decoded: true,
+        },
+        extra: Some(sidecar),
+        pairing: PairingStatus::NotChecked,
+    };
+    let encoded = serde_json::to_string(&report).unwrap();
+    let decoded: LegacySaveReport = serde_json::from_str(&encoded).unwrap();
+    assert_eq!(decoded, report);
+
+    let base = DecodedBaseSave { metadata, block };
+    let encoded = serde_json::to_string(&base).unwrap();
+    let decoded: DecodedBaseSave = serde_json::from_str(&encoded).unwrap();
+    assert_eq!(decoded, base);
+}

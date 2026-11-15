@@ -1,10 +1,11 @@
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
 const MAX_DEPTH: usize = 128;
 const MAX_NODES: usize = 100_000;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SimpleJsonNode {
     Array(Vec<SimpleJsonNode>),
     Class(Vec<(String, SimpleJsonNode)>),
@@ -15,7 +16,7 @@ pub enum SimpleJsonNode {
     Float(f32),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SimpleJsonDocument {
     pub root: SimpleJsonNode,
     pub trailing_bytes: usize,
