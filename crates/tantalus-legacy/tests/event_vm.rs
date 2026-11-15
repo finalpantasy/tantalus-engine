@@ -75,6 +75,7 @@ struct Host {
     script_request_complete: bool,
     object_uids: BTreeMap<i32, EntityId>,
     object_positions: BTreeMap<EntityId, [f32; 3]>,
+    item_counts: BTreeMap<i32, i32>,
     fail: bool,
 }
 
@@ -90,6 +91,7 @@ impl Host {
             script_request_complete: false,
             object_uids: BTreeMap::new(),
             object_positions: BTreeMap::new(),
+            item_counts: BTreeMap::new(),
             fail: false,
         }
     }
@@ -237,6 +239,10 @@ impl LegacyEventHost for Host {
             .get(&object)
             .copied()
             .ok_or_else(|| Self::target_error(format!("unknown position for object {object}")))
+    }
+
+    fn read_item_count(&mut self, item: i32) -> Result<i32, EngineError> {
+        Ok(self.item_counts.get(&item).copied().unwrap_or(0))
     }
 
     fn script_request_is_complete(&mut self, _entity: EntityId) -> Result<bool, EngineError> {
@@ -2237,6 +2243,27 @@ fn key2_consumes_its_operand_and_returns_zero() {
 
     assert_eq!(vm.variable(VariableScope::Global, 42), 0);
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn have_item_returns_the_actual_count() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 47);
+    let expression = assign(result, binary(constant(12), vec![], 100));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.item_counts.insert(12, 3);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 47), 3);
+
+    let result = variable(VariableScope::Global, VariableType::Int16, 47);
+    let expression = assign(result, binary(constant(13), vec![], 100));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 47), 0);
 }
 
 #[test]

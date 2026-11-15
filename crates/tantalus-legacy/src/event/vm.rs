@@ -949,6 +949,19 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::ItemCount => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing item-count operand")
+                    })?;
+                    let item = read_value(host, value, offset, opcode)?;
+                    let count = host
+                        .read_item_count(item)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    stack.push(StackValue {
+                        value: count,
+                        target: None,
+                    });
+                }
                 ExpressionOp::Add
                 | ExpressionOp::Subtract
                 | ExpressionOp::Multiply
@@ -1755,6 +1768,7 @@ fn operand_start(
         | ExpressionOp::Complement
         | ExpressionOp::Sine
         | ExpressionOp::AngleToObject
+        | ExpressionOp::ItemCount
         | ExpressionOp::ConsumeAndZero
         | ExpressionOp::PreIncrement
         | ExpressionOp::PreDecrement

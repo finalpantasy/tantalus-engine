@@ -50,6 +50,7 @@ pub enum ExpressionOp {
     ShiftRight,
     Angle2,
     AngleToObject,
+    ItemCount,
     Less,
     Greater,
     GreaterOrEqual,
@@ -579,6 +580,7 @@ pub trait LegacyEventHost {
     fn read_atan_entry(&mut self, offset: i32) -> Result<u16, EngineError>;
     fn resolve_object_uid(&mut self, uid: i32) -> Result<EntityId, EngineError>;
     fn read_object_position(&mut self, object: EntityId) -> Result<[f32; 3], EngineError>;
+    fn read_item_count(&mut self, item: i32) -> Result<i32, EngineError>;
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError>;
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError>;
 }

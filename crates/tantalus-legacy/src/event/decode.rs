@@ -781,6 +781,7 @@ impl Decoder<'_> {
                 90 | 92 => ExpressionOp::ConsumeAndZero,
                 96 => ExpressionOp::AngleToObject,
                 98 => ExpressionOp::Sine,
+                100 => ExpressionOp::ItemCount,
                 102 => ExpressionOp::Angle2,
                 114 => ExpressionOp::NoOp,
                 EXPR_CONST_I16 => ExpressionOp::Constant(i32::from(self.i16()?)),
