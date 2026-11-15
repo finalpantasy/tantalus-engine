@@ -75,14 +75,15 @@
     "B_POST_PLUS 4 stores the incremented target and returns its original value",
     "POPSHOW 0xD6 consumes its flag and emits RestoreAllVisibility",
     "TIMERCONTROL 0x7D decodes a boolean operand and emits SetTimerRunning",
-    "REPLY 0x16 decodes level and function tag and emits caller-targeted RequestCallerAsync"
+    "REPLY 0x16 decodes level and function tag and emits caller-targeted RequestCallerAsync",
+    "MJPOS 0xA4 consumes its flag and emits CalculateExitPosition for region/actor host state"
   ],
   "next_decode_boundary": {
     "entry": 1,
-    "offset": 37,
-    "opcode": "0xA4",
+    "offset": 39,
+    "opcode": "0x14",
     "kind": "event",
-    "instruction": "MJPOS"
+    "instruction": "REPLYEW"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

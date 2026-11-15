@@ -378,6 +378,10 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::RequestCallerAsync { level, tag });
                 }
+                InstructionKind::CalculateExitPosition => {
+                    self.pc = next;
+                    events.push(HostEvent::CalculateExitPosition);
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -1055,6 +1059,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::RestoreAllVisibility => 0xd6,
         InstructionKind::SetTimerRunning(_) => 0x7d,
         InstructionKind::RequestCallerAsync { .. } => 0x16,
+        InstructionKind::CalculateExitPosition => 0xa4,
     }
 }
 

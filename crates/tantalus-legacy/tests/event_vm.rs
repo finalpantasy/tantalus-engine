@@ -133,6 +133,7 @@ impl LegacyEventHost for Host {
                 HostEvent::RestoreAllVisibility => {}
                 HostEvent::SetTimerRunning { .. } => {}
                 HostEvent::RequestCallerAsync { .. } => {}
+                HostEvent::CalculateExitPosition => {}
             }
         }
         Ok(())
@@ -1439,5 +1440,18 @@ fn reply_emits_a_caller_targeted_async_request() {
         report.events,
         [HostEvent::RequestCallerAsync { level: 2, tag: 11 }]
     );
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn mjpos_requests_exit_position_calculation() {
+    let program = decode_program(&[164, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 2);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(report.events, [HostEvent::CalculateExitPosition]);
     assert_eq!(vm.status(), VmStatus::Completed);
 }

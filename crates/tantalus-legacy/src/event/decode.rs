@@ -36,6 +36,7 @@ const OP_DEFINE_TILE_VIEWPORT: u8 = 0xc8;
 const OP_RESTORE_ALL_VISIBILITY: u8 = 0xd6;
 const OP_SET_TIMER_RUNNING: u8 = 0x7d;
 const OP_REQUEST_CALLER_ASYNC: u8 = 0x16;
+const OP_CALCULATE_EXIT_POSITION: u8 = 0xa4;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -368,6 +369,10 @@ impl Decoder<'_> {
                     level,
                     tag: self.byte()?,
                 }
+            }
+            OP_CALCULATE_EXIT_POSITION => {
+                self.byte()?;
+                InstructionKind::CalculateExitPosition
             }
             _ => {
                 return Err(VmError::new(

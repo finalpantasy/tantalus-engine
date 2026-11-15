@@ -184,6 +184,7 @@ pub enum InstructionKind {
         level: Expression,
         tag: u8,
     },
+    CalculateExitPosition,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -316,6 +317,7 @@ pub enum HostEvent {
         level: i32,
         tag: u8,
     },
+    CalculateExitPosition,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
