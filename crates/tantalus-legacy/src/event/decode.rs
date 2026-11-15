@@ -24,6 +24,7 @@ const OP_INITIALIZE_CODE: u8 = 0x07;
 const OP_SET_TRIANGLE_ACTIVE: u8 = 0x9a;
 const OP_RUN_SOUND: u8 = 0xc5;
 const OP_ATTACH_OBJECT_OFFSET: u8 = 0xd4;
+const OP_SET_NAVIGATION_ATTRIBUTE_MASK: u8 = 0x27;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -208,6 +209,18 @@ impl Decoder<'_> {
                     y: argument(2)?,
                     z: argument(4)?,
                 }
+            }
+            OP_SET_NAVIGATION_ATTRIBUTE_MASK => {
+                let flags = self.byte()?;
+                let mask = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::SetNavigationAttributeMask(mask)
             }
             _ => {
                 return Err(VmError::new(

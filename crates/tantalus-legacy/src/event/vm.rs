@@ -278,6 +278,11 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::AttachObjectOffset { actor, x, y, z });
                 }
+                InstructionKind::SetNavigationAttributeMask(mask) => {
+                    let mask = self.evaluate(host, &mask, instruction.offset, opcode)? as u8;
+                    self.pc = next;
+                    events.push(HostEvent::SetNavigationAttributeMask { mask });
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -873,6 +878,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::SetTriangleActive { .. } => 0x9a,
         InstructionKind::RunSound { .. } => 0xc5,
         InstructionKind::AttachObjectOffset { .. } => 0xd4,
+        InstructionKind::SetNavigationAttributeMask(_) => 0x27,
     }
 }
 

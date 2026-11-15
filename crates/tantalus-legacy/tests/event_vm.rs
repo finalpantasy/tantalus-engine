@@ -123,6 +123,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetTriangleActive { .. } => {}
                 HostEvent::RunSound { .. } => {}
                 HostEvent::AttachObjectOffset { .. } => {}
+                HostEvent::SetNavigationAttributeMask { .. } => {}
             }
         }
         Ok(())
@@ -1081,4 +1082,27 @@ fn attachoffset_emits_signed_coordinates_for_the_current_actor() {
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));
+}
+
+#[test]
+fn bgimask_emits_the_wrapped_attribute_byte() {
+    let program = decode_program(&[39, 0, 0x80, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetNavigationAttributeMask { mask: 0x80 }]
+    );
+
+    let mut bytes = vec![39, 1];
+    append_expression(&mut bytes, constant(-1));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetNavigationAttributeMask { mask: 0xff }]
+    );
 }

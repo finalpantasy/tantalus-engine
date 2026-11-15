@@ -147,6 +147,7 @@ pub enum InstructionKind {
         y: Expression,
         z: Expression,
     },
+    SetNavigationAttributeMask(Expression),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -239,6 +240,9 @@ pub enum HostEvent {
         x: i32,
         y: i32,
         z: i32,
+    },
+    SetNavigationAttributeMask {
+        mask: u8,
     },
 }
 
