@@ -121,6 +121,17 @@ impl EventVm {
                     self.wait = None;
                     self.status = VmStatus::Running;
                 }
+                WaitState::ScriptReadiness { level, target, .. } => {
+                    self.status = VmStatus::Waiting;
+                    if !host
+                        .script_request_acceptable(target, level)
+                        .map_err(|error| VmError::host(error, self.pc, 0x12))?
+                    {
+                        return Ok(self.report(tick, 0, Vec::new()));
+                    }
+                    self.wait = None;
+                    self.status = VmStatus::Running;
+                }
                 WaitState::ScriptRequest => {
                     self.status = VmStatus::Waiting;
                     let Some(entity) = self.entity else {
@@ -763,6 +774,28 @@ impl EventVm {
                         target: EntityId::new(target as u64),
                         tag,
                     });
+                }
+                InstructionKind::RequestScriptWhenReady { level, target, tag } => {
+                    let level = self.evaluate(host, &level, instruction.offset, opcode)?;
+                    let target = self.evaluate(host, &target, instruction.offset, opcode)?;
+                    if target < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "script target cannot be negative",
+                        ));
+                    }
+                    let target = EntityId::new(target as u64);
+                    if host
+                        .script_request_acceptable(target, level)
+                        .map_err(|error| VmError::host(error, instruction.offset, opcode))?
+                    {
+                        self.pc = next;
+                        events.push(HostEvent::RequestScriptAsync { level, target, tag });
+                    } else {
+                        self.wait = Some(WaitState::ScriptReadiness { level, target, tag });
+                        self.status = VmStatus::Waiting;
+                    }
                 }
                 InstructionKind::DefineTileViewport {
                     viewport,
@@ -2089,6 +2122,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::PreloadField { .. } => 0xfd,
         InstructionKind::SetRain { .. } => 0xd8,
         InstructionKind::RequestScriptAsync { .. } => 0x10,
+        InstructionKind::RequestScriptWhenReady { .. } => 0x12,
         InstructionKind::DefineTileViewport { .. } => 0xc8,
         InstructionKind::PreserveAndHideAll => 0xd5,
         InstructionKind::RestoreAllVisibility => 0xd6,

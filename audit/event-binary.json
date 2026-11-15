@@ -164,7 +164,8 @@
     "JMP_SWITCHEX 0x06 supports explicit nonconsecutive 16-bit cases, first-match/default selection, and its fixed post-header branch anchor",
     "B_MULT_LET 47 multiplies variable/member targets, normalizes variable storage, and returns the raw arithmetic result",
     "B_ANGLE 93 subtracts the current actor position and uses source-compatible fixed-point output; shared angle scaling is corrected to a right shift by four",
-    "REPLYSW 0x18 waits for caller acceptance and emits one RequestCallerAsync before continuing"
+    "REPLYSW 0x18 waits for caller acceptance and emits one RequestCallerAsync before continuing",
+    "REQSW 0x12 waits for target-specific acceptance and emits one RequestScriptAsync before continuing"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -259,10 +260,10 @@
     "entry": 13,
     "function": 0,
     "function_tag": 0,
-    "offset": 297,
-    "opcode": 18,
+    "offset": 302,
+    "opcode": 61,
     "kind": "UnsupportedOpcode",
-    "instruction": "REQSW event opcode 0x12 after caller-readiness wait support"
+    "instruction": "event opcode 0x3D after target-readiness wait support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

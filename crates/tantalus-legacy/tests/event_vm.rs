@@ -74,6 +74,7 @@ struct Host {
     member_writes: Vec<(ObjectMemberRef, i32)>,
     script_request_complete: bool,
     caller_request_acceptable: bool,
+    script_request_acceptable: bool,
     object_uids: BTreeMap<i32, EntityId>,
     object_positions: BTreeMap<EntityId, [f32; 3]>,
     item_counts: BTreeMap<i32, i32>,
@@ -96,6 +97,7 @@ impl Host {
             member_writes: Vec::new(),
             script_request_complete: false,
             caller_request_acceptable: false,
+            script_request_acceptable: false,
             object_uids: BTreeMap::new(),
             object_positions: BTreeMap::new(),
             item_counts: BTreeMap::new(),
@@ -311,6 +313,14 @@ impl LegacyEventHost for Host {
 
     fn caller_request_acceptable(&mut self, _level: i32) -> Result<bool, EngineError> {
         Ok(self.caller_request_acceptable)
+    }
+
+    fn script_request_acceptable(
+        &mut self,
+        _target: EntityId,
+        _level: i32,
+    ) -> Result<bool, EngineError> {
+        Ok(self.script_request_acceptable)
     }
 
     fn script_request_is_complete(&mut self, _entity: EntityId) -> Result<bool, EngineError> {
@@ -3353,6 +3363,58 @@ fn req_emits_an_async_script_request_with_level_target_and_tag() {
         }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn reqsw_waits_for_target_acceptance_and_requests_once() {
+    let program = decode_program(&[18, 0, 2, 7, 11, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 5);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Waiting);
+    assert!(report.events.is_empty());
+    assert_eq!(vm.pc(), 0);
+    assert_eq!(
+        vm.wait_state(),
+        Some(WaitState::ScriptReadiness {
+            level: 2,
+            target: EntityId::new(7),
+            tag: 11
+        })
+    );
+    assert!(vm.step(Tick::new(1), &mut host).unwrap().events.is_empty());
+
+    host.script_request_acceptable = true;
+    let report = vm.step(Tick::new(2), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RequestScriptAsync {
+            level: 2,
+            target: EntityId::new(7),
+            tag: 11
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+    assert!(vm.step(Tick::new(3), &mut host).unwrap().events.is_empty());
+
+    let mut bytes = vec![18, 3];
+    append_expression(&mut bytes, constant(3));
+    append_expression(&mut bytes, constant(8));
+    bytes.extend_from_slice(&[12, 4]);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RequestScriptAsync {
+            level: 3,
+            target: EntityId::new(8),
+            tag: 12
+        }]
+    );
+
+    assert!(decode_program(&[18, 0, 2, 7]).is_err());
 }
 
 #[test]

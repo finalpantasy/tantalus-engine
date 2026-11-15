@@ -61,6 +61,7 @@ const OP_SET_VIBRATION_FRAME_RATE: u32 = 0xfa;
 const OP_PRELOAD_FIELD: u32 = 0xfd;
 const OP_SET_RAIN: u32 = 0xd8;
 const OP_REQUEST_SCRIPT_ASYNC: u32 = 0x10;
+const OP_REQUEST_SCRIPT_WHEN_READY: u32 = 0x12;
 const OP_DEFINE_TILE_VIEWPORT: u32 = 0xc8;
 const OP_BATTLE_MESSAGE: u32 = 0xd0;
 const OP_GLOBAL_CLEAR: u32 = 0xd1;
@@ -801,6 +802,24 @@ impl Decoder<'_> {
                     }
                 };
                 InstructionKind::RequestScriptAsync {
+                    level: argument(1)?,
+                    target: argument(2)?,
+                    tag: self.byte()?,
+                }
+            }
+            OP_REQUEST_SCRIPT_WHEN_READY => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::RequestScriptWhenReady {
                     level: argument(1)?,
                     target: argument(2)?,
                     tag: self.byte()?,
