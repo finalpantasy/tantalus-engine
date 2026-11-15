@@ -219,6 +219,24 @@ pub enum InstructionKind {
         item: Expression,
         count: Expression,
     },
+    AddGil(Expression),
+    RemoveGil(Expression),
+    SetPartyHp {
+        character: Expression,
+        value: Expression,
+    },
+    SetPartyMp {
+        character: Expression,
+        value: Expression,
+    },
+    ClearAbilityAp {
+        character: Expression,
+        ability: Expression,
+    },
+    MasterAbility {
+        character: Expression,
+        ability: Expression,
+    },
     WalkActor {
         x: Expression,
         z: Expression,
@@ -545,6 +563,33 @@ pub enum HostEvent {
     RemoveItem {
         item: i32,
         count: i32,
+    },
+    /// Raw unsigned amount; the host clamps to 9,999,999 gil.
+    AddGil {
+        amount: u32,
+    },
+    /// Raw unsigned amount; the host clamps underflow to zero and owns achievement side effects.
+    RemoveGil {
+        amount: u32,
+    },
+    /// Raw character and HP operands; slot mapping, the 9999 full-heal sentinel, clamping,
+    /// substitute-member mirroring, and heal propagation stay host-owned.
+    SetPartyHp {
+        character: i32,
+        hp: i32,
+    },
+    /// Raw character and MP operands; the 999 full-restore sentinel and clamping are host-owned.
+    SetPartyMp {
+        character: i32,
+        mp: i32,
+    },
+    ClearAbilityAp {
+        character: i32,
+        ability: i32,
+    },
+    MasterAbility {
+        character: i32,
+        ability: i32,
     },
     WalkActor {
         actor: EntityId,

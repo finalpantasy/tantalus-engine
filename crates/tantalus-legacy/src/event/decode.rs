@@ -98,6 +98,12 @@ const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
 const OP_SET_TILE_ANIMATION_FRAME_WAIT: u32 = 0x62;
 const OP_ADD_ITEM: u32 = 0x48;
 const OP_REMOVE_ITEM: u32 = 0x49;
+const OP_ADD_GIL: u32 = 0xce;
+const OP_REMOVE_GIL: u32 = 0xcf;
+const OP_SET_PARTY_HP: u32 = 0xf1;
+const OP_SET_PARTY_MP: u32 = 0xf2;
+const OP_CLEAR_ABILITY_AP: u32 = 0xf3;
+const OP_MASTER_ABILITY: u32 = 0xf4;
 const OP_INCREMENT_FROG_COUNT: u32 = 0xe0;
 const OP_SET_TILE_ANIMATION_FLAGS: u32 = 0x63;
 const OP_SET_TILE_ANIMATION_RANGE: u32 = 0x64;
@@ -941,6 +947,56 @@ impl Decoder<'_> {
                 InstructionKind::RemoveItem {
                     item: argument(1, true)?,
                     count: argument(2, false)?,
+                }
+            }
+            OP_SET_PARTY_HP | OP_SET_PARTY_MP | OP_CLEAR_ABILITY_AP | OP_MASTER_ABILITY => {
+                // Operand 1 is a byte character; operand 2 is a signed 16-bit HP/MP value (`getv2`)
+                // or a byte ability index (`getv1`). Each operand has its own expression flag bit.
+                let flags = self.byte()?;
+                let wide_second = matches!(opcode, OP_SET_PARTY_HP | OP_SET_PARTY_MP);
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                let character = argument(1, false)?;
+                let value = argument(2, wide_second)?;
+                match opcode {
+                    OP_SET_PARTY_HP => InstructionKind::SetPartyHp { character, value },
+                    OP_SET_PARTY_MP => InstructionKind::SetPartyMp { character, value },
+                    OP_CLEAR_ABILITY_AP => InstructionKind::ClearAbilityAp {
+                        character,
+                        ability: value,
+                    },
+                    _ => InstructionKind::MasterAbility {
+                        character,
+                        ability: value,
+                    },
+                }
+            }
+            OP_ADD_GIL | OP_REMOVE_GIL => {
+                // `getv3u`: one flag byte; bit 1 selects an expression, else an unsigned 24-bit constant.
+                let flags = self.byte()?;
+                let amount = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    let value = i32::from_le_bytes([self.byte()?, self.byte()?, self.byte()?, 0]);
+                    Expression(vec![ExpressionOp::Constant(value), ExpressionOp::End])
+                };
+                if opcode == OP_ADD_GIL {
+                    InstructionKind::AddGil(amount)
+                } else {
+                    InstructionKind::RemoveGil(amount)
                 }
             }
             OP_SET_RAIN => {
