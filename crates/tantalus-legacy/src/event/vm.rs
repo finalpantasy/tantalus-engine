@@ -712,6 +712,12 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetVibrationFrameRate { rate });
                 }
+                InstructionKind::PreloadField { hint, field } => {
+                    let hint = self.evaluate(host, &hint, instruction.offset, opcode)?;
+                    let field = self.evaluate(host, &field, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::PreloadField { hint, field });
+                }
                 InstructionKind::RequestScriptAsync { level, target, tag } => {
                     let level = self.evaluate(host, &level, instruction.offset, opcode)?;
                     let target = self.evaluate(host, &target, instruction.offset, opcode)?;
@@ -1992,6 +1998,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::ShowBattleMessage { .. } => 0xd0,
         InstructionKind::SetObjectScale { .. } => 0x9f,
         InstructionKind::SetVibrationFrameRate(_) => 0xfa,
+        InstructionKind::PreloadField { .. } => 0xfd,
         InstructionKind::RequestScriptAsync { .. } => 0x10,
         InstructionKind::DefineTileViewport { .. } => 0xc8,
         InstructionKind::PreserveAndHideAll => 0xd5,

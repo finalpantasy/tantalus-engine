@@ -57,6 +57,7 @@ const OP_SHADOW_OFF: u32 = 0x80;
 const OP_SET_TEXT_VARIABLE: u32 = 0x66;
 const OP_SET_OBJECT_SCALE: u32 = 0x9f;
 const OP_SET_VIBRATION_FRAME_RATE: u32 = 0xfa;
+const OP_PRELOAD_FIELD: u32 = 0xfd;
 const OP_REQUEST_SCRIPT_ASYNC: u32 = 0x10;
 const OP_DEFINE_TILE_VIEWPORT: u32 = 0xc8;
 const OP_BATTLE_MESSAGE: u32 = 0xd0;
@@ -732,6 +733,26 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::SetVibrationFrameRate(rate)
+            }
+            OP_PRELOAD_FIELD => {
+                let flags = self.byte()?;
+                let hint = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                let field = if flags & 2 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.i16()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::PreloadField { hint, field }
             }
             OP_REQUEST_SCRIPT_ASYNC => {
                 let flags = self.byte()?;

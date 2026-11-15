@@ -244,6 +244,10 @@ pub enum InstructionKind {
         y: Expression,
     },
     SetVibrationFrameRate(Expression),
+    PreloadField {
+        hint: Expression,
+        field: Expression,
+    },
     RequestScriptAsync {
         level: Expression,
         target: Expression,
@@ -542,6 +546,10 @@ pub enum HostEvent {
     },
     SetVibrationFrameRate {
         rate: i16,
+    },
+    PreloadField {
+        hint: i32,
+        field: i16,
     },
     RequestScriptAsync {
         level: i32,

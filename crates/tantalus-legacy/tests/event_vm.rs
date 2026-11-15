@@ -191,6 +191,7 @@ impl LegacyEventHost for Host {
                 HostEvent::DefineRegion { .. } => {}
                 HostEvent::ClearPartyStatus { .. } => {}
                 HostEvent::PlayAnimation { .. } => {}
+                HostEvent::PreloadField { .. } => {}
             }
         }
         Ok(())
@@ -461,10 +462,10 @@ fn close_window_and_actor_movement_reach_the_host_once() {
 
 #[test]
 fn unsupported_and_truncated_programs_report_the_byte_offset() {
-    let unsupported = decode_program(&[0xfd]).unwrap_err();
+    let unsupported = decode_program(&[0x0c]).unwrap_err();
     assert_eq!(unsupported.kind, VmErrorKind::UnsupportedOpcode);
     assert_eq!(unsupported.offset, 0);
-    assert_eq!(unsupported.opcode, Some(0xfd));
+    assert_eq!(unsupported.opcode, Some(0x0c));
 
     let truncated = decode_program(&[5, 126, 1]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
@@ -791,6 +792,38 @@ fn play_animation_uses_the_current_actor_and_unsigned_animation_id() {
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));
     assert!(decode_program(&[64, 0, 1]).is_err());
+}
+
+#[test]
+fn preload_field_preserves_hint_and_signed_field_identity() {
+    let program = decode_program(&[253, 0, 5, 53, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 5);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::PreloadField { hint: 5, field: 53 }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![253, 3];
+    append_expression(&mut bytes, constant(48));
+    append_expression(&mut bytes, constant(-300));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::PreloadField {
+            hint: 48,
+            field: -300
+        }]
+    );
+
+    let truncated = decode_program(&[253, 0, 5, 1]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(253)"));
 }
 
 #[test]
