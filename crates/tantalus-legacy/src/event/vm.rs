@@ -1246,6 +1246,74 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetVibrationRange { start, end });
                 }
+                InstructionKind::SetShadowSize { x, z } => {
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)?;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)?;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "shadow commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetShadowSize { actor, x, z });
+                }
+                InstructionKind::SetShadowOffset { x, z } => {
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)? as i16;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "shadow commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetShadowOffset { actor, x, z });
+                }
+                InstructionKind::LockShadowRotation { rotation } => {
+                    let rotation = self
+                        .evaluate(host, &rotation, instruction.offset, opcode)?
+                        .wrapping_shl(4);
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "shadow commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::LockShadowRotation { actor, rotation });
+                }
+                InstructionKind::UnlockShadowRotation => {
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "shadow commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::UnlockShadowRotation { actor });
+                }
+                InstructionKind::SetShadowAmplifier { factor } => {
+                    let factor = self.evaluate(host, &factor, instruction.offset, opcode)?;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "shadow commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetShadowAmplifier { actor, factor });
+                }
                 InstructionKind::SetTileAnimationRate {
                     animation,
                     frame_rate,
@@ -2880,6 +2948,11 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
         InstructionKind::SetTileAnimationFlags { .. } => 0x64,
         InstructionKind::SetTileAnimationRange { .. } => 0x65,
+        InstructionKind::SetShadowSize { .. } => 0x81,
+        InstructionKind::SetShadowOffset { .. } => 0x82,
+        InstructionKind::LockShadowRotation { .. } => 0x83,
+        InstructionKind::UnlockShadowRotation => 0x84,
+        InstructionKind::SetShadowAmplifier { .. } => 0x85,
         InstructionKind::StartVibration { .. } => 0xf6,
         InstructionKind::SetVibrationActive { .. } => 0xf7,
         InstructionKind::RunVibrationTrack { .. } => 0xf8,

@@ -96,6 +96,11 @@ const OP_BATTLE_SCENE_START: u32 = 0x100;
 const OP_SET_SIMULATION_FLOOR: u32 = 0x104;
 const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
 const OP_SET_TILE_ANIMATION_RATE: u32 = 0x61;
+const OP_SET_SHADOW_SIZE: u32 = 0x81;
+const OP_SET_SHADOW_OFFSET: u32 = 0x82;
+const OP_LOCK_SHADOW_ROTATION: u32 = 0x83;
+const OP_UNLOCK_SHADOW_ROTATION: u32 = 0x84;
+const OP_SET_SHADOW_AMPLIFIER: u32 = 0x85;
 const OP_START_VIBRATION: u32 = 0xf6;
 const OP_SET_VIBRATION_ACTIVE: u32 = 0xf7;
 const OP_RUN_VIBRATION_TRACK: u32 = 0xf8;
@@ -1564,6 +1569,97 @@ impl Decoder<'_> {
                 InstructionKind::SetVibrationRange {
                     start: argument(1)?,
                     end: argument(2)?,
+                }
+            }
+            OP_SET_SHADOW_SIZE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetShadowSize {
+                    x: argument(1, false)?,
+                    z: argument(2, false)?,
+                }
+            }
+            OP_SET_SHADOW_OFFSET => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetShadowOffset {
+                    x: argument(1, true)?,
+                    z: argument(2, true)?,
+                }
+            }
+            OP_LOCK_SHADOW_ROTATION => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::LockShadowRotation {
+                    rotation: argument(1, false)?,
+                }
+            }
+            OP_UNLOCK_SHADOW_ROTATION => {
+                let flags = self.byte()?;
+                let _ = flags;
+                InstructionKind::UnlockShadowRotation
+            }
+            OP_SET_SHADOW_AMPLIFIER => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetShadowAmplifier {
+                    factor: argument(1, false)?,
                 }
             }
             OP_SET_TILE_ANIMATION_FLAGS => {

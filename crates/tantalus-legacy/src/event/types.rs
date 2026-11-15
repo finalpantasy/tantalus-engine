@@ -434,6 +434,21 @@ pub enum InstructionKind {
         start: Expression,
         end: Expression,
     },
+    SetShadowSize {
+        x: Expression,
+        z: Expression,
+    },
+    SetShadowOffset {
+        x: Expression,
+        z: Expression,
+    },
+    LockShadowRotation {
+        rotation: Expression,
+    },
+    UnlockShadowRotation,
+    SetShadowAmplifier {
+        factor: Expression,
+    },
     SetTileAnimationRate {
         animation: Expression,
         frame_rate: Expression,
@@ -930,6 +945,27 @@ pub enum HostEvent {
     SetVibrationRange {
         start: i16,
         end: i16,
+    },
+    SetShadowSize {
+        actor: EntityId,
+        x: i32,
+        z: i32,
+    },
+    SetShadowOffset {
+        actor: EntityId,
+        x: i16,
+        z: i16,
+    },
+    LockShadowRotation {
+        actor: EntityId,
+        rotation: i32,
+    },
+    UnlockShadowRotation {
+        actor: EntityId,
+    },
+    SetShadowAmplifier {
+        actor: EntityId,
+        factor: i32,
     },
     SetTileAnimationRate {
         animation: i32,

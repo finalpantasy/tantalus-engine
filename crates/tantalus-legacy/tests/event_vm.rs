@@ -214,6 +214,11 @@ impl LegacyEventHost for Host {
                 HostEvent::ActivateVibrationTrack { .. } => {}
                 HostEvent::SetVibrationFlags { .. } => {}
                 HostEvent::SetVibrationRange { .. } => {}
+                HostEvent::SetShadowSize { .. } => {}
+                HostEvent::SetShadowOffset { .. } => {}
+                HostEvent::LockShadowRotation { .. } => {}
+                HostEvent::UnlockShadowRotation { .. } => {}
+                HostEvent::SetShadowAmplifier { .. } => {}
                 HostEvent::SetTileAnimationRate { .. } => {}
                 HostEvent::SetTileAnimationFrameWait { .. } => {}
                 HostEvent::SetTileAnimationFlags { .. } => {}
@@ -5658,6 +5663,75 @@ fn vibration_commands_decode_byte_operands_and_emit_raw_values() {
     let truncated = decode_program(&[248, 0, 3, 1]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(248)"));
+}
+
+#[test]
+fn shadow_commands_decode_operands_and_bind_to_the_current_actor() {
+    let actor = EntityId::new(42);
+    let mut host = Host::new();
+
+    let program = decode_program(&[129, 0, 20, 30, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program).with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetShadowSize {
+            actor,
+            x: 20,
+            z: 30,
+        }]
+    );
+    assert!(vm.traces().any(|trace| trace.opcode == Some(129)));
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![130, 0];
+    bytes.extend_from_slice(&(-12i16).to_le_bytes());
+    bytes.extend_from_slice(&300i16.to_le_bytes());
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap()).with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetShadowOffset {
+            actor,
+            x: -12,
+            z: 300,
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[131, 0, 8, 4]).unwrap()).with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::LockShadowRotation {
+            actor,
+            rotation: 128,
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[132, 0, 4]).unwrap()).with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::UnlockShadowRotation { actor }]);
+
+    let mut bytes = vec![133, 1];
+    append_expression(&mut bytes, constant(200));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap()).with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetShadowAmplifier { actor, factor: 200 }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[129, 0, 20, 30, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
+
+    let truncated = decode_program(&[130, 0, 1, 0, 2]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(130)"));
 }
 
 #[test]
