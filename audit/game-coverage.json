@@ -70,14 +70,9 @@
   "probe": {
    "functions": 42277,
    "completed": 35284,
-   "waiting_on_host": 6951,
+   "waiting_on_host": 6952,
    "instruction_budget_stops": 36,
-   "other_runtime_errors": [
-    {
-     "event": "EVT_LIND1_TN_LB_LDH_0",
-     "error": "InvalidExpression opcode Some(5): assignment target is not writable"
-    }
-   ]
+   "other_runtime_errors": []
   },
   "absent_names": [
    "EVT_ALEX1_AC_ENT_1F",

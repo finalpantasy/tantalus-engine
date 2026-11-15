@@ -5,7 +5,7 @@ Scope: the owned PC install at `E:/SteamLibrary/steamapps/common/FINAL FANTASY I
 | Domain | Where | Count in install | Rust status today |
 |---|---|---|---|
 | Fields (background, walkmesh, atlas) | `p0data11`-`p0data19` (mirrors `p0data101`-`p0data181`) | 674 field directories | all 674 load: scene, navigation and atlas parse and the navigation mesh builds. Rendering and play proven on one field only |
-| Field, battle and world scripts | `p0data7` `eventengine/eventbinary`, 7 languages | 1395 scripts (818 field, 562 battle, 15 world) | 42,551 functions decode; 31 fail on 3 expression operations not yet decoded. Dry-run: 35,284 complete, 6,951 wait on host state, 36 stop at the instruction budget, 1 runtime error |
+| Field, battle and world scripts | `p0data7` `eventengine/eventbinary`, 7 languages | 1395 scripts (818 field, 562 battle, 15 world) | 42,551 functions decode; 31 fail on 3 expression operations not yet decoded. Dry-run: 35,284 complete, 6,952 wait on host state, 36 stop at the instruction budget, no runtime errors |
 | Field and movie config | `p0data7` `mapconfigdata`, `mbgdata` | 818 map configs, 57 movie backgrounds | not parsed |
 | Battle scenes and models | `p0data2` | 562 scenes, 178 info files, 6,243 model files | not parsed (T08) |
 | World map | `p0data3` | 3,439 assets | not parsed |
@@ -26,7 +26,7 @@ Scope: the owned PC install at `E:/SteamLibrary/steamapps/common/FINAL FANTASY I
 
 Two extended opcodes stay recorded as unknown: entry 13 function 1 `0x180` and entry 16 function 1 `0x1C8`.
 
-447 names in Memoria's event table are not present in this bundle (294 battle, 57 startup, 20 SPS and others); they are listed in the JSON. One dry-run runtime error: `EVT_LIND1_TN_LB_LDH_0` (InvalidExpression opcode Some(5): assignment target is not writable).
+447 names in Memoria's event table are not present in this bundle (294 battle, 57 startup, 20 SPS and others); they are listed in the JSON. The dry run has no runtime errors.
 
 ## Reproduce
 
