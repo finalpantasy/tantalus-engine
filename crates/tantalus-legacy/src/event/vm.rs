@@ -444,44 +444,48 @@ impl EventVm {
                         target: None,
                     });
                 }
-                ExpressionOp::PreDecrement | ExpressionOp::PostDecrement => {
+                ExpressionOp::PreIncrement
+                | ExpressionOp::PreDecrement
+                | ExpressionOp::PostDecrement => {
                     let target = stack.pop().ok_or_else(|| {
-                        expression_error(offset, opcode, "missing decrement target")
+                        expression_error(offset, opcode, "missing increment/decrement target")
                     })?;
                     let current = read_value(host, target, offset, opcode)?;
-                    let decremented = match target.target {
+                    let delta = if matches!(operation, ExpressionOp::PreIncrement) {
+                        1
+                    } else {
+                        -1
+                    };
+                    let changed = match target.target {
                         Some(StackTarget::Variable(variable)) => {
-                            let decremented =
-                                normalize(current.wrapping_sub(1), variable.value_type);
+                            let changed =
+                                normalize(current.wrapping_add(delta), variable.value_type);
                             self.variables
-                                .insert((variable.scope, variable.index), decremented);
-                            decremented
+                                .insert((variable.scope, variable.index), changed);
+                            changed
                         }
                         Some(StackTarget::Member(member)) => {
-                            let decremented = current.wrapping_sub(1);
+                            let changed = current.wrapping_add(delta);
                             let object = host
                                 .select_object_member_target(None)
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
-                            host.write_object_member(
-                                ObjectMemberRef { object, member },
-                                decremented,
-                            )
-                            .map_err(|error| VmError::host(error, offset, opcode))?;
-                            decremented
+                            host.write_object_member(ObjectMemberRef { object, member }, changed)
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            changed
                         }
                         None => {
                             return Err(expression_error(
                                 offset,
                                 opcode,
-                                "decrement target is not writable",
+                                "increment/decrement target is not writable",
                             ));
                         }
                     };
                     stack.push(StackValue {
-                        value: if matches!(operation, ExpressionOp::PreDecrement) {
-                            decremented
-                        } else {
+                        value: if matches!(operation, ExpressionOp::PostDecrement) {
                             current
+                        } else {
+                            changed
                         },
                         target: None,
                     });
@@ -858,6 +862,7 @@ fn operand_start(
         | ExpressionOp::Pad => Ok(index),
         ExpressionOp::Negate
         | ExpressionOp::Not
+        | ExpressionOp::PreIncrement
         | ExpressionOp::PreDecrement
         | ExpressionOp::PostDecrement
         | ExpressionOp::CastI8

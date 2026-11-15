@@ -789,3 +789,43 @@ fn empty_member_logical_not_returns_zero_without_selecting_a_target() {
     assert_eq!(host.member_target, None);
     assert!(host.member_writes.is_empty());
 }
+
+#[test]
+fn direct_pre_increment_returns_and_stores_the_new_variable_value() {
+    let target = variable(VariableScope::Map, VariableType::Int16, 8);
+    let result = variable(VariableScope::Global, VariableType::Int16, 22);
+    let bytes = [
+        evaluate(assign(target.clone(), constant(4))),
+        evaluate(assign(result, [target, vec![6]].concat())),
+        vec![4],
+    ]
+    .concat();
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Map, 8), 5);
+    assert_eq!(vm.variable(VariableScope::Global, 22), 5);
+}
+
+#[test]
+fn direct_pre_increment_writes_the_current_member_target() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 23);
+    let expression = assign(result, [vec![41, 4], vec![6]].concat());
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let current = ObjectMemberRef {
+        object: EntityId::new(42),
+        member: 4,
+    };
+    host.member_target = Some(current.object);
+    host.object_members.insert(current, 15);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 23), 16);
+    assert_eq!(host.member_writes, [(current, 16)]);
+}

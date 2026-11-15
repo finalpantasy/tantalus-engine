@@ -158,6 +158,7 @@ impl Decoder<'_> {
             let operation = match opcode {
                 0..=3 | 103..=105 => ExpressionOp::Pad,
                 5 => ExpressionOp::PostDecrement,
+                6 => ExpressionOp::PreIncrement,
                 7 => ExpressionOp::PreDecrement,
                 9 => ExpressionOp::PostDecrementMembers,
                 11 => ExpressionOp::PreDecrementMembers,
