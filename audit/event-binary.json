@@ -29,13 +29,15 @@
     "direct post-decrement 0x05 writes the normalized value back",
     "AIM 0xB8 emits a host event",
     "CC 0x2C emits DefinePlayerControl with the current entity; missing context is an explicit error",
-    "B_OBJSPECA 0x78 reads a host value by explicit object UID and member ID"
+    "B_OBJSPECA 0x78 reads a host value by explicit object UID and member ID",
+    "0x3B executes empty member selections with reference stack cleanup; nonzero masks remain explicit errors",
+    "expression evaluation returns the top value and permits reference-compatible leftover stack values"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 77,
-    "opcode": "0x3B",
-    "kind": "member shift-right assignment requires object-member host support"
+    "offset": 92,
+    "opcode": "0x27",
+    "kind": "logical AND requires short-circuit evaluation"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

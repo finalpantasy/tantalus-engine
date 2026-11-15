@@ -141,6 +141,7 @@ impl Decoder<'_> {
             let operation = match opcode {
                 0..=3 => ExpressionOp::Pad,
                 5 => ExpressionOp::PostDecrement,
+                59 => ExpressionOp::ShiftRightAssignMembers,
                 EXPR_CONST_I16 => ExpressionOp::Constant(i32::from(self.i16()?)),
                 EXPR_CONST_I32 => ExpressionOp::Constant(self.i32()?),
                 EXPR_POST_INCREMENT_MEMBERS => ExpressionOp::PostIncrementMembers,

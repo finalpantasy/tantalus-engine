@@ -408,3 +408,22 @@ fn direct_object_member_reads_use_object_and_member_identity() {
     vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(vm.variable(VariableScope::Global, 9), (42 << 8) | 7);
 }
+
+#[test]
+fn empty_member_selection_shift_assignment_preserves_the_reference_stack_behavior() {
+    let program = decode_program(&[evaluate(vec![3, 0, 1, 59, 0]), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn nonzero_member_selection_shift_assignment_is_explicitly_rejected() {
+    let expression = [constant(1), constant(0), constant(0), vec![59]].concat();
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("object-slot host"));
+}

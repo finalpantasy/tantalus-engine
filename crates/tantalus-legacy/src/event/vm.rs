@@ -373,6 +373,28 @@ impl EventVm {
                         variable: None,
                     });
                 }
+                ExpressionOp::ShiftRightAssignMembers => {
+                    if stack.len() < 3 {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "member shift assignment requires mask and value inputs",
+                        ));
+                    }
+                    let mask = stack[stack.len() - 3].value;
+                    if mask != 0 {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "nonzero member selections require object-slot host state",
+                        ));
+                    }
+                    stack.truncate(stack.len() - 2);
+                    stack.push(StackValue {
+                        value: 0,
+                        variable: None,
+                    });
+                }
                 ExpressionOp::ReadObjectMember(reference) => {
                     let value = host
                         .read_object_member(*reference)
@@ -396,17 +418,10 @@ impl EventVm {
                 ExpressionOp::End => break,
             }
         }
-        if stack.len() != 1 {
-            return Err(expression_error(
-                offset,
-                opcode,
-                format!(
-                    "expression left {} stack values instead of one",
-                    stack.len()
-                ),
-            ));
-        }
-        Ok(stack[0].value)
+        stack
+            .last()
+            .map(|value| value.value)
+            .ok_or_else(|| expression_error(offset, opcode, "expression produced no value"))
     }
 
     fn evaluate_u8(
