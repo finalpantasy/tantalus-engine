@@ -1547,6 +1547,7 @@ impl Decoder<'_> {
                 101 => ExpressionOp::BgiAnimationFrame,
                 102 => ExpressionOp::Angle2,
                 108 => ExpressionOp::Sps,
+                109 => ExpressionOp::PartyAdd,
                 106 => ExpressionOp::AnimationFrame,
                 107 => ExpressionOp::PartyContains,
                 111 => ExpressionOp::CharacterMaxMp,

@@ -346,6 +346,20 @@ impl LegacyEventHost for Host {
         Ok(self.party_members.contains(&character))
     }
 
+    fn add_party_member(&mut self, character: i32) -> Result<bool, EngineError> {
+        if character < 0 {
+            return Ok(true);
+        }
+        if self.party_members.contains(&character) {
+            return Ok(false);
+        }
+        if self.party_members.len() == 4 {
+            return Ok(true);
+        }
+        self.party_members.push(character);
+        Ok(false)
+    }
+
     fn party_menu_is_open(&self) -> bool {
         self.party_menu_open
     }
@@ -3957,6 +3971,34 @@ fn party_check_returns_zero_or_one_from_host_membership() {
 
         assert_eq!(vm.variable(VariableScope::Global, 50), expected);
     }
+}
+
+#[test]
+fn party_add_preserves_the_reference_failure_result_and_membership() {
+    for (initial, character, expected, expected_members) in [
+        (vec![1, 3], 2, 0, vec![1, 3, 2]),
+        (vec![1, 2], 2, 0, vec![1, 2]),
+        (vec![0, 1, 2, 3], 4, 1, vec![0, 1, 2, 3]),
+        (vec![], -1, 1, vec![]),
+    ] {
+        let result = variable(VariableScope::Global, VariableType::Int16, 51);
+        let expression = assign(result, binary(constant(character), vec![], 109));
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+        host.party_members = initial;
+
+        vm.step(Tick::new(0), &mut host).unwrap();
+
+        assert_eq!(vm.variable(VariableScope::Global, 51), expected);
+        assert_eq!(host.party_members, expected_members);
+    }
+
+    let program = decode_program(&[5, 109, 127, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("missing party-add operand"));
 }
 
 #[test]

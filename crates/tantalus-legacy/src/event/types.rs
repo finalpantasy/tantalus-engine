@@ -62,6 +62,7 @@ pub enum ExpressionOp {
     BgiCharacterTriangle,
     CharacterMaxMp,
     PartyContains,
+    PartyAdd,
     SelectRandomMember,
     Sps,
     KeyOn,
@@ -919,6 +920,7 @@ pub trait LegacyEventHost {
     fn read_bgi_character_triangle(&mut self, character: i32) -> Result<i32, EngineError>;
     fn read_character_max_mp(&mut self, character: i32) -> Result<i32, EngineError>;
     fn party_contains(&mut self, character: i32) -> Result<bool, EngineError>;
+    fn add_party_member(&mut self, character: i32) -> Result<bool, EngineError>;
     fn party_menu_is_open(&self) -> bool;
     fn actor_turn_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn actor_animation_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;

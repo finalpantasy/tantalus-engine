@@ -202,7 +202,8 @@
     "MCF_MODEL 0x121 decodes six signed 24-bit fields and emits SetModelLight with wrapped RGB and signed shadow values",
     "BGVALPHA 0xE6 decodes a byte viewport and signed-wide X/Y factors and emits SetTileViewportAlpha",
     "B_SPS 108 consumes two expression operands and returns zero through the pinned no-effect path",
-    "BGAWAIT 0x62 decodes animation, pause frame, and wait bytes and emits SetTileAnimationFrameWait"
+    "BGAWAIT 0x62 decodes animation, pause frame, and wait bytes and emits SetTileAnimationFrameWait",
+    "B_PARTYADD 109 delegates party insertion to the host and returns the reference failure flag"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -339,12 +340,11 @@
       "entry": 13,
       "function": 1,
       "function_tag": 1,
-      "instruction_offset": 1060,
-      "expression_offset": 1062,
-      "offset": 1569,
-      "opcode": 109,
+      "instruction_offset": 1162,
+      "offset": 1667,
+      "opcode": 199,
       "kind": "UnsupportedOpcode",
-      "instruction": "WAIT contains unsupported B_PARTYADD expression opcode 0x6D after BGAWAIT support"
+      "instruction": "FLDSND2 event opcode 0xC7 after B_PARTYADD support"
     },
     {
       "entry": 13,
@@ -402,12 +402,11 @@
     "entry": 13,
     "function": 1,
     "function_tag": 1,
-    "instruction_offset": 1060,
-    "expression_offset": 1062,
-    "offset": 1569,
-    "opcode": 109,
+    "instruction_offset": 1162,
+    "offset": 1667,
+    "opcode": 199,
     "kind": "UnsupportedOpcode",
-    "instruction": "WAIT contains unsupported B_PARTYADD expression opcode 0x6D after BGAWAIT support"
+    "instruction": "FLDSND2 event opcode 0xC7 after B_PARTYADD support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

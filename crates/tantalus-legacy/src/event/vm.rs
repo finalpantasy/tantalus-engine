@@ -1698,6 +1698,19 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::PartyAdd => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing party-add operand")
+                    })?;
+                    let character = read_value(host, value, offset, opcode)?;
+                    let failed = host
+                        .add_party_member(character)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    stack.push(StackValue {
+                        value: i32::from(failed),
+                        target: None,
+                    });
+                }
                 ExpressionOp::Sps => {
                     let right = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing second SPS operand")
@@ -2702,6 +2715,7 @@ fn operand_start(
         | ExpressionOp::BgiCharacterTriangle
         | ExpressionOp::CharacterMaxMp
         | ExpressionOp::PartyContains
+        | ExpressionOp::PartyAdd
         | ExpressionOp::SelectRandomMember
         | ExpressionOp::KeyOn
         | ExpressionOp::ConsumeAndZero

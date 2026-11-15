@@ -167,6 +167,15 @@ impl LegacyEventHost for Host {
         ))
     }
 
+    fn add_party_member(&mut self, character: i32) -> Result<bool, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            format!("field fixture cannot add party character {character}"),
+            "fixture-host",
+            true,
+        ))
+    }
+
     fn party_menu_is_open(&self) -> bool {
         false
     }
