@@ -158,7 +158,8 @@
     "B_AND 36 evaluates ordinary bitwise intersection through the shared binary expression path",
     "ANIM 0x40 emits PlayAnimation for the current actor with an unsigned 16-bit ID and no implicit wait",
     "HINT 0xFD emits PreloadField with an 8-bit hint and signed 16-bit field ID for host-owned PC free-view behavior",
-    "ELEMENT_AFFINITY 0x122 decodes four signed 24-bit operands and emits ChangeElementalAffinity for host-owned battle behavior"
+    "ELEMENT_AFFINITY 0x122 decodes four signed 24-bit operands and emits ChangeElementalAffinity for host-owned battle behavior",
+    "RAIN 0xD8 emits SetRain with strength and speed for host-owned field, world, and battle weather behavior"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -243,10 +244,10 @@
     "entries": [11, 12],
     "function": 1,
     "function_tag": 2,
-    "offset": 343,
-    "opcode": 216,
+    "offset": 350,
+    "opcode": 43,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0xD8 after elemental affinity support"
+    "instruction": "event opcode 0x2B after rain weather support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

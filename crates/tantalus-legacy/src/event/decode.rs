@@ -58,6 +58,7 @@ const OP_SET_TEXT_VARIABLE: u32 = 0x66;
 const OP_SET_OBJECT_SCALE: u32 = 0x9f;
 const OP_SET_VIBRATION_FRAME_RATE: u32 = 0xfa;
 const OP_PRELOAD_FIELD: u32 = 0xfd;
+const OP_SET_RAIN: u32 = 0xd8;
 const OP_REQUEST_SCRIPT_ASYNC: u32 = 0x10;
 const OP_DEFINE_TILE_VIEWPORT: u32 = 0xc8;
 const OP_BATTLE_MESSAGE: u32 = 0xd0;
@@ -754,6 +755,23 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::PreloadField { hint, field }
+            }
+            OP_SET_RAIN => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetRain {
+                    strength: argument(1)?,
+                    speed: argument(2)?,
+                }
             }
             OP_REQUEST_SCRIPT_ASYNC => {
                 let flags = self.byte()?;

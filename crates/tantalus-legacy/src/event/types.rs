@@ -248,6 +248,10 @@ pub enum InstructionKind {
         hint: Expression,
         field: Expression,
     },
+    SetRain {
+        strength: Expression,
+        speed: Expression,
+    },
     RequestScriptAsync {
         level: Expression,
         target: Expression,
@@ -556,6 +560,10 @@ pub enum HostEvent {
     PreloadField {
         hint: i32,
         field: i16,
+    },
+    SetRain {
+        strength: i32,
+        speed: i32,
     },
     RequestScriptAsync {
         level: i32,
