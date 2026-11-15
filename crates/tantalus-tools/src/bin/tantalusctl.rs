@@ -31,6 +31,7 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
         (Some("assets"), Some("extract-resource")) => run_assets_extract_resource(args),
         (Some("assets"), Some("extract-text")) => run_assets_extract_text(args),
         (Some("assets"), Some("inspect-serialized")) => run_assets_inspect_serialized(args),
+        (Some("assets"), Some("inspect-movie")) => run_assets_inspect_movie(args),
         (Some("scenario"), Some("run")) => run_scenario(args),
         _ => Err(usage().to_owned()),
     }
@@ -1665,12 +1666,12 @@ fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 
@@ -2122,5 +2123,185 @@ fn run_audio_all(path: &std::path::Path, json: bool) -> Result<(), String> {
     for failure in &report.failures {
         println!("FAIL {}: {}", failure.path, failure.reason);
     }
+    Ok(())
+}
+
+fn run_assets_inspect_movie(args: Vec<OsString>) -> Result<(), String> {
+    use std::collections::BTreeMap;
+    use tantalus_assets::pc::ogg::{StreamCodec, scan_ogg_file};
+    let mut dir = None;
+    let mut out = None;
+    let mut json = false;
+    let mut verify_crc = false;
+    let mut index = 2;
+    while index < args.len() {
+        match args[index].to_str() {
+            Some("--dir") => {
+                index += 1;
+                dir = Some(PathBuf::from(
+                    args.get(index).ok_or("`--dir` requires a path")?,
+                ));
+            }
+            Some("--out") => {
+                index += 1;
+                out = Some(PathBuf::from(
+                    args.get(index).ok_or("`--out` requires a path")?,
+                ));
+            }
+            Some("--json") => json = true,
+            Some("--verify-crc") => verify_crc = true,
+            _ => {
+                return Err(format!(
+                    "unrecognized argument: {}",
+                    args[index].to_string_lossy()
+                ));
+            }
+        }
+        index += 1;
+    }
+    let dir = dir.ok_or_else(|| "missing required `--dir <ma dir>`".to_owned())?;
+    let mut paths: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .map_err(|e| format!("could not read {}: {e}", dir.display()))?
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .filter(|p| p.extension().is_some_and(|x| x == "bytes"))
+        .collect();
+    paths.sort();
+
+    let mut files = Vec::new();
+    let mut totals_codecs: BTreeMap<String, u64> = BTreeMap::new();
+    let mut audio_formats: BTreeMap<String, u64> = BTreeMap::new();
+    let mut resolutions: BTreeMap<String, u64> = BTreeMap::new();
+    let mut frame_rates: BTreeMap<String, u64> = BTreeMap::new();
+    let (mut theora_files, mut audio_files, mut parse_failures, mut crc_failures) = (0, 0, 0, 0);
+    let (mut total_bytes, mut total_pages, mut seq_gaps) = (0_u64, 0_u64, 0_u64);
+    let mut video_seconds = 0.0_f64;
+    let mut fmv_without_audio = Vec::new();
+    for path in &paths {
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        match scan_ogg_file(path, verify_crc) {
+            Err(error) => {
+                parse_failures += 1;
+                files.push(serde_json::json!({"file": name, "error": error.to_string()}));
+            }
+            Ok(report) => {
+                total_bytes += report.file_size;
+                total_pages += report.page_count;
+                seq_gaps += report.sequence_gaps;
+                crc_failures += report.crc_failures.len();
+                if report.parse_error.is_some() {
+                    parse_failures += 1;
+                }
+                let mut has_theora = false;
+                let mut has_audio = false;
+                for stream in &report.streams {
+                    *totals_codecs
+                        .entry(stream.codec.name().to_owned())
+                        .or_default() += 1;
+                    match &stream.codec {
+                        StreamCodec::Theora(t) => {
+                            if !has_theora {
+                                has_theora = true;
+                                theora_files += 1;
+                                video_seconds += stream.duration_seconds.unwrap_or(0.0);
+                            }
+                            *resolutions
+                                .entry(format!("{}x{}", t.picture_width, t.picture_height))
+                                .or_default() += 1;
+                            *frame_rates
+                                .entry(format!("{}/{}", t.fps_numerator, t.fps_denominator))
+                                .or_default() += 1;
+                        }
+                        StreamCodec::Vorbis(v) => {
+                            has_audio = true;
+                            *audio_formats
+                                .entry(format!("vorbis {}ch {}Hz", v.channels, v.sample_rate))
+                                .or_default() += 1;
+                        }
+                        StreamCodec::Opus { channels, .. } => {
+                            has_audio = true;
+                            *audio_formats
+                                .entry(format!("opus {channels}ch"))
+                                .or_default() += 1;
+                        }
+                        StreamCodec::Flac => {
+                            has_audio = true;
+                            *audio_formats.entry("flac".to_owned()).or_default() += 1;
+                        }
+                        StreamCodec::Other { .. } => {}
+                    }
+                }
+                if has_audio {
+                    audio_files += 1;
+                } else if name.starts_with("FMV") {
+                    fmv_without_audio.push(name.clone());
+                }
+                files.push(serde_json::json!({"file": name, "report": report}));
+            }
+        }
+    }
+    let totals = serde_json::json!({
+        "files": paths.len(),
+        "total_bytes": total_bytes,
+        "total_pages": total_pages,
+        "crc_verified": verify_crc,
+        "crc_failures": crc_failures,
+        "sequence_gaps": seq_gaps,
+        "parse_failures": parse_failures,
+        "files_with_theora": theora_files,
+        "files_with_audio_stream": audio_files,
+        "fmv_files_without_audio": fmv_without_audio,
+        "streams_by_codec": totals_codecs,
+        "audio_formats": audio_formats,
+        "video_resolutions": resolutions,
+        "video_frame_rates": frame_rates,
+        "total_video_duration_seconds": video_seconds,
+    });
+    let document = serde_json::json!({"totals": totals, "files": files});
+    let text = serde_json::to_string_pretty(&document)
+        .map_err(|e| format!("could not serialize movie inventory: {e}"))?;
+    if let Some(out) = &out {
+        std::fs::write(out, format!("{text}\n"))
+            .map_err(|e| format!("could not write {}: {e}", out.display()))?;
+    }
+    if json {
+        println!("{text}");
+        return Ok(());
+    }
+    for entry in &files {
+        let name = entry["file"].as_str().unwrap_or("?");
+        if let Some(error) = entry.get("error") {
+            println!("{name}: ERROR {error}");
+            continue;
+        }
+        let r = &entry["report"];
+        let mut line = format!(
+            "{name}: {} bytes, {} pages, {} crc failures",
+            r["file_size"],
+            r["page_count"],
+            r["crc_failures"].as_array().map_or(0, Vec::len)
+        );
+        for s in r["streams"].as_array().into_iter().flatten() {
+            let c = &s["codec"];
+            line.push_str(&format!(
+                " | {} {}x{} {}/{} fps {}ch {}Hz {:.1}s",
+                c["codec"].as_str().unwrap_or("?"),
+                c["picture_width"],
+                c["picture_height"],
+                c["fps_numerator"],
+                c["fps_denominator"],
+                c["channels"],
+                c["sample_rate"],
+                s["duration_seconds"].as_f64().unwrap_or(0.0)
+            ));
+        }
+        if let Some(e) = r["parse_error"].as_str() {
+            line.push_str(&format!(" | PARSE ERROR {e}"));
+        }
+        println!("{line}");
+    }
+    println!("{totals}");
     Ok(())
 }
