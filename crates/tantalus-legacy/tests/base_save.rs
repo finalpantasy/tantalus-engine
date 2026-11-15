@@ -484,3 +484,62 @@ fn schema_tree_reports_shape_mismatches_without_partial_output() {
     assert!(BaseSavePayload::encode_tree(&wrong_shape, &schema).is_err());
     assert!(BaseSavePayload::encode_tree(&valid, &SchemaArray(vec![])).is_err());
 }
+
+#[test]
+fn decode_slot_combines_metadata_block_preview_and_optional_sidecar() {
+    let at = location(false, 2, 7);
+    let metadata = synthetic_metadata(16);
+    let saved = block(BaseSaveBlockState::Saved, (0..16).collect());
+    let mut container = synthetic_container(&metadata, &at, &saved);
+    let preview = BaseSavePreview {
+        has_data: true,
+        gil: 1234,
+        play_duration: 5678,
+        win_type: 1,
+        location: "Cargo Ship".to_owned(),
+        timestamp: 42.0,
+        characters: [
+            Some(BaseSavePreviewCharacter::new(0, 10, "Zidane")),
+            None,
+            None,
+            None,
+        ],
+    };
+    let preview_offset = base_save_preview_offset(2, 7).unwrap();
+    let cipher = preview.encode().unwrap();
+    container[preview_offset..preview_offset + cipher.len()].copy_from_slice(&cipher);
+    let sidecar = SimpleJsonDocument {
+        root: SimpleJsonNode::Class(vec![(
+            "Mod".to_owned(),
+            SimpleJsonNode::String("synthetic".to_owned()),
+        )]),
+        trailing_bytes: 0,
+    };
+    let sidecar_bytes = SimpleJsonDocument::encode(&sidecar.root).unwrap();
+
+    let decoded = LegacySaveImporter::decode_slot(&container, Some(&sidecar_bytes), &at).unwrap();
+    assert_eq!(decoded.metadata, metadata);
+    assert_eq!(decoded.block.state, BaseSaveBlockState::Saved);
+    assert_eq!(decoded.block.payload, saved.payload);
+    assert_eq!(decoded.preview, Some(preview));
+    assert_eq!(decoded.extra, Some(sidecar));
+
+    let without_sidecar = LegacySaveImporter::decode_slot(&container, None, &at).unwrap();
+    assert_eq!(without_sidecar.extra, None);
+}
+
+#[test]
+fn decode_slot_omits_the_autosave_preview_and_rejects_bad_sidecars() {
+    let at = location(true, 0, 0);
+    let metadata = synthetic_metadata(8);
+    let saved = block(BaseSaveBlockState::Saved, (0..8).collect());
+    let container = synthetic_container(&metadata, &at, &saved);
+
+    let decoded = LegacySaveImporter::decode_slot(&container, None, &at).unwrap();
+    assert_eq!(decoded.metadata, metadata);
+    assert_eq!(decoded.block.state, BaseSaveBlockState::Saved);
+    assert_eq!(decoded.preview, None);
+
+    let error = LegacySaveImporter::decode_slot(&container, Some(&[9, 0, 0, 0]), &at).unwrap_err();
+    assert!(error.context.contains("unsupported SimpleJSON binary tag"));
+}

@@ -44,6 +44,16 @@ pub struct DecodedBaseSave {
     pub block: BaseSaveBlock,
 }
 
+/// One decoded legacy slot: base metadata/block, its preview when the location has one, and the
+/// optional Memoria sidecar. This is an inspection aggregate, not a native save import.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DecodedLegacySlot {
+    pub metadata: BaseSaveMetadata,
+    pub block: BaseSaveBlock,
+    pub preview: Option<BaseSavePreview>,
+    pub extra: Option<SimpleJsonDocument>,
+}
+
 pub struct LegacySaveImporter;
 
 impl LegacySaveImporter {
@@ -77,6 +87,28 @@ impl LegacySaveImporter {
         save_id: i32,
     ) -> Result<Option<BaseSavePreview>, LegacySaveError> {
         BaseSavePreview::decode(base, slot_id, save_id)
+    }
+
+    /// Decodes all available synthetic-verifiable layers for one legacy slot (read-only).
+    /// Autosave has no preview reservation, so its preview is `None`.
+    pub fn decode_slot(
+        base: &[u8],
+        extra: Option<&[u8]>,
+        location: &LegacySaveLocation,
+    ) -> Result<DecodedLegacySlot, LegacySaveError> {
+        let metadata = BaseSaveMetadata::decode(base)?;
+        let block = BaseSaveBlock::decode(base, &metadata, location)?;
+        let preview = if location.is_autosave {
+            None
+        } else {
+            BaseSavePreview::decode(base, location.slot_id, location.save_id)?
+        };
+        Ok(DecodedLegacySlot {
+            metadata,
+            block,
+            preview,
+            extra: extra.map(SimpleJsonDocument::decode).transpose()?,
+        })
     }
 
     pub fn validate_pairing(

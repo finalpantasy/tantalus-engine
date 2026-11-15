@@ -11,8 +11,8 @@ pub use base::{
     base_save_block_offset,
 };
 pub use importer::{
-    BASE_SAVE_CONTAINER_BYTES, BaseSaveObservation, DecodedBaseSave, LegacySaveImporter,
-    LegacySaveLocation, LegacySaveReport, PairingStatus,
+    BASE_SAVE_CONTAINER_BYTES, BaseSaveObservation, DecodedBaseSave, DecodedLegacySlot,
+    LegacySaveImporter, LegacySaveLocation, LegacySaveReport, PairingStatus,
 };
 pub use preview::{
     BASE_SAVE_PREVIEW_PLAINTEXT_BYTES, BASE_SAVE_PREVIEW_REGION_OFFSET,
