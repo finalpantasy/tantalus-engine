@@ -207,6 +207,10 @@ impl LegacyEventHost for Host {
         false
     }
 
+    fn shared_script_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
+        Ok(false)
+    }
+
     fn actor_turn_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
         Ok(false)
     }
