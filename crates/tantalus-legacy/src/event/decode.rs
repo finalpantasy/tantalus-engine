@@ -29,6 +29,7 @@ const OP_YIELD: u8 = 0x0e;
 const OP_PADDING17: u8 = 0x17;
 const OP_SHADOW_ON: u8 = 0x7f;
 const OP_SET_TEXT_VARIABLE: u8 = 0x66;
+const OP_SET_OBJECT_SCALE: u8 = 0x9f;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -253,6 +254,25 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::SetTextVariable { script, value }
+            }
+            OP_SET_OBJECT_SCALE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetObjectScale {
+                    actor: argument(1)?,
+                    x: argument(2)?,
+                    z: argument(4)?,
+                    y: argument(8)?,
+                }
             }
             _ => {
                 return Err(VmError::new(

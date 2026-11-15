@@ -126,6 +126,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetNavigationAttributeMask { .. } => {}
                 HostEvent::SetShadowEnabled { .. } => {}
                 HostEvent::SetTextVariable { .. } => {}
+                HostEvent::SetObjectScale { .. } => {}
             }
         }
         Ok(())
@@ -1293,4 +1294,24 @@ fn empty_member_assignment_uses_the_reference_global_bit_fallback() {
     assert_eq!(vm.variable(VariableScope::Global, 0), 0);
     assert_eq!(host.member_target, None);
     assert!(host.member_writes.is_empty());
+}
+
+#[test]
+fn chrscale_preserves_renderer_scale_and_vertical_ratio() {
+    let program = decode_program(&[159, 0, 7, 64, 32, 16, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 6);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(
+        report.events,
+        [HostEvent::SetObjectScale {
+            actor: EntityId::new(7),
+            scale: [4096, 2048, 1024],
+            vertical_scale: 32
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
 }

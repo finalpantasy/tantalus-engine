@@ -301,6 +301,26 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetTextVariable { script, value });
                 }
+                InstructionKind::SetObjectScale { actor, x, z, y } => {
+                    let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
+                    if actor < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)?;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)?;
+                    let y = self.evaluate(host, &y, instruction.offset, opcode)?;
+                    let scale = [x, z, y].map(|value| i32::from(value as i8).wrapping_shl(6));
+                    self.pc = next;
+                    events.push(HostEvent::SetObjectScale {
+                        actor: EntityId::new(actor as u64),
+                        scale,
+                        vertical_scale: z as u8,
+                    });
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -964,6 +984,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::Yield(opcode) => *opcode,
         InstructionKind::SetShadowEnabled(_) => 0x7f,
         InstructionKind::SetTextVariable { .. } => 0x66,
+        InstructionKind::SetObjectScale { .. } => 0x9f,
     }
 }
 

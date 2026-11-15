@@ -66,14 +66,15 @@
     "SHADOWON 0x7F consumes its flag and emits SetShadowEnabled for the current actor",
     "pad17 0x17 consumes its flag and yields through the shared opcode-preserving Yield instruction",
     "MESVALUE 0x66 decodes script ID and signed value operands and emits SetTextVariable",
-    "B_LET_E 46 computes selected-member truth masks and writes the lower assignment target, including the empty-stack global-bit fallback"
+    "B_LET_E 46 computes selected-member truth masks and writes the lower assignment target, including the empty-stack global-bit fallback",
+    "CHRSCALE 0x9F decodes object and ratio operands, preserves signed-byte times-64 renderer scale, and carries the vertical-scale byte"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 1024,
-    "opcode": "0x9F",
+    "offset": 1099,
+    "opcode": "0xFA",
     "kind": "event",
-    "instruction": "MOVJ"
+    "instruction": "VIBRATE"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

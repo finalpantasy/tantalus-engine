@@ -158,6 +158,12 @@ pub enum InstructionKind {
         script: Expression,
         value: Expression,
     },
+    SetObjectScale {
+        actor: Expression,
+        x: Expression,
+        z: Expression,
+        y: Expression,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -261,6 +267,11 @@ pub enum HostEvent {
     SetTextVariable {
         script: i32,
         value: i32,
+    },
+    SetObjectScale {
+        actor: EntityId,
+        scale: [i32; 3],
+        vertical_scale: u8,
     },
 }
 
