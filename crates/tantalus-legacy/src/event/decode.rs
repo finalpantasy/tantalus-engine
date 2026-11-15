@@ -95,7 +95,15 @@ const OP_ATTACH_TILE: u32 = 0x92;
 const OP_BATTLE_SCENE_START: u32 = 0x100;
 const OP_SET_SIMULATION_FLOOR: u32 = 0x104;
 const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
-const OP_SET_TILE_ANIMATION_FRAME_WAIT: u32 = 0x62;
+const OP_SET_TILE_ANIMATION_RATE: u32 = 0x61;
+const OP_SET_TILE_BLOCK_ACTIVE: u32 = 0x5b;
+const OP_SET_TILE_LOOP: u32 = 0x5c;
+const OP_SET_TILE_PARALLAX: u32 = 0x5d;
+const OP_SET_TILE_ORIGIN: u32 = 0x5e;
+const OP_RUN_TILE_ANIMATION: u32 = 0x5f;
+const OP_SET_TILE_ANIMATION_ACTIVE: u32 = 0x60;
+const OP_RESET_TILE_ANIMATION: u32 = 0xca;
+const OP_SET_TILE_ANIMATION_FRAME_WAIT: u32 = 0x63;
 const OP_ADD_ITEM: u32 = 0x48;
 const OP_REMOVE_ITEM: u32 = 0x49;
 const OP_ADD_GIL: u32 = 0xce;
@@ -105,8 +113,8 @@ const OP_SET_PARTY_MP: u32 = 0xf2;
 const OP_CLEAR_ABILITY_AP: u32 = 0xf3;
 const OP_MASTER_ABILITY: u32 = 0xf4;
 const OP_INCREMENT_FROG_COUNT: u32 = 0xe0;
-const OP_SET_TILE_ANIMATION_FLAGS: u32 = 0x63;
-const OP_SET_TILE_ANIMATION_RANGE: u32 = 0x64;
+const OP_SET_TILE_ANIMATION_FLAGS: u32 = 0x64;
+const OP_SET_TILE_ANIMATION_RANGE: u32 = 0x65;
 const OP_SET_TILE_ANIMATION_FRAME: u32 = 0xe7;
 const OP_OPEN_PARTY_MENU: u32 = 0xb2;
 const OP_INITIALIZE_CHARACTER: u32 = 0xfe;
@@ -122,7 +130,7 @@ const OP_FULL_MEMBER: u32 = 0xb4;
 const OP_MOVE_TILE: u32 = 0x5a;
 const OP_SET_TILE_SCROLL_WITH_OFFSET: u32 = 0xe4;
 const OP_SET_CAMERA_BOUNDS: u32 = 0x1e;
-const OP_SET_CHARACTER_ROW: u32 = 0x61;
+const OP_SET_CHARACTER_ROW: u32 = 0x62;
 const OP_CLEAR_PARTY_STATUS: u32 = 0xd9;
 const OP_SET_ACTOR_PITCH_ROLL: u32 = 0x37;
 
@@ -1268,6 +1276,187 @@ impl Decoder<'_> {
                 InstructionKind::SetSimulationFrameRate {
                     simulation: argument(1, false)?,
                     frame_rate: argument(2, true)?,
+                }
+            }
+            OP_SET_TILE_ANIMATION_RATE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetTileAnimationRate {
+                    animation: argument(1, false)?,
+                    frame_rate: argument(2, true)?,
+                }
+            }
+            OP_SET_TILE_BLOCK_ACTIVE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetTileBlockActive {
+                    block: argument(1, false)?,
+                    active: argument(2, false)?,
+                }
+            }
+            OP_SET_TILE_LOOP => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetTileLoop {
+                    block: argument(1, false)?,
+                    enabled: argument(2, false)?,
+                    x_speed: argument(4, true)?,
+                    y_speed: argument(8, true)?,
+                }
+            }
+            OP_SET_TILE_PARALLAX => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetTileParallax {
+                    block: argument(1, false)?,
+                    enabled: argument(2, false)?,
+                    x_speed: argument(4, true)?,
+                    y_speed: argument(8, true)?,
+                }
+            }
+            OP_SET_TILE_ORIGIN => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetTileOrigin {
+                    block: argument(1, false)?,
+                    x: argument(2, true)?,
+                    y: argument(4, true)?,
+                }
+            }
+            OP_RUN_TILE_ANIMATION => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::RunTileAnimation {
+                    animation: argument(1, false)?,
+                    start_frame: argument(2, false)?,
+                }
+            }
+            OP_SET_TILE_ANIMATION_ACTIVE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetTileAnimationActive {
+                    animation: argument(1, false)?,
+                    active: argument(2, false)?,
+                }
+            }
+            OP_RESET_TILE_ANIMATION => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::ResetTileAnimation {
+                    animation: argument(1, false)?,
+                    show_first_frame: argument(2, false)?,
                 }
             }
             OP_SET_TILE_ANIMATION_FLAGS => {

@@ -378,6 +378,43 @@ pub enum InstructionKind {
         simulation: Expression,
         frame_rate: Expression,
     },
+    SetTileBlockActive {
+        block: Expression,
+        active: Expression,
+    },
+    SetTileLoop {
+        block: Expression,
+        enabled: Expression,
+        x_speed: Expression,
+        y_speed: Expression,
+    },
+    SetTileParallax {
+        block: Expression,
+        enabled: Expression,
+        x_speed: Expression,
+        y_speed: Expression,
+    },
+    SetTileOrigin {
+        block: Expression,
+        x: Expression,
+        y: Expression,
+    },
+    RunTileAnimation {
+        animation: Expression,
+        start_frame: Expression,
+    },
+    SetTileAnimationActive {
+        animation: Expression,
+        active: Expression,
+    },
+    ResetTileAnimation {
+        animation: Expression,
+        show_first_frame: Expression,
+    },
+    SetTileAnimationRate {
+        animation: Expression,
+        frame_rate: Expression,
+    },
     SetTileAnimationFrameWait {
         animation: Expression,
         frame: Expression,
@@ -813,6 +850,43 @@ pub enum HostEvent {
     },
     SetSimulationFrameRate {
         simulation: u32,
+        frame_rate: i16,
+    },
+    SetTileBlockActive {
+        block: i32,
+        active: bool,
+    },
+    SetTileLoop {
+        block: i32,
+        enabled: i32,
+        x_speed: i16,
+        y_speed: i16,
+    },
+    SetTileParallax {
+        block: i32,
+        enabled: i32,
+        x_speed: i16,
+        y_speed: i16,
+    },
+    SetTileOrigin {
+        block: i32,
+        x: i16,
+        y: i16,
+    },
+    RunTileAnimation {
+        animation: i32,
+        start_frame: i32,
+    },
+    SetTileAnimationActive {
+        animation: i32,
+        active: bool,
+    },
+    ResetTileAnimation {
+        animation: i32,
+        show_first_frame: i32,
+    },
+    SetTileAnimationRate {
+        animation: i32,
         frame_rate: i16,
     },
     SetTileAnimationFrameWait {
