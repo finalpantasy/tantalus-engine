@@ -1,0 +1,162 @@
+{
+  "completed": 5502,
+  "decode_error_kinds": [],
+  "decode_errors": 0,
+  "empty_functions": 0,
+  "events": {
+    "InitializeObject": 738,
+    "QueueEnemyAttack": 728,
+    "RunBattleCode": 11,
+    "ShowBattleMessage": 9
+  },
+  "functions_decoded": 6172,
+  "functions_probed": 6172,
+  "instruction_budget_stops": 0,
+  "instruction_kinds": {
+    "apply_fade_filter": 10,
+    "attach_object": 2,
+    "close_all_windows": 34,
+    "evaluate": 56184,
+    "initialize_object": 1858,
+    "jump": 14246,
+    "jump_if": 4342,
+    "jump_if_not": 11030,
+    "jump_switch": 889,
+    "jump_switch_ex": 15,
+    "nop": 4717,
+    "queue_enemy_attack": 1913,
+    "queue_special_attack": 420,
+    "return": 8063,
+    "run_battle_code": 1091,
+    "set_battle_music_continuation": 1,
+    "set_text_variable": 34,
+    "show_battle_message": 617,
+    "terminate_battle": 34,
+    "wait": 2979,
+    "window_sync": 3
+  },
+  "max_ticks": 64,
+  "other_runtime_error_kinds": [],
+  "scope": "zero-state dry run of every function of every EVT_BATTLE_* script; permissive host, reads return zero, waits finish; not a gameplay claim",
+  "script_parse_failures": [],
+  "scripts": 562,
+  "still_waiting": 670,
+  "system_list_elements": [
+    {
+      "count": 6876,
+      "first_at": "EVT_BATTLE_WM_1522.eb entry 1 tag 5",
+      "key": "0"
+    },
+    {
+      "count": 9017,
+      "first_at": "EVT_BATTLE_WM_1522.eb entry 1 tag 1",
+      "key": "1"
+    },
+    {
+      "count": 5220,
+      "first_at": "EVT_BATTLE_WM_1522.eb entry 1 tag 5",
+      "key": "2"
+    },
+    {
+      "count": 802,
+      "first_at": "EVT_BATTLE_TH_E004.eb entry 0 tag 1",
+      "key": "3"
+    }
+  ],
+  "system_variables_read": [
+    {
+      "count": 2247,
+      "first_at": "EVT_BATTLE_WM_1522.eb entry 1 tag 0",
+      "key": "0"
+    },
+    {
+      "count": 15,
+      "first_at": "EVT_BATTLE_AC_E076C.eb entry 0 tag 1",
+      "key": "17"
+    },
+    {
+      "count": 15,
+      "first_at": "EVT_BATTLE_AC_E076C.eb entry 0 tag 1",
+      "key": "21"
+    },
+    {
+      "count": 513,
+      "first_at": "EVT_BATTLE_WM_0216.eb entry 1 tag 1",
+      "key": "25"
+    },
+    {
+      "count": 34,
+      "first_at": "EVT_BATTLE_TH_E004.eb entry 0 tag 0",
+      "key": "26"
+    },
+    {
+      "count": 1,
+      "first_at": "EVT_BATTLE_FR_E081.eb entry 0 tag 0",
+      "key": "27"
+    },
+    {
+      "count": 2090,
+      "first_at": "EVT_BATTLE_WM_1522.eb entry 1 tag 6",
+      "key": "28"
+    },
+    {
+      "count": 589,
+      "first_at": "EVT_BATTLE_WM_1522.eb entry 1 tag 6",
+      "key": "29"
+    },
+    {
+      "count": 1439,
+      "first_at": "EVT_BATTLE_WM_0216.eb entry 1 tag 1",
+      "key": "30"
+    },
+    {
+      "count": 222,
+      "first_at": "EVT_BATTLE_WM_0104.eb entry 0 tag 0",
+      "key": "31"
+    },
+    {
+      "count": 437,
+      "first_at": "EVT_BATTLE_WM_1522.eb entry 1 tag 6",
+      "key": "36"
+    },
+    {
+      "count": 3,
+      "first_at": "EVT_BATTLE_CY_E022.eb entry 1 tag 1",
+      "key": "37"
+    },
+    {
+      "count": 5,
+      "first_at": "EVT_BATTLE_IF_E034.eb entry 1 tag 7",
+      "key": "38"
+    },
+    {
+      "count": 10,
+      "first_at": "EVT_BATTLE_IF_E034.eb entry 1 tag 7",
+      "key": "39"
+    },
+    {
+      "count": 517,
+      "first_at": "EVT_BATTLE_WM_1522.eb entry 1 tag 1",
+      "key": "40"
+    },
+    {
+      "count": 39,
+      "first_at": "EVT_BATTLE_TH_E004.eb entry 2 tag 7",
+      "key": "41"
+    },
+    {
+      "count": 25,
+      "first_at": "EVT_BATTLE_UV_R010.eb entry 2 tag 1",
+      "key": "42"
+    }
+  ],
+  "unsupported_opcode_refusals": 0,
+  "unsupported_opcodes": [],
+  "wait_states": [
+    {
+      "count": 670,
+      "first_at": "EVT_BATTLE_WM_1522.eb entry 1 tag 1",
+      "key": "Frames"
+    }
+  ]
+}

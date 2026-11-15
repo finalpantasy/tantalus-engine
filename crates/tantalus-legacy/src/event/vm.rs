@@ -3131,6 +3131,7 @@ impl EventVm {
                 Ok(object)
             } else if let Some(StackTarget::SystemList(index)) = value.target {
                 host.read_system_list(index)
+                    .map(system_list_value)
                     .map_err(|error| VmError::host(error, offset, opcode))
             } else {
                 Ok(value.value)
@@ -3701,7 +3702,7 @@ impl EventVm {
                                     .map_err(|error| VmError::host(error, offset, opcode))?;
                             }
                             Some(StackTarget::SystemList(index)) => {
-                                host.write_system_list(index, value)
+                                host.write_system_list(index, system_list_value(value))
                                     .map_err(|error| VmError::host(error, offset, opcode))?;
                             }
                             None => {
@@ -3739,7 +3740,7 @@ impl EventVm {
                             value
                         }
                         Some(StackTarget::SystemList(index)) => {
-                            host.write_system_list(index, value)
+                            host.write_system_list(index, system_list_value(value))
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
                             value
                         }
@@ -3788,7 +3789,7 @@ impl EventVm {
                         }
                         Some(StackTarget::SystemList(index)) => {
                             let changed = current.wrapping_add(delta);
-                            host.write_system_list(index, changed)
+                            host.write_system_list(index, system_list_value(changed))
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
                             changed
                         }
@@ -3814,11 +3815,12 @@ impl EventVm {
                 }
                 ExpressionOp::SystemList(index) => stack.push(StackValue {
                     value: 0,
-                    target: Some(StackTarget::SystemList(*index)),
+                    target: Some(StackTarget::SystemList(system_list_index(*index))),
                 }),
                 ExpressionOp::SystemVariable(variable) => {
                     let value = host
                         .read_system_variable(*variable)
+                        .map(sign_extend_26)
                         .map_err(|error| VmError::host(error, offset, opcode))?;
                     stack.push(StackValue {
                         value,
@@ -3918,7 +3920,7 @@ impl EventVm {
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
                             }
                             Some(StackTarget::SystemList(index)) => {
-                                host.write_system_list(index, result)
+                                host.write_system_list(index, system_list_value(result))
                                     .map_err(|error| VmError::host(error, offset, opcode))?;
                             }
                             None => {}
@@ -4854,4 +4856,21 @@ fn angle2(
         entry(scaled_x.wrapping_div(delta_z).wrapping_shl(1))?
     };
     Ok(i32::from((fixed as i16) >> 4))
+}
+
+/// Memoria `GetSysList`/`SetSysList` mask the element number with 7 (`num &= 7`).
+fn system_list_index(index: u8) -> u8 {
+    index & 7
+}
+
+/// The engine system list is a `UInt16[8]`: stores truncate to 16 bits and reads are
+/// zero-extended (`SetSysList` casts to `UInt16`).
+fn system_list_value(value: i32) -> i32 {
+    i32::from(value as u16)
+}
+
+/// `B_SYSVAR` pushes `(value & 0x3FFFFFF)` with the 26-bit signed class, which is read back
+/// as `(v << 6) >> 6`.
+fn sign_extend_26(value: i32) -> i32 {
+    (value << 6) >> 6
 }

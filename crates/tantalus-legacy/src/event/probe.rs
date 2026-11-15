@@ -7,7 +7,7 @@
 
 use super::{
     CharacterStat, EventProgram, EventVm, HostEvent, KeyState, LegacyEventHost, ObjectMemberRef,
-    VmError, VmStatus,
+    VmError, VmStatus, WaitState,
 };
 use std::collections::BTreeMap;
 use tantalus_contracts::{EngineError, EntityId, Tick};
@@ -16,6 +16,8 @@ use tantalus_contracts::{EngineError, EntityId, Tick};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionProbe {
     pub status: VmStatus,
+    /// The wait the function stopped on, when `status` is `Waiting`.
+    pub wait: Option<WaitState>,
     pub ticks: u64,
     pub events: BTreeMap<String, usize>,
     pub error: Option<VmError>,
@@ -44,6 +46,7 @@ pub fn probe_program(program: &EventProgram, entity: EntityId, max_ticks: u64) -
     }
     FunctionProbe {
         status: vm.status(),
+        wait: vm.wait_state(),
         ticks,
         events,
         error,
