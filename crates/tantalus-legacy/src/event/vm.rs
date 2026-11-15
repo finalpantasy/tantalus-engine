@@ -1262,19 +1262,19 @@ impl EventVm {
                         target: None,
                     });
                 }
-                ExpressionOp::XorAssignAllMembers => {
+                ExpressionOp::XorAssignAllMembers | ExpressionOp::AndAssignAllMembers => {
                     if stack.len() < 3 {
                         return Err(expression_error(
                             offset,
                             opcode,
-                            "all-member XOR assignment requires target, mask, and value inputs",
+                            "all-member bitwise assignment requires target, mask, and value inputs",
                         ));
                     }
                     let Some(StackTarget::Member(member)) = stack[stack.len() - 3].target else {
                         return Err(expression_error(
                             offset,
                             opcode,
-                            "all-member XOR assignment target is not a selected member",
+                            "all-member bitwise assignment target is not a selected member",
                         ));
                     };
                     let mask = read_value(host, stack[stack.len() - 2], offset, opcode)?;
@@ -1286,10 +1286,14 @@ impl EventVm {
                                 .select_object_member_target(Some(slot))
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
                             let reference = ObjectMemberRef { object, member };
-                            result = host
+                            let current = host
                                 .read_object_member(reference)
-                                .map_err(|error| VmError::host(error, offset, opcode))?
-                                ^ operand;
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            result = match operation {
+                                ExpressionOp::AndAssignAllMembers => current & operand,
+                                ExpressionOp::XorAssignAllMembers => current ^ operand,
+                                _ => unreachable!(),
+                            };
                             host.write_object_member(reference, result)
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
                         }
@@ -1757,6 +1761,7 @@ fn operand_start(
         }
         ExpressionOp::XorAssignMembers
         | ExpressionOp::XorAssignAllMembers
+        | ExpressionOp::AndAssignAllMembers
         | ExpressionOp::EqualMembers
         | ExpressionOp::LessOrEqualMembers
         | ExpressionOp::GreaterOrEqualMembers

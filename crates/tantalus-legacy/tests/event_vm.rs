@@ -1711,6 +1711,51 @@ fn member_greater_or_equal_returns_comparison_flags_without_writes() {
 }
 
 #[test]
+fn all_member_and_assignment_writes_each_selection_and_returns_the_last_value() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 38);
+    let expression = assign(
+        result,
+        [vec![41, 2], constant(0b101), constant(6), vec![64]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.slots.insert(0, EntityId::new(10));
+    host.slots.insert(2, EntityId::new(12));
+    let first = ObjectMemberRef {
+        object: EntityId::new(10),
+        member: 2,
+    };
+    let last = ObjectMemberRef {
+        object: EntityId::new(12),
+        member: 2,
+    };
+    host.object_members.insert(first, 3);
+    host.object_members.insert(last, 11);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 38), 2);
+    assert_eq!(host.object_members[&first], 2);
+    assert_eq!(host.object_members[&last], 2);
+    assert_eq!(host.member_target, Some(last.object));
+    assert_eq!(host.member_writes, [(first, 2), (last, 2)]);
+
+    let result = variable(VariableScope::Global, VariableType::Int16, 38);
+    let expression = assign(
+        result,
+        [vec![41, 4], constant(0), constant(1), vec![64]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 38), 0);
+    assert_eq!(host.member_target, None);
+    assert!(host.member_writes.is_empty());
+}
+
+#[test]
 fn system_variables_read_by_serialized_id_and_reject_unknown_ids() {
     let result = variable(VariableScope::Global, VariableType::Int16, 27);
     let program =
