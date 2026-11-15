@@ -39,6 +39,7 @@ pub enum ExpressionOp {
     Variable(VariableRef),
     Negate,
     Not,
+    Complement,
     Add,
     Subtract,
     Multiply,

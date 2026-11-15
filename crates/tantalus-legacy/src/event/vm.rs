@@ -366,6 +366,16 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::Complement => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing complement operand")
+                    })?;
+                    let value = read_value(host, value, offset, opcode)?;
+                    stack.push(StackValue {
+                        value: !value,
+                        target: None,
+                    });
+                }
                 ExpressionOp::Add
                 | ExpressionOp::Subtract
                 | ExpressionOp::Multiply
@@ -862,6 +872,7 @@ fn operand_start(
         | ExpressionOp::Pad => Ok(index),
         ExpressionOp::Negate
         | ExpressionOp::Not
+        | ExpressionOp::Complement
         | ExpressionOp::PreIncrement
         | ExpressionOp::PreDecrement
         | ExpressionOp::PostDecrement

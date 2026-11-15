@@ -829,3 +829,18 @@ fn direct_pre_increment_writes_the_current_member_target() {
     assert_eq!(vm.variable(VariableScope::Global, 23), 16);
     assert_eq!(host.member_writes, [(current, 16)]);
 }
+
+#[test]
+fn bitwise_complement_inverts_every_bit() {
+    for (input, expected) in [(0, -1), (-1, 0), (0x55, !0x55)] {
+        let result = variable(VariableScope::Global, VariableType::Int24, 24);
+        let expression = assign(result, [constant(input), vec![16]].concat());
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+
+        vm.step(Tick::new(0), &mut host).unwrap();
+
+        assert_eq!(vm.variable(VariableScope::Global, 24), expected);
+    }
+}

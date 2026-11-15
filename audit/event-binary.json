@@ -48,13 +48,14 @@
     "B_POST_MINUS_A 9 decrements every selected member and returns the last selected old value; empty masks return zero without writes",
     "member operations have binary stack-shape metadata for short-circuit operand parsing",
     "B_NOT_E 15 returns a selected-member zero bitmask without writes; empty masks return zero without target selection",
-    "B_PRE_PLUS 6 writes and returns the incremented variable or current member value"
+    "B_PRE_PLUS 6 writes and returns the incremented variable or current member value",
+    "B_COMP 16 applies a wrapping 32-bit bitwise complement"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 310,
-    "opcode": "0x10",
-    "instruction": "B_COMP",
+    "offset": 324,
+    "opcode": "0x22",
+    "instruction": "B_EQ_E",
     "expression_start": 297
   },
   "event_execution": "NOT_RUN",
