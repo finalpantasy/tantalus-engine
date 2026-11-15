@@ -69,7 +69,15 @@ impl BundledField {
             serialized.object_data(atlas_index)?,
             &format!("{source}:{}", atlas_info.path_id),
         )?;
-        let mapped = FieldMapper::map(&scene, &navigation, atlas_id.clone(), 0)?;
+        let mapped = FieldMapper::map_upscaled(
+            &scene,
+            &navigation,
+            atlas_id.clone(),
+            0,
+            [atlas.width as u32, atlas.height as u32],
+            32,
+            2,
+        )?;
 
         Ok(Self {
             name: field_name.to_owned(),

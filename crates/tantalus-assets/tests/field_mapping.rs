@@ -120,7 +120,7 @@ fn field_mapping_preserves_atlas_offsets_depth_camera_and_navigation_anchor() {
     assert_eq!(mapped.navigation_triangles, 1);
     let sprite = &mapped.overlays[0].sprites[0];
     assert_eq!(sprite.atlas_rect, [40, 50, 56, 58]);
-    assert_eq!(sprite.pixel_offset, [23, 32]);
+    assert_eq!(sprite.pixel_offset, [-137, -80]);
     assert_eq!(sprite.depth, 23);
     assert!(sprite.active && sprite.screen_anchored);
 }

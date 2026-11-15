@@ -48,10 +48,12 @@ The source-backed BGS parser handles scene headers, cameras, overlays, packed sp
 
 ## Native capture evidence
 
-`BundledField` resolves the actual BGS/BGI/Texture2D dependency set and gives the atlas a stable `ffix:field/fbg_n00_tshp_map001_th_cgr_0/atlas` identity. `tantalus-client capture-field` uploads its decoded RGBA to Bevy and applies the mapped sprites without a placeholder image. Atlas rectangles retain their source coordinates while native sprite dimensions remain independent of texture resolution.
+`BundledField` resolves the actual BGS/BGI/Texture2D dependency set and gives the atlas a stable `ffix:field/fbg_n00_tshp_map001_th_cgr_0/atlas` identity. `tantalus-client capture-field` uploads its decoded RGBA to Bevy and applies the mapped sprites without a placeholder image.
 
-After capture warmup was changed to count received GPU frames, two independent 320×240 runs produced byte-identical nonempty PNGs with SHA-256 `94d9867915f025045010f318ab97b3ae043c89b00c16c46d0847dcc528445f52`. Inspection shows incorrect tile placement concentrated in part of the image. This proves real texture upload/render/readback only, not correct field composition or parity. Synthetic 2D capture also passes; synthetic 3D remains blank.
+The final mapping follows the pinned source's native 320×224 scene/overlay centering and sequential 32-pixel atlas tiles with two-pixel borders. Native sprite dimensions remain independent of atlas resolution, and the adapter excludes overlays belonging to inactive cameras. Relevant reference locations are `BGSCENE_DEF.cs:715-747` and `1821-1878`, plus `FieldMap.cs:2326-2332`.
+
+Two independent final 320×240 runs produced byte-identical PNGs with SHA-256 `6facc4ca4592083cfe63df584d8c9ac712478f155ef7215bad2ef027c97073bb`. Inspection shows a coherent shop interior with recognizable structural and foreground/background layers. This is a real native field render, not original-reference parity. Synthetic 2D also passes; synthetic 3D remains blank.
 
 ## Remaining dependency
 
-Correct field origin/projection, camera/overlay filtering, alpha/transparency, and composition against reference evidence; then connect BGI navigation to movement and real event execution. Real gameplay has not been run.
+Compare depth, alpha/transparency, animation state, projection, and camera behavior with an original reference; then connect BGI navigation to movement and real event execution. Real gameplay has not been run.

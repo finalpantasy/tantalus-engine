@@ -17,7 +17,7 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 - `T02` — Verified for stable IDs, transactional registries, aliases/renames, and item instances. Evidence: `tasks/T02.md`.
 - `T03` — Verified for deterministic simulation, replay, readiness barriers, clocks, and traces. Evidence: `tasks/T03.md`.
 - `T04` — Importer/cache plus bounded real UnityRaw objects, TextAssets, DXT5 textures, AssetBundle atlas associations, BGI, and BGS verified; full dependency closure and real field presentation remain Building. Evidence: `tasks/T04.md` and `audit/real-field-route.md`.
-- `T05` — Synthetic 2D and real-atlas offscreen capture verified; real field composition remains visibly incorrect and synthetic 3D remains blank. Evidence: `tasks/T05.md`.
+- `T05` — Synthetic 2D and coherent real selected-camera field capture verified; original-reference comparison and synthetic 3D remain open. Evidence: `tasks/T05.md`.
 - `T06` — Event VM and field scheduling foundation verified; real field execution remains pending. Evidence: `tasks/T06.md`.
 - `T07` — Verified for additive packages, world actors, encounter ownership, persistence, and respawn. Evidence: `tasks/T07.md`.
 - `T08` — Synthetic battle/action/effect/reward foundation verified; real original ability compatibility remains pending. Evidence: `tasks/T08.md`.
@@ -31,4 +31,4 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 
 ## Next dependencies
 
-Correct real field composition against reference evidence and resolve blank synthetic 3D; then connect BGI navigation to movement and real event execution. Real atlas upload and 2D readback are verified, but field placement is visibly incorrect. Real gameplay and visual parity remain unverified. T11 component bindings and multi-provider/migration orchestration remain later maturity work. T10 base-save AES/schema decoding and real-save round trips remain open.
+Compare the coherent real field render against an original reference, including depth, transparency, animations, and camera behavior; resolve blank synthetic 3D; then connect BGI navigation to movement and real event execution. Real gameplay and visual parity remain unverified. T11 component bindings and multi-provider/migration orchestration remain later maturity work. T10 base-save AES/schema decoding and real-save round trips remain open.

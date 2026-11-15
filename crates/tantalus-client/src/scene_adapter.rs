@@ -131,7 +131,7 @@ impl ClientSceneAdapter {
                         sprite.atlas
                     )));
                 }
-                if sprite.active {
+                if sprite.active && overlay.camera_index == scene.camera_index as u8 {
                     sprites.push(sprite);
                 }
             }

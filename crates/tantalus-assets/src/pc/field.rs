@@ -111,8 +111,12 @@ impl FieldMapper {
                     atlas_rect,
                     pixel_size: [sprite.width as u32, sprite.height as u32],
                     pixel_offset: [
-                        overlay.current[0] as i32 + sprite.offset_x as i32,
-                        overlay.current[1] as i32 + sprite.offset_y as i32,
+                        scene.current[0] as i32 - 160
+                            + overlay.current[0] as i32
+                            + sprite.offset_x as i32,
+                        scene.current[1] as i32 - 112
+                            + overlay.current[1] as i32
+                            + sprite.offset_y as i32,
                     ],
                     depth,
                     alpha: sprite.alpha,

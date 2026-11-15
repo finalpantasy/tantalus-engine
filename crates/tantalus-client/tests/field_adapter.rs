@@ -142,3 +142,30 @@ fn atlas_resolution_does_not_change_native_sprite_placement() {
     assert_eq!(transform.translation.x, 108.0);
     assert_eq!(transform.translation.y, -54.0);
 }
+
+#[test]
+fn inactive_cameras_do_not_contribute_field_sprites() {
+    let atlas = ContentId::parse("fixture:texture/atlas").unwrap();
+    let mut adapter = ClientSceneAdapter::new();
+    let assets = resolved(&mut adapter, &atlas);
+    let mut scene = field(&atlas);
+    scene.overlays.push(FieldOverlayPresentation {
+        overlay_index: 1,
+        camera_index: 1,
+        flags: 2,
+        pixel_size: [16, 16],
+        current_offset: [0; 2],
+        sprites: vec![sprite(1, 0, &atlas, 0, true)],
+    });
+    adapter.apply_field(&scene, &assets).unwrap();
+
+    assert_eq!(
+        adapter
+            .app_mut()
+            .world_mut()
+            .query::<&FieldSpriteIdentity>()
+            .iter(adapter.app().world())
+            .count(),
+        2
+    );
+}
