@@ -1260,6 +1260,51 @@ fn empty_member_xor_mask_preserves_and_writes_the_current_target() {
 }
 
 #[test]
+fn all_member_xor_assignment_writes_each_selection_and_returns_the_last_value() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 36);
+    let expression = assign(
+        result,
+        [vec![41, 2], constant(0b101), constant(2), vec![65]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.slots.insert(0, EntityId::new(10));
+    host.slots.insert(2, EntityId::new(12));
+    let first = ObjectMemberRef {
+        object: EntityId::new(10),
+        member: 2,
+    };
+    let last = ObjectMemberRef {
+        object: EntityId::new(12),
+        member: 2,
+    };
+    host.object_members.insert(first, 3);
+    host.object_members.insert(last, 9);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 36), 11);
+    assert_eq!(host.object_members[&first], 1);
+    assert_eq!(host.object_members[&last], 11);
+    assert_eq!(host.member_target, Some(last.object));
+    assert_eq!(host.member_writes, [(first, 1), (last, 11)]);
+
+    let result = variable(VariableScope::Global, VariableType::Int16, 36);
+    let expression = assign(
+        result,
+        [vec![41, 4], constant(0), constant(1), vec![65]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 36), 0);
+    assert_eq!(host.member_target, None);
+    assert!(host.member_writes.is_empty());
+}
+
+#[test]
 fn member_post_decrement_updates_every_selected_slot_and_returns_the_last_old_value() {
     let result = variable(VariableScope::Global, VariableType::Int16, 18);
     let expression = assign(result, [constant(0b101), vec![41, 2], vec![9]].concat());

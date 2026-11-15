@@ -113,7 +113,8 @@
     "NECKID 0x8B emits actor-bound self/target head-focus masks",
     "CFLAG 0x93 emits current-object flags for host-side protected-bit preservation",
     "B_GT_E 29 returns per-slot greater-than flags without writes, including zero for an empty mask",
-    "PRINTQUAD 0x78 consumes its flag and continues through the reference's no-side-effect path"
+    "PRINTQUAD 0x78 consumes its flag and continues through the reference's no-side-effect path",
+    "B_XOR_LET_A 65 writes every selected member and returns the last value, or zero for an empty mask"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -138,11 +139,11 @@
     "entry": 6,
     "function": 1,
     "function_tag": 1,
-    "offset": 166,
+    "offset": 167,
     "expression_offset": 69,
-    "opcode": 65,
+    "opcode": 51,
     "kind": "UnsupportedOpcode",
-    "instruction": "B_XOR_LET_A after PRINTQUAD"
+    "instruction": "B_MINUS_LET after all-member XOR assignment"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

@@ -1214,6 +1214,44 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::XorAssignAllMembers => {
+                    if stack.len() < 3 {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "all-member XOR assignment requires target, mask, and value inputs",
+                        ));
+                    }
+                    let Some(StackTarget::Member(member)) = stack[stack.len() - 3].target else {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "all-member XOR assignment target is not a selected member",
+                        ));
+                    };
+                    let mask = read_value(host, stack[stack.len() - 2], offset, opcode)?;
+                    let operand = read_value(host, stack[stack.len() - 1], offset, opcode)?;
+                    let mut result = 0;
+                    for slot in 0..8 {
+                        if mask & (1 << slot) != 0 {
+                            let object = host
+                                .select_object_member_target(Some(slot))
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            let reference = ObjectMemberRef { object, member };
+                            result = host
+                                .read_object_member(reference)
+                                .map_err(|error| VmError::host(error, offset, opcode))?
+                                ^ operand;
+                            host.write_object_member(reference, result)
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                        }
+                    }
+                    stack.truncate(stack.len() - 3);
+                    stack.push(StackValue {
+                        value: result,
+                        target: None,
+                    });
+                }
                 ExpressionOp::ReadObjectMember(reference) => {
                     let value = host
                         .read_object_member(*reference)
@@ -1628,6 +1666,7 @@ fn operand_start(
             operand_start(operations, right, offset, opcode)
         }
         ExpressionOp::XorAssignMembers
+        | ExpressionOp::XorAssignAllMembers
         | ExpressionOp::EqualMembers
         | ExpressionOp::LessOrEqualMembers
         | ExpressionOp::GreaterMembers => {
