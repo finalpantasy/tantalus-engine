@@ -263,6 +263,21 @@ impl EventVm {
                         arguments: [0, 0, 0],
                     });
                 }
+                InstructionKind::AttachObjectOffset { x, y, z } => {
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)?;
+                    let y = self.evaluate(host, &y, instruction.offset, opcode)?;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)?;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "attachment offset requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::AttachObjectOffset { actor, x, y, z });
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -857,6 +872,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::InitializeCode { .. } => 0x07,
         InstructionKind::SetTriangleActive { .. } => 0x9a,
         InstructionKind::RunSound { .. } => 0xc5,
+        InstructionKind::AttachObjectOffset { .. } => 0xd4,
     }
 }
 

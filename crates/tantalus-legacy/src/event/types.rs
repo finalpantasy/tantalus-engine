@@ -142,6 +142,11 @@ pub enum InstructionKind {
         code: Expression,
         sound: Expression,
     },
+    AttachObjectOffset {
+        x: Expression,
+        y: Expression,
+        z: Expression,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -228,6 +233,12 @@ pub enum HostEvent {
         code: i32,
         sound: i32,
         arguments: [i32; 3],
+    },
+    AttachObjectOffset {
+        actor: EntityId,
+        x: i32,
+        y: i32,
+        z: i32,
     },
 }
 

@@ -23,6 +23,7 @@ const OP_INITIALIZE_REGION: u8 = 0x08;
 const OP_INITIALIZE_CODE: u8 = 0x07;
 const OP_SET_TRIANGLE_ACTIVE: u8 = 0x9a;
 const OP_RUN_SOUND: u8 = 0xc5;
+const OP_ATTACH_OBJECT_OFFSET: u8 = 0xd4;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -189,6 +190,24 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::RunSound { code, sound }
+            }
+            OP_ATTACH_OBJECT_OFFSET => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.i16()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::AttachObjectOffset {
+                    x: argument(1)?,
+                    y: argument(2)?,
+                    z: argument(4)?,
+                }
             }
             _ => {
                 return Err(VmError::new(

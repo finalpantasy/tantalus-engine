@@ -56,14 +56,15 @@
     "NEW2 0x08 decodes source and unique IDs and emits the distinct InitializeRegion host command",
     "NEW 0x07 decodes source and unique IDs and emits the distinct InitializeCode host command",
     "BGIACTIVET 0x9A supports immediate and expression arguments, preserves unsigned triangle IDs, and emits SetTriangleActive",
-    "FLDSND0 0xC5 decodes signed sound code and ID operands and emits RunSound with three zero arguments"
+    "FLDSND0 0xC5 decodes signed sound code and ID operands and emits RunSound with three zero arguments",
+    "ATTACHOFFSET 0xD4 decodes three signed coordinates and emits an actor-bound AttachObjectOffset; missing actor context is explicit"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 437,
-    "opcode": "0xD4",
+    "offset": 468,
+    "opcode": "0x27",
     "kind": "event",
-    "instruction": "ATTACHOFFSET"
+    "instruction": "BGIMASK"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

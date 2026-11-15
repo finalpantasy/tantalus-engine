@@ -122,6 +122,7 @@ impl LegacyEventHost for Host {
                 HostEvent::InitializeCode { .. } => {}
                 HostEvent::SetTriangleActive { .. } => {}
                 HostEvent::RunSound { .. } => {}
+                HostEvent::AttachObjectOffset { .. } => {}
             }
         }
         Ok(())
@@ -1055,4 +1056,29 @@ fn fldsnd0_preserves_signed_ids_and_supplies_zero_audio_arguments() {
         }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn attachoffset_emits_signed_coordinates_for_the_current_actor() {
+    let bytes = [212, 0, 10, 0, 0xec, 0xff, 30, 0, 4];
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(
+        report.events,
+        [HostEvent::AttachObjectOffset {
+            actor: EntityId::new(42),
+            x: 10,
+            y: -20,
+            z: 30
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
 }
