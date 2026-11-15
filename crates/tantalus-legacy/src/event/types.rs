@@ -184,6 +184,7 @@ pub enum InstructionKind {
     },
     Return,
     Wait(Expression),
+    WaitTurn,
     WindowSync {
         window: Expression,
         flags: Expression,
@@ -436,6 +437,7 @@ pub enum WaitState {
     Frames(u8),
     Window(u8),
     PartyMenu,
+    ActorTurn,
     CallerRequest {
         level: i32,
         tag: u8,
@@ -844,6 +846,7 @@ pub trait LegacyEventHost {
     fn read_character_max_mp(&mut self, character: i32) -> Result<i32, EngineError>;
     fn party_contains(&mut self, character: i32) -> Result<bool, EngineError>;
     fn party_menu_is_open(&self) -> bool;
+    fn actor_turn_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn read_key_on(&mut self) -> Result<i32, EngineError>;
     fn caller_request_acceptable(&mut self, level: i32) -> Result<bool, EngineError>;
     fn script_request_acceptable(

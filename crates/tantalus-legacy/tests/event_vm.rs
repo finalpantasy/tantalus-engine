@@ -82,6 +82,7 @@ struct Host {
     bgi_animation_frames: BTreeMap<u32, i32>,
     party_members: Vec<i32>,
     party_menu_open: bool,
+    actor_turn_active: bool,
     key_on: i32,
     fail: bool,
 }
@@ -105,6 +106,7 @@ impl Host {
             bgi_animation_frames: BTreeMap::new(),
             party_members: Vec::new(),
             party_menu_open: false,
+            actor_turn_active: false,
             key_on: 0,
             fail: false,
         }
@@ -335,6 +337,10 @@ impl LegacyEventHost for Host {
         self.party_menu_open
     }
 
+    fn actor_turn_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
+        Ok(self.actor_turn_active)
+    }
+
     fn read_key_on(&mut self) -> Result<i32, EngineError> {
         Ok(self.key_on)
     }
@@ -450,6 +456,34 @@ fn timed_wait_resumes_on_the_declared_tick() {
     let report = vm.step(Tick::new(3), &mut host).unwrap();
     assert_eq!(report.status, VmStatus::Completed);
     assert_eq!(host.movements, vec![(1, 50, 0)]);
+}
+
+#[test]
+fn wait_turn_yields_then_resumes_after_the_actor_turn_ends() {
+    let program = decode_program(&[80, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 1);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    host.actor_turn_active = true;
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Waiting);
+    assert_eq!(vm.wait_state(), Some(WaitState::ActorTurn));
+    assert_eq!(
+        vm.step(Tick::new(1), &mut host).unwrap().status,
+        VmStatus::Waiting
+    );
+
+    host.actor_turn_active = false;
+    assert_eq!(
+        vm.step(Tick::new(2), &mut host).unwrap().status,
+        VmStatus::Completed
+    );
+
+    let mut vm = EventVm::new(decode_program(&[80, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
 }
 
 #[test]

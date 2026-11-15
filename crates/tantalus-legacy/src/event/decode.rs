@@ -35,6 +35,7 @@ const OP_WINDOW_SYNC: u32 = 0x1f;
 const OP_WINDOW_ASYNC: u32 = 0x20;
 const OP_CLOSE_WINDOW: u32 = 0x21;
 const OP_WAIT: u32 = 0x22;
+const OP_WAIT_TURN: u32 = 0x50;
 const OP_WAIT_WINDOW: u32 = 0x54;
 const OP_MOVE_ACTOR: u32 = 0xbf;
 const OP_AIM_AT_CAMERA: u32 = 0xb8;
@@ -475,6 +476,7 @@ impl Decoder<'_> {
                 self.byte()?;
                 InstructionKind::Wait(self.expression()?)
             }
+            OP_WAIT_TURN => InstructionKind::WaitTurn,
             OP_WINDOW_SYNC | OP_WINDOW_ASYNC => {
                 self.byte()?;
                 let window = self.expression()?;

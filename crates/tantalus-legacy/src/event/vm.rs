@@ -110,6 +110,25 @@ impl EventVm {
                     self.wait = None;
                     self.status = VmStatus::Running;
                 }
+                WaitState::ActorTurn => {
+                    self.status = VmStatus::Waiting;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            self.pc,
+                            Some(0x50),
+                            "turn wait requires current actor context",
+                        ));
+                    };
+                    if host
+                        .actor_turn_is_active(actor)
+                        .map_err(|error| VmError::host(error, self.pc, 0x50))?
+                    {
+                        return Ok(self.report(tick, 0, Vec::new()));
+                    }
+                    self.wait = None;
+                    self.status = VmStatus::Running;
+                }
                 WaitState::CallerRequest { level, .. } => {
                     self.status = VmStatus::Waiting;
                     if !host
@@ -564,6 +583,19 @@ impl EventVm {
                     }
                     let remaining = if frames > 254 { 253 } else { frames - 1 };
                     self.wait = Some(WaitState::Frames(remaining as u8));
+                    self.status = VmStatus::Waiting;
+                }
+                InstructionKind::WaitTurn => {
+                    if self.entity.is_none() {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "turn wait requires current actor context",
+                        ));
+                    }
+                    self.pc = next;
+                    self.wait = Some(WaitState::ActorTurn);
                     self.status = VmStatus::Waiting;
                 }
                 InstructionKind::WindowSync {
@@ -2233,6 +2265,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::WindowAsync { .. } => 0x20,
         InstructionKind::CloseWindow(_) => 0x21,
         InstructionKind::Wait(_) => 0x22,
+        InstructionKind::WaitTurn => 0x50,
         InstructionKind::WaitWindow(_) => 0x54,
         InstructionKind::MoveActor { .. } => 0xbf,
         InstructionKind::AimAtCamera => 0xb8,

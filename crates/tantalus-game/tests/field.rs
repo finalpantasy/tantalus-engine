@@ -171,6 +171,10 @@ impl LegacyEventHost for Host {
         false
     }
 
+    fn actor_turn_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
+        Ok(false)
+    }
+
     fn read_key_on(&mut self) -> Result<i32, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,
