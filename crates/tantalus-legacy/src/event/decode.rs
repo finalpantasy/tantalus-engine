@@ -1463,6 +1463,7 @@ impl Decoder<'_> {
                 72 => ExpressionOp::CastI16,
                 73 => ExpressionOp::CastU16,
                 74 => ExpressionOp::CastList,
+                77 => ExpressionOp::SelectRandomMember,
                 79 => ExpressionOp::KeyOn,
                 80 => ExpressionOp::SineUnshifted,
                 81 => ExpressionOp::Cosine,

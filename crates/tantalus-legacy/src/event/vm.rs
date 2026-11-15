@@ -1641,6 +1641,28 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::SelectRandomMember => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing random-selection operand")
+                    })?;
+                    let mask = read_value(host, value, offset, opcode)?;
+                    let candidates: Vec<u8> =
+                        (0..8).filter(|slot| mask & (1 << slot) != 0).collect();
+                    let selected = if candidates.is_empty() {
+                        0
+                    } else {
+                        let random = u32::from(
+                            host.read_random_u8()
+                                .map_err(|error| VmError::host(error, offset, opcode))?,
+                        );
+                        let index = (candidates.len() as u32 * random) >> 8;
+                        1 << candidates[index as usize]
+                    };
+                    stack.push(StackValue {
+                        value: selected,
+                        target: None,
+                    });
+                }
                 ExpressionOp::KeyOn => {
                     let value = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing key-on operand")
@@ -2600,6 +2622,7 @@ fn operand_start(
         | ExpressionOp::BgiCharacterTriangle
         | ExpressionOp::CharacterMaxMp
         | ExpressionOp::PartyContains
+        | ExpressionOp::SelectRandomMember
         | ExpressionOp::KeyOn
         | ExpressionOp::ConsumeAndZero
         | ExpressionOp::PreIncrement

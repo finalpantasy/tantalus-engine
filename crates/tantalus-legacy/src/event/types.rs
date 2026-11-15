@@ -61,6 +61,7 @@ pub enum ExpressionOp {
     BgiCharacterTriangle,
     CharacterMaxMp,
     PartyContains,
+    SelectRandomMember,
     KeyOn,
     Less,
     Greater,
@@ -889,6 +890,7 @@ pub trait LegacyEventHost {
     fn actor_turn_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn actor_animation_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn field_exit_movement_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
+    fn read_random_u8(&mut self) -> Result<u8, EngineError>;
     fn read_key_on(&mut self) -> Result<i32, EngineError>;
     fn caller_request_acceptable(&mut self, level: i32) -> Result<bool, EngineError>;
     fn script_request_acceptable(

@@ -85,6 +85,7 @@ struct Host {
     actor_turn_active: bool,
     actor_animation_active: bool,
     exit_movement_active: bool,
+    random_u8: u8,
     key_on: i32,
     fail: bool,
 }
@@ -111,6 +112,7 @@ impl Host {
             actor_turn_active: false,
             actor_animation_active: false,
             exit_movement_active: false,
+            random_u8: 0,
             key_on: 0,
             fail: false,
         }
@@ -355,6 +357,10 @@ impl LegacyEventHost for Host {
 
     fn field_exit_movement_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
         Ok(self.exit_movement_active)
+    }
+
+    fn read_random_u8(&mut self) -> Result<u8, EngineError> {
+        Ok(self.random_u8)
     }
 
     fn read_key_on(&mut self) -> Result<i32, EngineError> {
@@ -3657,6 +3663,36 @@ fn unnamed_expression_114_has_no_stack_effect() {
 
     assert_eq!(vm.variable(VariableScope::Global, 33), 41);
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn select_chooses_an_ordered_active_bit_with_one_random_byte() {
+    for (random_u8, expected) in [(0, 1), (255, 4)] {
+        let result = variable(VariableScope::Global, VariableType::Int24, 72);
+        let expression = assign(result, binary(constant(0b101), vec![], 77));
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+        host.random_u8 = random_u8;
+
+        vm.step(Tick::new(0), &mut host).unwrap();
+
+        assert_eq!(vm.variable(VariableScope::Global, 72), expected);
+    }
+
+    let result = variable(VariableScope::Global, VariableType::Int24, 72);
+    let expression = assign(result, binary(constant(0), vec![], 77));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 72), 0);
+
+    let program = decode_program(&[5, 77, 127, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::InvalidExpression);
+    assert!(error.message.contains("random-selection operand"));
 }
 
 #[test]

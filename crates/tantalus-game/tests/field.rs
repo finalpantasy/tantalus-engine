@@ -183,6 +183,15 @@ impl LegacyEventHost for Host {
         Ok(false)
     }
 
+    fn read_random_u8(&mut self) -> Result<u8, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            "field fixture has no random-byte source",
+            "fixture-host",
+            true,
+        ))
+    }
+
     fn read_key_on(&mut self) -> Result<i32, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,

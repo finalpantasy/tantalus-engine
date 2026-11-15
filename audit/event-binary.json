@@ -195,7 +195,8 @@
     "partial entry diagnostics preserve every successfully decoded function and every function-level error while decode_entry remains fail-fast",
     "B_DIV_LET_A 55 divides every selected member, preserves current values for zero divisors, and returns the last result or zero",
     "MOVJ 0xA0 emits MoveActorToExit and yields, repeating while host-owned exit movement is active",
-    "B_MULT_LET_A 54 multiplies and writes every selected member, returning the last result or zero"
+    "B_MULT_LET_A 54 multiplies and writes every selected member, returning the last result or zero",
+    "B_SELECT 77 chooses an ordered active bit using one host random byte and returns zero for an empty mask"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -332,12 +333,12 @@
       "entry": 13,
       "function": 1,
       "function_tag": 1,
-      "instruction_offset": 170,
-      "expression_offset": 171,
-      "offset": 769,
-      "opcode": 77,
+      "instruction_offset": 495,
+      "expression_offset": 497,
+      "offset": 1004,
+      "opcode": 99,
       "kind": "UnsupportedOpcode",
-      "instruction": "JMP_IF contains unsupported B_SELECT expression opcode 0x4D after all-member multiplication support"
+      "instruction": "WindowAsync contains unsupported ordinary B_COS expression opcode 0x63 after random selection support"
     },
     {
       "entry": 13,
@@ -395,12 +396,12 @@
     "entry": 13,
     "function": 1,
     "function_tag": 1,
-    "instruction_offset": 170,
-    "expression_offset": 171,
-    "offset": 769,
-    "opcode": 77,
+    "instruction_offset": 495,
+    "expression_offset": 497,
+    "offset": 1004,
+    "opcode": 99,
     "kind": "UnsupportedOpcode",
-    "instruction": "JMP_IF contains unsupported B_SELECT expression opcode 0x4D after all-member multiplication support"
+    "instruction": "WindowAsync contains unsupported ordinary B_COS expression opcode 0x63 after random selection support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
