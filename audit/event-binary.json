@@ -192,7 +192,8 @@
     "WAITANIM 0x41 continues immediately when inactive and otherwise waits for host-owned animation completion",
     "SONGFLAG 0x1B emits SetBattleMusicContinuation using nonzero-as-true semantics",
     "pad0a 0x0A consumes its flag and yields once through the reference default path",
-    "partial entry diagnostics preserve every successfully decoded function and every function-level error while decode_entry remains fail-fast"
+    "partial entry diagnostics preserve every successfully decoded function and every function-level error while decode_entry remains fail-fast",
+    "B_DIV_LET_A 55 divides every selected member, preserves current values for zero divisors, and returns the last result or zero"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -329,12 +330,11 @@
       "entry": 13,
       "function": 1,
       "function_tag": 1,
-      "instruction_offset": 68,
-      "expression_offset": 70,
-      "offset": 581,
-      "opcode": 55,
+      "instruction_offset": 164,
+      "offset": 669,
+      "opcode": 160,
       "kind": "UnsupportedOpcode",
-      "instruction": "WAIT contains unsupported expression opcode 0x37"
+      "instruction": "event opcode 0xA0 after all-member division support"
     },
     {
       "entry": 13,
@@ -392,12 +392,11 @@
     "entry": 13,
     "function": 1,
     "function_tag": 1,
-    "instruction_offset": 68,
-    "expression_offset": 70,
-    "offset": 581,
-    "opcode": 55,
+    "instruction_offset": 164,
+    "offset": 669,
+    "opcode": 160,
     "kind": "UnsupportedOpcode",
-    "instruction": "WAIT contains unsupported expression opcode 0x37 after partial diagnostic reporting"
+    "instruction": "event opcode 0xA0 after all-member division support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

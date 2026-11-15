@@ -3053,6 +3053,65 @@ fn all_member_subtract_assignment_writes_each_selection_and_returns_the_last_val
 }
 
 #[test]
+fn all_member_divide_assignment_preserves_zero_divisors_and_returns_the_last_value() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 70);
+    let expression = assign(
+        result,
+        [vec![41, 2], constant(0b101), constant(2), vec![55]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.slots.insert(0, EntityId::new(10));
+    host.slots.insert(2, EntityId::new(12));
+    let first = ObjectMemberRef {
+        object: EntityId::new(10),
+        member: 2,
+    };
+    let last = ObjectMemberRef {
+        object: EntityId::new(12),
+        member: 2,
+    };
+    host.object_members.insert(first, -16);
+    host.object_members.insert(last, 32);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 70), 16);
+    assert_eq!(host.object_members[&first], -8);
+    assert_eq!(host.object_members[&last], 16);
+    assert_eq!(host.member_target, Some(last.object));
+    assert_eq!(host.member_writes, [(first, -8), (last, 16)]);
+
+    let result = variable(VariableScope::Global, VariableType::Int16, 70);
+    let expression = assign(
+        result,
+        [vec![41, 2], constant(0b101), constant(0), vec![55]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    host.object_members.insert(first, -16);
+    host.object_members.insert(last, 32);
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 70), 32);
+    assert_eq!(host.object_members[&first], -16);
+    assert_eq!(host.object_members[&last], 32);
+
+    let result = variable(VariableScope::Global, VariableType::Int16, 70);
+    let expression = assign(
+        result,
+        [vec![41, 4], constant(0), constant(1), vec![55]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 70), 0);
+    assert_eq!(host.member_target, None);
+    assert!(host.member_writes.is_empty());
+}
+
+#[test]
 fn member_and_returns_bit_intersection_flags_without_writes() {
     let result = variable(VariableScope::Global, VariableType::Int16, 46);
     let expression = assign(
