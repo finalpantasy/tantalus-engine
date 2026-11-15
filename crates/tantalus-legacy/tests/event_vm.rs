@@ -5174,6 +5174,21 @@ fn resume_restores_a_recorded_position_and_rejects_inconsistent_state() {
 }
 
 #[test]
+fn assigning_to_a_plain_value_writes_nothing_and_yields_the_value() {
+    // (Map30 == 0) && Instance0, then `= 0`: the && result is not an lvalue.
+    let map = variable(VariableScope::Map, VariableType::SignedByte, 30);
+    let instance = variable(VariableScope::Instance, VariableType::SignedByte, 0);
+    let left = binary(map, constant(0), 32);
+    let expression = binary(binary(left, instance, 39), constant(0), 44);
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.status(), VmStatus::Completed);
+    assert!(host.member_writes.is_empty());
+}
+
+#[test]
 fn pad0e_consumes_its_flag_and_yields_before_continuing() {
     let program = decode_program(&[14, 4]).unwrap();
     assert_eq!(program.instructions[&0].kind, InstructionKind::Yield(14));

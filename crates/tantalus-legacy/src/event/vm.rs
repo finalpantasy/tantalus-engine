@@ -3680,13 +3680,10 @@ impl EventVm {
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
                             value
                         }
-                        None => {
-                            return Err(expression_error(
-                                offset,
-                                opcode,
-                                "assignment target is not writable",
-                            ));
-                        }
+                        // Memoria's SetVariableValue pops a plain-value target (for example the
+                        // result of `a && b`) and writes nothing, so the assignment only yields
+                        // its value. Real scripts rely on this (EVT_LIND1_TN_LB_LDH_0).
+                        None => value,
                     };
                     stack.push(StackValue {
                         value: normalized,
