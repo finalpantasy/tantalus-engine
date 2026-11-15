@@ -784,6 +784,12 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::CalculateExitPosition);
                 }
+                InstructionKind::ChangeField(field) => {
+                    let field = self.evaluate(host, &field, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    self.status = VmStatus::Completed;
+                    events.push(HostEvent::ChangeField { field });
+                }
                 InstructionKind::RequestCallerSync { level, tag } => {
                     let level = self.evaluate(host, &level, instruction.offset, opcode)?;
                     if self.entity.is_none() {
@@ -2031,6 +2037,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetTimerRunning(_) => 0x7d,
         InstructionKind::RequestCallerAsync { .. } => 0x16,
         InstructionKind::CalculateExitPosition => 0xa4,
+        InstructionKind::ChangeField { .. } => 0x2b,
         InstructionKind::RequestCallerSync { .. } => 0x14,
         InstructionKind::SetSimulationFloor { .. } => 0x104,
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,

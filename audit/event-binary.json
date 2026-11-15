@@ -159,7 +159,8 @@
     "ANIM 0x40 emits PlayAnimation for the current actor with an unsigned 16-bit ID and no implicit wait",
     "HINT 0xFD emits PreloadField with an 8-bit hint and signed 16-bit field ID for host-owned PC free-view behavior",
     "ELEMENT_AFFINITY 0x122 decodes four signed 24-bit operands and emits ChangeElementalAffinity for host-owned battle behavior",
-    "RAIN 0xD8 emits SetRain with strength and speed for host-owned field, world, and battle weather behavior"
+    "RAIN 0xD8 emits SetRain with strength and speed for host-owned field, world, and battle weather behavior",
+    "MAPJUMP 0x2B emits ChangeField with a signed 16-bit destination and completes the old VM before later old-scene effects"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -240,14 +241,24 @@
     "kind": "Decode",
     "instruction": "JMP_IFNOT expression/relative operand do not complete before the function boundary after cinematic dispatch support"
   },
-  "next_decode_boundary": {
+  "truncated_nop_entries_11_12": {
     "entries": [11, 12],
     "function": 1,
     "function_tag": 2,
-    "offset": 350,
-    "opcode": 43,
+    "instruction_offset": 357,
+    "offset": 388,
+    "opcode": 0,
+    "kind": "Decode",
+    "instruction": "the final NOP does not contain its argument-flag byte before the function boundary"
+  },
+  "next_decode_boundary": {
+    "entry": 13,
+    "function": 0,
+    "function_tag": 0,
+    "offset": 30,
+    "opcode": 6,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x2B after rain weather support"
+    "instruction": "JMP_SWITCHEX event opcode 0x06 after field transition support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

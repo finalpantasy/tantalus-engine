@@ -70,6 +70,7 @@ const OP_RESTORE_ALL_VISIBILITY: u32 = 0xd6;
 const OP_SET_TIMER_RUNNING: u32 = 0x7d;
 const OP_REQUEST_CALLER_ASYNC: u32 = 0x16;
 const OP_CALCULATE_EXIT_POSITION: u32 = 0xa4;
+const OP_CHANGE_FIELD: u32 = 0x2b;
 const OP_REQUEST_CALLER_SYNC: u32 = 0x14;
 const OP_ATTACH_TILE: u32 = 0x92;
 const OP_SET_SIMULATION_FLOOR: u32 = 0x104;
@@ -873,6 +874,18 @@ impl Decoder<'_> {
             OP_CALCULATE_EXIT_POSITION => {
                 self.byte()?;
                 InstructionKind::CalculateExitPosition
+            }
+            OP_CHANGE_FIELD => {
+                let flags = self.byte()?;
+                let field = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.i16()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::ChangeField(field)
             }
             OP_REQUEST_CALLER_SYNC => {
                 let flags = self.byte()?;

@@ -194,6 +194,7 @@ impl LegacyEventHost for Host {
                 HostEvent::PreloadField { .. } => {}
                 HostEvent::ChangeElementalAffinity { .. } => {}
                 HostEvent::SetRain { .. } => {}
+                HostEvent::ChangeField { .. } => {}
             }
         }
         Ok(())
@@ -907,6 +908,35 @@ fn rain_preserves_strength_and_speed_operands() {
     let truncated = decode_program(&[216, 0, 125]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(216)"));
+}
+
+#[test]
+fn field_change_emits_destination_and_stops_old_scene_execution() {
+    let mut bytes = vec![43, 0, 53, 0];
+    bytes.extend(evaluate(assign(
+        variable(VariableScope::Global, VariableType::UInt16, 9),
+        constant(1),
+    )));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::ChangeField { field: 53 }]);
+    assert_eq!(report.status, VmStatus::Completed);
+    assert_eq!(vm.variable(VariableScope::Global, 9), 0);
+
+    let mut bytes = vec![43, 1];
+    append_expression(&mut bytes, constant(-300));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::ChangeField { field: -300 }]);
+
+    let truncated = decode_program(&[43, 0, 1]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(43)"));
 }
 
 #[test]
