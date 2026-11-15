@@ -46,6 +46,7 @@ pub enum ExpressionOp {
     Divide,
     Remainder,
     ShiftRight,
+    Angle2,
     Less,
     Greater,
     GreaterOrEqual,
@@ -339,5 +340,6 @@ pub trait LegacyEventHost {
         value: i32,
     ) -> Result<(), EngineError>;
     fn read_system_variable(&mut self, variable: u8) -> Result<i32, EngineError>;
+    fn read_atan_entry(&mut self, offset: i32) -> Result<u16, EngineError>;
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError>;
 }

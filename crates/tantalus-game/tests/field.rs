@@ -78,6 +78,15 @@ impl LegacyEventHost for Host {
         ))
     }
 
+    fn read_atan_entry(&mut self, offset: i32) -> Result<u16, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            format!("field fixture has no arctangent table entry at {offset}"),
+            "fixture-host",
+            true,
+        ))
+    }
+
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,

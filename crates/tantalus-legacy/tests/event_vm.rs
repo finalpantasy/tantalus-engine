@@ -178,6 +178,16 @@ impl LegacyEventHost for Host {
         }
     }
 
+    fn read_atan_entry(&mut self, offset: i32) -> Result<u16, EngineError> {
+        match offset {
+            0 => Ok(0),
+            1024 => Ok(128),
+            _ => Err(Self::target_error(format!(
+                "unknown arctangent table offset {offset}"
+            ))),
+        }
+    }
+
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError> {
         if variable == 0 {
             Ok(17)
@@ -1132,5 +1142,31 @@ fn right_shift_is_arithmetic_and_masks_the_shift_count() {
         vm.step(Tick::new(0), &mut host).unwrap();
 
         assert_eq!(vm.variable(VariableScope::Global, 29), expected);
+    }
+}
+
+#[test]
+fn angle2_uses_the_reference_quadrants_and_atan_table() {
+    for (delta_x, delta_z, expected) in [
+        (0, 0, 0),
+        (1, 0, -4),
+        (0, 1, -8),
+        (-1, 0, 4),
+        (0, -1, 0),
+        (2, 1, -5),
+    ] {
+        let result = variable(VariableScope::Global, VariableType::Int16, 30);
+        let expression = assign(result, binary(constant(delta_x), constant(delta_z), 102));
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+
+        vm.step(Tick::new(0), &mut host).unwrap();
+
+        assert_eq!(
+            vm.variable(VariableScope::Global, 30),
+            expected,
+            "delta_x={delta_x}, delta_z={delta_z}"
+        );
     }
 }

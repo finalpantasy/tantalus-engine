@@ -60,14 +60,15 @@
     "ATTACHOFFSET 0xD4 decodes three signed coordinates and emits an actor-bound AttachObjectOffset; missing actor context is explicit",
     "BGIMASK 0x27 decodes an immediate or expression mask and emits its wrapped byte",
     "B_CAST_LIST 74 matches the reference empty implementation and returns zero without consuming an operand",
-    "B_SHIFT_RIGHT 23 performs signed arithmetic shifts with the reference's masked shift count"
+    "B_SHIFT_RIGHT 23 performs signed arithmetic shifts with the reference's masked shift count",
+    "B_ANGLE2 102 ports the reference quadrant logic and host-provided arctangent table reads with equivalent integer output"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 938,
-    "opcode": "0x66",
-    "instruction": "B_ANGLE2",
-    "expression_start": 936
+    "offset": 963,
+    "opcode": "0x0E",
+    "kind": "event",
+    "instruction": "pad0e"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

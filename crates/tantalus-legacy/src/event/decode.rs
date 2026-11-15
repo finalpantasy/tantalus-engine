@@ -260,6 +260,7 @@ impl Decoder<'_> {
                 72 => ExpressionOp::CastI16,
                 73 => ExpressionOp::CastU16,
                 74 => ExpressionOp::CastList,
+                102 => ExpressionOp::Angle2,
                 EXPR_CONST_I16 => ExpressionOp::Constant(i32::from(self.i16()?)),
                 EXPR_CONST_I32 => ExpressionOp::Constant(self.i32()?),
                 EXPR_POST_INCREMENT_MEMBERS => ExpressionOp::PostIncrementMembers,

@@ -431,6 +431,7 @@ impl EventVm {
                 | ExpressionOp::Divide
                 | ExpressionOp::Remainder
                 | ExpressionOp::ShiftRight
+                | ExpressionOp::Angle2
                 | ExpressionOp::Less
                 | ExpressionOp::Greater
                 | ExpressionOp::GreaterOrEqual
@@ -444,6 +445,7 @@ impl EventVm {
                         ExpressionOp::Divide if right != 0 => left.wrapping_div(right),
                         ExpressionOp::Remainder if right != 0 => left.wrapping_rem(right),
                         ExpressionOp::ShiftRight => left.wrapping_shr(right as u32),
+                        ExpressionOp::Angle2 => angle2(host, left, right, offset, opcode)?,
                         ExpressionOp::Divide | ExpressionOp::Remainder => left,
                         ExpressionOp::Less => i32::from(left < right),
                         ExpressionOp::Greater => i32::from(left > right),
@@ -994,6 +996,7 @@ fn operand_start(
         | ExpressionOp::Divide
         | ExpressionOp::Remainder
         | ExpressionOp::ShiftRight
+        | ExpressionOp::Angle2
         | ExpressionOp::Less
         | ExpressionOp::Greater
         | ExpressionOp::GreaterOrEqual
@@ -1020,4 +1023,69 @@ fn operand_start(
             "unsupported stack shape for a short-circuit operand",
         )),
     }
+}
+
+fn angle2(
+    host: &mut dyn LegacyEventHost,
+    delta_x: i32,
+    delta_z: i32,
+    offset: u32,
+    opcode: u8,
+) -> Result<i32, VmError> {
+    if delta_x == 0 && delta_z == 0 {
+        return Ok(0);
+    }
+    let scaled_z = delta_z.wrapping_shl(10);
+    let scaled_x = delta_x.wrapping_shl(10);
+    let delta = delta_x.wrapping_sub(delta_z);
+    let mut entry = |table_offset| {
+        host.read_atan_entry(table_offset)
+            .map(i32::from)
+            .map_err(|error| VmError::host(error, offset, opcode))
+    };
+    let fixed = if delta_z >= 0 {
+        if delta_x >= 0 {
+            if delta >= 0 {
+                -1024 - entry(scaled_z.wrapping_div(delta_x).wrapping_shl(1))?
+            } else {
+                entry(scaled_x.wrapping_div(delta_z).wrapping_shl(1))? - 2048
+            }
+        } else if delta_x.wrapping_neg().wrapping_sub(delta_z) < 0 {
+            2048 - entry(
+                scaled_x
+                    .wrapping_div(delta_z)
+                    .wrapping_shl(1)
+                    .wrapping_neg(),
+            )?
+        } else {
+            1024 + entry(
+                scaled_z
+                    .wrapping_div(delta_x)
+                    .wrapping_shl(1)
+                    .wrapping_neg(),
+            )?
+        }
+    } else if delta_x >= 0 {
+        if delta_x.wrapping_sub(delta_z.wrapping_neg()) < 0 {
+            entry(
+                scaled_x
+                    .wrapping_div(delta_z)
+                    .wrapping_shl(1)
+                    .wrapping_neg(),
+            )?
+            .wrapping_neg()
+        } else {
+            entry(
+                scaled_z
+                    .wrapping_div(delta_x)
+                    .wrapping_shl(1)
+                    .wrapping_neg(),
+            )? - 1024
+        }
+    } else if delta < 0 {
+        1024 - entry(scaled_z.wrapping_div(delta_x).wrapping_shl(1))?
+    } else {
+        entry(scaled_x.wrapping_div(delta_z).wrapping_shl(1))?
+    };
+    Ok(i32::from((fixed as i16) >> 8))
 }
