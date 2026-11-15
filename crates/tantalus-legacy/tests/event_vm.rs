@@ -192,6 +192,7 @@ impl LegacyEventHost for Host {
                 HostEvent::ClearPartyStatus { .. } => {}
                 HostEvent::PlayAnimation { .. } => {}
                 HostEvent::PreloadField { .. } => {}
+                HostEvent::ChangeElementalAffinity { .. } => {}
             }
         }
         Ok(())
@@ -824,6 +825,52 @@ fn preload_field_preserves_hint_and_signed_field_identity() {
     let truncated = decode_program(&[253, 0, 5, 1]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(253)"));
+}
+
+#[test]
+fn elemental_affinity_decodes_signed_24_bit_operands() {
+    let mut bytes = vec![0xff, 0x22, 0];
+    for value in [0x1234_i32, 4, -3, 1] {
+        bytes.extend_from_slice(&value.to_le_bytes()[..3]);
+    }
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    assert_eq!(program.instructions[&0].length, 15);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ChangeElementalAffinity {
+            target: 0x1234,
+            affinity_kind: 4,
+            element: -3,
+            add: true
+        }]
+    );
+    assert!(vm.traces().any(|trace| trace.opcode == Some(0x122)));
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![0xff, 0x22, 15];
+    for value in [7, 2, 9, 0] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ChangeElementalAffinity {
+            target: 7,
+            affinity_kind: 2,
+            element: 9,
+            add: false
+        }]
+    );
+
+    let truncated = decode_program(&[0xff, 0x22, 0, 1]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(290)"));
 }
 
 #[test]

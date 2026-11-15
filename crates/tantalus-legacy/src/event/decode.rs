@@ -78,6 +78,7 @@ const OP_OPEN_PARTY_MENU: u32 = 0xb2;
 const OP_INITIALIZE_CHARACTER: u32 = 0xfe;
 const OP_STOP_TEXTURE_ANIMATION: u32 = 0xc2;
 const OP_RUN_BATTLE_CODE: u32 = 0x4a;
+const OP_CHANGE_ELEMENTAL_AFFINITY: u32 = 0x122;
 const OP_DASH_ON: u32 = 0xf0;
 const OP_FULL_MEMBER: u32 = 0xb4;
 const OP_MOVE_TILE: u32 = 0x5a;
@@ -1007,6 +1008,25 @@ impl Decoder<'_> {
                     value: argument(2, true)?,
                 }
             }
+            OP_CHANGE_ELEMENTAL_AFFINITY => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(self.i24()?),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::ChangeElementalAffinity {
+                    target: argument(1)?,
+                    kind: argument(2)?,
+                    element: argument(4)?,
+                    add: argument(8)?,
+                }
+            }
             OP_FULL_MEMBER => {
                 let flags = self.byte()?;
                 let mask = if flags & 1 != 0 {
@@ -1343,6 +1363,13 @@ impl Decoder<'_> {
 
     fn i16(&mut self) -> Result<i16, VmError> {
         Ok(i16::from_le_bytes([self.byte()?, self.byte()?]))
+    }
+
+    fn i24(&mut self) -> Result<i32, VmError> {
+        let value = u32::from(self.byte()?)
+            | (u32::from(self.byte()?) << 8)
+            | (u32::from(self.byte()?) << 16);
+        Ok(((value << 8) as i32) >> 8)
     }
 
     fn i32(&mut self) -> Result<i32, VmError> {

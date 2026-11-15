@@ -314,6 +314,12 @@ pub enum InstructionKind {
         code: Expression,
         value: Expression,
     },
+    ChangeElementalAffinity {
+        target: Expression,
+        kind: Expression,
+        element: Expression,
+        add: Expression,
+    },
     SetRunEnabled {
         enabled: bool,
         opcode: u8,
@@ -616,6 +622,12 @@ pub enum HostEvent {
     RunBattleCode {
         code: u32,
         value: i32,
+    },
+    ChangeElementalAffinity {
+        target: u16,
+        affinity_kind: i32,
+        element: i32,
+        add: bool,
     },
     SetRunEnabled {
         enabled: bool,

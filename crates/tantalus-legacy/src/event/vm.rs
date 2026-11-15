@@ -908,6 +908,24 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::RunBattleCode { code, value });
                 }
+                InstructionKind::ChangeElementalAffinity {
+                    target,
+                    kind,
+                    element,
+                    add,
+                } => {
+                    let target = self.evaluate(host, &target, instruction.offset, opcode)? as u16;
+                    let affinity_kind = self.evaluate(host, &kind, instruction.offset, opcode)?;
+                    let element = self.evaluate(host, &element, instruction.offset, opcode)?;
+                    let add = self.evaluate(host, &add, instruction.offset, opcode)? != 0;
+                    self.pc = next;
+                    events.push(HostEvent::ChangeElementalAffinity {
+                        target,
+                        affinity_kind,
+                        element,
+                        add,
+                    });
+                }
                 InstructionKind::SetRunEnabled { enabled, .. } => {
                     self.pc = next;
                     events.push(HostEvent::SetRunEnabled { enabled });
@@ -2014,6 +2032,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::InitializeCharacter { .. } => 0xfe,
         InstructionKind::StopTextureAnimation { .. } => 0xc2,
         InstructionKind::RunBattleCode { .. } => 0x4a,
+        InstructionKind::ChangeElementalAffinity { .. } => 0x122,
         InstructionKind::SetRunEnabled { opcode, .. } => u32::from(*opcode),
         InstructionKind::SetPartyAvailability { .. } => 0xb4,
         InstructionKind::MoveTile { .. } => 0x5a,
