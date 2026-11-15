@@ -2396,6 +2396,36 @@ fn shadowon_enables_the_current_actor_shadow() {
 }
 
 #[test]
+fn shadowoff_disables_the_current_actor_shadow_and_preserves_its_opcode() {
+    let program = decode_program(&[128, 0, 4]).unwrap();
+    assert_eq!(
+        program.instructions[&0].kind,
+        InstructionKind::SetShadowEnabled {
+            enabled: false,
+            opcode: 128
+        }
+    );
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(
+        report.events,
+        [HostEvent::SetShadowEnabled {
+            actor: EntityId::new(42),
+            enabled: false
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[128, 0, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert_eq!(error.opcode, Some(128));
+    assert!(error.message.contains("actor context"));
+}
+
+#[test]
 fn pad17_yields_while_retaining_its_opcode() {
     let program = decode_program(&[23, 0, 4]).unwrap();
     assert_eq!(program.instructions[&0].kind, InstructionKind::Yield(23));

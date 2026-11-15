@@ -204,7 +204,10 @@ pub enum InstructionKind {
     },
     SetNavigationAttributeMask(Expression),
     Yield(u8),
-    SetShadowEnabled(bool),
+    SetShadowEnabled {
+        enabled: bool,
+        opcode: u8,
+    },
     SetTextVariable {
         script: Expression,
         value: Expression,

@@ -574,7 +574,7 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetNavigationAttributeMask { mask });
                 }
-                InstructionKind::SetShadowEnabled(enabled) => {
+                InstructionKind::SetShadowEnabled { enabled, .. } => {
                     let Some(actor) = self.entity else {
                         return Err(VmError::new(
                             VmErrorKind::Host,
@@ -1671,7 +1671,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetActorModel { .. } => 0x2f,
         InstructionKind::SetNavigationAttributeMask(_) => 0x27,
         InstructionKind::Yield(opcode) => u32::from(*opcode),
-        InstructionKind::SetShadowEnabled(_) => 0x7f,
+        InstructionKind::SetShadowEnabled { opcode, .. } => u32::from(*opcode),
         InstructionKind::SetTextVariable { .. } => 0x66,
         InstructionKind::SetObjectScale { .. } => 0x9f,
         InstructionKind::SetVibrationFrameRate(_) => 0xfa,

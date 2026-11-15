@@ -48,6 +48,7 @@ const OP_SET_NAVIGATION_ATTRIBUTE_MASK: u32 = 0x27;
 const OP_YIELD: u32 = 0x0e;
 const OP_PADDING17: u32 = 0x17;
 const OP_SHADOW_ON: u32 = 0x7f;
+const OP_SHADOW_OFF: u32 = 0x80;
 const OP_SET_TEXT_VARIABLE: u32 = 0x66;
 const OP_SET_OBJECT_SCALE: u32 = 0x9f;
 const OP_SET_VIBRATION_FRAME_RATE: u32 = 0xfa;
@@ -533,9 +534,12 @@ impl Decoder<'_> {
                 self.byte()?;
                 InstructionKind::Yield(opcode as u8)
             }
-            OP_SHADOW_ON => {
+            OP_SHADOW_ON | OP_SHADOW_OFF => {
                 self.byte()?;
-                InstructionKind::SetShadowEnabled(true)
+                InstructionKind::SetShadowEnabled {
+                    enabled: opcode == OP_SHADOW_ON,
+                    opcode: opcode as u8,
+                }
             }
             OP_SET_TEXT_VARIABLE => {
                 let flags = self.byte()?;

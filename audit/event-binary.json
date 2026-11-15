@@ -126,7 +126,8 @@
     "B_AND_E 84 returns selected-member bit-intersection flags without writes; empty masks return zero without target selection",
     "B_HAVE_ITEM 100 returns the host-provided generic-item count without boolean coercion",
     "B_FRAME 106 reads the current object's animation frame by animation ID and requires object context",
-    "BSRATE 0x105 decodes immediate/expression simulation and signed-wide frame-rate operands and emits SetSimulationFrameRate"
+    "BSRATE 0x105 decodes immediate/expression simulation and signed-wide frame-rate operands and emits SetSimulationFrameRate",
+    "SHADOWOFF 0x80 consumes its flag and emits SetShadowEnabled(false) while preserving its opcode in diagnostics"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -151,10 +152,11 @@
     "entry": 6,
     "function": 1,
     "function_tag": 1,
-    "offset": 382,
-    "opcode": 128,
+    "offset": 414,
+    "expression_offset": 106,
+    "opcode": 101,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x80 after simulation frame-rate support"
+    "instruction": "B_BAFRAME after shadow-disable support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
