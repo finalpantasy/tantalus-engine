@@ -254,3 +254,38 @@ fn talk_triggers_fire_when_player_confirms_within_talk_radius() {
     let step = director.step().unwrap();
     assert!(step.talk_triggers.is_empty());
 }
+
+#[test]
+fn region_occupancy_reports_containing_regions_for_the_player() {
+    use tantalus_game::field::region::Region;
+
+    let mut director = FieldDirector::new(FieldWorld::new());
+    director
+        .world_mut()
+        .add_actor(EntityId::new(1), [50.0, 0.0, 50.0]);
+    director.set_player(EntityId::new(1));
+    director.world_mut().regions.insert(
+        EntityId::new(2),
+        Region {
+            vertices: vec![[0, 0], [100, 0], [100, 100], [0, 100]],
+        },
+    );
+    director.world_mut().regions.insert(
+        EntityId::new(3),
+        Region {
+            vertices: vec![[200, 0], [300, 0], [300, 100], [200, 100]],
+        },
+    );
+
+    let step = director.step().unwrap();
+    assert_eq!(step.region_occupancy, [EntityId::new(2)]);
+
+    director
+        .world_mut()
+        .actors
+        .get_mut(&EntityId::new(1))
+        .unwrap()
+        .position = [250.0, 0.0, 50.0];
+    let step = director.step().unwrap();
+    assert_eq!(step.region_occupancy, [EntityId::new(3)]);
+}

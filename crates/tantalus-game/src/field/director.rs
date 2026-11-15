@@ -36,6 +36,9 @@ pub struct DirectorStep {
     /// Objects whose talk radius contains the player while the configured
     /// confirm mask is held. The caller decides which function to spawn.
     pub talk_triggers: Vec<EntityId>,
+    /// Regions containing the player actor this tick (enter/exit detection
+    /// is a caller diff), from the field's defined region polygons.
+    pub region_occupancy: Vec<EntityId>,
 }
 
 #[derive(Debug)]
@@ -187,11 +190,26 @@ impl FieldDirector {
                 _ => None,
             })
             .collect();
-        let talk_triggers = match (self.world.player(), self.world.confirm_mask()) {
+        let player = self.world.player();
+        let talk_triggers = match (player, self.world.confirm_mask()) {
             (Some(player), Some(mask)) if self.world.input_mask() & mask != 0 => {
                 self.world.talkable_from(player)
             }
             _ => Vec::new(),
+        };
+        let region_occupancy = match player.and_then(|player| {
+            self.world
+                .actors
+                .get(&player)
+                .map(|state| (player, state.position))
+        }) {
+            Some((player, position)) => {
+                super::region::regions_at(&self.world.regions, position[0], position[2])
+                    .into_iter()
+                    .filter(|region| *region != player)
+                    .collect()
+            }
+            None => Vec::new(),
         };
         Ok(DirectorStep {
             tick,
@@ -204,6 +222,7 @@ impl FieldDirector {
             encounters: self.world.take_encounters(),
             requests,
             talk_triggers,
+            region_occupancy,
         })
     }
 

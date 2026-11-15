@@ -1144,11 +1144,16 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         let mut ticks_run = 0u64;
         let mut spawned: Vec<(tantalus_contracts::EntityId, u64)> = Vec::new();
         let mut unspawned_requests = 0usize;
+        let mut regions_visited: std::collections::BTreeSet<u64> =
+            std::collections::BTreeSet::new();
         for _ in 0..ticks {
             match director.step() {
                 Ok(step) => {
                     operations += step.operations;
                     ticks_run += 1;
+                    for region in &step.region_occupancy {
+                        regions_visited.insert(region.get());
+                    }
                     if orchestrate {
                         for request in &step.requests {
                             let target = request.target.get() as usize;
@@ -1251,6 +1256,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 .collect::<Vec<_>>(),
             "skipped_empty_entries": skipped,
             "orchestrated": orchestrate,
+            "regions_visited": regions_visited.len(),
             "spawned_functions": spawned.len(),
             "unspawned_requests": unspawned_requests,
             "completed_entries": completed,
