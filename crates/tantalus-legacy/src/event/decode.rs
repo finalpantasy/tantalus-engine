@@ -54,6 +54,14 @@ const OP_WAIT_WINDOW: u32 = 0x54;
 const OP_WALK_ACTOR: u32 = 0x23;
 const OP_MOVE_ACTOR: u32 = 0xbf;
 const OP_AIM_AT_CAMERA: u32 = 0xb8;
+const OP_START_OBJECT_TURN: u32 = 0xbb;
+const OP_PLAY_OBJECT_ANIMATION: u32 = 0xbd;
+const OP_PLAY_TEXTURE_ANIMATION: u32 = 0xc0;
+const OP_PLAY_TEXTURE_ANIMATION_ONCE: u32 = 0xc1;
+const OP_DISABLE_RUN: u32 = 0x6a;
+const OP_SET_TILE_CAMERA: u32 = 0xc3;
+const OP_GAME_OVER: u32 = 0xf5;
+const OP_START_CARD_GAME: u32 = 0xae;
 const OP_START_BATTLE: u32 = 0x2a;
 const OP_START_BATTLE_GROUP: u32 = 0x8c;
 const OP_CHANGE_WORLD_MAP: u32 = 0xb6;
@@ -766,6 +774,44 @@ impl Decoder<'_> {
                 }
             }
             OP_SYNC_PARTY => InstructionKind::SyncPartyUid,
+            OP_START_OBJECT_TURN => {
+                let flags = self.byte()?;
+                InstructionKind::StartObjectTurn {
+                    object: self.operand(flags, 1, false)?,
+                    angle: self.operand(flags, 2, false)?,
+                    speed: self.operand(flags, 4, false)?,
+                }
+            }
+            OP_PLAY_OBJECT_ANIMATION => {
+                let flags = self.byte()?;
+                InstructionKind::PlayObjectAnimation {
+                    object: self.operand(flags, 1, false)?,
+                    animation: self.operand(flags, 2, true)?,
+                }
+            }
+            OP_PLAY_TEXTURE_ANIMATION | OP_PLAY_TEXTURE_ANIMATION_ONCE => {
+                let flags = self.byte()?;
+                InstructionKind::PlayTextureAnimation {
+                    object: self.operand(flags, 1, false)?,
+                    animation: self.operand(flags, 2, false)?,
+                    once: opcode == OP_PLAY_TEXTURE_ANIMATION_ONCE,
+                }
+            }
+            OP_DISABLE_RUN => InstructionKind::DisableRun,
+            OP_SET_TILE_CAMERA => {
+                let flags = self.byte()?;
+                InstructionKind::SetTileCamera {
+                    overlay: self.operand(flags, 1, false)?,
+                    camera: self.operand(flags, 2, false)?,
+                }
+            }
+            OP_GAME_OVER => InstructionKind::GameOver,
+            OP_START_CARD_GAME => {
+                let flags = self.byte()?;
+                InstructionKind::StartCardGame {
+                    opponent: self.operand(flags, 1, true)?,
+                }
+            }
             OP_AIM_AT_CAMERA => InstructionKind::AimAtCamera,
             OP_DEFINE_PLAYER_CONTROL => InstructionKind::DefinePlayerControl,
             OP_SET_CONTROL_DIRECTION => {
@@ -3166,6 +3212,7 @@ impl Decoder<'_> {
                 89 => ExpressionOp::KeyState(KeyState::Held),
                 26 => ExpressionOp::LessOrEqual,
                 42 => ExpressionOp::ActiveBitCount,
+                43 => ExpressionOp::PickFirstMember,
                 112 => ExpressionOp::BgiCharacterTriangle,
                 113 => ExpressionOp::BgiCharacterFloor,
                 114 => ExpressionOp::NoOp,

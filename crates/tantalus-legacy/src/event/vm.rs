@@ -976,6 +976,82 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SyncPartyUid);
                 }
+                InstructionKind::StartObjectTurn {
+                    object,
+                    angle,
+                    speed,
+                } => {
+                    let object = self.evaluate(host, &object, instruction.offset, opcode)?;
+                    let angle = self
+                        .evaluate(host, &angle, instruction.offset, opcode)?
+                        .wrapping_shl(4) as i16;
+                    let speed = self.evaluate(host, &speed, instruction.offset, opcode)?;
+                    if object < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    self.pc = next;
+                    events.push(HostEvent::StartActorTurn {
+                        actor: EntityId::new(object as u64),
+                        angle,
+                        speed,
+                    });
+                }
+                InstructionKind::PlayObjectAnimation { object, animation } => {
+                    let object = self.evaluate(host, &object, instruction.offset, opcode)?;
+                    let animation =
+                        self.evaluate(host, &animation, instruction.offset, opcode)? as u16;
+                    if object < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    self.pc = next;
+                    events.push(HostEvent::PlayAnimation {
+                        actor: EntityId::new(object as u64),
+                        animation,
+                    });
+                }
+                InstructionKind::PlayTextureAnimation {
+                    object,
+                    animation,
+                    once,
+                } => {
+                    let object = self.evaluate(host, &object, instruction.offset, opcode)?;
+                    let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::PlayTextureAnimation {
+                        object,
+                        animation,
+                        once,
+                    });
+                }
+                InstructionKind::DisableRun => {
+                    self.pc = next;
+                    events.push(HostEvent::DisableRun);
+                }
+                InstructionKind::SetTileCamera { overlay, camera } => {
+                    let overlay = self.evaluate(host, &overlay, instruction.offset, opcode)?;
+                    let camera = self.evaluate(host, &camera, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetTileCamera { overlay, camera });
+                }
+                InstructionKind::GameOver => {
+                    self.pc = next;
+                    self.status = VmStatus::Completed;
+                    events.push(HostEvent::GameOver);
+                }
+                InstructionKind::StartCardGame { opponent } => {
+                    let opponent =
+                        self.evaluate(host, &opponent, instruction.offset, opcode)? as u16;
+                    self.pc = next;
+                    events.push(HostEvent::StartCardGame { opponent });
+                }
                 InstructionKind::AimAtCamera => {
                     self.pc = next;
                     events.push(HostEvent::AimAtCamera);
@@ -3104,6 +3180,35 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::PickFirstMember => {
+                    if stack.len() < 2 {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "first-member pick needs a mask and a member operand",
+                        ));
+                    }
+                    let body = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing first-member operand")
+                    })?;
+                    let mask = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing first-member mask")
+                    })?;
+                    let mask = read_value(host, mask, offset, opcode)?;
+                    // Memoria scans only the first eight list slots.
+                    let result = match (0..8u8).find(|slot| mask & (1 << slot) != 0) {
+                        Some(slot) => {
+                            host.select_object_member_target(Some(slot))
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            read_value(host, body, offset, opcode)?
+                        }
+                        None => 0,
+                    };
+                    stack.push(StackValue {
+                        value: result,
+                        target: None,
+                    });
+                }
                 ExpressionOp::CharacterStat(stat) => {
                     let value = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing character-stat operand")
@@ -3994,6 +4099,14 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::WalkActor { .. } => 0x23,
         InstructionKind::MoveActor { .. } => 0xbf,
         InstructionKind::AimAtCamera => 0xb8,
+        InstructionKind::StartObjectTurn { .. } => 0xbb,
+        InstructionKind::PlayObjectAnimation { .. } => 0xbd,
+        InstructionKind::PlayTextureAnimation { once: false, .. } => 0xc0,
+        InstructionKind::PlayTextureAnimation { once: true, .. } => 0xc1,
+        InstructionKind::DisableRun => 0x6a,
+        InstructionKind::SetTileCamera { .. } => 0xc3,
+        InstructionKind::GameOver => 0xf5,
+        InstructionKind::StartCardGame { .. } => 0xae,
         InstructionKind::StartBattle { group: None, .. } => 0x2a,
         InstructionKind::StartBattle { group: Some(_), .. } => 0x8c,
         InstructionKind::ChangeWorldMap { .. } => 0xb6,
@@ -4350,6 +4463,7 @@ fn operand_start(
         | ExpressionOp::DivideAssignAllMembers
         | ExpressionOp::SubtractAssignAllMembers
         | ExpressionOp::AssignAllMembers
+        | ExpressionOp::PickFirstMember
         | ExpressionOp::EqualMembers
         | ExpressionOp::NotEqualMembers
         | ExpressionOp::AndMembers
