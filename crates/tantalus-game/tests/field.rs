@@ -240,6 +240,28 @@ impl LegacyEventHost for Host {
         ))
     }
 
+    fn read_key_state(&mut self, _state: tantalus_legacy::KeyState) -> Result<i32, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            "field fixture has no key state",
+            "fixture-host",
+            true,
+        ))
+    }
+
+    fn read_character_stat(
+        &mut self,
+        character: i32,
+        _stat: tantalus_legacy::CharacterStat,
+    ) -> Result<i32, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            format!("field fixture has no stats for character {character}"),
+            "fixture-host",
+            true,
+        ))
+    }
+
     fn read_key_on(&mut self) -> Result<i32, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,
