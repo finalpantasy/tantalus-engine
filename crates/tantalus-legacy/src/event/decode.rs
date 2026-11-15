@@ -1300,6 +1300,7 @@ impl Decoder<'_> {
                 39 => ExpressionOp::LogicalAnd,
                 40 => ExpressionOp::LogicalOr,
                 EXPR_ASSIGN => ExpressionOp::Assign,
+                47 => ExpressionOp::MultiplyAssign,
                 45 => ExpressionOp::AssignAllMembers,
                 50 => ExpressionOp::AddAssign,
                 51 => ExpressionOp::SubtractAssign,

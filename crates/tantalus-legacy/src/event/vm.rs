@@ -1360,7 +1360,9 @@ impl EventVm {
                         target: None,
                     });
                 }
-                ExpressionOp::AddAssign | ExpressionOp::SubtractAssign => {
+                ExpressionOp::AddAssign
+                | ExpressionOp::SubtractAssign
+                | ExpressionOp::MultiplyAssign => {
                     let operand = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing arithmetic-assignment operand")
                     })?;
@@ -1372,14 +1374,14 @@ impl EventVm {
                     let value = match operation {
                         ExpressionOp::AddAssign => current.wrapping_add(operand),
                         ExpressionOp::SubtractAssign => current.wrapping_sub(operand),
+                        ExpressionOp::MultiplyAssign => current.wrapping_mul(operand),
                         _ => unreachable!(),
                     };
-                    let value = match target.target {
+                    match target.target {
                         Some(StackTarget::Variable(variable)) => {
-                            let value = normalize(value, variable.value_type);
+                            let normalized = normalize(value, variable.value_type);
                             self.variables
-                                .insert((variable.scope, variable.index), value);
-                            value
+                                .insert((variable.scope, variable.index), normalized);
                         }
                         Some(StackTarget::Member(member)) => {
                             let object = host
@@ -1387,7 +1389,6 @@ impl EventVm {
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
                             host.write_object_member(ObjectMemberRef { object, member }, value)
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
-                            value
                         }
                         None => {
                             return Err(expression_error(
@@ -1396,7 +1397,7 @@ impl EventVm {
                                 "arithmetic-assignment target is not writable",
                             ));
                         }
-                    };
+                    }
                     stack.push(StackValue {
                         value,
                         target: None,
@@ -2212,6 +2213,7 @@ fn operand_start(
         | ExpressionOp::Assign
         | ExpressionOp::AddAssign
         | ExpressionOp::SubtractAssign
+        | ExpressionOp::MultiplyAssign
         | ExpressionOp::PostIncrementMembers
         | ExpressionOp::PostDecrementMembers
         | ExpressionOp::PreIncrementMembers

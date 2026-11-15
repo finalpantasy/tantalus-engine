@@ -161,7 +161,8 @@
     "ELEMENT_AFFINITY 0x122 decodes four signed 24-bit operands and emits ChangeElementalAffinity for host-owned battle behavior",
     "RAIN 0xD8 emits SetRain with strength and speed for host-owned field, world, and battle weather behavior",
     "MAPJUMP 0x2B emits ChangeField with a signed 16-bit destination and completes the old VM before later old-scene effects",
-    "JMP_SWITCHEX 0x06 supports explicit nonconsecutive 16-bit cases, first-match/default selection, and its fixed post-header branch anchor"
+    "JMP_SWITCHEX 0x06 supports explicit nonconsecutive 16-bit cases, first-match/default selection, and its fixed post-header branch anchor",
+    "B_MULT_LET 47 multiplies variable/member targets, normalizes variable storage, and returns the raw arithmetic result"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -256,10 +257,10 @@
     "entry": 13,
     "function": 0,
     "function_tag": 0,
-    "offset": 246,
-    "opcode": 47,
+    "offset": 250,
+    "opcode": 93,
     "kind": "UnsupportedOpcode",
-    "instruction": "B_MULT_LET expression opcode 0x2F after explicit-value switch support"
+    "instruction": "B_ANGLE expression opcode 0x5D after multiply-assignment support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
