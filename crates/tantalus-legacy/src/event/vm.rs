@@ -1114,6 +1114,19 @@ impl EventVm {
                         frame_rate,
                     });
                 }
+                InstructionKind::SetTileAnimationRate {
+                    animation,
+                    frame_rate,
+                } => {
+                    let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
+                    let frame_rate =
+                        self.evaluate(host, &frame_rate, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::SetTileAnimationRate {
+                        animation,
+                        frame_rate,
+                    });
+                }
                 InstructionKind::SetTileAnimationFrameWait {
                     animation,
                     frame,
@@ -2733,9 +2746,10 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::RequestCallerSync { .. } => 0x14,
         InstructionKind::SetSimulationFloor { .. } => 0x104,
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
-        InstructionKind::SetTileAnimationFlags { .. } => 0x63,
-        InstructionKind::SetTileAnimationRange { .. } => 0x64,
-        InstructionKind::SetTileAnimationFrameWait { .. } => 0x62,
+        InstructionKind::SetTileAnimationFlags { .. } => 0x64,
+        InstructionKind::SetTileAnimationRange { .. } => 0x65,
+        InstructionKind::SetTileAnimationFrameWait { .. } => 0x63,
+        InstructionKind::SetTileAnimationRate { .. } => 0x61,
         InstructionKind::IncrementFrogCount => 0xe0,
         InstructionKind::SetTileAnimationFrame { .. } => 0xe7,
         InstructionKind::OpenPartyMenu { .. } => 0xb2,
@@ -2754,7 +2768,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetTileScrollWithOffset { .. } => 0xe4,
         InstructionKind::SetTileViewportAlpha { .. } => 0xe6,
         InstructionKind::SetCameraBounds { .. } => 0x1e,
-        InstructionKind::SetCharacterRow { .. } => 0x61,
+        InstructionKind::SetCharacterRow { .. } => 0x62,
         InstructionKind::ClearPartyStatus { .. } => 0xd9,
         InstructionKind::SetActorPitchRoll { .. } => 0x37,
         InstructionKind::AttachTile { .. } => 0x92,

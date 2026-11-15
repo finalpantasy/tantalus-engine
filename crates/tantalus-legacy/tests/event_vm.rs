@@ -201,6 +201,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetTileShadeColor { .. } => {}
                 HostEvent::SetSimulationFloor { .. } => {}
                 HostEvent::SetSimulationFrameRate { .. } => {}
+                HostEvent::SetTileAnimationRate { .. } => {}
                 HostEvent::SetTileAnimationFrameWait { .. } => {}
                 HostEvent::SetTileAnimationFlags { .. } => {}
                 HostEvent::SetTileAnimationRange { .. } => {}
@@ -5374,7 +5375,7 @@ fn bsrate_sets_signed_simulation_frame_rate_with_extended_opcode() {
 
 #[test]
 fn tile_animation_flags_decode_and_execute() {
-    let program = decode_program(&[99, 0, 2, 0x60, 4]).unwrap();
+    let program = decode_program(&[100, 0, 2, 0x60, 4]).unwrap();
     assert_eq!(program.instructions[&0].length, 4);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
@@ -5386,10 +5387,10 @@ fn tile_animation_flags_decode_and_execute() {
             flags: 96,
         }]
     );
-    assert!(vm.traces().any(|trace| trace.opcode == Some(99)));
+    assert!(vm.traces().any(|trace| trace.opcode == Some(100)));
     assert_eq!(report.status, VmStatus::Completed);
 
-    let mut bytes = vec![99, 3];
+    let mut bytes = vec![100, 3];
     append_expression(&mut bytes, constant(1));
     append_expression(&mut bytes, constant(0x20));
     bytes.push(4);
@@ -5403,14 +5404,14 @@ fn tile_animation_flags_decode_and_execute() {
         }]
     );
 
-    let truncated = decode_program(&[99, 0, 2]).unwrap_err();
+    let truncated = decode_program(&[100, 0, 2]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
-    assert!(truncated.message.contains("opcode Some(99)"));
+    assert!(truncated.message.contains("opcode Some(100)"));
 }
 
 #[test]
 fn tile_animation_range_decodes_playback_bounds() {
-    let program = decode_program(&[100, 0, 2, 3, 9, 4]).unwrap();
+    let program = decode_program(&[101, 0, 2, 3, 9, 4]).unwrap();
     assert_eq!(program.instructions[&0].length, 5);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
@@ -5423,10 +5424,10 @@ fn tile_animation_range_decodes_playback_bounds() {
             last_frame: 9,
         }]
     );
-    assert!(vm.traces().any(|trace| trace.opcode == Some(100)));
+    assert!(vm.traces().any(|trace| trace.opcode == Some(101)));
     assert_eq!(report.status, VmStatus::Completed);
 
-    let mut bytes = vec![100, 7];
+    let mut bytes = vec![101, 7];
     for value in [1, 255, 0] {
         append_expression(&mut bytes, constant(value));
     }
@@ -5442,9 +5443,9 @@ fn tile_animation_range_decodes_playback_bounds() {
         }]
     );
 
-    let truncated = decode_program(&[100, 0, 2, 3]).unwrap_err();
+    let truncated = decode_program(&[101, 0, 2, 3]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
-    assert!(truncated.message.contains("opcode Some(100)"));
+    assert!(truncated.message.contains("opcode Some(101)"));
 }
 
 #[test]
@@ -5460,8 +5461,44 @@ fn incfrog_emits_a_no_operand_host_command() {
 }
 
 #[test]
+fn bgarate_sets_tile_animation_speed_from_signed_word() {
+    let program = decode_program(&[97, 0, 2, 0x00, 0x01, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 5);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileAnimationRate {
+            animation: 2,
+            frame_rate: 256,
+        }]
+    );
+    assert!(vm.traces().any(|trace| trace.opcode == Some(97)));
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![97, 3];
+    append_expression(&mut bytes, constant(1));
+    append_expression(&mut bytes, constant(-128));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileAnimationRate {
+            animation: 1,
+            frame_rate: -128,
+        }]
+    );
+
+    let truncated = decode_program(&[97, 0, 2, 0x00]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(97)"));
+}
+
+#[test]
 fn bgawait_sets_tile_animation_frame_wait() {
-    let program = decode_program(&[98, 0, 2, 255, 30, 4]).unwrap();
+    let program = decode_program(&[99, 0, 2, 255, 30, 4]).unwrap();
     assert_eq!(program.instructions[&0].length, 5);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
@@ -5474,10 +5511,10 @@ fn bgawait_sets_tile_animation_frame_wait() {
             wait: 30,
         }]
     );
-    assert!(vm.traces().any(|trace| trace.opcode == Some(98)));
+    assert!(vm.traces().any(|trace| trace.opcode == Some(99)));
     assert_eq!(report.status, VmStatus::Completed);
 
-    let mut bytes = vec![98, 7];
+    let mut bytes = vec![99, 7];
     for value in [3, 12, 40] {
         append_expression(&mut bytes, constant(value));
     }
@@ -5493,9 +5530,9 @@ fn bgawait_sets_tile_animation_frame_wait() {
         }]
     );
 
-    let truncated = decode_program(&[98, 0, 2, 1]).unwrap_err();
+    let truncated = decode_program(&[99, 0, 2, 1]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
-    assert!(truncated.message.contains("opcode Some(98)"));
+    assert!(truncated.message.contains("opcode Some(99)"));
 }
 
 #[test]
@@ -5914,7 +5951,7 @@ fn bgvport_emits_camera_and_signed_bounds() {
 
 #[test]
 fn setrow_emits_character_and_wrapped_row() {
-    let program = decode_program(&[97, 0, 2, 255, 4]).unwrap();
+    let program = decode_program(&[98, 0, 2, 255, 4]).unwrap();
     assert_eq!(program.instructions[&0].length, 4);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
@@ -5928,7 +5965,7 @@ fn setrow_emits_character_and_wrapped_row() {
     );
     assert_eq!(vm.status(), VmStatus::Completed);
 
-    let mut bytes = vec![97, 3];
+    let mut bytes = vec![98, 3];
     append_expression(&mut bytes, constant(3));
     append_expression(&mut bytes, constant(-1));
     bytes.push(4);
