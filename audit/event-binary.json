@@ -105,7 +105,8 @@
     "DIRE 0x36 emits actor-facing angles with wrapping shift-by-four fixed-point conversion",
     "AIDLE 0x33 emits actor-bound SetIdleAnimation with wide immediate/expression IDs",
     "AWALK 0x34 emits actor-bound SetWalkAnimation with wide immediate/expression IDs",
-    "ARUN 0x35 emits actor-bound SetRunAnimation with wide immediate/expression IDs"
+    "ARUN 0x35 emits actor-bound SetRunAnimation with wide immediate/expression IDs",
+    "ATURNL 0x7A emits actor-bound SetLeftTurnAnimation with wide immediate/expression IDs"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -130,10 +131,10 @@
     "entry": 6,
     "function": 0,
     "function_tag": 0,
-    "offset": 64,
-    "opcode": 122,
+    "offset": 68,
+    "opcode": 123,
     "kind": "UnsupportedOpcode",
-    "instruction": "WAITTURN after run-animation support; entries 4 and 5 omit BSFLOOR's argument flag"
+    "instruction": "ATURNR after left-turn-animation support; entries 4 and 5 omit BSFLOOR's argument flag"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
