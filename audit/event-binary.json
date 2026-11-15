@@ -179,7 +179,8 @@
     "B_NE_E 35 returns selected-member inequality flags without writes and zero for an empty selection",
     "GETSCREEN 0xA9 decodes an object operand and emits CalculateScreenPosition for host-owned projection",
     "TURN 0x56 emits StartActorTurn with a wrapped fixed-point angle and raw speed without an implicit VM wait",
-    "WAITTURN 0x50 consumes no operand and uses an actor-context host-completion wait"
+    "WAITTURN 0x50 consumes no operand and uses an actor-context host-completion wait",
+    "B_COS2 81 computes fixed-point cosine using the operand directly without a left shift"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -297,10 +298,10 @@
     "function_tag": 1,
     "instruction_offset": 255,
     "expression_offset": 257,
-    "offset": 349,
-    "opcode": 81,
+    "offset": 353,
+    "opcode": 80,
     "kind": "UnsupportedOpcode",
-    "instruction": "WAIT contains unsupported expression opcode 0x51 after actor-turn wait support"
+    "instruction": "WAIT contains unsupported B_SIN2 expression opcode 0x50 after unshifted cosine support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

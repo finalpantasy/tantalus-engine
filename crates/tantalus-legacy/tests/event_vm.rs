@@ -3312,6 +3312,28 @@ fn sine_uses_fixed_point_degrees_and_truncates_the_result() {
 }
 
 #[test]
+fn cosine2_uses_the_unshifted_fixed_point_angle() {
+    for (angle, expected) in [(0, 4096), (1024, 0), (2048, -4096)] {
+        let result = variable(VariableScope::Global, VariableType::Int24, 65);
+        let expression = assign(result, binary(constant(angle), vec![], 81));
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+
+        vm.step(Tick::new(0), &mut host).unwrap();
+
+        assert_eq!(vm.variable(VariableScope::Global, 65), expected);
+    }
+
+    let program = decode_program(&[5, 81, 127, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::InvalidExpression);
+    assert!(error.message.contains("cosine operand"));
+}
+
+#[test]
 fn unnamed_expression_114_has_no_stack_effect() {
     let result = variable(VariableScope::Global, VariableType::Int24, 33);
     let expression = assign(result, binary(constant(41), vec![], 114));
