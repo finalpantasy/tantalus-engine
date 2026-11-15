@@ -178,6 +178,7 @@ pub enum InstructionKind {
         width: Expression,
         height: Expression,
     },
+    RestoreAllVisibility,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -302,6 +303,7 @@ pub enum HostEvent {
         width: i16,
         height: i16,
     },
+    RestoreAllVisibility,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

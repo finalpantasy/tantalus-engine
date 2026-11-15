@@ -130,6 +130,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetVibrationFrameRate { .. } => {}
                 HostEvent::RequestScriptAsync { .. } => {}
                 HostEvent::DefineTileViewport { .. } => {}
+                HostEvent::RestoreAllVisibility => {}
             }
         }
         Ok(())
@@ -1394,4 +1395,17 @@ fn direct_post_increment_stores_the_new_value_and_returns_the_old_value() {
 
     assert_eq!(vm.variable(VariableScope::Map, 9), 5);
     assert_eq!(vm.variable(VariableScope::Global, 32), 4);
+}
+
+#[test]
+fn popshow_emits_scene_visibility_restoration() {
+    let program = decode_program(&[214, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 2);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(report.events, [HostEvent::RestoreAllVisibility]);
+    assert_eq!(vm.status(), VmStatus::Completed);
 }

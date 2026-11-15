@@ -364,6 +364,10 @@ impl EventVm {
                         height,
                     });
                 }
+                InstructionKind::RestoreAllVisibility => {
+                    self.pc = next;
+                    events.push(HostEvent::RestoreAllVisibility);
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -1038,6 +1042,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::SetVibrationFrameRate(_) => 0xfa,
         InstructionKind::RequestScriptAsync { .. } => 0x10,
         InstructionKind::DefineTileViewport { .. } => 0xc8,
+        InstructionKind::RestoreAllVisibility => 0xd6,
     }
 }
 

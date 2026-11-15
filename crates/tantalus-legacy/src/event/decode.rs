@@ -33,6 +33,7 @@ const OP_SET_OBJECT_SCALE: u8 = 0x9f;
 const OP_SET_VIBRATION_FRAME_RATE: u8 = 0xfa;
 const OP_REQUEST_SCRIPT_ASYNC: u8 = 0x10;
 const OP_DEFINE_TILE_VIEWPORT: u8 = 0xc8;
+const OP_RESTORE_ALL_VISIBILITY: u8 = 0xd6;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -334,6 +335,10 @@ impl Decoder<'_> {
                     width: argument(8)?,
                     height: argument(16)?,
                 }
+            }
+            OP_RESTORE_ALL_VISIBILITY => {
+                self.byte()?;
+                InstructionKind::RestoreAllVisibility
             }
             _ => {
                 return Err(VmError::new(
