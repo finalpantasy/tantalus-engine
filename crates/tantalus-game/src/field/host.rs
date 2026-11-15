@@ -195,12 +195,13 @@ impl LegacyEventHost for FieldHost<'_> {
                     state.movement = None;
                 }
                 HostEvent::DeleteObject { target } => {
-                    self.world.actors.remove(target);
+                    self.world.delete_object(*target);
                 }
                 HostEvent::PlayAnimation { actor, .. } => {
                     let frames = self.world.animation_default_ticks;
                     let state = self.actor_mut(*actor, "play animation")?;
                     state.animation_frames = frames;
+                    state.animation_frame = 0;
                 }
                 HostEvent::StopAnimation { actor } => {
                     let state = self.actor_mut(*actor, "stop animation")?;
@@ -334,9 +335,13 @@ impl LegacyEventHost for FieldHost<'_> {
                 HostEvent::RunSharedScript { actor, .. } => {
                     self.world.start_shared_script(*actor);
                 }
-                HostEvent::InitializeObject { unique_id, .. } => {
-                    self.world
-                        .map_uid(i32::from(*unique_id), EntityId::new(u64::from(*unique_id)));
+                HostEvent::InitializeObject { source, unique_id } => {
+                    // `NewThread`: uid 0 defaults to the entry's own id; the
+                    // object is the entry.
+                    let uid = if *unique_id == 0 { *source } else { *unique_id };
+                    let entity = EntityId::new(u64::from(*source));
+                    self.world.map_uid(i32::from(uid), entity);
+                    self.world.restore_object(entity);
                 }
                 HostEvent::DefineRegion { region, vertices } => {
                     self.world.regions.insert(
@@ -678,6 +683,18 @@ impl LegacyEventHost for FieldHost<'_> {
 
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError> {
         Ok(!self.world.request_pending(entity))
+    }
+
+    fn object_uid(&mut self, entity: EntityId) -> Option<i32> {
+        self.world.uid_of(entity)
+    }
+
+    fn control_object(&mut self) -> Option<EntityId> {
+        self.world.control_actor.or(self.world.player())
+    }
+
+    fn object_deleted(&mut self, entity: EntityId) -> bool {
+        self.world.is_object_deleted(entity)
     }
 
     fn read_custom_variable(&mut self, _variable: u16) -> Result<i32, EngineError> {

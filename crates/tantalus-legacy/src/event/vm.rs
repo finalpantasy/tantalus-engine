@@ -11,6 +11,14 @@ const SELF_OBJECT_UID: u64 = 255;
 pub struct EventVm {
     program: EventProgram,
     entity: Option<EntityId>,
+    /// The `Obj` this function belongs to when it differs from `entity`: a
+    /// shared script (`Seq`) acts on the caller's actor but is its own
+    /// object, so `DELETE 255` ends the script, not the actor.
+    own_object: Option<EntityId>,
+    /// Object a `REQEW`-family wait is for. The request pends on the
+    /// target, so the caller polls the target, not itself (a caller that
+    /// polled itself deadlocked when it was the target of another wait).
+    request_target: Option<EntityId>,
     pc: u32,
     variables: BTreeMap<(VariableScope, u16), i32>,
     expression_value: i32,
@@ -25,6 +33,8 @@ impl EventVm {
         Self {
             program,
             entity: None,
+            own_object: None,
+            request_target: None,
             pc: 0,
             variables: BTreeMap::new(),
             expression_value: 0,
@@ -78,14 +88,43 @@ impl EventVm {
         Ok(vm)
     }
 
+    /// `GetUIDFromLocalUID` for script-request targets: 255 is the running
+    /// object, 250 the controlled object (`controlUID`). Party slots
+    /// (251-254) are left to the host.
+    fn local_uid(&self, host: &mut dyn LegacyEventHost, uid: i32) -> i32 {
+        let object = match uid {
+            255 => self.entity,
+            250 => host.control_object(),
+            _ => None,
+        };
+        match object {
+            Some(entity) => host
+                .object_uid(entity)
+                .unwrap_or_else(|| i32::try_from(entity.get()).unwrap_or(uid)),
+            None => uid,
+        }
+    }
+
     pub fn with_entity(mut self, entity: EntityId) -> Self {
         self.entity = Some(entity);
+        self
+    }
+
+    /// Names the object `DELETE` disposes for this function when it is not
+    /// `entity` (shared scripts).
+    pub fn with_own_object(mut self, object: EntityId) -> Self {
+        self.own_object = Some(object);
         self
     }
 
     pub fn with_instruction_budget(mut self, budget: u32) -> Self {
         self.instruction_budget = budget;
         self
+    }
+
+    /// The object this VM's self operations act on.
+    pub fn entity(&self) -> Option<EntityId> {
+        self.entity
     }
 
     pub fn pc(&self) -> u32 {
@@ -330,6 +369,7 @@ impl EventVm {
                             "script wait requires current actor context",
                         ));
                     };
+                    let entity = self.request_target.unwrap_or(entity);
                     if !host
                         .script_request_is_complete(entity)
                         .map_err(|error| VmError::host(error, self.pc, 0))?
@@ -337,6 +377,7 @@ impl EventVm {
                         return Ok(self.report(tick, 0, Vec::new()));
                     }
                     self.wait = None;
+                    self.request_target = None;
                     self.status = VmStatus::Running;
                 }
             }
@@ -717,8 +758,9 @@ impl EventVm {
                     });
                 }
                 InstructionKind::DeleteObject(target) => {
+                    let own = self.own_object.or(self.entity);
                     let (target, terminates) = if target == u8::MAX {
-                        let Some(actor) = self.entity else {
+                        let Some(actor) = own else {
                             return Err(VmError::new(
                                 VmErrorKind::Host,
                                 instruction.offset,
@@ -730,7 +772,7 @@ impl EventVm {
                     } else {
                         (
                             EntityId::new(u64::from(target)),
-                            self.entity == Some(EntityId::new(u64::from(target))),
+                            own == Some(EntityId::new(u64::from(target))),
                         )
                     };
                     self.pc = next;
@@ -768,7 +810,9 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetActorPosition {
                         actor,
-                        position: [x, y, z.wrapping_neg()],
+                        // `POS3`/`DPOS3`: `SetActorPosition(po, x, -arg2, arg3)`;
+                        // the second word is the height (pos[1]), negated.
+                        position: [x, z.wrapping_neg(), y],
                     });
                 }
                 InstructionKind::MoveActorXzy { actor, x, z, y } => {
@@ -787,7 +831,9 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::MoveActorXzy {
                         actor: EntityId::new(actor as u64),
-                        position: [x, y, z.wrapping_neg()],
+                        // `POS3`/`DPOS3`: `SetActorPosition(po, x, -arg2, arg3)`;
+                        // the second word is the height (pos[1]), negated.
+                        position: [x, z.wrapping_neg(), y],
                     });
                 }
                 InstructionKind::WalkActorMixed {
@@ -889,9 +935,17 @@ impl EventVm {
                             "animation wait requires current actor context",
                         ));
                     };
-                    if host
-                        .actor_animation_is_active(actor)
-                        .map_err(|error| VmError::host(error, instruction.offset, opcode))?
+                    // Host events apply at the end of the step, so an
+                    // animation this step started is not visible to the host
+                    // yet; the reference's `ANIM` starts it at once and the
+                    // following `WAITANIM` waits on it.
+                    let started_now = events.iter().any(|event| {
+                        matches!(event, HostEvent::PlayAnimation { actor: started, .. } if *started == actor)
+                    });
+                    if started_now
+                        || host
+                            .actor_animation_is_active(actor)
+                            .map_err(|error| VmError::host(error, instruction.offset, opcode))?
                     {
                         self.wait = Some(WaitState::ActorAnimation);
                         self.status = VmStatus::Waiting;
@@ -1363,6 +1417,7 @@ impl EventVm {
                 InstructionKind::RequestScriptAsync { level, target, tag } => {
                     let level = self.evaluate(host, &level, instruction.offset, opcode)?;
                     let target = self.evaluate(host, &target, instruction.offset, opcode)?;
+                    let target = self.local_uid(host, target);
                     if target < 0 {
                         return Err(expression_error(
                             instruction.offset,
@@ -1380,6 +1435,7 @@ impl EventVm {
                 InstructionKind::RequestScriptSync { level, target, tag } => {
                     let level = self.evaluate(host, &level, instruction.offset, opcode)?;
                     let target = self.evaluate(host, &target, instruction.offset, opcode)?;
+                    let target = self.local_uid(host, target);
                     if target < 0 {
                         return Err(expression_error(
                             instruction.offset,
@@ -1394,6 +1450,7 @@ impl EventVm {
                     {
                         self.pc = next;
                         self.wait = Some(WaitState::ScriptRequest);
+                        self.request_target = Some(target);
                         self.status = VmStatus::Waiting;
                         events.push(HostEvent::RequestScriptSync { level, target, tag });
                     } else {
@@ -1405,6 +1462,7 @@ impl EventVm {
                 InstructionKind::RequestScriptWhenReady { level, target, tag } => {
                     let level = self.evaluate(host, &level, instruction.offset, opcode)?;
                     let target = self.evaluate(host, &target, instruction.offset, opcode)?;
+                    let target = self.local_uid(host, target);
                     if target < 0 {
                         return Err(expression_error(
                             instruction.offset,
@@ -1520,6 +1578,7 @@ impl EventVm {
                     }
                     self.pc = next;
                     self.wait = Some(WaitState::ScriptRequest);
+                    self.request_target = None;
                     self.status = VmStatus::Waiting;
                     events.push(HostEvent::RequestCallerSync { level, tag });
                 }
@@ -2212,13 +2271,15 @@ impl EventVm {
                     events.push(HostEvent::SetPlayerName { character, text });
                 }
                 InstructionKind::SetupJump { x, z, y, steps } => {
+                    // `SETVY3`: jumpx = arg1, jumpy = -arg2 (height, pos[1]),
+                    // jumpz = arg3. The decoder names the words x, z, y, so the
+                    // second (`z`) is the negated height and the third (`y`)
+                    // the ground Z.
                     let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
-                    let z = self.evaluate(host, &z, instruction.offset, opcode)? as i16;
-                    // The reference stores the second operand negated
-                    // (`actor.jumpy = (short)-this.getv2()`); keep that sign
-                    // convention here so the host receives actor-state values.
-                    let y = (self.evaluate(host, &y, instruction.offset, opcode)?).wrapping_neg()
-                        as i16;
+                    let height = (self.evaluate(host, &z, instruction.offset, opcode)?)
+                        .wrapping_neg() as i16;
+                    let ground_z = self.evaluate(host, &y, instruction.offset, opcode)? as i16;
+                    let (z, y) = (ground_z, height);
                     let mut steps = self.evaluate(host, &steps, instruction.offset, opcode)? as u8;
                     if steps == 0 {
                         steps = 8;

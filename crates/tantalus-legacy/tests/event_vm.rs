@@ -4713,7 +4713,7 @@ fn xzy_position_and_walk_commands_negate_the_reference_axis_and_wait_for_movemen
     let actor = EntityId::new(11);
     let mut host = Host::new();
 
-    // POS3: X, Z (negated), Y, each a signed 16-bit immediate.
+    // POS3: X, height (negated, pos[1]), Z, each a signed 16-bit immediate.
     let program = decode_program(&[0xa1, 0, 100, 0, 20, 0, 50, 0, 4]).unwrap();
     assert_eq!(program.instructions[&0].length, 8);
     let mut vm = EventVm::new(program).with_entity(actor);
@@ -4722,7 +4722,7 @@ fn xzy_position_and_walk_commands_negate_the_reference_axis_and_wait_for_movemen
         report.events,
         [HostEvent::SetActorPosition {
             actor,
-            position: [100, 50, -20]
+            position: [100, -20, 50]
         }]
     );
 
@@ -4733,7 +4733,7 @@ fn xzy_position_and_walk_commands_negate_the_reference_axis_and_wait_for_movemen
         report.events,
         [HostEvent::MoveActorXzy {
             actor: EntityId::new(5),
-            position: [100, 50, -20]
+            position: [100, -20, 50]
         }]
     );
 
@@ -7909,6 +7909,7 @@ fn set_player_name_emits_character_and_text_operands() {
 
 #[test]
 fn setup_jump_negates_the_height_and_defaults_zero_steps() {
+    // SETVY3 words: X, height (negated into jumpy), Z.
     let program = decode_program(&[0xe2, 0, 0x2c, 0x01, 0x64, 0x00, 0x0a, 0x00, 12, 4]).unwrap();
     let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
     let mut host = Host::new();
@@ -7918,8 +7919,8 @@ fn setup_jump_negates_the_height_and_defaults_zero_steps() {
         [HostEvent::SetupJump {
             actor: EntityId::new(42),
             x: 300,
-            z: 100,
-            y: -10,
+            z: 10,
+            y: -100,
             steps: 12,
         }]
     );
@@ -7933,8 +7934,8 @@ fn setup_jump_negates_the_height_and_defaults_zero_steps() {
         [HostEvent::SetupJump {
             actor: EntityId::new(42),
             x: 1,
-            z: 2,
-            y: -3,
+            z: 3,
+            y: -2,
             steps: 8,
         }]
     );

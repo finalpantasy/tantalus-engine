@@ -127,7 +127,8 @@ fn encount_records_an_encounter_request_for_the_coordinator() {
 
 #[test]
 fn jump_interpolates_positions_and_completes() {
-    // SetupJump 0xE2 to (10, 20) height 5 in 2 steps; then ProgressJump 0xDC.
+    // SetupJump 0xE2 words X 10, height 20 (stored negated, pos[1] = -20),
+    // Z 5, in 2 steps; then ProgressJump 0xDC.
     let program = decode_program(&[0xe2, 0, 10, 0, 20, 0, 5, 0, 2, 0xdc, 4]).unwrap();
     let mut scene = FieldScene::new();
     scene.add_entry(actor(1), program).unwrap();
@@ -138,8 +139,7 @@ fn jump_interpolates_positions_and_completes() {
         let mut host = FieldHost::new(&mut world);
         let steps = scene.step(Tick::new(tick), &mut host).unwrap();
         if steps[0].report.status == VmStatus::Completed {
-            assert_eq!(world.actors[&actor(1)].position[0], 10.0);
-            assert_eq!(world.actors[&actor(1)].position[2], 20.0);
+            assert_eq!(world.actors[&actor(1)].position, [10.0, -20.0, 5.0]);
             return;
         }
     }
@@ -341,4 +341,43 @@ fn turn_loops_read_their_own_facing_through_uid_255() {
     }
     assert_eq!(world.actors[&actor(1)].facing, 4);
     assert!(!world.actors.contains_key(&actor(255)));
+}
+
+#[test]
+fn deleting_an_object_pauses_every_function_until_it_is_initialized_again() {
+    use tantalus_legacy::decode_program;
+
+    // EBin `DELETE` (0x1C) disposes the whole object (`DisposeObj`), so its
+    // other functions stop too; `NEW` (InitObject) brings it back.
+    let deleter = decode_program(&[
+        0x1C, 0, 2, // DELETE 2
+        0x04,
+    ])
+    .unwrap();
+    let mover = decode_program(&[
+        0x22, 0, 1, // WAIT 1
+        0x04,
+    ])
+    .unwrap();
+    let mut scene = tantalus_game::FieldScene::new();
+    scene.add_entry(actor(1), deleter).unwrap();
+    scene
+        .add_object_function(actor(2 * 256 + 1), actor(2), mover)
+        .unwrap();
+    let mut world = FieldWorld::new();
+    world.add_actor(actor(1), [0.0; 3]);
+    world.add_actor(actor(2), [0.0; 3]);
+    {
+        let mut host = FieldHost::new(&mut world);
+        scene.step(Tick::new(0), &mut host).unwrap();
+        for tick in 1..4 {
+            let steps = scene.step(Tick::new(tick), &mut host).unwrap();
+            assert!(steps.iter().all(|step| step.entity != actor(2 * 256 + 1)));
+        }
+    }
+    assert!(world.is_object_deleted(actor(2)));
+    world.restore_object(actor(2));
+    let mut host = FieldHost::new(&mut world);
+    let steps = scene.step(Tick::new(4), &mut host).unwrap();
+    assert!(steps.iter().any(|step| step.entity == actor(2 * 256 + 1)));
 }

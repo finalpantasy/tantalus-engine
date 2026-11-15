@@ -39,6 +39,12 @@ pub struct DirectorStep {
     /// Regions containing the player actor this tick (enter/exit detection
     /// is a caller diff), from the field's defined region polygons.
     pub region_occupancy: Vec<EntityId>,
+    /// `STARTSEQ` (RunSharedScript) this tick as `(object, entry)`: the
+    /// caller runs the entry's function against the calling object
+    /// (`Seq(entry, uid + UID_OFFSET_SEQ)`) and finishes the object's shared
+    /// script when it returns.
+    #[serde(default)]
+    pub shared_scripts: Vec<(EntityId, i32)>,
 }
 
 #[derive(Debug)]
@@ -70,6 +76,16 @@ impl FieldDirector {
         program: tantalus_legacy::EventProgram,
     ) -> Result<(), EngineError> {
         self.scene.add_entry(entity, program)
+    }
+
+    /// See [`crate::FieldScene::add_object_function`].
+    pub fn add_object_function(
+        &mut self,
+        key: EntityId,
+        object: EntityId,
+        program: tantalus_legacy::EventProgram,
+    ) -> Result<(), EngineError> {
+        self.scene.add_object_function(key, object, program)
     }
 
     pub fn world(&self) -> &FieldWorld {
@@ -107,6 +123,16 @@ impl FieldDirector {
     /// Remove an entry and its program source; returns whether it existed.
     /// Callers re-add it to run the function again from its start, as the
     /// reference does for per-frame region requests.
+    /// See [`FieldScene::add_shared_script`].
+    pub fn add_shared_script(
+        &mut self,
+        key: EntityId,
+        object: EntityId,
+        program: tantalus_legacy::EventProgram,
+    ) -> Result<(), EngineError> {
+        self.scene.add_shared_script(key, object, program)
+    }
+
     pub fn remove_entry(&mut self, entity: EntityId) -> bool {
         self.program_sources.remove(&entity);
         self.scene.remove_entry(entity).is_some()
@@ -196,6 +222,14 @@ impl FieldDirector {
                 _ => None,
             })
             .collect();
+        let shared_scripts = steps
+            .iter()
+            .flat_map(|step| step.report.events.iter())
+            .filter_map(|event| match event {
+                HostEvent::RunSharedScript { actor, entry } => Some((*actor, *entry)),
+                _ => None,
+            })
+            .collect();
         let player = self.world.player();
         let talk_triggers = match (player, self.world.confirm_mask()) {
             (Some(player), Some(mask)) if self.world.input_mask() & mask != 0 => {
@@ -229,6 +263,7 @@ impl FieldDirector {
             requests,
             talk_triggers,
             region_occupancy,
+            shared_scripts,
         })
     }
 
