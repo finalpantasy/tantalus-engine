@@ -64,7 +64,6 @@ fn offscreen_layered_scene_produces_a_nonempty_image() {
 }
 
 #[test]
-#[ignore = "Synthetic 3D capture remains blank on this host"]
 fn offscreen_3d_scene_produces_a_nonempty_image() {
     assert_nonempty_capture("synthetic-3d", ScenePresentationMode::Full3d);
 }

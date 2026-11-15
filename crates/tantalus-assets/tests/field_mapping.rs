@@ -85,7 +85,12 @@ fn navigation() -> BgiFile {
         }],
         edges: Vec::new(),
         animations: Vec::new(),
-        floors: Vec::new(),
+        floors: vec![BgiFloor {
+            flags: 0,
+            index: 0,
+            bounds: [[0; 3]; 4],
+            triangles: vec![0],
+        }],
         normals: Vec::new(),
         vertices: Vec::new(),
     }
@@ -117,7 +122,8 @@ fn field_mapping_preserves_atlas_offsets_depth_camera_and_navigation_anchor() {
             z: 200
         }
     );
-    assert_eq!(mapped.navigation_triangles, 1);
+    assert_eq!(mapped.navigation.triangles.len(), 1);
+    assert_eq!(mapped.navigation.active_floor, 0);
     let sprite = &mapped.overlays[0].sprites[0];
     assert_eq!(sprite.atlas_rect, [40, 50, 56, 58]);
     assert_eq!(sprite.pixel_offset, [-137, -80]);

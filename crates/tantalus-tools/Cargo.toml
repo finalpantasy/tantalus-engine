@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 tantalus-assets = { path = "../tantalus-assets" }
 tantalus-contracts = { path = "../tantalus-contracts" }
+tantalus-game = { path = "../tantalus-game" }
 serde_json.workspace = true
 sha2.workspace = true
 

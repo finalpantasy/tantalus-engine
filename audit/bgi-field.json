@@ -12,5 +12,15 @@
   "normals": 2,
   "count_offset_pairs": [[203, 60], [609, 8180], [0, 10616], [3, 10616], [2, 10712], [164, 10744]],
   "reference_match": "Independent raw-header decoding matches Rust counts and offsets",
+  "active_floor": 0,
+  "active_triangle": 0,
+  "actor_anchor": [-130, 0, -648],
+  "projected_actor_anchor": [-130, 0, -648],
+  "projected_triangle": 0,
+  "eastward_probe_delta": [16, 0],
+  "eastward_probe": [-114, 0, -648],
+  "eastward_probe_triangle": 0,
+  "navigation_transform": "BGI origin plus floor origin; Y inverted during projection",
+  "synthetic_navigation_tests": 5,
   "payload_redistributed": false
 }

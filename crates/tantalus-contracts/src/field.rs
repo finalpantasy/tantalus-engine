@@ -39,10 +39,25 @@ pub struct FieldOverlayPresentation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NavigationTriangle {
+    pub vertices: [u32; 3],
+    pub floor: i16,
+    pub offset: Point3,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldNavigationMesh {
+    pub vertices: Vec<Point3>,
+    pub triangles: Vec<NavigationTriangle>,
+    pub active_floor: i16,
+    pub active_triangle: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FieldSceneDescription {
     pub camera_index: u32,
     pub camera: LegacyFieldCamera,
     pub actor_anchor: Point3,
-    pub navigation_triangles: u32,
+    pub navigation: FieldNavigationMesh,
     pub overlays: Vec<FieldOverlayPresentation>,
 }

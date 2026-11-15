@@ -5,8 +5,9 @@ use bevy::image::TextureFormatPixelInfo;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_resource::{
-    Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Extent3d, MapMode, PollType,
-    TexelCopyBufferInfo, TexelCopyBufferLayout, TextureFormat, TextureUsages,
+    Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Extent3d, MapMode,
+    PipelineCache, PollType, TexelCopyBufferInfo, TexelCopyBufferLayout, TextureFormat,
+    TextureUsages,
 };
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderGraph, RenderQueue};
 use bevy::render::{Extract, Render, RenderApp, RenderSystems};
@@ -38,6 +39,7 @@ impl Default for CaptureConfig {
 #[derive(Resource)]
 struct CaptureState {
     frames_remaining: u32,
+    elapsed_updates: u32,
 }
 
 pub fn capture_snapshot(
@@ -112,6 +114,7 @@ fn capture_with(
     let result: Arc<Mutex<Option<Result<(), String>>>> = Arc::new(Mutex::new(None));
     adapter.app_mut().insert_resource(CaptureState {
         frames_remaining: config.pre_roll_frames,
+        elapsed_updates: 0,
     });
     adapter
         .app_mut()
@@ -143,11 +146,16 @@ fn new_render_target(width: u32, height: u32) -> Image {
     image
 }
 
-#[derive(Resource, Deref)]
-struct MainWorldReceiver(Receiver<Vec<u8>>);
+struct CapturedFrame {
+    data: Vec<u8>,
+    waiting_pipelines: usize,
+}
 
 #[derive(Resource, Deref)]
-struct RenderWorldSender(Sender<Vec<u8>>);
+struct MainWorldReceiver(Receiver<CapturedFrame>);
+
+#[derive(Resource, Deref)]
+struct RenderWorldSender(Sender<CapturedFrame>);
 
 struct ImageCopyPlugin;
 
@@ -251,8 +259,10 @@ fn copy_image_to_buffer(
 fn receive_image_from_buffer(
     copiers: Res<ImageCopiers>,
     device: Res<RenderDevice>,
+    pipelines: Res<PipelineCache>,
     sender: Res<RenderWorldSender>,
 ) {
+    let waiting_pipelines = pipelines.waiting_pipelines().count();
     for copier in &copiers.0 {
         let slice = copier.buffer.slice(..);
         let (send, receive) = crossbeam_channel::bounded(1);
@@ -266,7 +276,10 @@ fn receive_image_from_buffer(
             .recv()
             .expect("image map result")
             .expect("image map");
-        let _ = sender.send(slice.get_mapped_range().to_vec());
+        let _ = sender.send(CapturedFrame {
+            data: slice.get_mapped_range().to_vec(),
+            waiting_pipelines,
+        });
         copier.buffer.unmap();
     }
 }
@@ -283,20 +296,30 @@ fn capture_frame(
     output: Res<CaptureOutput>,
     mut exit: MessageWriter<AppExit>,
 ) {
+    state.elapsed_updates += 1;
+    if state.elapsed_updates > 600 {
+        *result.0.lock().expect("capture result mutex") = Some(Err(
+            "capture timed out waiting for render pipelines".to_owned(),
+        ));
+        exit.write(AppExit::Success);
+        return;
+    }
     if state.frames_remaining > 0 {
-        let mut received_frame = false;
-        while receiver.try_recv().is_ok() {
-            received_frame = true;
+        let mut received_ready_frame = false;
+        while let Ok(frame) = receiver.try_recv() {
+            received_ready_frame |= frame.waiting_pipelines == 0;
         }
-        if received_frame {
+        if received_ready_frame {
             state.frames_remaining -= 1;
         }
         return;
     }
 
     let mut latest = None;
-    while let Ok(data) = receiver.try_recv() {
-        latest = Some(data);
+    while let Ok(frame) = receiver.try_recv() {
+        if frame.waiting_pipelines == 0 {
+            latest = Some(frame.data);
+        }
     }
     let Some(data) = latest else {
         return;

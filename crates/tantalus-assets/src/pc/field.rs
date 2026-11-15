@@ -159,7 +159,7 @@ impl FieldMapper {
                 y: navigation.character[1] as i32,
                 z: navigation.character[2] as i32,
             },
-            navigation_triangles: navigation.triangles.len() as u32,
+            navigation: map_navigation(navigation)?,
             overlays,
         })
     }
@@ -171,4 +171,47 @@ fn padded_rect(layout: PaddedAtlas, ordinal: usize) -> [u32; 4] {
     let x = layout.padding + (ordinal % columns) as u32 * stride;
     let y = layout.padding + (ordinal / columns) as u32 * stride;
     [x, y, x + layout.tile_size, y + layout.tile_size]
+}
+
+fn map_navigation(value: &BgiFile) -> Result<tantalus_contracts::FieldNavigationMesh, ImportError> {
+    let mut triangles = Vec::with_capacity(value.triangles.len());
+    for triangle in &value.triangles {
+        let floor = value
+            .floors
+            .iter()
+            .find(|floor| floor.index as i16 == triangle.floor)
+            .ok_or_else(|| {
+                ImportError::invalid(
+                    "field-mapper",
+                    format!(
+                        "navigation triangle references missing floor {}",
+                        triangle.floor
+                    ),
+                )
+            })?;
+        let offset = Point3 {
+            x: value.origin[0] as i32 + floor.bounds[0][0] as i32,
+            y: value.origin[1] as i32 + floor.bounds[0][1] as i32,
+            z: value.origin[2] as i32 + floor.bounds[0][2] as i32,
+        };
+        triangles.push(tantalus_contracts::NavigationTriangle {
+            vertices: triangle.vertices.map(|vertex| vertex as u32),
+            floor: triangle.floor,
+            offset,
+        });
+    }
+    Ok(tantalus_contracts::FieldNavigationMesh {
+        vertices: value
+            .vertices
+            .iter()
+            .map(|vertex| Point3 {
+                x: vertex[0] as i32,
+                y: vertex[1] as i32,
+                z: vertex[2] as i32,
+            })
+            .collect(),
+        triangles,
+        active_floor: value.active_floor,
+        active_triangle: value.active_triangle as i32,
+    })
 }

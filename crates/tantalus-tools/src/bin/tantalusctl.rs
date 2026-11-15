@@ -307,6 +307,14 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         let loaded = tantalus_assets::pc::bundled_field::BundledField::load(&path, &field)
             .map_err(|error| error.to_string())?;
         let mapped = &loaded.scene;
+        let navigation = tantalus_game::navigation::FieldNavigation::new(&mapped.navigation)
+            .map_err(|error| error.to_string())?;
+        let projected_anchor = navigation
+            .project(mapped.actor_anchor)
+            .map_err(|error| error.to_string())?;
+        let eastward_probe = navigation
+            .move_by(projected_anchor.position, [16, 0])
+            .map_err(|error| error.to_string())?;
         let mut active_sprites = 0_usize;
         let mut viewport_sprites = 0_usize;
         let mut bounds = [i32::MAX, i32::MIN, i32::MAX, i32::MIN];
@@ -345,7 +353,11 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             "camera_viewport_y": mapped.camera.viewport_y,
             "camera_translation": [mapped.camera.translation.x, mapped.camera.translation.y, mapped.camera.translation.z],
             "actor_anchor": [mapped.actor_anchor.x, mapped.actor_anchor.y, mapped.actor_anchor.z],
-            "navigation_triangles": mapped.navigation_triangles,
+            "projected_actor_anchor": [projected_anchor.position.x, projected_anchor.position.y, projected_anchor.position.z],
+            "projected_triangle": projected_anchor.triangle_index,
+            "eastward_probe": [eastward_probe.position.x, eastward_probe.position.y, eastward_probe.position.z],
+            "eastward_probe_triangle": eastward_probe.triangle_index,
+            "navigation_triangles": mapped.navigation.triangles.len(),
             "overlays": mapped.overlays.len(),
             "sprites": mapped.overlays.iter().map(|overlay| overlay.sprites.len()).sum::<usize>(),
         });
@@ -356,7 +368,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 "{}: {} overlays, {} navigation triangles, atlas path ID {}, actor anchor {:?}",
                 field,
                 mapped.overlays.len(),
-                mapped.navigation_triangles,
+                mapped.navigation.triangles.len(),
                 loaded.atlas_path_id,
                 mapped.actor_anchor
             );

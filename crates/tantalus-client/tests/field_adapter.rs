@@ -38,7 +38,12 @@ fn field(atlas: &ContentId) -> FieldSceneDescription {
             depth_offset: 0,
         },
         actor_anchor: Point3::default(),
-        navigation_triangles: 0,
+        navigation: FieldNavigationMesh {
+            vertices: Vec::new(),
+            triangles: Vec::new(),
+            active_floor: 0,
+            active_triangle: 0,
+        },
         overlays: vec![FieldOverlayPresentation {
             overlay_index: 0,
             camera_index: 0,

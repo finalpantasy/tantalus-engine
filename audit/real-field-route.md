@@ -36,7 +36,9 @@ That selected atlas is 2048×2048 DXT5 with 4,194,304 compressed bytes. Its comp
 
 ## BGI navigation verification
 
-The source-backed BGI parser handles triangles, vertex/edge lists, floors, normals, and animation frame references. The selected real field contains 203 triangles, 164 vertices, 609 edges, 3 floors, 2 normals, and no animation list. Independent raw-header decoding matches every count and offset. Evidence: `audit/bgi-field.json`.
+The source-backed BGI parser handles triangles, vertex/edge lists, floors, normals, and animation frame references. The selected real field contains 203 triangles, 164 vertices, 609 edges, 3 floors, 2 normals, and no animation list. Independent raw-header decoding matches every count and offset.
+
+`FieldNavigation` applies BGI and floor origins, inverts height, projects onto the active floor, interpolates slope height, and clamps movement to valid edges. Real projection preserves the anchor `(-130, 0, -648)` on triangle 0; a 16-unit eastward probe reaches `(-114, 0, -648)` on triangle 0. Five synthetic navigation tests cover the geometry and failure contracts. Evidence: `audit/bgi-field.json`.
 
 ## BGS scene verification
 
@@ -44,7 +46,7 @@ The source-backed BGS parser handles scene headers, cameras, overlays, packed sp
 
 ## Renderer-independent mapping
 
-`FieldMapper` now maps the real BGS+BGI data into public field-scene contracts. The real result preserves projection 529, actor anchor (-130, 0, -648), 203 navigation triangles, 22 overlays, and 1,704 sprites. Mapping covers atlas rectangles, pixel offsets, shifted depth, alpha/transparency, visibility, and camera identity. Synthetic tests cover invalid cameras and depth overflow. Evidence: `audit/field-mapping.json`.
+`FieldMapper` maps real BGS+BGI data into public field-scene contracts. The result preserves projection 529, actor anchor (-130, 0, -648), 203 navigation triangles, 22 overlays, and 1,704 sprites. Mapping covers atlas rectangles, pixel offsets, shifted depth, alpha/transparency, visibility, camera identity, and floor-aware navigation. Evidence: `audit/field-mapping.json`.
 
 ## Native capture evidence
 
@@ -52,8 +54,8 @@ The source-backed BGS parser handles scene headers, cameras, overlays, packed sp
 
 The final mapping follows the pinned source's native 320×224 scene/overlay centering and sequential 32-pixel atlas tiles with two-pixel borders. Native sprite dimensions remain independent of atlas resolution, and the adapter excludes overlays belonging to inactive cameras. Relevant reference locations are `BGSCENE_DEF.cs:715-747` and `1821-1878`, plus `FieldMap.cs:2326-2332`.
 
-Two independent final 320×240 runs produced byte-identical PNGs with SHA-256 `6facc4ca4592083cfe63df584d8c9ac712478f155ef7215bad2ef027c97073bb`. Inspection shows a coherent shop interior with recognizable structural and foreground/background layers. This is a real native field render, not original-reference parity. Synthetic 2D also passes; synthetic 3D remains blank.
+Two independent final 320×240 runs produced byte-identical PNGs with SHA-256 `6facc4ca4592083cfe63df584d8c9ac712478f155ef7215bad2ef027c97073bb`. Inspection shows a coherent shop interior with recognizable structural and foreground/background layers. Capture waits for copied GPU frames with no pending render pipelines. Synthetic 2D and 3D both pass; this is not original-reference parity or broad hardware evidence.
 
 ## Remaining dependency
 
-Compare depth, alpha/transparency, animation state, projection, and camera behavior with an original reference; then connect BGI navigation to movement and real event execution. Real gameplay has not been run.
+Compare depth, alpha/transparency, animation state, projection, and camera behavior with an original reference; connect the navigation service to actor input and real event execution. Real gameplay has not been run.
