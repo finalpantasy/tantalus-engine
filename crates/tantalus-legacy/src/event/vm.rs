@@ -1218,6 +1218,30 @@ impl EventVm {
                         shadow_scale,
                     });
                 }
+                InstructionKind::AddBattleStatus {
+                    target,
+                    status,
+                    permanent,
+                    arguments,
+                } => {
+                    let target = self.evaluate(host, &target, instruction.offset, opcode)? as u16;
+                    let status = self.evaluate(host, &status, instruction.offset, opcode)?;
+                    let permanent =
+                        self.evaluate(host, &permanent, instruction.offset, opcode)? != 0;
+                    let [first, second, third] = arguments;
+                    let arguments = [
+                        self.evaluate(host, &first, instruction.offset, opcode)?,
+                        self.evaluate(host, &second, instruction.offset, opcode)?,
+                        self.evaluate(host, &third, instruction.offset, opcode)?,
+                    ];
+                    self.pc = next;
+                    events.push(HostEvent::AddBattleStatus {
+                        target,
+                        status,
+                        permanent,
+                        arguments,
+                    });
+                }
                 InstructionKind::ChangeElementalAffinity {
                     target,
                     kind,
@@ -2592,6 +2616,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::RunBattleCode { .. } => 0x4a,
         InstructionKind::SetBattleMusicContinuation { .. } => 0x1b,
         InstructionKind::RunModelCode { .. } => 0x88,
+        InstructionKind::AddBattleStatus { .. } => 0x11d,
         InstructionKind::SetModelLight { .. } => 0x121,
         InstructionKind::ChangeElementalAffinity { .. } => 0x122,
         InstructionKind::SetRunEnabled { opcode, .. } => u32::from(*opcode),

@@ -205,7 +205,8 @@
     "BGAWAIT 0x62 decodes animation, pause frame, and wait bytes and emits SetTileAnimationFrameWait",
     "B_PARTYADD 109 delegates party insertion to the host and returns the reference failure flag",
     "FLDSND0 through FLDSND3 (0xC5-0xC8) share signed code/ID and variant-specific argument decoding while retaining the actual opcode",
-    "B_OR_LET_E 69 ORs the selected-value mask with its operand and writes the last selected target"
+    "B_OR_LET_E 69 ORs the selected-value mask with its operand and writes the last selected target",
+    "ADD_STATUS 0x11D decodes target, status, permanent flag, and three signed 24-bit script arguments and emits AddBattleStatus"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -382,11 +383,11 @@
       "entry": 15,
       "function": 1,
       "function_tag": 1,
-      "instruction_offset": 175,
-      "offset": 448,
-      "opcode": 285,
-      "kind": "UnsupportedOpcode",
-      "instruction": "Memoria ADD_STATUS extended event opcode 0x11D after B_OR_LET_E support"
+      "instruction_offset": 201,
+      "offset": 1392,
+      "opcode": null,
+      "kind": "Decode",
+      "instruction": "wide-switch case table does not complete before the function boundary after ADD_STATUS support"
     }
   ],
   "unknown_extended_entry_16": {

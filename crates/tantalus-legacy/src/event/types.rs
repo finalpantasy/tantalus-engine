@@ -387,6 +387,12 @@ pub enum InstructionKind {
         shadow_intensity: Expression,
         shadow_scale: Expression,
     },
+    AddBattleStatus {
+        target: Expression,
+        status: Expression,
+        permanent: Expression,
+        arguments: [Expression; 3],
+    },
     ChangeElementalAffinity {
         target: Expression,
         kind: Expression,
@@ -767,6 +773,12 @@ pub enum HostEvent {
         color: [u8; 3],
         shadow_intensity: i8,
         shadow_scale: i8,
+    },
+    AddBattleStatus {
+        target: u16,
+        status: i32,
+        permanent: bool,
+        arguments: [i32; 3],
     },
     ChangeElementalAffinity {
         target: u16,
