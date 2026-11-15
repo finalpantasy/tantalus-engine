@@ -11,6 +11,7 @@ pub struct EventVm {
     entity: Option<EntityId>,
     pc: u32,
     variables: BTreeMap<(VariableScope, u16), i32>,
+    expression_value: i32,
     wait: Option<WaitState>,
     status: VmStatus,
     instruction_budget: u32,
@@ -24,6 +25,7 @@ impl EventVm {
             entity: None,
             pc: 0,
             variables: BTreeMap::new(),
+            expression_value: 0,
             wait: None,
             status: VmStatus::Running,
             instruction_budget: DEFAULT_INSTRUCTION_BUDGET,
@@ -176,8 +178,22 @@ impl EventVm {
                     let value = self.evaluate(host, condition, instruction.offset, opcode)?;
                     self.pc = if value != 0 { target } else { next };
                 }
+                InstructionKind::JumpSwitch {
+                    base,
+                    default_relative,
+                    ref case_relative,
+                } => {
+                    let selected = self.expression_value.wrapping_sub(i32::from(base));
+                    let relative = if selected >= 0 && selected < case_relative.len() as i32 {
+                        case_relative[selected as usize]
+                    } else {
+                        default_relative
+                    };
+                    self.pc = switch_target(&instruction, relative)?;
+                }
                 InstructionKind::Evaluate(expression) => {
-                    self.evaluate(host, &expression, instruction.offset, opcode)?;
+                    self.expression_value =
+                        self.evaluate(host, &expression, instruction.offset, opcode)?;
                     self.pc = next;
                 }
                 InstructionKind::Return => {
@@ -1152,6 +1168,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::Jump(_) => 0x01,
         InstructionKind::JumpIfNot { .. } => 0x02,
         InstructionKind::JumpIf { .. } => 0x03,
+        InstructionKind::JumpSwitch { .. } => 0x0b,
         InstructionKind::Return => 0x04,
         InstructionKind::Evaluate(_) => 0x05,
         InstructionKind::WindowSync { .. } => 0x1f,
@@ -1201,6 +1218,21 @@ fn jump_target(instruction: &Instruction, relative: i16) -> Result<u32, VmError>
         ));
     }
     Ok(target as u32)
+}
+
+fn switch_target(instruction: &Instruction, relative: u16) -> Result<u32, VmError> {
+    instruction
+        .offset
+        .checked_add(1)
+        .and_then(|offset| offset.checked_add(u32::from(relative)))
+        .ok_or_else(|| {
+            VmError::new(
+                VmErrorKind::InvalidJump,
+                instruction.offset,
+                Some(opcode_for(&instruction.kind)),
+                "switch target leaves the event program",
+            )
+        })
 }
 
 fn normalize(value: i32, value_type: VariableType) -> i32 {

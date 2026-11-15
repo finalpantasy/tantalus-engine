@@ -101,6 +101,11 @@ pub enum InstructionKind {
         condition: Expression,
         relative: i16,
     },
+    JumpSwitch {
+        base: i16,
+        default_relative: u16,
+        case_relative: Vec<u16>,
+    },
     Evaluate(Expression),
     Return,
     Wait(Expression),

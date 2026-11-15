@@ -384,6 +384,51 @@ fn unsupported_and_truncated_programs_report_the_byte_offset() {
 }
 
 #[test]
+fn jump_switch_selects_consecutive_cases_and_uses_default_outside_range() {
+    fn switch_program(value: i32) -> Vec<u8> {
+        let mut bytes = vec![5];
+        append_expression(&mut bytes, constant(value));
+        bytes.extend_from_slice(&[11, 2, 5, 0, 11, 0, 9, 0, 9, 0, 0, 0, 4]);
+        bytes
+    }
+
+    let program = decode_program(&switch_program(5)).unwrap();
+    let InstructionKind::JumpSwitch {
+        base,
+        default_relative,
+        case_relative,
+        ..
+    } = &program.instructions[&7].kind
+    else {
+        panic!("expected switch");
+    };
+    assert_eq!(*base, 5);
+    assert_eq!(*default_relative, 11);
+    assert_eq!(case_relative, &[9, 9]);
+
+    for value in [5, 6] {
+        let mut vm = EventVm::new(decode_program(&switch_program(value)).unwrap());
+        let mut host = Host::new();
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(report.status, VmStatus::Running);
+        assert_eq!(vm.pc(), 19);
+        assert_eq!(
+            vm.step(Tick::new(1), &mut host).unwrap().status,
+            VmStatus::Completed
+        );
+    }
+
+    for value in [4, 7] {
+        let mut vm = EventVm::new(decode_program(&switch_program(value)).unwrap());
+        let mut host = Host::new();
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(report.status, VmStatus::Completed);
+    }
+
+    assert!(decode_program(&[11, 1, 0]).is_err());
+}
+
+#[test]
 fn instruction_budget_stops_an_infinite_relative_jump() {
     let bytes = [1, 0xfd, 0xff];
     let program = decode_program(&bytes).unwrap();

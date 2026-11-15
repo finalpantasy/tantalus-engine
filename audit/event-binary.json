@@ -19,13 +19,13 @@
     "asset_bytes": 10924,
     "entries": 22,
     "functions": 36,
-    "decoded_functions": 0,
-    "decode_error_count": 18,
+    "decoded_functions": 1,
+    "decode_error_count": 17,
     "script_bytes": 10620,
     "script_sha256": "c6033b9d6da5043468ae416074644cf64002e86d1c40be8f80cc16891579f16e",
     "reference_match": "UnityPy 1.25.0 independently reproduces the entry count, byte count, and concatenated script SHA-256"
   },
-  "decoded_entries_per_candidate": 4,
+  "decoded_entries_per_candidate": 5,
   "supported_followup": [
     "member post-increment 0x08 decoded; execution requires object-member host",
     "padding 0x00 through 0x03 produce zero",
@@ -94,7 +94,8 @@
     "B_LE_E 30 returns per-slot less-or-equal flags without writes, including zero for an empty mask",
     "PPRINT 0x6C consumes only its opcode and continues without yielding or side effects",
     "PUSHHIDE 0xD5 emits PreserveAndHideAll for host-owned flag preservation and visibility changes",
-    "GLOBALCLEAR 0xD0 consumes its flag and continues through the reference's no-side-effect path"
+    "GLOBALCLEAR 0xD0 consumes its flag and continues through the reference's no-side-effect path",
+    "JMP_SWITCH 0x0B decodes consecutive case offsets and consumes the retained prior EXPR result"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -115,13 +116,13 @@
     "instruction": "function ends while its final expression is still active"
   },
   "next_decode_boundary": {
-    "entry": 0,
+    "entry": 4,
     "function": 0,
     "function_tag": 0,
-    "offset": 1115,
-    "opcode": 11,
+    "offset": 6,
+    "opcode": 38,
     "kind": "UnsupportedOpcode",
-    "instruction": "JMP_SWITCH control-flow opcode after GLOBALCLEAR"
+    "instruction": "next non-malformed entry after real entry 0 decoded completely"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
