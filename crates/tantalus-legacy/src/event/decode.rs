@@ -82,6 +82,7 @@ const OP_CALCULATE_SCREEN_POSITION: u32 = 0xa9;
 const OP_CHANGE_FIELD: u32 = 0x2b;
 const OP_REQUEST_CALLER_SYNC: u32 = 0x14;
 const OP_ATTACH_TILE: u32 = 0x92;
+const OP_BATTLE_SCENE_START: u32 = 0x100;
 const OP_SET_SIMULATION_FLOOR: u32 = 0x104;
 const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
 const OP_SET_TILE_ANIMATION_FRAME: u32 = 0xe7;
@@ -1027,6 +1028,22 @@ impl Decoder<'_> {
                     level,
                     tag: self.byte()?,
                 }
+            }
+            OP_BATTLE_SCENE_START => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                argument(1)?;
+                argument(2)?;
+                InstructionKind::NoOp(opcode)
             }
             OP_SET_SIMULATION_FLOOR => {
                 let flags = self.byte()?;

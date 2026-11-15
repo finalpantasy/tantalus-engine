@@ -4309,6 +4309,30 @@ fn debug_save_and_load_follow_the_reference_noop_path() {
 }
 
 #[test]
+fn bsstart_consumes_two_operands_without_side_effects() {
+    let program = decode_program(&[255, 0, 0, 16, 32, 4]).unwrap();
+    assert_eq!(program.instructions[&0].kind, InstructionKind::NoOp(256));
+    assert_eq!(program.instructions[&0].length, 5);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Completed);
+    assert!(report.events.is_empty());
+
+    let mut bytes = vec![255, 0, 3];
+    append_expression(&mut bytes, constant(7));
+    append_expression(&mut bytes, constant(9));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    assert_eq!(
+        vm.step(Tick::new(0), &mut host).unwrap().status,
+        VmStatus::Completed
+    );
+    assert!(decode_program(&[255, 0, 1]).is_err());
+}
+
+#[test]
 fn bsfloor_sets_simulation_floor_with_extended_opcode() {
     let program = decode_program(&[255, 4, 0, 2, 3, 4]).unwrap();
     assert_eq!(program.instructions[&0].length, 5);
@@ -4768,7 +4792,7 @@ fn rotxz_sets_wrapped_actor_pitch_and_roll() {
 
 #[test]
 fn extended_prefixes_preserve_the_accumulated_opcode_in_errors() {
-    for (bytes, opcode) in [(&[255, 0, 0][..], 256), (&[255, 255, 1, 0][..], 513)] {
+    for (bytes, opcode) in [(&[255, 1, 0][..], 257), (&[255, 255, 1, 0][..], 513)] {
         let error = decode_program(bytes).unwrap_err();
         assert_eq!(error.kind, VmErrorKind::UnsupportedOpcode);
         assert_eq!(error.offset, 0);
