@@ -338,6 +338,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut event = None;
     let mut field_execute = None;
     let mut all_functions = false;
+    let mut orchestrate = false;
     let mut atan_table = None;
     let mut navigation_bundle = None;
     let mut navigation_bgi = None;
@@ -384,6 +385,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 }
             }
             Some("--all-functions") => all_functions = true,
+            Some("--orchestrate") => orchestrate = true,
             Some("--navigation-bundle") => {
                 index += 1;
                 let value = args
@@ -769,44 +771,135 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         }
         let mut entry_tags = Vec::new();
         let mut skipped = Vec::new();
+        // Orchestration pool: every decoded function per entry, spawned on
+        // demand by script requests (uid == entry index convention).
+        let mut pool: Vec<Vec<(u16, tantalus_legacy::EventProgram)>> = Vec::new();
         for entry in &binary.entries {
             let decoded = binary
                 .decode_entry_with_diagnostics(entry.index)
                 .map_err(|error| error.to_string())?;
-            let functions: Vec<_> = if all_functions {
-                decoded.functions.iter().collect()
-            } else {
-                decoded.functions.first().into_iter().collect()
+            pool.push(
+                decoded
+                    .functions
+                    .iter()
+                    .filter(|function| !function.program.instructions.is_empty())
+                    .map(|function| (function.tag, function.program.clone()))
+                    .collect(),
+            );
+        }
+        let register = |director: &mut tantalus_game::FieldDirector,
+                        entry: usize,
+                        tag: Option<u16>,
+                        ordinal: usize|
+         -> Result<Option<(tantalus_contracts::EntityId, u16)>, String> {
+            let functions = &pool[entry];
+            let selected = match tag {
+                Some(tag) => functions.iter().position(|(t, _)| *t == tag),
+                None => {
+                    if functions.is_empty() {
+                        None
+                    } else {
+                        Some(ordinal.min(functions.len() - 1))
+                    }
+                }
             };
-            if functions.is_empty() {
-                skipped.push(entry.index);
-                continue;
-            }
-            for (ordinal, function) in functions.iter().enumerate() {
-                if function.program.instructions.is_empty() {
+            let Some(position) = selected else {
+                return Ok(None);
+            };
+            let (function_tag, program) = &functions[position];
+            let entity = tantalus_contracts::EntityId::new(entry as u64 * 256 + position as u64);
+            director
+                .add_entry_program(entity, program.clone())
+                .map_err(|error| error.to_string())?;
+            director.world_mut().add_actor(entity, [0.0; 3]);
+            Ok(Some((entity, *function_tag)))
+        };
+        if orchestrate {
+            for (entry, functions) in pool.iter().enumerate() {
+                if functions.is_empty() {
+                    skipped.push(entry);
                     continue;
                 }
-                let entity =
-                    tantalus_contracts::EntityId::new(entry.index as u64 * 256 + ordinal as u64);
-                director
-                    .add_entry_program(entity, function.program.clone())
-                    .map_err(|error| error.to_string())?;
-                director.world_mut().add_actor(entity, [0.0; 3]);
-                entry_tags.push((entry.index, function.tag));
+                // Initial VMs run each entry's tag-0 function (fallback: the
+                // first function), keyed by the entry index as the uid.
+                if let Some((_, function_tag)) = register(&mut director, entry, Some(0), 0)? {
+                    entry_tags.push((entry, function_tag));
+                }
+            }
+        } else {
+            for (entry, functions) in pool.iter().enumerate() {
+                if all_functions {
+                    for ordinal in 0..functions.len() {
+                        if let Some((_, function_tag)) =
+                            register(&mut director, entry, None, ordinal)?
+                        {
+                            entry_tags.push((entry, function_tag));
+                        }
+                    }
+                } else if !functions.is_empty() {
+                    if let Some((_, function_tag)) = register(&mut director, entry, None, 0)? {
+                        entry_tags.push((entry, function_tag));
+                    }
+                } else {
+                    skipped.push(entry);
+                }
             }
         }
         let mut operations = 0u64;
         let mut error = None;
         let mut ticks_run = 0u64;
+        let mut spawned: Vec<(tantalus_contracts::EntityId, u64)> = Vec::new();
+        let mut unspawned_requests = 0usize;
         for _ in 0..ticks {
             match director.step() {
                 Ok(step) => {
                     operations += step.operations;
                     ticks_run += 1;
+                    if orchestrate {
+                        for request in &step.requests {
+                            let target = request.target.get() as usize;
+                            if target >= pool.len() {
+                                unspawned_requests += 1;
+                                continue;
+                            }
+                            let tag = u16::from(request.tag);
+                            let tag = if pool[target].iter().any(|(t, _)| *t == tag) {
+                                Some(tag)
+                            } else {
+                                None
+                            };
+                            match register(&mut director, target, tag, 0) {
+                                Ok(Some((entity, function_tag))) => {
+                                    entry_tags.push((target, function_tag));
+                                    spawned.push((entity, target as u64));
+                                }
+                                Ok(None) => unspawned_requests += 1,
+                                Err(_) => unspawned_requests += 1,
+                            }
+                        }
+                    }
                 }
                 Err(failure) => {
                     error = Some(format!("{failure}"));
                     break;
+                }
+            }
+            if orchestrate {
+                let states = director.entry_states();
+                let mut completed_bases = Vec::new();
+                spawned.retain(|(entity, base)| {
+                    let done = states.iter().any(|(state_entity, _, status, _)| {
+                        state_entity == entity && *status == tantalus_legacy::VmStatus::Completed
+                    });
+                    if done {
+                        completed_bases.push(*base);
+                    }
+                    !done
+                });
+                for base in completed_bases {
+                    director
+                        .world_mut()
+                        .complete_request(tantalus_contracts::EntityId::new(base));
                 }
             }
         }
@@ -842,6 +935,9 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 .map(|(entry, tag)| serde_json::json!({"entry": entry, "tag": tag}))
                 .collect::<Vec<_>>(),
             "skipped_empty_entries": skipped,
+            "orchestrated": orchestrate,
+            "spawned_functions": spawned.len(),
+            "unspawned_requests": unspawned_requests,
             "completed_entries": completed,
             "final_states": states,
             "error": error,

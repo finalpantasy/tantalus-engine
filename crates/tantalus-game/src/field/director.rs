@@ -14,7 +14,15 @@ use crate::field::world::EncounterRequest;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use tantalus_contracts::{EngineError, EntityId, ErrorCategory, Tick};
-use tantalus_legacy::{VmStatus, decode_program};
+use tantalus_legacy::{HostEvent, VmStatus, decode_program};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestedScript {
+    pub level: i32,
+    pub target: EntityId,
+    pub tag: u8,
+    pub synchronous: bool,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DirectorStep {
@@ -23,6 +31,8 @@ pub struct DirectorStep {
     pub operations: u64,
     pub completed_entries: Vec<EntityId>,
     pub encounters: Vec<EncounterRequest>,
+    /// Script requests emitted this tick (REQ/REQEW/REQSW family).
+    pub requests: Vec<RequestedScript>,
 }
 
 #[derive(Debug)]
@@ -127,6 +137,20 @@ impl FieldDirector {
             .iter()
             .map(|step| u64::from(step.report.operations))
             .sum();
+        let requests = steps
+            .iter()
+            .flat_map(|step| step.report.events.iter())
+            .filter_map(|event| match event {
+                HostEvent::RequestScriptAsync { level, target, tag }
+                | HostEvent::RequestScriptSync { level, target, tag } => Some(RequestedScript {
+                    level: *level,
+                    target: *target,
+                    tag: *tag,
+                    synchronous: matches!(event, HostEvent::RequestScriptSync { .. }),
+                }),
+                _ => None,
+            })
+            .collect();
         Ok(DirectorStep {
             tick,
             operations,
@@ -136,6 +160,7 @@ impl FieldDirector {
                 .map(|step| step.entity)
                 .collect(),
             encounters: self.world.take_encounters(),
+            requests,
         })
     }
 
