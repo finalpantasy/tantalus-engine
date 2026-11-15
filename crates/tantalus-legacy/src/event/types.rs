@@ -123,6 +123,10 @@ pub enum InstructionKind {
         talk_radius: Expression,
     },
     SetIdleAnimationSpeeds([Expression; 4]),
+    SetHeadFocusMasks {
+        self_mask: Expression,
+        target_mask: Expression,
+    },
     SetActorFacing(Expression),
     Return,
     Wait(Expression),
@@ -342,6 +346,11 @@ pub enum HostEvent {
     SetIdleAnimationSpeeds {
         actor: EntityId,
         speeds: [u8; 4],
+    },
+    SetHeadFocusMasks {
+        actor: EntityId,
+        self_mask: u8,
+        target_mask: u8,
     },
     SetActorFacing {
         actor: EntityId,

@@ -196,6 +196,29 @@ impl EventVm {
                         self.evaluate(host, &expression, instruction.offset, opcode)?;
                     self.pc = next;
                 }
+                InstructionKind::SetHeadFocusMasks {
+                    self_mask,
+                    target_mask,
+                } => {
+                    let self_mask =
+                        self.evaluate(host, &self_mask, instruction.offset, opcode)? as u8;
+                    let target_mask =
+                        self.evaluate(host, &target_mask, instruction.offset, opcode)? as u8;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "head-focus masks require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetHeadFocusMasks {
+                        actor,
+                        self_mask,
+                        target_mask,
+                    });
+                }
                 InstructionKind::SetIdleAnimationSpeeds(expressions) => {
                     let [first, second, third, fourth] = expressions;
                     let speeds = [
@@ -1402,6 +1425,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetRightTurnAnimation { .. } => 0x7b,
         InstructionKind::SetActorRadii { .. } => 0x4b,
         InstructionKind::SetIdleAnimationSpeeds { .. } => 0x86,
+        InstructionKind::SetHeadFocusMasks { .. } => 0x8b,
         InstructionKind::SetActorFacing { .. } => 0x36,
         InstructionKind::Return => 0x04,
         InstructionKind::Evaluate(_) => 0x05,

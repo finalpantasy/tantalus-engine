@@ -18,6 +18,7 @@ const OP_SET_LEFT_TURN_ANIMATION: u32 = 0x7a;
 const OP_SET_RIGHT_TURN_ANIMATION: u32 = 0x7b;
 const OP_SET_ACTOR_RADII: u32 = 0x4b;
 const OP_SET_IDLE_ANIMATION_SPEEDS: u32 = 0x86;
+const OP_SET_HEAD_FOCUS_MASKS: u32 = 0x8b;
 const OP_SET_ACTOR_FACING: u32 = 0x36;
 const OP_EVALUATE: u32 = 0x05;
 const OP_WINDOW_SYNC: u32 = 0x1f;
@@ -188,6 +189,23 @@ impl Decoder<'_> {
                     argument(4)?,
                     argument(8)?,
                 ])
+            }
+            OP_SET_HEAD_FOCUS_MASKS => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetHeadFocusMasks {
+                    self_mask: argument(1)?,
+                    target_mask: argument(2)?,
+                }
             }
             OP_SET_RIGHT_TURN_ANIMATION => {
                 let flags = self.byte()?;

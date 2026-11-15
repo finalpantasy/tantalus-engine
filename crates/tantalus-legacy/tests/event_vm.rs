@@ -125,6 +125,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetRightTurnAnimation { .. } => {}
                 HostEvent::SetActorRadii { .. } => {}
                 HostEvent::SetIdleAnimationSpeeds { .. } => {}
+                HostEvent::SetHeadFocusMasks { .. } => {}
                 HostEvent::SetActorFacing { .. } => {}
                 HostEvent::AimAtCamera => {}
                 HostEvent::DefinePlayerControl { .. } => {}
@@ -683,6 +684,43 @@ fn idlespeed_sets_all_four_actor_animation_speeds() {
     );
 
     let mut vm = EventVm::new(decode_program(&[134, 0, 16, 20, 24, 28, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
+}
+
+#[test]
+fn neckid_sets_actor_head_focus_masks() {
+    let program = decode_program(&[139, 0, 3, 12, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetHeadFocusMasks {
+            actor: EntityId::new(42),
+            self_mask: 3,
+            target_mask: 12
+        }]
+    );
+
+    let mut bytes = vec![139, 3];
+    append_expression(&mut bytes, constant(-1));
+    append_expression(&mut bytes, constant(256));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetHeadFocusMasks {
+            actor: EntityId::new(42),
+            self_mask: 255,
+            target_mask: 0
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[139, 0, 3, 12, 4]).unwrap());
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));
