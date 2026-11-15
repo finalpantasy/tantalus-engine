@@ -215,6 +215,10 @@ pub enum InstructionKind {
         item: Expression,
         count: Expression,
     },
+    RemoveItem {
+        item: Expression,
+        count: Expression,
+    },
     WalkActor {
         x: Expression,
         z: Expression,
@@ -530,6 +534,10 @@ pub enum HostEvent {
         window: u8,
     },
     AddItem {
+        item: i32,
+        count: i32,
+    },
+    RemoveItem {
         item: i32,
         count: i32,
     },

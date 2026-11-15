@@ -97,6 +97,7 @@ const OP_SET_SIMULATION_FLOOR: u32 = 0x104;
 const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
 const OP_SET_TILE_ANIMATION_FRAME_WAIT: u32 = 0x62;
 const OP_ADD_ITEM: u32 = 0x48;
+const OP_REMOVE_ITEM: u32 = 0x49;
 const OP_INCREMENT_FROG_COUNT: u32 = 0xe0;
 const OP_SET_TILE_ANIMATION_FLAGS: u32 = 0x63;
 const OP_SET_TILE_ANIMATION_FRAME: u32 = 0xe7;
@@ -915,6 +916,28 @@ impl Decoder<'_> {
                     }
                 };
                 InstructionKind::AddItem {
+                    item: argument(1, true)?,
+                    count: argument(2, false)?,
+                }
+            }
+            OP_REMOVE_ITEM => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::RemoveItem {
                     item: argument(1, true)?,
                     count: argument(2, false)?,
                 }

@@ -211,7 +211,8 @@
     "HEREON 0xEF decodes a byte display mode and emits SetHereIcon",
     "BGAFLAG 0x63 decodes animation and raw flags bytes and emits SetTileAnimationFlags",
     "INCFROG 0xE0 emits the no-operand IncrementFrogCount host command",
-    "ITEMADD 0x48 decodes a signed 16-bit item ID and byte count and emits AddItem"
+    "ITEMADD 0x48 decodes a signed 16-bit item ID and byte count and emits AddItem",
+    "ITEMDELETE 0x49 decodes the same item/count layout and emits RemoveItem"
   ],
   "malformed_entry_boundary": {
     "entry": 1,

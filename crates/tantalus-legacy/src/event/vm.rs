@@ -1435,6 +1435,12 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::AddItem { item, count });
                 }
+                InstructionKind::RemoveItem { item, count } => {
+                    let item = self.evaluate(host, &item, instruction.offset, opcode)?;
+                    let count = self.evaluate(host, &count, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::RemoveItem { item, count });
+                }
                 InstructionKind::WalkActor { x, z } => {
                     let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
                     let z = self.evaluate(host, &z, instruction.offset, opcode)? as i16;
@@ -2626,6 +2632,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::WaitTurn => 0x50,
         InstructionKind::WaitWindow(_) => 0x54,
         InstructionKind::AddItem { .. } => 0x48,
+        InstructionKind::RemoveItem { .. } => 0x49,
         InstructionKind::WalkActor { .. } => 0x23,
         InstructionKind::MoveActor { .. } => 0xbf,
         InstructionKind::AimAtCamera => 0xb8,
