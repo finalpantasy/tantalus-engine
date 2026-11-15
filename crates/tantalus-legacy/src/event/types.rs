@@ -361,6 +361,7 @@ pub enum InstructionKind {
         animation: Expression,
         flags: Expression,
     },
+    IncrementFrogCount,
     SetTileAnimationFrame {
         animation: Expression,
         frame: Expression,
@@ -757,6 +758,7 @@ pub enum HostEvent {
         animation: i32,
         flags: i32,
     },
+    IncrementFrogCount,
     SetTileAnimationFrame {
         animation: i32,
         frame: i32,

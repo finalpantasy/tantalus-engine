@@ -195,6 +195,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetSimulationFrameRate { .. } => {}
                 HostEvent::SetTileAnimationFrameWait { .. } => {}
                 HostEvent::SetTileAnimationFlags { .. } => {}
+                HostEvent::IncrementFrogCount => {}
                 HostEvent::SetTileAnimationFrame { .. } => {}
                 HostEvent::OpenPartyMenu { .. } => self.party_menu_open = true,
                 HostEvent::InitializeCharacter { .. } => {}
@@ -5189,6 +5190,18 @@ fn tile_animation_flags_decode_and_execute() {
     let truncated = decode_program(&[99, 0, 2]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(99)"));
+}
+
+#[test]
+fn incfrog_emits_a_no_operand_host_command() {
+    let program = decode_program(&[224, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 1);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::IncrementFrogCount]);
+    assert!(vm.traces().any(|trace| trace.opcode == Some(224)));
+    assert_eq!(report.status, VmStatus::Completed);
 }
 
 #[test]

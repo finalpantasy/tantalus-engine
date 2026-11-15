@@ -96,6 +96,7 @@ const OP_BATTLE_SCENE_START: u32 = 0x100;
 const OP_SET_SIMULATION_FLOOR: u32 = 0x104;
 const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
 const OP_SET_TILE_ANIMATION_FRAME_WAIT: u32 = 0x62;
+const OP_INCREMENT_FROG_COUNT: u32 = 0xe0;
 const OP_SET_TILE_ANIMATION_FLAGS: u32 = 0x63;
 const OP_SET_TILE_ANIMATION_FRAME: u32 = 0xe7;
 const OP_OPEN_PARTY_MENU: u32 = 0xb2;
@@ -1201,6 +1202,7 @@ impl Decoder<'_> {
                     wait: argument(4)?,
                 }
             }
+            OP_INCREMENT_FROG_COUNT => InstructionKind::IncrementFrogCount,
             OP_SET_TILE_ANIMATION_FRAME => {
                 let flags = self.byte()?;
                 let mut argument = |bit: u8| {

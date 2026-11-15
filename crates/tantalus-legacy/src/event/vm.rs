@@ -1135,6 +1135,10 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetTileAnimationFlags { animation, flags });
                 }
+                InstructionKind::IncrementFrogCount => {
+                    self.pc = next;
+                    events.push(HostEvent::IncrementFrogCount);
+                }
                 InstructionKind::SetTileAnimationFrame { animation, frame } => {
                     let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
                     let frame = self.evaluate(host, &frame, instruction.offset, opcode)?;
@@ -2660,6 +2664,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
         InstructionKind::SetTileAnimationFlags { .. } => 0x63,
         InstructionKind::SetTileAnimationFrameWait { .. } => 0x62,
+        InstructionKind::IncrementFrogCount => 0xe0,
         InstructionKind::SetTileAnimationFrame { .. } => 0xe7,
         InstructionKind::OpenPartyMenu { .. } => 0xb2,
         InstructionKind::InitializeCharacter { .. } => 0xfe,

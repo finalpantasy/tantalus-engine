@@ -209,7 +209,8 @@
     "ADD_STATUS 0x11D decodes target, status, permanent flag, and three signed 24-bit script arguments and emits AddBattleStatus",
     "MOVE 0x23 decodes signed X/Z destinations and emits WalkActor with a repeatable host-owned movement wait",
     "HEREON 0xEF decodes a byte display mode and emits SetHereIcon",
-    "BGAFLAG 0x63 decodes animation and raw flags bytes and emits SetTileAnimationFlags"
+    "BGAFLAG 0x63 decodes animation and raw flags bytes and emits SetTileAnimationFlags",
+    "INCFROG 0xE0 emits the no-operand IncrementFrogCount host command"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -356,11 +357,11 @@
       "entry": 13,
       "function": 4,
       "function_tag": 13,
-      "instruction_offset": 149,
-      "offset": 2593,
-      "opcode": 224,
+      "instruction_offset": 184,
+      "offset": 2628,
+      "opcode": 72,
       "kind": "UnsupportedOpcode",
-      "instruction": "INCFROG event opcode 0xE0 after BGAFLAG support"
+      "instruction": "ITEMADD event opcode 0x48 after INCFROG support"
     },
     {
       "entry": 13,
