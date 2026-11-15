@@ -1262,6 +1262,15 @@ impl EventVm {
                         is_x_offset,
                     });
                 }
+                InstructionKind::SetTileViewportAlpha { viewport, alpha } => {
+                    let viewport = self.evaluate(host, &viewport, instruction.offset, opcode)?;
+                    let alpha = [
+                        self.evaluate(host, &alpha[0], instruction.offset, opcode)? as i16,
+                        self.evaluate(host, &alpha[1], instruction.offset, opcode)? as i16,
+                    ];
+                    self.pc = next;
+                    events.push(HostEvent::SetTileViewportAlpha { viewport, alpha });
+                }
                 InstructionKind::SetCameraBounds { camera, bounds } => {
                     let camera = self.evaluate(host, &camera, instruction.offset, opcode)?;
                     let [min_x, max_x, min_y, max_y] = bounds;
@@ -2532,6 +2541,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetPartyAvailability { .. } => 0xb4,
         InstructionKind::MoveTile { .. } => 0x5a,
         InstructionKind::SetTileScrollWithOffset { .. } => 0xe4,
+        InstructionKind::SetTileViewportAlpha { .. } => 0xe6,
         InstructionKind::SetCameraBounds { .. } => 0x1e,
         InstructionKind::SetCharacterRow { .. } => 0x61,
         InstructionKind::ClearPartyStatus { .. } => 0xd9,

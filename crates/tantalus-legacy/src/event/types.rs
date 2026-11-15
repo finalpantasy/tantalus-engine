@@ -401,6 +401,10 @@ pub enum InstructionKind {
         offset: Expression,
         is_x_offset: Expression,
     },
+    SetTileViewportAlpha {
+        viewport: Expression,
+        alpha: [Expression; 2],
+    },
     SetCameraBounds {
         camera: Expression,
         bounds: [Expression; 4],
@@ -771,6 +775,10 @@ pub enum HostEvent {
         speed: i16,
         offset: i16,
         is_x_offset: i32,
+    },
+    SetTileViewportAlpha {
+        viewport: i32,
+        alpha: [i16; 2],
     },
     SetCameraBounds {
         camera: i32,

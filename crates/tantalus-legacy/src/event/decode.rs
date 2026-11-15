@@ -71,6 +71,7 @@ const OP_SET_RAIN: u32 = 0xd8;
 const OP_REQUEST_SCRIPT_ASYNC: u32 = 0x10;
 const OP_REQUEST_SCRIPT_WHEN_READY: u32 = 0x12;
 const OP_DEFINE_TILE_VIEWPORT: u32 = 0xc8;
+const OP_SET_TILE_VIEWPORT_ALPHA: u32 = 0xe6;
 const OP_BATTLE_MESSAGE: u32 = 0xd0;
 const OP_GLOBAL_CLEAR: u32 = 0xd1;
 const OP_DEBUG_SAVE: u32 = 0xd2;
@@ -926,6 +927,31 @@ impl Decoder<'_> {
                     y: argument(4)?,
                     width: argument(8)?,
                     height: argument(16)?,
+                }
+            }
+            OP_SET_TILE_VIEWPORT_ALPHA => {
+                let flags = self.byte()?;
+                let viewport = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.i16()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetTileViewportAlpha {
+                    viewport,
+                    alpha: [argument(2)?, argument(4)?],
                 }
             }
             OP_BATTLE_MESSAGE => {
