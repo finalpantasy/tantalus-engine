@@ -584,6 +584,17 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::Sine => {
+                    let value = stack
+                        .pop()
+                        .ok_or_else(|| expression_error(offset, opcode, "missing sine operand"))?;
+                    let angle = read_value(host, value, offset, opcode)?.wrapping_shl(4);
+                    let radians = angle as f32 / 4096.0 * 360.0 * 0.017_453_292;
+                    stack.push(StackValue {
+                        value: (radians.sin() * 4096.0) as i32,
+                        target: None,
+                    });
+                }
                 ExpressionOp::Add
                 | ExpressionOp::Subtract
                 | ExpressionOp::Multiply
@@ -1220,6 +1231,7 @@ fn operand_start(
         ExpressionOp::Negate
         | ExpressionOp::Not
         | ExpressionOp::Complement
+        | ExpressionOp::Sine
         | ExpressionOp::PreIncrement
         | ExpressionOp::PreDecrement
         | ExpressionOp::PostIncrement

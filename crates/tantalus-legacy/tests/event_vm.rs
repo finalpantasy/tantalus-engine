@@ -1179,6 +1179,21 @@ fn left_shift_wraps_and_masks_the_shift_count() {
 }
 
 #[test]
+fn sine_uses_fixed_point_degrees_and_truncates_the_result() {
+    for (angle, expected) in [(0, 0), (32, 2896), (64, 4096), (-64, -4096)] {
+        let result = variable(VariableScope::Global, VariableType::Int24, 32);
+        let expression = assign(result, binary(constant(angle), vec![], 98));
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+
+        vm.step(Tick::new(0), &mut host).unwrap();
+
+        assert_eq!(vm.variable(VariableScope::Global, 32), expected);
+    }
+}
+
+#[test]
 fn angle2_uses_the_reference_quadrants_and_atan_table() {
     for (delta_x, delta_z, expected) in [
         (0, 0, 0),

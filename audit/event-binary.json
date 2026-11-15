@@ -82,16 +82,17 @@
     "EXT prefixes accumulate 0x100 and opcode metadata is widened to u32",
     "a lone trailing EXT reports a decode error at the following byte",
     "entry function tables decode each tagged body independently with entry-relative diagnostics",
-    "B_SHIFT_LEFT 22 performs wrapping left shifts with the reference's masked shift count"
+    "B_SHIFT_LEFT 22 performs wrapping left shifts with the reference's masked shift count",
+    "B_SIN 98 shifts its angle by four and applies the reference f32 fixed-point sine conversion"
   ],
   "next_decode_boundary": {
     "entry": 1,
     "function": 1,
     "function_tag": 1,
-    "offset": 31,
-    "opcode": 98,
+    "offset": 42,
+    "opcode": 89,
     "kind": "UnsupportedOpcode",
-    "instruction": "B_SIN expression at expression offset 12"
+    "instruction": "BGLCOLOR event opcode"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
