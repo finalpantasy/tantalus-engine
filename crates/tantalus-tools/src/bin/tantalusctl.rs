@@ -440,6 +440,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut probe = false;
     let mut inventory = false;
     let mut mbg_all = false;
+    let mut audio_all = false;
     let mut map_config_all = false;
     let mut unity_objects = false;
     let mut class_filter = None;
@@ -622,6 +623,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             Some("--probe") => probe = true,
             Some("--inventory") => inventory = true,
             Some("--mbg-all") => mbg_all = true,
+            Some("--audio-all") => audio_all = true,
             Some("--map-config-all") => map_config_all = true,
             Some("--unity-objects") => unity_objects = true,
             Some("--class") => {
@@ -1155,6 +1157,9 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         }
         return Ok(());
     }
+    if audio_all {
+        return run_audio_all(&path, json);
+    }
     if mbg_all || map_config_all {
         return run_parse_all(&bundle, &path, mbg_all, map_config_all);
     }
@@ -1660,12 +1665,12 @@ fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 
@@ -2085,6 +2090,37 @@ fn run_mes_dump(
     }
     if parsed_files == 0 {
         return Err("no matching `.mes` TextAsset".to_owned());
+    }
+    Ok(())
+}
+
+/// Classifies every sound asset in a bundle and prints AKB2/Ogg statistics.
+fn run_audio_all(path: &std::path::Path, json: bool) -> Result<(), String> {
+    let report = tantalus_assets::pc::akb2::inspect_audio_bundle(path)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        return Ok(());
+    }
+    println!("{}: {} sound assets", report.bundle, report.sound_assets);
+    println!("container types: {:?}", report.by_container_type);
+    println!("payload magic: {:?}", report.by_magic);
+    println!(
+        "AKB headers parsed {} (payload in range {}); sample rate {:?}..{:?}; looped {} ({} alternate); header samples {}, stream samples {}",
+        report.akb_parsed,
+        report.akb_payload_in_range,
+        report.min_sample_rate,
+        report.max_sample_rate,
+        report.looped,
+        report.with_alternate_loop,
+        report.total_samples,
+        report.total_granule_samples
+    );
+    println!(
+        "codecs: {:?}; ogg pages {}; sample_count != last granule: {}",
+        report.codecs, report.ogg_pages, report.sample_count_mismatches
+    );
+    for failure in &report.failures {
+        println!("FAIL {}: {}", failure.path, failure.reason);
     }
     Ok(())
 }
