@@ -187,7 +187,8 @@
     "BSSTART 0x100 consumes two byte operands through the reference no-side-effect path while retaining its opcode",
     "B_SHIFT_RIGHT_LET_A 60 arithmetic-shifts and writes every selected member, returning the last result or zero",
     "B_MINUS_LET_A 58 subtracts from and writes every selected member, returning the last result or zero",
-    "BGLSCROLLOFFSET 0xE4 emits tile scrolling enable, signed speed/offset, and raw axis operands"
+    "BGLSCROLLOFFSET 0xE4 emits tile scrolling enable, signed speed/offset, and raw axis operands",
+    "pad0f 0x0F consumes its flag and yields once through the reference default path"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -323,11 +324,11 @@
     "entry": 16,
     "function": 1,
     "function_tag": 1,
-    "instruction_offset": 331,
-    "offset": 578,
-    "opcode": 15,
+    "instruction_offset": 393,
+    "offset": 640,
+    "opcode": 65,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x0F after tile-scroll offset support"
+    "instruction": "event opcode 0x41 after pad0f yield support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

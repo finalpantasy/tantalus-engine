@@ -57,6 +57,7 @@ const OP_SET_MOVEMENT_SPEED: u32 = 0x26;
 const OP_SET_ACTOR_MODEL: u32 = 0x2f;
 const OP_SET_NAVIGATION_ATTRIBUTE_MASK: u32 = 0x27;
 const OP_YIELD: u32 = 0x0e;
+const OP_PADDING15: u32 = 0x0f;
 const OP_PADDING17: u32 = 0x17;
 const OP_SHADOW_ON: u32 = 0x7f;
 const OP_SHADOW_OFF: u32 = 0x80;
@@ -758,7 +759,7 @@ impl Decoder<'_> {
                 };
                 InstructionKind::SetNavigationAttributeMask(mask)
             }
-            OP_YIELD | OP_PADDING17 => {
+            OP_YIELD | OP_PADDING15 | OP_PADDING17 => {
                 self.byte()?;
                 InstructionKind::Yield(opcode as u8)
             }
