@@ -118,3 +118,40 @@ fn unbacked_reads_fail_explicitly_instead_of_inventing_values() {
     assert!(host.read_bgi_character_floor(0).is_err());
     assert!(host.read_object_position(actor(99)).is_err());
 }
+
+#[test]
+fn bgi_queries_resolve_through_the_navigation_mesh() {
+    use tantalus_contracts::{FieldNavigationMesh, NavigationTriangle, Point3};
+    use tantalus_game::field::world::FieldWorld as World;
+
+    let mesh = FieldNavigationMesh {
+        vertices: vec![
+            Point3 { x: 0, y: 0, z: 0 },
+            Point3 { x: 100, y: 0, z: 0 },
+            Point3 { x: 0, y: 0, z: 100 },
+        ],
+        triangles: vec![NavigationTriangle {
+            vertices: [0, 1, 2],
+            floor: 0,
+            offset: Point3 { x: 0, y: 0, z: 0 },
+        }],
+        active_floor: 0,
+        active_triangle: 0,
+        actor_anchor: Point3 { x: 10, y: 0, z: 10 },
+    };
+    let mut world = World::new();
+    world.add_actor(actor(1), [10.0, 0.0, 10.0]);
+    world.map_uid(7, actor(1));
+
+    // Without a mesh the reads stay explicit.
+    {
+        let mut host = FieldHost::new(&mut world);
+        assert!(host.read_bgi_character_triangle(7).is_err());
+    }
+
+    world.provide_navigation(mesh);
+    let mut host = FieldHost::new(&mut world);
+    assert_eq!(host.read_bgi_character_triangle(7).unwrap(), 0);
+    assert_eq!(host.read_bgi_character_floor(7).unwrap(), 0);
+    assert!(host.read_bgi_character_triangle(99).is_err());
+}

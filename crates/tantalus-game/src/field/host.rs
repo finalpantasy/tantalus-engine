@@ -28,6 +28,29 @@ impl<'a> FieldHost<'a> {
         )
     }
 
+    /// Characters observed by BGI queries resolve through the UID map to an
+    /// actor entity; positions then come from actor state.
+    fn character_actor(&mut self, character: i32, context: &str) -> Result<EntityId, EngineError> {
+        self.world
+            .resolve_uid(character)
+            .ok_or_else(|| Self::unknown(context))
+    }
+
+    fn actor_position(&self, actor: EntityId, context: &str) -> Result<[f32; 3], EngineError> {
+        self.world
+            .actors
+            .get(&actor)
+            .map(|state| state.position)
+            .ok_or_else(|| {
+                EngineError::new(
+                    ErrorCategory::UnknownContent,
+                    format!("{context}: unknown actor {actor}"),
+                    "tantalus-game/field-host",
+                    false,
+                )
+            })
+    }
+
     fn actor_mut(
         &mut self,
         actor: EntityId,
@@ -351,12 +374,27 @@ impl LegacyEventHost for FieldHost<'_> {
         Err(Self::unknown("BGI animation frame"))
     }
 
-    fn read_bgi_character_triangle(&mut self, _character: i32) -> Result<i32, EngineError> {
-        Err(Self::unknown("BGI character triangle"))
+    fn read_bgi_character_triangle(&mut self, character: i32) -> Result<i32, EngineError> {
+        let actor = self.character_actor(character, "BGI character triangle")?;
+        let position = self.actor_position(actor, "BGI character triangle")?;
+        let triangle = self
+            .world
+            .navigation_triangle_at(position)
+            .ok_or_else(|| Self::unknown("BGI character triangle projection"))?;
+        i32::try_from(triangle).map_err(|_| Self::unknown("BGI triangle index exceeds i32"))
     }
 
-    fn read_bgi_character_floor(&mut self, _character: i32) -> Result<i32, EngineError> {
-        Err(Self::unknown("BGI character floor"))
+    fn read_bgi_character_floor(&mut self, character: i32) -> Result<i32, EngineError> {
+        let actor = self.character_actor(character, "BGI character floor")?;
+        let _ = self.actor_position(actor, "BGI character floor")?;
+        // The reference reports the character's walkmesh floor; without
+        // per-actor floor tracking the active floor is the honest answer.
+        let floor = self
+            .world
+            .navigation()
+            .map(|mesh| i32::from(mesh.active_floor))
+            .ok_or_else(|| Self::unknown("BGI character floor without a navigation mesh"))?;
+        Ok(floor)
     }
 
     fn read_character_max_mp(&mut self, character: i32) -> Result<i32, EngineError> {

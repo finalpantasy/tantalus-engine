@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
-use tantalus_contracts::EntityId;
+use tantalus_contracts::{EntityId, FieldNavigationMesh, Point3};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Movement {
@@ -113,6 +113,9 @@ pub struct FieldWorld {
     /// Fixed-point atan lookup table from the owned install
     /// (`ratan_tbl.bin`); absent until the caller provides it.
     atan_table: Option<Vec<u8>>,
+    /// Field walkmesh backing BGI character queries; absent until the caller
+    /// imports the field's navigation mesh.
+    navigation: Option<FieldNavigationMesh>,
 }
 
 impl Default for FieldWorld {
@@ -151,6 +154,7 @@ impl FieldWorld {
             exit_arrivals: BTreeSet::new(),
             applied_resolutions: BTreeSet::new(),
             atan_table: None,
+            navigation: None,
         }
     }
 
@@ -327,5 +331,28 @@ impl FieldWorld {
         let table = self.atan_table.as_ref()?;
         let entry = table.get(offset..offset.checked_add(2)?)?;
         Some(u16::from_le_bytes(entry.try_into().ok()?))
+    }
+
+    pub fn provide_navigation(&mut self, mesh: FieldNavigationMesh) {
+        self.navigation = Some(mesh);
+    }
+
+    pub fn navigation(&self) -> Option<&FieldNavigationMesh> {
+        self.navigation.as_ref()
+    }
+
+    /// Project a world position onto the walkmesh, returning the containing
+    /// triangle index.
+    pub(crate) fn navigation_triangle_at(&self, position: [f32; 3]) -> Option<usize> {
+        let mesh = self.navigation.as_ref()?;
+        let navigation = crate::navigation::FieldNavigation::new(mesh).ok()?;
+        let projection = navigation
+            .project(Point3 {
+                x: position[0].round() as i32,
+                y: position[1].round() as i32,
+                z: position[2].round() as i32,
+            })
+            .ok()?;
+        Some(projection.triangle_index)
     }
 }
