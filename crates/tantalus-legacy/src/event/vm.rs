@@ -1315,6 +1315,7 @@ impl EventVm {
                 }),
                 ExpressionOp::EqualMembers
                 | ExpressionOp::LessOrEqualMembers
+                | ExpressionOp::GreaterOrEqualMembers
                 | ExpressionOp::GreaterMembers => {
                     if stack.len() < 3 {
                         return Err(expression_error(
@@ -1343,6 +1344,7 @@ impl EventVm {
                             let matches = match operation {
                                 ExpressionOp::EqualMembers => value == comparison,
                                 ExpressionOp::LessOrEqualMembers => value <= comparison,
+                                ExpressionOp::GreaterOrEqualMembers => value >= comparison,
                                 ExpressionOp::GreaterMembers => value > comparison,
                                 _ => unreachable!(),
                             };
@@ -1757,6 +1759,7 @@ fn operand_start(
         | ExpressionOp::XorAssignAllMembers
         | ExpressionOp::EqualMembers
         | ExpressionOp::LessOrEqualMembers
+        | ExpressionOp::GreaterOrEqualMembers
         | ExpressionOp::GreaterMembers => {
             let value = operand_start(operations, index, offset, opcode)?;
             let mask = operand_start(operations, value, offset, opcode)?;

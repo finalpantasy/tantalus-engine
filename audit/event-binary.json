@@ -117,7 +117,8 @@
     "B_XOR_LET_A 65 writes every selected member and returns the last value, or zero for an empty mask",
     "B_MINUS_LET 51 subtracts, writes a variable/current-member target, and returns the normalized result",
     "B_KEYON2 90 consumes its operand and pushes zero through the reference compatibility path",
-    "B_PRE_PLUS_A 10 increments and writes every selected member and returns the last new value; empty masks return zero without host access"
+    "B_PRE_PLUS_A 10 increments and writes every selected member and returns the last new value; empty masks return zero without host access",
+    "B_GE_E 31 returns selected-member greater-or-equal flags without writes; empty masks return zero without target selection"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -142,11 +143,11 @@
     "entry": 6,
     "function": 1,
     "function_tag": 1,
-    "offset": 182,
-    "expression_offset": 100,
-    "opcode": 31,
+    "offset": 191,
+    "expression_offset": 109,
+    "opcode": 64,
     "kind": "UnsupportedOpcode",
-    "instruction": "unsupported expression operation after all-selected-member pre-increment support"
+    "instruction": "unsupported expression operation after selected-member greater-or-equal support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
