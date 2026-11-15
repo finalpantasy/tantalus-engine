@@ -1,0 +1,1850 @@
+//! Deterministic, I/O-free battle state machine (milestone B5).
+//!
+//! One call of [`Battle::tick`] is one `HonoluluBattleMain.UpdateBattleFrame`
+//! (`Global/Honolulu/HonoluluBattleMain.cs:669-696`): `battle.BattleMain()`
+//! for the current phase, then the ATB add (`YMenu_ManagerActiveTime`). The
+//! shipped rate is 15 ticks per second ([`super::atb::BATTLE_TPS`]).
+//!
+//! Scope and assumptions (all from the pinned Memoria `c716e1fa`):
+//!
+//! * Battle speed mode `Configuration.Battle.Speed = 0` (the shipped default,
+//!   `Memoria.ini`). Modes 1 to 5 change dequeue and ATB rules and are not
+//!   ported.
+//! * `btl_scene.Info.WinPose = false` (no victory camera), no
+//!   `NoGameOver` rules, `IsDebug = false`, no cheats.
+//! * Animation, VFX and sequencer timing is not ported. Where the source waits
+//!   for it the wait is an injected tick count ([`Timing`]); the real values
+//!   come from model animations and the SFX sequencer and are unknown here.
+//!   Defaults are 0 (no wait).
+//! * Enemy AI is the event engine and is not ported: [`BattleHooks::enemy_atb`]
+//!   supplies the action an enemy takes when its gauge fills.
+//! * Items, steal, jump, double cast, magic sword, summon decisions, cover,
+//!   reflect redirect, counter requests, support abilities, Auto-Life,
+//!   Phantom recast and Eiko's Rebirth Flame are not ported.
+
+#![allow(clippy::needless_range_loop)]
+
+use super::atb::{self, GaugeInput, GaugeStep, StartType};
+use super::calc::{CalcEnv, CalcError, calc_main};
+use super::command::BattleCommand;
+use super::cost;
+use super::flee::{self, EscapeSides};
+use super::queue::{CmdId, CmdMode, CommandQueue, CommandSpec, SLOTS_PER_UNIT, cmd, is_declarable};
+use super::rng::BattleRandom;
+use super::status::{self as st, StatusCtx, StatusEnv, StatusTable, alter_status, remove_status};
+use super::targeting::{self, TargetCheck, TargetView, target_type};
+use super::unit::BattleUnit;
+
+/// `BattleAbilityId.Attack` (`Actions.csv` row `Attack;176`), used by the
+/// automatic Attack of Berserk and Confuse (`BerserkStatusScript.cs:34`).
+pub const ABILITY_ATTACK: i32 = 176;
+
+/// `FF9StateGlobal.BTL_RESULT_*` (`Global/ff9/State/FF9StateGlobal.cs:10-17`).
+pub mod result {
+    pub const VICTORY: u8 = 1;
+    pub const VICTORY_NO_POSE: u8 = 2;
+    pub const DEFEAT: u8 = 3;
+    pub const ESCAPE: u8 = 4;
+    pub const ENEMY_FLEE: u8 = 7;
+}
+
+/// `FF9StateBattleSystem.btl_phase` values the port reaches
+/// (`FF9StateBattleSystem.cs:10-18`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Phase {
+    /// `PHASE_NORMAL`.
+    Normal,
+    /// `PHASE_MENU_OFF`.
+    MenuOff,
+    /// `PHASE_VICTORY`.
+    Victory,
+    /// `PHASE_DEFEAT`.
+    Defeat,
+    /// `PHASE_CLOSE`.
+    Close,
+}
+
+/// `btl_seq` while in `PHASE_MENU_OFF` (`FF9StateBattleSystem.cs:22-25`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuOffSeq {
+    Victory,
+    Defeat,
+    Escape,
+}
+
+/// `btl_seq` in the closing phases (`SEQ_VICTORY_FADEOUT` / `SEQ_VICTORY_WAIT`,
+/// `SEQ_DEFEATCLOSE_FADEOUT` / `SEQ_DEFEATCLOSE_WAIT`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EndSeq {
+    FadeOut,
+    Wait,
+}
+
+/// Wait times the source takes from animation or the sequencer. Injected
+/// because those data are not ported; every field defaults to 0.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Timing {
+    /// Ticks an enemy stays in `die_seq` 2 (`btl_mot.cs:306-314`: waits for the
+    /// dying animation to end).
+    pub enemy_death_anim_ticks: u32,
+    /// Ticks from a player gaining Death to `die_seq` 6
+    /// (`btl_mot.cs:360-365`: the down motion must end).
+    pub player_death_ticks: u32,
+    /// Ticks in `CMD_MODE_LOOP` before the effect is applied (the SFX frame
+    /// that calls `ExecVfxCommand`, `btl_cmd.cs:1526`).
+    pub effect_after_loop_ticks: u32,
+    /// Ticks in `CMD_MODE_LOOP` before the command finishes (`SFX.isRunning`
+    /// and the sequencer, `btl_cmd.cs:1441-1443`). Must be at least
+    /// `effect_after_loop_ticks`.
+    pub loop_total_ticks: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BattleConfig {
+    /// `Configuration.Battle.ATBSpeedFactor` as configured (clamped at use).
+    pub atb_speed_factor: f32,
+    /// `FF9StateSystem.Settings.cfg.btl_speed` (0, 1 or 2).
+    pub btl_speed_config: u8,
+    /// `Configuration.Battle.IsKeepRestTimeInBattle`.
+    pub keep_rest_time: bool,
+    /// `btl_scene.Info.Runaway`.
+    pub runaway: bool,
+    pub timing: Timing,
+}
+
+impl Default for BattleConfig {
+    fn default() -> Self {
+        Self {
+            atb_speed_factor: atb::DEFAULT_ATB_SPEED_FACTOR,
+            btl_speed_config: atb::DEFAULT_BTL_SPEED_CONFIG,
+            keep_rest_time: false,
+            runaway: true,
+            timing: Timing::default(),
+        }
+    }
+}
+
+/// Per-unit battle scheduling data that `BattleUnit` does not carry.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnitSched {
+    /// `max.at`.
+    pub max_atb: i16,
+    /// `cur.at_coef` (`SByte`).
+    pub atb_coef: i8,
+    /// `bi.atb != 0`.
+    pub atb_active: bool,
+    /// `BTL_DATA.sel_mode`.
+    pub sel_mode: u8,
+    /// The unit is in `btl_list` (false after `DelCharacter`).
+    pub in_list: bool,
+    /// `bi.target != 0`.
+    pub targetable: bool,
+    pub out_of_reach: bool,
+    /// `bi.disappear != 0` (after escaping).
+    pub disappeared: bool,
+    /// `die_seq` (`BTL_DATA`).
+    pub die_seq: u8,
+    /// Enemy `info.die_fade_rate`, 32 at init (`btl_init.cs:45`).
+    pub die_fade_rate: u8,
+    /// Injected wait counter, see [`Timing`].
+    pub die_wait: u32,
+    /// `player[charId].mpCostFactor` (default 100, `ff9play.cs:313`).
+    pub mp_cost_factor: i32,
+    /// Experience this enemy adds to the battle bonus when it finishes dying
+    /// (`btl_sys.SetBonus`, `btl_sys.cs:215`).
+    pub bonus_exp: u32,
+}
+
+impl UnitSched {
+    pub fn new(unit: &BattleUnit, base_coef: i32) -> Self {
+        Self {
+            max_atb: atb::max_atb(unit.dexterity),
+            atb_coef: atb::setup_atb_coef(base_coef),
+            atb_active: true,
+            sel_mode: 0,
+            in_list: true,
+            targetable: true,
+            out_of_reach: false,
+            disappeared: false,
+            die_seq: 0,
+            die_fade_rate: 32,
+            die_wait: 0,
+            mp_cost_factor: 100,
+            bonus_exp: 0,
+        }
+    }
+}
+
+/// What an enemy does when its gauge fills (`SetEnemyCommand`
+/// arguments, `btl_cmd.cs:346`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EnemyAction {
+    pub cmd_no: u32,
+    pub sub_no: i32,
+    pub tar_id: u16,
+}
+
+/// Data and decisions the engine cannot own.
+pub trait BattleHooks {
+    /// `btl_util.GetCommandAction` + `GetCommandScriptId` for the command
+    /// (`btl_cmd.cs:169-170`): the effect data, or `None` for commands that
+    /// have no calculator effect (system commands).
+    fn spec(&mut self, cmd_no: u32, sub_no: i32, caster: &BattleUnit) -> Option<CommandSpec>;
+
+    /// The enemy AI request on a full gauge
+    /// (`RequestAction(EnemyAtk, ...)`, `HonoluluBattleMain.cs:529`). `None`
+    /// means the request did not run an action.
+    fn enemy_atb(&mut self, _battle: &Battle, _unit: usize) -> Option<EnemyAction> {
+        None
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BattleEvent {
+    /// A unit's gauge reached max (before the `PreventATBConfirm` check).
+    AtbFull {
+        unit: usize,
+    },
+    /// A player is waiting for input (`AddPlayerToReady`).
+    PlayerReady {
+        unit: usize,
+    },
+    CommandQueued {
+        unit: usize,
+        cmd_no: u32,
+        tar_id: u16,
+    },
+    CommandStarted {
+        unit: usize,
+        cmd_no: u32,
+    },
+    /// A condition in `CMD_MODE_INSPECTION` failed; the command is dropped.
+    CommandRejected {
+        unit: usize,
+        cmd_no: u32,
+    },
+    EffectApplied {
+        caster: usize,
+        target: usize,
+        target_hp: u32,
+    },
+    CommandFinished {
+        unit: usize,
+        cmd_no: u32,
+    },
+    /// A tick of Poison, Venom, Regen, Doom or Gradual Petrify.
+    StatusTick {
+        unit: usize,
+        status: u8,
+    },
+    StatusExpired {
+        unit: usize,
+        status: u8,
+    },
+    UnitDied {
+        unit: usize,
+    },
+    UnitRemoved {
+        unit: usize,
+    },
+    TranceEntered {
+        unit: usize,
+    },
+    TranceEnded {
+        unit: usize,
+    },
+    PhaseChanged {
+        phase: Phase,
+    },
+    Result {
+        result: u8,
+    },
+    BattleOver,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BattleError {
+    Calc(CalcError),
+    /// A source expression divides by zero (the C# throws).
+    DivideByZero(&'static str),
+    /// A command needs table data the hooks did not provide.
+    UnknownCommand {
+        cmd_no: u32,
+        sub_no: i32,
+    },
+    /// A source path this port leaves out was reached.
+    Unported(&'static str),
+}
+
+impl std::fmt::Display for BattleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Calc(e) => write!(f, "calculator: {e}"),
+            Self::DivideByZero(w) => write!(f, "division by zero in {w}"),
+            Self::UnknownCommand { cmd_no, sub_no } => {
+                write!(f, "no spec for command {cmd_no} sub {sub_no}")
+            }
+            Self::Unported(w) => write!(f, "not ported: {w}"),
+        }
+    }
+}
+
+impl std::error::Error for BattleError {}
+
+impl From<CalcError> for BattleError {
+    fn from(e: CalcError) -> Self {
+        Self::Calc(e)
+    }
+}
+
+pub struct Battle {
+    pub units: Vec<BattleUnit>,
+    pub sched: Vec<UnitSched>,
+    pub cmds: CommandQueue,
+    /// `cur_cmd_list`.
+    pub running: Vec<CmdId>,
+    /// `UIManager.Battle.ReadyQueue`: players waiting for input, in order.
+    pub ready_players: Vec<usize>,
+    pub phase: Phase,
+    pub menu_off_seq: MenuOffSeq,
+    pub end_seq: EndSeq,
+    /// `ff9.btl_result` once decided.
+    pub result: Option<u8>,
+    /// `ManageBattleEnd` returned (the battle is over).
+    pub over: bool,
+    /// `_commandEnable` (`FF9BMenu_IsEnable`).
+    pub menu_enabled: bool,
+    /// Wait-mode pause: `IsNativeEnableAtb` is false while a player has a
+    /// command menu open (`BattleHUD.Public.cs:795-805`). Supplied by the
+    /// caller; false means the gauge runs.
+    pub atb_paused: bool,
+    pub config: BattleConfig,
+    pub table: StatusTable,
+    /// Completed ticks (`btl_cnt` also counts them, `battle.cs:209`).
+    pub tick_no: u32,
+    /// `btl_fade_time`.
+    pub fade_time: u32,
+    /// `btl_escape_fade`, 32 at init (`btl_sys.cs:32`).
+    pub escape_fade: i32,
+    /// `btl_escape_key != 0`.
+    pub escape_key: bool,
+    /// `BTL_FLAG_ABILITY_FLEE` (set by the Flee ability variant).
+    pub ability_flee: bool,
+    /// `party.escape_no`.
+    pub escape_count: u32,
+    /// `btl_bonus.exp`.
+    pub bonus_exp: u32,
+    /// `(tick, event)` in order; the tick is 1-based.
+    pub log: Vec<(u32, BattleEvent)>,
+}
+
+fn ids_of(mask: u64) -> impl Iterator<Item = u8> {
+    (0u8..64).filter(move |i| mask & (1u64 << i) != 0)
+}
+
+impl Battle {
+    /// A battle in `PHASE_NORMAL`. `units` are in `btl_list` order (players
+    /// first, then enemies). Gauge values in `units[i].cur_atb` are kept; use
+    /// [`atb::initial_player_atb`] / [`atb::initial_enemy_atb`] to set them.
+    pub fn new(units: Vec<BattleUnit>, config: BattleConfig, table: StatusTable) -> Self {
+        let base = atb::base_atb_coef(config.btl_speed_config);
+        let sched: Vec<UnitSched> = units.iter().map(|u| UnitSched::new(u, base)).collect();
+        let escape_owner = units.iter().position(|u| u.is_player);
+        let cmds = CommandQueue::new(units.len(), escape_owner);
+        Self {
+            units,
+            sched,
+            cmds,
+            running: Vec::new(),
+            ready_players: Vec::new(),
+            phase: Phase::Normal,
+            menu_off_seq: MenuOffSeq::Victory,
+            end_seq: EndSeq::FadeOut,
+            result: None,
+            over: false,
+            menu_enabled: true,
+            atb_paused: false,
+            config,
+            table,
+            tick_no: 0,
+            fade_time: 0,
+            escape_fade: 32,
+            escape_key: false,
+            ability_flee: false,
+            escape_count: 0,
+            bonus_exp: 0,
+            log: Vec::new(),
+        }
+    }
+
+    fn emit(&mut self, e: BattleEvent) {
+        self.log.push((self.tick_no + 1, e));
+    }
+
+    fn base_coef(&self) -> i32 {
+        atb::base_atb_coef(self.config.btl_speed_config)
+    }
+
+    fn status_env(&self) -> StatusEnv {
+        StatusEnv {
+            phase_after_enter: true,
+            battle_speed: 0,
+            menu_off_phase: self.phase == Phase::MenuOff,
+        }
+    }
+
+    /// `FF9BMenu_IsEnableAtb` at battle speed 0 (`BattleHUD.Public.cs:776-793`).
+    pub fn atb_runs(&self) -> bool {
+        self.menu_enabled && !self.atb_paused
+    }
+
+    fn dead(&self, i: usize) -> bool {
+        self.units[i].is_under_any_status(st::DEATH)
+    }
+
+    fn views(&self) -> Vec<TargetView> {
+        (0..self.units.len())
+            .filter(|&i| self.sched[i].in_list)
+            .map(|i| TargetView {
+                btl_id: self.units[i].id,
+                is_player: self.units[i].is_player,
+                dead: self.dead(i),
+                targetable: self.sched[i].targetable,
+                out_of_reach: self.sched[i].out_of_reach,
+            })
+            .collect()
+    }
+
+    /// `btl_util.IsBtlBusy(btl, ANY_CURRENT)` (`btl_util.cs:176`): the unit is
+    /// the caster or a target of a running command.
+    fn busy_current(&self, i: usize) -> bool {
+        let id = self.units[i].id;
+        self.running.iter().any(|&c| {
+            let s = &self.cmds.slots[c];
+            s.regist == Some(i) || s.tar_id & id != 0
+        })
+    }
+
+    fn queued_caster(&self, i: usize) -> bool {
+        self.cmds
+            .queue
+            .iter()
+            .any(|&c| self.cmds.slots[c].regist == Some(i))
+    }
+
+    fn any_player_alive(&self) -> bool {
+        (0..self.units.len()).any(|i| {
+            self.sched[i].in_list
+                && self.units[i].is_player
+                && !self.units[i].is_under_any_status(st::BATTLE_END | st::DEATH)
+        })
+    }
+
+    // -- status bookkeeping ------------------------------------------------
+
+    fn snapshot(&self) -> Vec<u64> {
+        self.units.iter().map(|u| u.status_current).collect()
+    }
+
+    /// Run the side effects the B4 status port leaves out (see
+    /// `status.rs::apply_script`), for every status that changed since
+    /// `prev`. Removals are handled before additions. Sources are the
+    /// `Apply` / `Remove` bodies in `Memoria/Scripts/DefaultStatus/` and the
+    /// tail of `btl_stat.AlterStatus` (`btl_stat.cs:73-99`).
+    fn sync(&mut self, prev: &[u64]) {
+        for i in 0..self.units.len() {
+            let removed = prev[i] & !self.units[i].status_current;
+            if removed != 0 {
+                self.on_removed(i, removed);
+            }
+        }
+        for i in 0..self.units.len() {
+            let added = self.units[i].status_current & !prev[i];
+            if added != 0 {
+                self.on_added(i, added);
+            }
+            // `PetrifyStatusScript.Apply` (`PetrifyStatusScript.cs:13-18`)
+            // queues `SysStone` when B4 deferred the petrify.
+            let stone = self.cmds.slot_of(i, 2);
+            if self.units[i].petrify_command_pending
+                && !self.cmds.is_using(stone, &self.running)
+                && self.cmds.slots[stone].cmd_no != cmd::SYS_STONE
+            {
+                self.queue_system_command(stone, cmd::SYS_STONE, self.units[i].id);
+            }
+        }
+    }
+
+    /// `SetCommand` for a system command a status script queues
+    /// (`btl_cmd.cs:153-311`): no-op when the slot is already queued or
+    /// running, otherwise fill the slot and enqueue it.
+    fn queue_system_command(&mut self, id: CmdId, cmd_no: u32, tar_id: u16) {
+        if self.cmds.is_using(id, &self.running) {
+            return;
+        }
+        self.raw_set_command(id, cmd_no, 0, tar_id, 0, None);
+        self.cmds.enqueue(id);
+    }
+
+    /// Apply `alter_status` to a unit and run the side effects
+    /// ([`Battle::sync`]). For callers and tests that inflict a status
+    /// outside a command.
+    pub fn alter_status_on(
+        &mut self,
+        unit: usize,
+        id: u8,
+        rng: &mut dyn BattleRandom,
+    ) -> st::AlterResult {
+        let prev = self.snapshot();
+        let env = self.status_env();
+        let ctx = StatusCtx {
+            table: &self.table,
+            env: &env,
+        };
+        let r = alter_status(&mut self.units[unit], id, false, &ctx, rng);
+        self.sync(&prev);
+        r
+    }
+
+    /// `remove_status` plus the side effects, see [`Battle::alter_status_on`].
+    pub fn remove_status_on(&mut self, unit: usize, id: u8) -> u32 {
+        let prev = self.snapshot();
+        let env = self.status_env();
+        let r = remove_status(&mut self.units[unit], id, &env);
+        self.sync(&prev);
+        r
+    }
+
+    fn on_removed(&mut self, i: usize, bits: u64) {
+        let base = self.base_coef();
+        if bits & (st::HASTE | st::SLOW) != 0 {
+            // `HasteStatusScript.Remove` / `SlowStatusScript.Remove`.
+            self.sched[i].atb_coef = atb::setup_atb_coef(base);
+        }
+        if bits & st::TRANCE != 0 {
+            // `TranceStatusScript.Remove` (`TranceStatusScript.cs:48-62`).
+            self.units[i].trance = 0;
+            let slot = self.cmds.slot_of(i, 4);
+            self.queue_system_command(slot, cmd::SYS_TRANS, self.units[i].id);
+            self.emit(BattleEvent::TranceEnded { unit: i });
+        }
+        if bits & (st::PETRIFY | st::GRADUAL_PETRIFY) != 0 {
+            // `PetrifyStatusScript.Remove`, `GradualPetrifyStatusScript.Remove`.
+            self.cmds.kill_specific(i, cmd::SYS_STONE);
+        }
+        if bits & (st::BERSERK | st::CONFUSE) != 0 {
+            // `BerserkStatusScript.Remove`, `ConfuseStatusScript.Remove`.
+            self.status_command_cancel(i);
+        }
+        if bits & st::DEATH != 0 {
+            // `DeathStatusScript.Remove` (`DeathStatusScript.cs:46-62`).
+            self.sched[i].die_seq = 0;
+            self.sched[i].die_wait = 0;
+            let using = self
+                .running
+                .iter()
+                .find(|&&c| self.cmds.slots[c].regist == Some(i))
+                .copied();
+            if using.is_none_or(|c| !is_declarable(self.cmds.slots[c].cmd_no)) {
+                self.sched[i].sel_mode = 0;
+            }
+        }
+    }
+
+    fn on_added(&mut self, i: usize, bits: u64) {
+        let base = self.base_coef();
+        if bits & st::HASTE != 0 {
+            self.sched[i].atb_coef = atb::hasted_coef(base);
+        }
+        if bits & st::SLOW != 0 {
+            self.sched[i].atb_coef = atb::slowed_coef(base);
+        }
+        if bits & st::CMD_CANCEL != 0 {
+            // `btl_stat.cs:77-78`.
+            self.status_command_cancel(i);
+        }
+        if bits & st::TRANCE != 0 {
+            // `TranceStatusScript.Apply` (`TranceStatusScript.cs:44-51`).
+            let slot = self.cmds.slot_of(i, 4);
+            self.queue_system_command(slot, cmd::SYS_TRANS, self.units[i].id);
+            self.emit(BattleEvent::TranceEntered { unit: i });
+        }
+        if bits & st::DEATH != 0 {
+            self.on_death(i);
+        }
+        if self.units[i].is_under_any_status(st::STOP_ATB) {
+            // `btl_stat.cs:98-99`.
+            self.sched[i].atb_active = false;
+        }
+        if bits & st::BATTLE_END != 0 {
+            // `btl_stat.cs:95-96`.
+            self.check_battle_phase(i);
+        }
+    }
+
+    /// `DeathStatusScript.Apply` (`DeathStatusScript.cs:15-44`). B4 already
+    /// killed the unit and zeroed the gauge.
+    fn on_death(&mut self, i: usize) {
+        self.emit(BattleEvent::UnitDied { unit: i });
+        if self.units[i].is_player {
+            // Injected wait for the down motion (`btl_mot.cs:360-365`).
+            self.sched[i].die_seq = 1;
+            self.sched[i].die_wait = self.config.timing.player_death_ticks;
+        } else {
+            if self.sched[i].die_seq == 0 {
+                // `!AttackOnDeath || !busy`: `AttackOnDeath` is enemy data and
+                // is assumed false here.
+                self.sched[i].die_seq = 1;
+            }
+            self.check_forecast_menu_off(i);
+        }
+        if self.units[i].is_under_any_status(st::TRANCE)
+            && self.cmds.kill_specific(i, cmd::SYS_TRANS)
+        {
+            let prev = self.snapshot();
+            let env = self.status_env();
+            remove_status(&mut self.units[i], 14, &env);
+            self.sync_removal_only(&prev);
+            self.units[i].trance = self.units[i].trance.min(254);
+        }
+    }
+
+    fn sync_removal_only(&mut self, prev: &[u64]) {
+        for i in 0..self.units.len() {
+            let removed = prev[i] & !self.units[i].status_current;
+            if removed != 0 {
+                self.on_removed(i, removed);
+            }
+        }
+    }
+
+    /// `btl_stat.StatusCommandCancel` (`btl_stat.cs:27-37`).
+    fn status_command_cancel(&mut self, i: usize) {
+        if self.units[i].is_player {
+            self.ready_players.retain(|&u| u != i);
+        }
+        if !self.cmds.kill_standard_commands(i) {
+            return;
+        }
+        self.sched[i].atb_active = false;
+        if self.units[i].is_player {
+            self.units[i].cur_atb = 0;
+        }
+        self.sched[i].sel_mode = 0;
+    }
+
+    /// `btl_sys.CheckForecastMenuOff` (`btl_sys.cs:140-150`).
+    fn check_forecast_menu_off(&mut self, dying: usize) {
+        for j in 0..self.units.len() {
+            if self.sched[j].in_list && !self.units[j].is_player && !self.dead(j) && j != dying {
+                return;
+            }
+        }
+        self.menu_enabled = false;
+        let removed = self.cmds.kill_normal();
+        self.after_dequeue(&removed);
+        self.escape_key = false;
+    }
+
+    /// `ManageDequeueCommand` tail (`btl_cmd.cs:1177-1197`): a declarable
+    /// command removed from a living owner resets its `sel_mode`.
+    fn after_dequeue(&mut self, removed: &[CmdId]) {
+        for &c in removed {
+            let (no, regist) = (self.cmds.slots[c].cmd_no, self.cmds.slots[c].regist);
+            if let Some(r) = regist
+                && is_declarable(no)
+                && !self.dead(r)
+            {
+                self.sched[r].sel_mode = 0;
+            }
+        }
+    }
+
+    /// `btl_sys.CheckBattlePhase` (`btl_sys.cs:52-122`), default
+    /// (no overload) path; the Eiko Rebirth Flame branch (`:96-114`) is not
+    /// ported.
+    fn check_battle_phase(&mut self, dying: usize) {
+        let side = self.units[dying].is_player;
+        for j in 0..self.units.len() {
+            if !self.sched[j].in_list || self.units[j].is_player != side {
+                continue;
+            }
+            let end_full = self.units[j].is_under_any_status(st::BATTLE_END | st::DEATH);
+            if !end_full || (self.dead(j) && self.sched[j].die_seq != 6) {
+                return;
+            }
+        }
+        if !side {
+            if !self.any_player_alive() {
+                return;
+            }
+            if self.cmds.has_specific_any(cmd::ENEMY_DYING, &self.running) {
+                return;
+            }
+            if self.menu_off_seq != MenuOffSeq::Defeat || self.phase != Phase::MenuOff {
+                self.menu_off_seq = MenuOffSeq::Victory;
+            }
+        } else {
+            self.menu_off_seq = MenuOffSeq::Defeat;
+        }
+        self.menu_enabled = false;
+        self.phase = Phase::MenuOff;
+        self.emit(BattleEvent::PhaseChanged {
+            phase: Phase::MenuOff,
+        });
+        let removed = self.cmds.kill_all();
+        self.after_dequeue(&removed);
+    }
+
+    // -- point data and death sequence ----------------------------------------
+
+    /// `btl_para.CheckPointData` (`btl_para.cs:77-92`).
+    fn check_point_data(&mut self, i: usize, rng: &mut dyn BattleRandom) {
+        let prev = self.snapshot();
+        let env = self.status_env();
+        {
+            let u = &mut self.units[i];
+            if u.cur_hp > u.max_hp {
+                u.cur_hp = u.max_hp;
+            }
+            if u.cur_mp > u.max_mp {
+                u.cur_mp = u.max_mp;
+            }
+        }
+        let ctx = StatusCtx {
+            table: &self.table,
+            env: &env,
+        };
+        let s = st::check_point_status(&mut self.units[i], &ctx, rng);
+        if s & st::DEATH != 0 && !self.units[i].is_under_any_status(st::DEATH) {
+            alter_status(&mut self.units[i], 8, false, &ctx, rng);
+        }
+        self.sync(&prev);
+    }
+
+    /// `btl_mot.DieSequence` (`btl_mot.cs:286-370`). The enemy path follows
+    /// the source steps with the animation wait injected at step 2; the
+    /// player path collapses the motion steps into `die_wait` and then
+    /// `DecidePlayerDieSequence` (`:432-463`, Auto-Life cancel not ported).
+    fn die_sequence(&mut self, i: usize) {
+        if self.sched[i].die_seq == 0 {
+            return;
+        }
+        if self.units[i].is_player {
+            if self.sched[i].die_seq >= 6 {
+                return;
+            }
+            if self.sched[i].die_wait > 0 {
+                self.sched[i].die_wait -= 1;
+                return;
+            }
+            self.sched[i].die_seq = 6;
+            self.check_battle_phase(i);
+            return;
+        }
+        match self.sched[i].die_seq {
+            1 => {
+                if self.queued_caster(i) {
+                    return;
+                }
+                self.sched[i].die_seq = 2;
+                self.sched[i].die_wait = self.config.timing.enemy_death_anim_ticks;
+            }
+            2 => {
+                if self.sched[i].die_wait > 0 {
+                    self.sched[i].die_wait -= 1;
+                    return;
+                }
+                self.sched[i].die_seq = 3;
+            }
+            3 => {
+                self.sched[i].die_seq = 4;
+                if self.sched[i].die_fade_rate == 0 {
+                    self.sched[i].die_seq = 5;
+                } else {
+                    self.sched[i].die_fade_rate -= 2;
+                }
+            }
+            4 => {
+                if self.sched[i].die_fade_rate == 0 {
+                    self.sched[i].die_seq = 5;
+                } else {
+                    self.sched[i].die_fade_rate -= 2;
+                }
+            }
+            5 => {
+                if self.busy_current(i) {
+                    return;
+                }
+                self.bonus_exp += self.sched[i].bonus_exp;
+                self.sched[i].die_seq = 6;
+                let escaping =
+                    self.phase == Phase::MenuOff && self.menu_off_seq == MenuOffSeq::Escape;
+                if !escaping {
+                    self.check_battle_phase(i);
+                }
+                self.sched[i].in_list = false;
+                self.emit(BattleEvent::UnitRemoved { unit: i });
+            }
+            _ => {}
+        }
+    }
+
+    // -- commands ---------------------------------------------------------------
+
+    /// The body of `btl_cmd.SetCommand` that follows the spec lookup
+    /// (`btl_cmd.cs:268-310`) without the Double Cast branch. `spec` is the
+    /// resolved `GetCommandAction`.
+    fn raw_set_command(
+        &mut self,
+        id: CmdId,
+        cmd_no: u32,
+        sub_no: i32,
+        tar_id: u16,
+        cursor: u8,
+        spec: Option<CommandSpec>,
+    ) {
+        let slot = &mut self.cmds.slots[id];
+        slot.cmd_no = cmd_no;
+        slot.sub_no = sub_no;
+        slot.tar_id = tar_id;
+        slot.cursor = cursor;
+        slot.short_range = spec.as_ref().is_some_and(|s| s.command.is_short_range);
+        slot.spec = spec;
+        slot.mode = CmdMode::Inspection;
+        slot.loop_ticks = 0;
+        slot.effect_done = false;
+        slot.priority = !is_declarable(cmd_no);
+    }
+
+    /// `btl_cmd.SetCommand` (`btl_cmd.cs:153-311`). Returns false when the
+    /// slot is already in use or an escape is already pending.
+    /// Arguments mirror `btl_cmd.SetCommand`'s signature.
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_command(
+        &mut self,
+        id: CmdId,
+        cmd_no: u32,
+        sub_no: i32,
+        tar_id: u16,
+        cursor: u8,
+        force_priority: bool,
+        hooks: &mut dyn BattleHooks,
+    ) -> Result<bool, BattleError> {
+        if self.cmds.is_using(id, &self.running) {
+            return Ok(false);
+        }
+        self.cmds.slots[id].cmd_no = cmd_no;
+        self.cmds.slots[id].sub_no = sub_no;
+        if cmd_no == cmd::SYS_ESCAPE {
+            if self.cmds.cmd_status & 1 != 0 {
+                return Ok(false);
+            }
+            self.cmds.cmd_status |= 1;
+        }
+        let regist = self.cmds.slots[id].regist;
+        let spec = match regist {
+            Some(r) => hooks.spec(cmd_no, sub_no, &self.units[r]),
+            None => None,
+        };
+        if let Some(s) = &spec
+            && s.command.script_id == 80
+            && regist.is_some_and(|r| self.units[r].is_player)
+        {
+            return Err(BattleError::Unported("double cast (script 80)"));
+        }
+        self.raw_set_command(id, cmd_no, sub_no, tar_id, cursor, spec);
+        if force_priority {
+            self.cmds.slots[id].priority = true;
+        }
+        if let Some(r) = regist
+            && self.cmds.slots[id].slot == 0
+        {
+            // `RemoveStatuses(RemoveOnMainCommand)` = Defend (`:305-309`).
+            let prev = self.snapshot();
+            let env = self.status_env();
+            remove_status(&mut self.units[r], 15, &env);
+            self.sync(&prev);
+        }
+        self.cmds.enqueue(id);
+        if let Some(r) = regist {
+            self.emit(BattleEvent::CommandQueued {
+                unit: r,
+                cmd_no,
+                tar_id,
+            });
+        }
+        Ok(true)
+    }
+
+    /// A player's input for unit `unit` (slot 0). Marks `sel_mode` as the HUD
+    /// does (`BattleHUD.cs:1696`) and removes the player from the ready list.
+    pub fn player_command(
+        &mut self,
+        unit: usize,
+        cmd_no: u32,
+        sub_no: i32,
+        tar_id: u16,
+        cursor: u8,
+        hooks: &mut dyn BattleHooks,
+    ) -> Result<bool, BattleError> {
+        let id = self.cmds.slot_of(unit, 0);
+        self.sched[unit].sel_mode = 1;
+        let ok = self.set_command(id, cmd_no, sub_no, tar_id, cursor, false, hooks)?;
+        self.ready_players.retain(|&u| u != unit);
+        Ok(ok)
+    }
+
+    /// `btl_cmd.SetEnemyCommand` (`btl_cmd.cs:346-438`) for `EnemyAtk`.
+    pub fn set_enemy_command(
+        &mut self,
+        i: usize,
+        action: EnemyAction,
+        hooks: &mut dyn BattleHooks,
+    ) -> Result<(), BattleError> {
+        if self.cmds.cmd_status & 1 != 0 || self.units[i].is_under_any_status(st::PREVENT_ENEMY_CMD)
+        {
+            self.sched[i].sel_mode = 0;
+            return Ok(());
+        }
+        if action.cmd_no != cmd::ENEMY_ATK || self.phase != Phase::Normal {
+            // Counters, dying moves and script counters need the AI event
+            // engine (`btl_cmd.cs:370-393`); only `EnemyAtk` is ported.
+            self.sched[i].sel_mode = 0;
+            return Ok(());
+        }
+        let id = self.cmds.slot_of(i, 0);
+        if self.cmds.is_using(id, &self.running) {
+            self.sched[i].sel_mode = 0;
+            return Ok(());
+        }
+        self.cmds.clear(id);
+        let spec = hooks.spec(action.cmd_no, action.sub_no, &self.units[i]);
+        let cursor = match &spec {
+            Some(s) => {
+                let t = s.command.target_type;
+                if t <= target_type::MANY_ENEMY || t >= target_type::SELF {
+                    0
+                } else {
+                    1
+                }
+            }
+            None => 0,
+        };
+        self.raw_set_command(
+            id,
+            action.cmd_no,
+            action.sub_no,
+            action.tar_id,
+            cursor,
+            spec,
+        );
+        let prev = self.snapshot();
+        let env = self.status_env();
+        remove_status(&mut self.units[i], 15, &env);
+        self.sync(&prev);
+        self.cmds.enqueue(id);
+        self.emit(BattleEvent::CommandQueued {
+            unit: i,
+            cmd_no: action.cmd_no,
+            tar_id: action.tar_id,
+        });
+        Ok(())
+    }
+
+    // -- flee ---------------------------------------------------------------------
+
+    /// `BattleCalculator.CanEscape` (`BattleCalculator.cs:305`).
+    pub fn can_escape(&self) -> bool {
+        let any = (0..self.units.len()).any(|i| {
+            self.sched[i].in_list
+                && self.units[i].is_player
+                && !self.units[i].is_under_any_status(st::CANNOT_ESCAPE)
+        });
+        flee::can_escape(self.config.runaway, any)
+    }
+
+    /// The party flee roll once the key has been held long enough:
+    /// `btl_sys.CheckEscape(true)` (`btl_sys.cs:306-321`) -> script 56 ->
+    /// `TryEscape`. Returns true when `SysEscape` was queued.
+    pub fn flee_attempt(
+        &mut self,
+        hooks: &mut dyn BattleHooks,
+        rng: &mut dyn BattleRandom,
+    ) -> Result<bool, BattleError> {
+        if self.cmds.cmd_status & 1 != 0 || !self.config.runaway || !self.atb_runs() {
+            return Ok(false);
+        }
+        if !self.can_escape() {
+            return Ok(false);
+        }
+        // `TryEscape` returns when the current command belongs to an enemy
+        // (`BattleCalculator.cs:351-353`).
+        let cur_enemy = self.running.iter().any(|&c| {
+            self.cmds.slots[c]
+                .regist
+                .is_some_and(|r| !self.units[r].is_player)
+        });
+        if cur_enemy {
+            return Ok(false);
+        }
+        let mut sides = EscapeSides {
+            player_count: 0,
+            enemy_count: 0,
+            player_levels: 0,
+            enemy_levels: 0,
+        };
+        for i in 0..self.units.len() {
+            if !self.sched[i].in_list {
+                continue;
+            }
+            if self.units[i].is_player {
+                sides.player_count += 1;
+                sides.player_levels += i32::from(self.units[i].level);
+            } else {
+                sides.enemy_count += 1;
+                sides.enemy_levels += i32::from(self.units[i].level);
+            }
+        }
+        let rate = flee::escape_rate(sides).map_err(BattleError::DivideByZero)?;
+        if flee::try_escape_roll(rate, rng) {
+            let id = self.cmds.escape_slot();
+            return self.set_command(id, cmd::SYS_ESCAPE, 1, 15, 1, false, hooks);
+        }
+        Ok(false)
+    }
+
+    /// The Flee ability, script 57 (`0057_FleeScript.cs`): when
+    /// `CanEscape()` it queues `SysEscape` with `sub_no 0` and the party
+    /// mask, no roll.
+    pub fn flee_ability(&mut self, hooks: &mut dyn BattleHooks) -> Result<bool, BattleError> {
+        if self.cmds.cmd_status & 1 != 0 {
+            return Ok(false);
+        }
+        if self.can_escape() {
+            let id = self.cmds.escape_slot();
+            return self.set_command(id, cmd::SYS_ESCAPE, 0, 15, 1, false, hooks);
+        }
+        Ok(false)
+    }
+
+    // -- the tick -----------------------------------------------------------------
+
+    /// One `UpdateBattleFrame`.
+    pub fn tick(
+        &mut self,
+        hooks: &mut dyn BattleHooks,
+        rng: &mut dyn BattleRandom,
+    ) -> Result<(), BattleError> {
+        if self.over {
+            return Ok(());
+        }
+        self.battle_main(hooks, rng)?;
+        if self.menu_enabled {
+            self.process_active_time(hooks, rng)?;
+        }
+        self.tick_no += 1;
+        Ok(())
+    }
+
+    /// `battle.BattleMain` (`battle.cs:83-211`).
+    fn battle_main(
+        &mut self,
+        hooks: &mut dyn BattleHooks,
+        rng: &mut dyn BattleRandom,
+    ) -> Result<(), BattleError> {
+        match self.phase {
+            Phase::Normal => self.battle_main_loop(hooks, rng)?,
+            Phase::MenuOff => {
+                self.menu_enabled = false;
+                self.trailing_loop(hooks, rng)?;
+                if self.menu_off_seq != MenuOffSeq::Escape || self.phase != Phase::MenuOff {
+                    self.escape_key = false;
+                }
+            }
+            Phase::Victory | Phase::Defeat | Phase::Close => {
+                self.idle_loop();
+                self.closing_phase();
+            }
+        }
+        // `battle.cs:181-208`: every enemy gone without a victory sequence.
+        if self.phase == Phase::Normal
+            && self.running.is_empty()
+            && !(0..self.units.len()).any(|i| self.sched[i].in_list && !self.units[i].is_player)
+            && (0..self.units.len()).any(|i| {
+                self.sched[i].in_list
+                    && !self.units[i].is_under_any_status(st::BATTLE_END | st::DEATH)
+            })
+        {
+            self.menu_enabled = false;
+            self.escape_key = false;
+            self.cmds.cmd_status &= 0xFFFD;
+            let removed = self.cmds.kill_all();
+            self.after_dequeue(&removed);
+            let mut r = if self.bonus_exp > 0 {
+                result::VICTORY
+            } else {
+                result::ENEMY_FLEE
+            };
+            if r == result::VICTORY {
+                r = result::VICTORY_NO_POSE;
+            }
+            self.result = Some(r);
+            self.phase = Phase::Close;
+            self.end_seq = EndSeq::FadeOut;
+            self.emit(BattleEvent::Result { result: r });
+            self.emit(BattleEvent::PhaseChanged {
+                phase: Phase::Close,
+            });
+        }
+        Ok(())
+    }
+
+    /// `battle.BattleMainLoop` (`battle.cs:213-243`).
+    fn battle_main_loop(
+        &mut self,
+        hooks: &mut dyn BattleHooks,
+        rng: &mut dyn BattleRandom,
+    ) -> Result<(), BattleError> {
+        for i in 0..self.units.len() {
+            if !self.sched[i].in_list {
+                continue;
+            }
+            self.check_point_data(i, rng);
+            self.check_status_loop(i, rng);
+        }
+        self.command_engine(hooks, rng)
+    }
+
+    /// `battle.BattleIdleLoop` reduced to the death sequence
+    /// (`battle.cs:245-281`; the rest is animation).
+    fn idle_loop(&mut self) {
+        for i in 0..self.units.len() {
+            if self.sched[i].in_list {
+                self.die_sequence(i);
+            }
+        }
+    }
+
+    /// The `PHASE_VICTORY` / `PHASE_DEFEAT` / `PHASE_CLOSE` cases of
+    /// `BattleMain` (`battle.cs:140-177`), `WinPose = false`. After the result
+    /// is decided one tick turns `FadeOut` into `Wait`, then
+    /// `btl_fade_time++ > 32` ends the battle 34 ticks later. The defeat song
+    /// fade (`btl_util.ManageBattleSong`) is not ported, so a defeat does not
+    /// reach `over`.
+    fn closing_phase(&mut self) {
+        if self.phase == Phase::Defeat {
+            return;
+        }
+        match self.end_seq {
+            EndSeq::FadeOut => self.end_seq = EndSeq::Wait,
+            EndSeq::Wait => {
+                let t = self.fade_time;
+                self.fade_time += 1;
+                if t > 32 {
+                    self.over = true;
+                    self.emit(BattleEvent::BattleOver);
+                }
+            }
+        }
+    }
+
+    /// `battle.BattleTrailingLoop` (`battle.cs:283-486`) for the Victory,
+    /// Defeat and Escape sequences.
+    fn trailing_loop(
+        &mut self,
+        hooks: &mut dyn BattleHooks,
+        rng: &mut dyn BattleRandom,
+    ) -> Result<(), BattleError> {
+        let mut proceed = self.cmds.queue.is_empty() && self.running.is_empty();
+        for i in 0..self.units.len() {
+            if !self.sched[i].in_list {
+                continue;
+            }
+            if !self.sched[i].disappeared {
+                match self.menu_off_seq {
+                    MenuOffSeq::Victory => {
+                        self.check_point_data(i, rng);
+                        let u = &self.units[i];
+                        let enemy_blocks = !u.is_player && !u.is_under_any_status(st::BATTLE_END);
+                        let player_blocks =
+                            u.is_player && self.dead(i) && self.sched[i].die_seq != 6;
+                        if enemy_blocks || player_blocks {
+                            proceed = false;
+                        }
+                    }
+                    MenuOffSeq::Defeat => {
+                        let u = &self.units[i];
+                        if u.is_player
+                            && self.sched[i].die_seq != 6
+                            && !u.is_under_any_status(st::BATTLE_END)
+                        {
+                            proceed = false;
+                        }
+                    }
+                    MenuOffSeq::Escape => {
+                        let removed = self.cmds.kill_all();
+                        self.after_dequeue(&removed);
+                        if self.dead(i) {
+                            if self.sched[i].die_seq != 6 {
+                                proceed = false;
+                            }
+                        } else if self.units[i].is_player
+                            && !self.units[i].is_under_any_status(st::CANNOT_ESCAPE)
+                        {
+                            if self.escape_fade <= 0 {
+                                self.sched[i].disappeared = true;
+                            } else {
+                                proceed = false;
+                                if self.escape_fade == 32 {
+                                    self.escape_fade -= 2;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            self.die_sequence(i);
+        }
+        if self.menu_off_seq == MenuOffSeq::Escape && self.escape_fade < 32 && self.escape_fade != 0
+        {
+            self.escape_fade -= 2;
+        }
+        if !proceed {
+            return self.command_engine(hooks, rng);
+        }
+        match self.menu_off_seq {
+            MenuOffSeq::Victory => {
+                self.result = Some(result::VICTORY);
+                self.phase = Phase::Victory;
+            }
+            MenuOffSeq::Defeat => {
+                self.result = Some(result::DEFEAT);
+                self.phase = Phase::Defeat;
+            }
+            MenuOffSeq::Escape => {
+                self.result = Some(result::ESCAPE);
+                self.phase = Phase::Close;
+            }
+        }
+        self.end_seq = EndSeq::FadeOut;
+        if let Some(r) = self.result {
+            self.emit(BattleEvent::Result { result: r });
+        }
+        let phase = self.phase;
+        self.emit(BattleEvent::PhaseChanged { phase });
+        Ok(())
+    }
+
+    // -- status loop ----------------------------------------------------------------
+
+    /// `btl_stat.CheckStatusLoop` (`btl_stat.cs:269-314`).
+    fn check_status_loop(&mut self, i: usize, rng: &mut dyn BattleRandom) {
+        if self.dead(i) {
+            self.die_sequence(i);
+            return;
+        }
+        if !self.units[i].is_under_any_status(st::STOP_ATB) {
+            self.sched[i].atb_active = true;
+        }
+        if !self.atb_runs() || !self.sched[i].atb_active {
+            return;
+        }
+        let coef = i32::from(self.sched[i].atb_coef);
+        let mut remove: u64 = 0;
+        let prev = self.snapshot();
+        for id in ids_of(self.units[i].status_current & st::OPR_COUNT) {
+            let opr = self.units[i].opr.get(&id).copied().unwrap_or(0);
+            if opr <= 0 {
+                let env = self.status_env();
+                let ctx = StatusCtx {
+                    table: &self.table,
+                    env: &env,
+                };
+                st::set_opr_status_count(&mut self.units[i], id, &ctx);
+                if self.on_opr(i, id, rng) {
+                    remove |= 1u64 << id;
+                }
+            } else {
+                self.units[i].opr.insert(id, opr - coef);
+            }
+        }
+        for id in ids_of(remove) {
+            let env = self.status_env();
+            remove_status(&mut self.units[i], id, &env);
+        }
+        // `ActiveTimeStatus` (`btl_stat.cs:531-543`).
+        for id in ids_of(self.units[i].status_current & st::CONTI_COUNT) {
+            let Some(c) = self.units[i].conti.get(&id).copied() else {
+                continue;
+            };
+            let c = c - coef;
+            self.units[i].conti.insert(id, c);
+            if c < 0 {
+                let env = self.status_env();
+                if remove_status(&mut self.units[i], id, &env) == st::REMOVE_DONE {
+                    self.emit(BattleEvent::StatusExpired {
+                        unit: i,
+                        status: id,
+                    });
+                }
+            }
+        }
+        self.sync(&prev);
+    }
+
+    /// `OnOpr` of the five tick statuses (`DefaultStatus/PoisonStatusScript.cs`,
+    /// `VenomStatusScript.cs`, `RegenStatusScript.cs`, `DoomStatusScript.cs`,
+    /// `GradualPetrifyStatusScript.cs`). Returns the "remove me" flag.
+    fn on_opr(&mut self, i: usize, id: u8, rng: &mut dyn BattleRandom) -> bool {
+        let status = 1u64 << id;
+        if status & (st::POISON | st::VENOM | st::REGEN) != 0 {
+            self.emit(BattleEvent::StatusTick {
+                unit: i,
+                status: id,
+            });
+            let u = &mut self.units[i];
+            if u.is_under_any_status(st::PETRIFY) {
+                return false;
+            }
+            let mut amount = u.max_hp >> 4;
+            let mut mp_amount = u.max_mp >> 4;
+            if u.is_under_any_status(st::EASY_KILL) {
+                amount >>= 2;
+                mp_amount >>= 2;
+            }
+            if status == st::REGEN {
+                if u.is_zombie() {
+                    if u.cur_hp > amount {
+                        u.set_current_hp(u.cur_hp - amount);
+                    } else {
+                        u.kill();
+                    }
+                } else {
+                    u.set_current_hp((u.cur_hp + amount).min(u.max_hp));
+                }
+            } else {
+                if status == st::VENOM {
+                    u.cur_mp = u.cur_mp.saturating_sub(mp_amount);
+                }
+                if u.cur_hp > amount {
+                    u.set_current_hp(u.cur_hp - amount);
+                } else {
+                    u.kill();
+                }
+            }
+            return false;
+        }
+        if status == st::DOOM {
+            self.units[i].doom_counter -= 1;
+            self.emit(BattleEvent::StatusTick {
+                unit: i,
+                status: id,
+            });
+            if self.units[i].doom_counter > 0 {
+                return false;
+            }
+            let env = self.status_env();
+            let ctx = StatusCtx {
+                table: &self.table,
+                env: &env,
+            };
+            alter_status(&mut self.units[i], 8, false, &ctx, rng);
+            return true;
+        }
+        if status == st::GRADUAL_PETRIFY {
+            self.units[i].gradual_petrify_counter -= 1;
+            self.emit(BattleEvent::StatusTick {
+                unit: i,
+                status: id,
+            });
+            if self.units[i].gradual_petrify_counter > 0 {
+                return false;
+            }
+            let stone = self.cmds.slot_of(i, 2);
+            if !self.cmds.is_using(stone, &self.running) {
+                let env = self.status_env();
+                let ctx = StatusCtx {
+                    table: &self.table,
+                    env: &env,
+                };
+                alter_status(&mut self.units[i], 0, false, &ctx, rng);
+            }
+            return true;
+        }
+        false
+    }
+
+    // -- ATB add ------------------------------------------------------------------------
+
+    /// `HonoluluBattleMain.ProcessActiveTime` (`HonoluluBattleMain.cs:413-562`)
+    /// at battle speed 0: a single pass (no turn-based re-loop).
+    fn process_active_time(
+        &mut self,
+        hooks: &mut dyn BattleHooks,
+        rng: &mut dyn BattleRandom,
+    ) -> Result<(), BattleError> {
+        let advance = self.atb_runs();
+        let factor = atb::clamp_speed_factor(self.config.atb_speed_factor);
+        for i in 0..self.units.len() {
+            if !self.sched[i].in_list {
+                continue;
+            }
+            let g = GaugeInput {
+                max_atb: self.sched[i].max_atb,
+                coef: self.sched[i].atb_coef,
+                speed_factor: factor,
+                advance,
+                keep_rest_time: self.config.keep_rest_time,
+                hp: self.units[i].cur_hp,
+                sel_mode: self.sched[i].sel_mode,
+                atb_active: self.sched[i].atb_active,
+            };
+            let step = atb::step_gauge(&mut self.units[i].cur_atb, g);
+            if step != GaugeStep::Full {
+                continue;
+            }
+            self.emit(BattleEvent::AtbFull { unit: i });
+            if self.units[i].is_under_any_status(st::PREVENT_ATB_CONFIRM) {
+                continue;
+            }
+            if self.units[i].is_player {
+                let main = self.cmds.slot_of(i, 0);
+                if self.cmds.is_using(main, &self.running) {
+                    continue;
+                }
+                if self.player_auto_attack(i, hooks, rng)? {
+                    self.sched[i].sel_mode = 1;
+                } else if !self.ready_players.contains(&i) {
+                    self.ready_players.push(i);
+                    self.emit(BattleEvent::PlayerReady { unit: i });
+                }
+            } else if let Some(action) = hooks.enemy_atb(self, i) {
+                // Source order: the request runs the AI (which may reject and
+                // reset `sel_mode`), then a true return sets `sel_mode = 1`.
+                self.set_enemy_command(i, action, hooks)?;
+                self.sched[i].sel_mode = 1;
+            }
+        }
+        Ok(())
+    }
+
+    /// The `IAutoAttackStatusScript.OnATB` loop (`HonoluluBattleMain.cs:502-516`):
+    /// Confuse (id 10) then Berserk (id 11), the only two implementations.
+    fn player_auto_attack(
+        &mut self,
+        i: usize,
+        hooks: &mut dyn BattleHooks,
+        rng: &mut dyn BattleRandom,
+    ) -> Result<bool, BattleError> {
+        for id in [10u8, 11u8] {
+            if !self.units[i].is_under_any_status(1u64 << id) {
+                continue;
+            }
+            if !self.units[i].can_use_attack_command {
+                // `RemoveStatus(Target, Confuse|Berserk)` then `return false`.
+                let prev = self.snapshot();
+                let env = self.status_env();
+                remove_status(&mut self.units[i], id, &env);
+                self.sync(&prev);
+                continue;
+            }
+            let views = self.views();
+            let target = if id == 11 {
+                // `GetRandomBtlID(0)`: a random enemy.
+                targeting::get_random_btl_id(&views, false, false, rng)
+            } else {
+                // `GetRandomBtlID(random8() & 1)`.
+                let side = rng.random8() & 1 != 0;
+                targeting::get_random_btl_id(&views, side, false, rng)
+            };
+            let main = self.cmds.slot_of(i, 0);
+            self.set_command(main, cmd::ATTACK, ABILITY_ATTACK, target, 0, false, hooks)?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    // -- command engine -----------------------------------------------------------------------
+
+    /// `btl_cmd.CommandEngine` (`btl_cmd.cs:564-669`).
+    fn command_engine(
+        &mut self,
+        hooks: &mut dyn BattleHooks,
+        rng: &mut dyn BattleRandom,
+    ) -> Result<(), BattleError> {
+        self.run_command_from_queue(rng);
+        let list = self.running.clone();
+        for id in list {
+            if !self.running.contains(&id) {
+                continue;
+            }
+            match self.cmds.slots[id].mode {
+                CmdMode::Inspection => {
+                    let ok = self.check_command_condition(id, rng)
+                        && self.check_target_condition(id, rng)
+                        && self.check_mp_condition(id);
+                    if !ok {
+                        if let Some(r) = self.cmds.slots[id].regist {
+                            let cmd_no = self.cmds.slots[id].cmd_no;
+                            self.emit(BattleEvent::CommandRejected { unit: r, cmd_no });
+                        }
+                        self.cmds.slots[id].mode = CmdMode::Idle;
+                    } else {
+                        self.cmds.slots[id].mode = CmdMode::SelectVfx;
+                    }
+                }
+                CmdMode::SelectVfx => {
+                    let tar = self.cmds.slots[id].tar_id;
+                    let valid = (0..self.units.len()).any(|j| {
+                        self.sched[j].in_list
+                            && self.units[j].id & tar != 0
+                            && self.sched[j].targetable
+                    });
+                    self.cmds.slots[id].mode = if valid { CmdMode::Loop } else { CmdMode::Done };
+                }
+                CmdMode::Loop => {
+                    self.command_loop(id, hooks, rng)?;
+                }
+                CmdMode::Idle => {
+                    if self.cmds.slots[id].cmd_no != cmd::SYS_ESCAPE {
+                        self.cmds.slots[id].mode = CmdMode::Done;
+                    } else {
+                        self.finish_command(id, rng)?;
+                        continue;
+                    }
+                }
+                CmdMode::Done => {}
+            }
+            if self.cmds.slots[id].mode == CmdMode::Done {
+                self.finish_command(id, rng)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// `RunCommandFromQueue` at speed mode 0 (`btl_cmd.cs:488-562`).
+    fn run_command_from_queue(&mut self, rng: &mut dyn BattleRandom) {
+        if !self.running.is_empty() || self.cmds.queue.is_empty() {
+            return;
+        }
+        let alive = self.any_player_alive();
+        let units = &self.units;
+        let cannot_act = |r: usize| units[r].is_under_any_status(st::CANNOT_ACT);
+        let death = |r: usize| units[r].is_under_any_status(st::DEATH);
+        let is_enemy = |r: usize| !units[r].is_player;
+        let Some(id) = self.cmds.first_ready(alive, &cannot_act, &death, &is_enemy) else {
+            return;
+        };
+        let cmd_no = self.cmds.slots[id].cmd_no;
+        // `!IsNativeEnableAtb() && IsCommandDeclarable`.
+        if !self.atb_runs() && is_declarable(cmd_no) {
+            return;
+        }
+        if let Some(r) = self.cmds.slots[id].regist
+            && !(cmd::ENEMY_REACTION..=cmd::BOUNDARY_UPPER_CHECK).contains(&cmd_no)
+            && self.units[r].is_under_any_status(st::HEAT)
+        {
+            // Default `OnCommandRun` (`btl_cmd.cs:530-557`).
+            if self.units[r].is_under_any_status(st::EASY_KILL) {
+                self.units[r].set_current_hp(0);
+                self.cmds.kill_command(id);
+                return;
+            }
+            let prev = self.snapshot();
+            let env = self.status_env();
+            let ctx = StatusCtx {
+                table: &self.table,
+                env: &env,
+            };
+            let res = alter_status(&mut self.units[r], 8, false, &ctx, rng);
+            self.sync(&prev);
+            if res == st::AlterResult::Success {
+                self.cmds.kill_command(id);
+                return;
+            }
+        }
+        self.running.push(id);
+        self.cmds.kill_command(id);
+        if let Some(r) = self.cmds.slots[id].regist {
+            self.emit(BattleEvent::CommandStarted { unit: r, cmd_no });
+        }
+    }
+
+    /// `CheckCommandCondition` (`btl_cmd.cs:939-1129`) for the parts that do
+    /// not need UI, items, inventory or unported abilities.
+    fn check_command_condition(&mut self, id: CmdId, rng: &mut dyn BattleRandom) -> bool {
+        let Some(r) = self.cmds.slots[id].regist else {
+            return true;
+        };
+        let cmd_no = self.cmds.slots[id].cmd_no;
+        if self.dead(r) && (cmd_no <= cmd::ENEMY_COUNTER || cmd_no > cmd::BOUNDARY_UPPER_CHECK) {
+            return false;
+        }
+        // `CheckMagicCondition` (`:1132`): Silence blocks category bit 2.
+        let category = self.cmds.slots[id]
+            .spec
+            .as_ref()
+            .map_or(0, |s| s.command.ability_category);
+        if self.units[r].is_under_any_status(st::SILENCE) && category & 2 != 0 {
+            return false;
+        }
+        match cmd_no {
+            cmd::SYS_STONE => {
+                let prev = self.snapshot();
+                let env = self.status_env();
+                let ctx = StatusCtx {
+                    table: &self.table,
+                    env: &env,
+                };
+                alter_status(&mut self.units[r], 0, false, &ctx, rng);
+                self.sync(&prev);
+                false
+            }
+            cmd::SYS_TRANS => true,
+            cmd::SYS_ESCAPE => {
+                if self.phase != Phase::Normal {
+                    return true;
+                }
+                for j in 0..self.units.len() {
+                    if self.sched[j].in_list
+                        && self.units[j].is_player
+                        && !self.units[j].is_under_any_status(st::CANNOT_ESCAPE)
+                        && self.units[j].cur_hp > 0
+                    {
+                        self.phase = Phase::MenuOff;
+                        self.menu_off_seq = MenuOffSeq::Escape;
+                    }
+                }
+                if self.phase == Phase::MenuOff && self.menu_off_seq == MenuOffSeq::Escape {
+                    self.escape_count += 1;
+                    if self.cmds.slots[id].sub_no == 0 {
+                        self.ability_flee = true;
+                    }
+                    let removed = self.cmds.kill_all();
+                    self.after_dequeue(&removed);
+                    self.emit(BattleEvent::PhaseChanged {
+                        phase: Phase::MenuOff,
+                    });
+                } else {
+                    self.cmds.cmd_status &= 0xFFFE;
+                }
+                false
+            }
+            _ => true,
+        }
+    }
+
+    /// `CheckTargetCondition` (`btl_cmd.cs:1221-1272`).
+    fn check_target_condition(&mut self, id: CmdId, rng: &mut dyn BattleRandom) -> bool {
+        let (tar, cursor, short, cmd_no) = {
+            let s = &self.cmds.slots[id];
+            (s.tar_id, s.cursor, s.short_range, s.cmd_no)
+        };
+        let for_dead = cmd_no == cmd::SYS_TRANS
+            || self.cmds.slots[id]
+                .spec
+                .as_ref()
+                .is_some_and(|s| s.for_dead);
+        let views = self.views();
+        match targeting::check_target_condition(&views, tar, cursor, short, for_dead, rng) {
+            TargetCheck::Valid(t) => {
+                self.cmds.slots[id].tar_id = t;
+                true
+            }
+            TargetCheck::Invalid => false,
+        }
+    }
+
+    /// `CheckMpCondition` + `ConsumeMp` (`btl_cmd.cs:1199-1219,1653`).
+    fn check_mp_condition(&mut self, id: CmdId) -> bool {
+        let Some(r) = self.cmds.slots[id].regist else {
+            return true;
+        };
+        let Some(spec) = self.cmds.slots[id].spec.clone() else {
+            return true;
+        };
+        let mut command = spec.command;
+        command.command_id = self.cmds.slots[id].cmd_no;
+        cost::try_consume_mp(
+            &command,
+            &mut self.units[r],
+            false,
+            self.sched[r].mp_cost_factor,
+        )
+    }
+
+    /// `CMD_MODE_LOOP` (`btl_cmd.cs:653-656`, `CheckCommandLoop` `:1439`):
+    /// apply the effect once the injected effect delay has passed, finish
+    /// once the injected total has passed.
+    fn command_loop(
+        &mut self,
+        id: CmdId,
+        hooks: &mut dyn BattleHooks,
+        rng: &mut dyn BattleRandom,
+    ) -> Result<(), BattleError> {
+        let t = self.config.timing;
+        if !self.cmds.slots[id].effect_done
+            && self.cmds.slots[id].loop_ticks >= t.effect_after_loop_ticks
+        {
+            self.cmds.slots[id].effect_done = true;
+            self.apply_effect(id, hooks, rng)?;
+        }
+        if self.cmds.slots[id].effect_done && self.cmds.slots[id].loop_ticks >= t.loop_total_ticks {
+            self.cmds.slots[id].mode = CmdMode::Done;
+        }
+        self.cmds.slots[id].loop_ticks += 1;
+        Ok(())
+    }
+
+    /// `ExecVfxCommand` for every target (`btl_cmd.cs:1526-1583`): `SBattleCalculator.CalcMain`
+    /// per target in `btl_list` order. System commands (`SysTrans`, jump) have
+    /// no calculator step. Script 57 (Flee) runs `FleeScript.Perform`.
+    fn apply_effect(
+        &mut self,
+        id: CmdId,
+        hooks: &mut dyn BattleHooks,
+        rng: &mut dyn BattleRandom,
+    ) -> Result<(), BattleError> {
+        let (cmd_no, tar, cursor, short, regist) = {
+            let s = &self.cmds.slots[id];
+            (s.cmd_no, s.tar_id, s.cursor, s.short_range, s.regist)
+        };
+        if matches!(cmd_no, cmd::JUMP | cmd::JUMP_IN_TRANCE | cmd::SYS_TRANS) {
+            return Ok(());
+        }
+        let (Some(caster), Some(spec)) = (regist, self.cmds.slots[id].spec.clone()) else {
+            return Ok(());
+        };
+        if spec.command.script_id == 57 {
+            self.flee_ability(hooks)?;
+            return Ok(());
+        }
+        if spec.command.script_id == 56 {
+            return Err(BattleError::Unported("script 56 outside the flee key path"));
+        }
+        for t in 0..self.units.len() {
+            if !self.sched[t].in_list || self.units[t].id & tar == 0 {
+                continue;
+            }
+            let mut command: BattleCommand = spec.command.clone();
+            command.command_id = cmd_no;
+            command.target_id = tar;
+            command.is_many_target = cursor & 1 != 0;
+            command.is_short_range = short;
+            let env = CalcEnv {
+                escape_key_pressed: self.escape_key,
+                battle_menu_enabled: self.menu_enabled,
+                status: self.status_env(),
+                ..CalcEnv::default()
+            };
+            let prev = self.snapshot();
+            calc_main(&mut self.units, caster, t, command, env, &self.table, rng)?;
+            self.sync(&prev);
+            let target_hp = self.units[t].cur_hp;
+            self.emit(BattleEvent::EffectApplied {
+                caster,
+                target: t,
+                target_hp,
+            });
+        }
+        Ok(())
+    }
+
+    /// `btl_cmd.FinishCommand` (`btl_cmd.cs:1289-1408`): gauge reset for a
+    /// finished main command, trance decay, `CheckPointData`, slot cleared.
+    fn finish_command(&mut self, id: CmdId, rng: &mut dyn BattleRandom) -> Result<(), BattleError> {
+        let (cmd_no, regist, slot) = {
+            let s = &self.cmds.slots[id];
+            (s.cmd_no, s.regist, s.slot)
+        };
+        if let Some(r) = regist {
+            if is_declarable(cmd_no) {
+                if slot == 0 && cmd_no != cmd::JUMP && cmd_no != cmd::JUMP_IN_TRANCE {
+                    // `ResetCurrentBattlerActiveTime` (`:1421-1429`).
+                    let max = self.sched[r].max_atb;
+                    if self.config.keep_rest_time && max > 0 {
+                        self.units[r].cur_atb = (self.units[r].cur_atb - max).max(0);
+                    } else {
+                        self.units[r].cur_atb = 0;
+                    }
+                    self.sched[r].sel_mode = 0;
+                }
+                self.finish_trance_decay(r, cmd_no)?;
+            }
+            self.ready_players.retain(|&u| u != r);
+            self.check_point_data(r, rng);
+        }
+        self.running.retain(|&c| c != id);
+        self.cmds.clear(id);
+        if let Some(r) = regist {
+            self.emit(BattleEvent::CommandFinished { unit: r, cmd_no });
+        }
+        Ok(())
+    }
+
+    /// `IsNeedToDecreaseTrance` and the decay (`btl_cmd.cs:1299-1338,1410-1419`).
+    fn finish_trance_decay(&mut self, r: usize, cmd_no: u32) -> Result<(), BattleError> {
+        let u = &self.units[r];
+        if !u.is_under_any_status(st::TRANCE)
+            || u.status_permanent & st::TRANCE != 0
+            || cmd_no == cmd::JUMP
+            || cmd_no == cmd::JUMP_IN_TRANCE
+        {
+            return Ok(());
+        }
+        if u.will == 0 {
+            return Err(BattleError::DivideByZero(
+                "trance decay (300 - level) / will",
+            ));
+        }
+        let mut delta = (300 - i32::from(u.level)) / i32::from(u.will) * 10;
+        if cmd_no == cmd::DOUBLE_WHITE_MAGIC || cmd_no == cmd::DOUBLE_BLACK_MAGIC {
+            delta /= 2;
+        }
+        if delta >= 0 {
+            if i32::from(u.trance) > delta {
+                self.units[r].trance -= delta as u8;
+            } else {
+                let prev = self.snapshot();
+                let env = self.status_env();
+                remove_status(&mut self.units[r], 14, &env);
+                self.sync_removal_only(&prev);
+            }
+        }
+        Ok(())
+    }
+
+    /// Slot id helper for tests and callers.
+    pub fn slot(&self, unit: usize, k: usize) -> CmdId {
+        debug_assert!(k < SLOTS_PER_UNIT);
+        self.cmds.slot_of(unit, k)
+    }
+
+    /// Initial gauges for a normal start (`btl_init.cs:430,494`), in unit
+    /// order; one `random16` draw per unit.
+    pub fn roll_initial_atb(
+        &mut self,
+        start: StartType,
+        rng: &mut dyn BattleRandom,
+    ) -> Result<(), BattleError> {
+        for i in 0..self.units.len() {
+            let max = self.sched[i].max_atb;
+            let v = if self.units[i].is_player {
+                atb::initial_player_atb(max, start, rng)
+            } else {
+                atb::initial_enemy_atb(max, start, rng)
+            };
+            self.units[i].cur_atb = v.ok_or(BattleError::DivideByZero(
+                "random16 % max.at (btl_init.cs:430)",
+            ))?;
+        }
+        Ok(())
+    }
+}
+
+/// `Dex`-independent default so callers can build a `StatusTable`-free
+/// battle for gauge-only checks.
+pub fn empty_status_table() -> StatusTable {
+    StatusTable::new(Vec::new())
+}
