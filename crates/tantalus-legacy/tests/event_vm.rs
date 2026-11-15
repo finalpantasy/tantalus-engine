@@ -137,6 +137,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetRunAnimation { .. } => {}
                 HostEvent::SetLeftTurnAnimation { .. } => {}
                 HostEvent::SetRightTurnAnimation { .. } => {}
+                HostEvent::SetJumpAnimation { .. } => {}
                 HostEvent::SetActorRadii { .. } => {}
                 HostEvent::SetIdleAnimationSpeeds { .. } => {}
                 HostEvent::SetHeadFocusMasks { .. } => {}
@@ -671,6 +672,45 @@ fn aturnr_sets_actor_right_turn_animation_from_wide_operand() {
     );
 
     let mut vm = EventVm::new(decode_program(&[123, 0, 1, 0, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
+}
+
+#[test]
+fn ajump_sets_actor_jump_animation_and_parameters() {
+    let program = decode_program(&[148, 0, 0xff, 0xff, 2, 3, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 6);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetJumpAnimation {
+            actor: EntityId::new(42),
+            animation: u16::MAX,
+            parameters: [2, 3]
+        }]
+    );
+
+    let mut bytes = vec![148, 7];
+    for value in [300, 4, 5] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetJumpAnimation {
+            actor: EntityId::new(42),
+            animation: 300,
+            parameters: [4, 5]
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[148, 0, 1, 0, 2, 3, 4]).unwrap());
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));

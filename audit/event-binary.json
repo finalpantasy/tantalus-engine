@@ -134,7 +134,8 @@
     "B_XOR_LET_E 68 now follows the same source-compatible selected-value mask construction instead of using the operand or old target value as flags",
     "decode diagnostics identify the instruction start as well as the missing-byte offset",
     "BGAFRAME 0xE7 decodes immediate/expression animation and frame operands and emits SetTileAnimationFrame without clamping",
-    "PARTYMENU 0xB2 decodes minimum size and signed-wide fixed-member mask, emits OpenPartyMenu once, and waits for host closure"
+    "PARTYMENU 0xB2 decodes minimum size and signed-wide fixed-member mask, emits OpenPartyMenu once, and waits for host closure",
+    "AJUMP 0x94 emits actor-bound SetJumpAnimation with a wide animation ID and two byte parameters"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -169,10 +170,10 @@
     "entry": 3,
     "function": 1,
     "function_tag": 1,
-    "offset": 167,
-    "opcode": 148,
+    "offset": 317,
+    "opcode": 254,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x94 after party-menu lifecycle support"
+    "instruction": "event opcode 0xFE after jump-animation support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

@@ -300,6 +300,32 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetRightTurnAnimation { actor, animation });
                 }
+                InstructionKind::SetJumpAnimation {
+                    animation,
+                    parameters,
+                } => {
+                    let animation =
+                        self.evaluate(host, &animation, instruction.offset, opcode)? as u16;
+                    let [first, second] = parameters;
+                    let parameters = [
+                        self.evaluate(host, &first, instruction.offset, opcode)? as u8,
+                        self.evaluate(host, &second, instruction.offset, opcode)? as u8,
+                    ];
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "jump animation requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetJumpAnimation {
+                        actor,
+                        animation,
+                        parameters,
+                    });
+                }
                 InstructionKind::SetLeftTurnAnimation(animation) => {
                     let animation =
                         self.evaluate(host, &animation, instruction.offset, opcode)? as u16;
@@ -1700,6 +1726,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetRunAnimation { .. } => 0x35,
         InstructionKind::SetLeftTurnAnimation { .. } => 0x7a,
         InstructionKind::SetRightTurnAnimation { .. } => 0x7b,
+        InstructionKind::SetJumpAnimation { .. } => 0x94,
         InstructionKind::SetActorRadii { .. } => 0x4b,
         InstructionKind::SetIdleAnimationSpeeds { .. } => 0x86,
         InstructionKind::SetHeadFocusMasks { .. } => 0x8b,

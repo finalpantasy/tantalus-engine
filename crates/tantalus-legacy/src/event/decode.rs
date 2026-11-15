@@ -17,6 +17,7 @@ const OP_SET_RUN_ANIMATION: u32 = 0x35;
 const OP_PRINT_QUAD: u32 = 0x78;
 const OP_SET_LEFT_TURN_ANIMATION: u32 = 0x7a;
 const OP_SET_RIGHT_TURN_ANIMATION: u32 = 0x7b;
+const OP_SET_JUMP_ANIMATION: u32 = 0x94;
 const OP_SET_ACTOR_RADII: u32 = 0x4b;
 const OP_SET_IDLE_ANIMATION_SPEEDS: u32 = 0x86;
 const OP_SET_HEAD_FOCUS_MASKS: u32 = 0x8b;
@@ -244,6 +245,28 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::SetRightTurnAnimation(animation)
+            }
+            OP_SET_JUMP_ANIMATION => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetJumpAnimation {
+                    animation: argument(1, true)?,
+                    parameters: [argument(2, false)?, argument(4, false)?],
+                }
             }
             OP_SET_LEFT_TURN_ANIMATION => {
                 let flags = self.byte()?;

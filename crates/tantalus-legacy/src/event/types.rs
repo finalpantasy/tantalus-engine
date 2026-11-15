@@ -132,6 +132,10 @@ pub enum InstructionKind {
     SetRunAnimation(Expression),
     SetLeftTurnAnimation(Expression),
     SetRightTurnAnimation(Expression),
+    SetJumpAnimation {
+        animation: Expression,
+        parameters: [Expression; 2],
+    },
     SetActorRadii {
         pathing_size: Expression,
         collision_radius: Expression,
@@ -368,6 +372,11 @@ pub enum HostEvent {
     SetRightTurnAnimation {
         actor: EntityId,
         animation: u16,
+    },
+    SetJumpAnimation {
+        actor: EntityId,
+        animation: u16,
+        parameters: [u8; 2],
     },
     SetActorRadii {
         actor: EntityId,
