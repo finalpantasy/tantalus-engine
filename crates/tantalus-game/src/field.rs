@@ -1,6 +1,7 @@
 pub mod director;
 pub mod fmv;
 pub mod host;
+pub mod item_use;
 pub mod region;
 pub mod shop;
 pub mod snapshot;
