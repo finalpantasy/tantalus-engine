@@ -525,6 +525,74 @@ fn jump_switch_selects_consecutive_cases_and_uses_default_outside_range() {
 }
 
 #[test]
+fn wide_jump_switch_supports_more_than_255_cases_and_uses_default() {
+    fn switch_program(value: i32) -> Vec<u8> {
+        const CASES: usize = 300;
+        const BASE: i16 = 5;
+        const SWITCH_LENGTH: u16 = 7 + 2 * CASES as u16;
+        const FIRST_CASE: u16 = SWITCH_LENGTH - 2;
+        const LAST_CASE: u16 = FIRST_CASE + 2;
+        const DEFAULT: u16 = LAST_CASE + 2;
+
+        let mut bytes = vec![5];
+        append_expression(&mut bytes, constant(value));
+        bytes.push(13);
+        bytes.extend_from_slice(&(CASES as u16).to_le_bytes());
+        bytes.extend_from_slice(&BASE.to_le_bytes());
+        bytes.extend_from_slice(&DEFAULT.to_le_bytes());
+        for case in 0..CASES {
+            let relative = match case {
+                0 => FIRST_CASE,
+                case if case == CASES - 1 => LAST_CASE,
+                _ => DEFAULT,
+            };
+            bytes.extend_from_slice(&relative.to_le_bytes());
+        }
+        bytes.extend_from_slice(&[0, 0, 0, 0, 4]);
+        bytes
+    }
+
+    let program = decode_program(&switch_program(5)).unwrap();
+    let instruction = &program.instructions[&7];
+    assert_eq!(instruction.length, 607);
+    let InstructionKind::JumpSwitchWide {
+        base,
+        default_relative,
+        case_relative,
+    } = &instruction.kind
+    else {
+        panic!("expected wide switch");
+    };
+    assert_eq!(*base, 5);
+    assert_eq!(*default_relative, 609);
+    assert_eq!(case_relative.len(), 300);
+    assert_eq!(case_relative[0], 605);
+    assert_eq!(case_relative[299], 607);
+
+    for (value, expected_pc) in [(5, 616), (304, 618)] {
+        let mut vm = EventVm::new(decode_program(&switch_program(value)).unwrap());
+        let mut host = Host::new();
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(report.status, VmStatus::Running);
+        assert_eq!(vm.pc(), expected_pc);
+        assert!(vm.traces().any(|trace| trace.opcode == Some(13)));
+    }
+
+    for value in [4, 305] {
+        let mut vm = EventVm::new(decode_program(&switch_program(value)).unwrap());
+        let mut host = Host::new();
+        assert_eq!(
+            vm.step(Tick::new(0), &mut host).unwrap().status,
+            VmStatus::Completed
+        );
+    }
+
+    let truncated = decode_program(&[13, 1, 0, 0]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(13)"));
+}
+
+#[test]
 fn aidle_sets_actor_idle_animation_from_wide_operand() {
     let program = decode_program(&[51, 0, 0x34, 0x12, 4]).unwrap();
     let mut vm = EventVm::new(program).with_entity(EntityId::new(42));

@@ -9,6 +9,7 @@ const OP_JUMP_IF_NOT: u32 = 0x02;
 const OP_JUMP_IF: u32 = 0x03;
 const OP_RETURN: u32 = 0x04;
 const OP_JUMP_SWITCH: u32 = 0x0b;
+const OP_JUMP_SWITCH_WIDE: u32 = 0x0d;
 const OP_DELETE_OBJECT: u32 = 0x1c;
 const OP_SET_ACTOR_POSITION: u32 = 0x1d;
 const OP_SET_IDLE_ANIMATION: u32 = 0x33;
@@ -166,18 +167,30 @@ impl Decoder<'_> {
                 condition: self.expression()?,
                 relative: self.i16()?,
             },
-            OP_JUMP_SWITCH => {
-                let case_count = self.byte()? as usize;
+            OP_JUMP_SWITCH | OP_JUMP_SWITCH_WIDE => {
+                let case_count = if opcode == OP_JUMP_SWITCH_WIDE {
+                    self.i16()? as u16 as usize
+                } else {
+                    self.byte()? as usize
+                };
                 let base = self.i16()?;
                 let default_relative = self.i16()? as u16;
                 let mut case_relative = Vec::with_capacity(case_count);
                 for _ in 0..case_count {
                     case_relative.push(self.i16()? as u16);
                 }
-                InstructionKind::JumpSwitch {
-                    base,
-                    default_relative,
-                    case_relative,
+                if opcode == OP_JUMP_SWITCH_WIDE {
+                    InstructionKind::JumpSwitchWide {
+                        base,
+                        default_relative,
+                        case_relative,
+                    }
+                } else {
+                    InstructionKind::JumpSwitch {
+                        base,
+                        default_relative,
+                        case_relative,
+                    }
                 }
             }
             OP_DELETE_OBJECT => InstructionKind::DeleteObject(self.byte()?),

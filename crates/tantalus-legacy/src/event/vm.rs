@@ -190,6 +190,11 @@ impl EventVm {
                     base,
                     default_relative,
                     ref case_relative,
+                }
+                | InstructionKind::JumpSwitchWide {
+                    base,
+                    default_relative,
+                    ref case_relative,
                 } => {
                     let selected = self.expression_value.wrapping_sub(i32::from(base));
                     let relative = if selected >= 0 && selected < case_relative.len() as i32 {
@@ -197,7 +202,8 @@ impl EventVm {
                     } else {
                         default_relative
                     };
-                    self.pc = switch_target(&instruction, relative)?;
+                    let anchor = if opcode == 0x0d { 2 } else { 1 };
+                    self.pc = switch_target(&instruction, relative, anchor)?;
                 }
                 InstructionKind::Evaluate(expression) => {
                     self.expression_value =
@@ -1875,6 +1881,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::JumpIfNot { .. } => 0x02,
         InstructionKind::JumpIf { .. } => 0x03,
         InstructionKind::JumpSwitch { .. } => 0x0b,
+        InstructionKind::JumpSwitchWide { .. } => 0x0d,
         InstructionKind::DeleteObject(_) => 0x1c,
         InstructionKind::SetActorPosition { .. } => 0x1d,
         InstructionKind::SetIdleAnimation { .. } => 0x33,
@@ -1956,10 +1963,10 @@ fn jump_target(instruction: &Instruction, relative: i16) -> Result<u32, VmError>
     Ok(target as u32)
 }
 
-fn switch_target(instruction: &Instruction, relative: u16) -> Result<u32, VmError> {
+fn switch_target(instruction: &Instruction, relative: u16, anchor: u32) -> Result<u32, VmError> {
     instruction
         .offset
-        .checked_add(1)
+        .checked_add(anchor)
         .and_then(|offset| offset.checked_add(u32::from(relative)))
         .ok_or_else(|| {
             VmError::new(

@@ -150,7 +150,8 @@
     "SETROW 0x61 emits SetCharacterRow with character identity and a wrapped byte row",
     "ROTXZ 0x37 emits actor-bound pitch/roll after wrapping shift-by-four fixed-point conversion",
     "B_KEYON 79 returns whether the host key-down bitmap intersects the operand mask",
-    "B_LET_A 45 writes every selected member without reading old values and returns the last assigned value"
+    "B_LET_A 45 writes every selected member without reading old values and returns the last assigned value",
+    "wide JMP_SWITCH 0x0D decodes a 16-bit case count and shares consecutive-case/default execution with its shifted branch anchor while retaining its opcode"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -211,14 +212,24 @@
     "kind": "Decode",
     "instruction": "JMP_IFNOT expression/relative operand do not complete before the function boundary"
   },
-  "next_decode_boundary": {
-    "entry": 8,
+  "truncated_wide_switch_boundaries": {
+    "entries": [8, 9],
     "function": 1,
     "function_tag": 1,
-    "offset": 216,
+    "instruction_offset": 205,
+    "offset": 288,
     "opcode": 13,
+    "kind": "Decode",
+    "instruction": "each 277-byte function declares 32005 wide-switch cases; the case table does not complete before the function boundary"
+  },
+  "next_decode_boundary": {
+    "entry": 10,
+    "function": 1,
+    "function_tag": 1,
+    "offset": 96,
+    "opcode": 40,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x0D after all-member direct assignment support"
+    "instruction": "event opcode 0x28 after wide-count switch support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
