@@ -125,6 +125,7 @@ impl LegacyEventHost for Host {
                 HostEvent::AttachObjectOffset { .. } => {}
                 HostEvent::SetNavigationAttributeMask { .. } => {}
                 HostEvent::SetShadowEnabled { .. } => {}
+                HostEvent::SetTextVariable { .. } => {}
             }
         }
         Ok(())
@@ -1228,4 +1229,23 @@ fn pad17_yields_while_retaining_its_opcode() {
         vm.step(Tick::new(1), &mut host).unwrap().status,
         VmStatus::Completed
     );
+}
+
+#[test]
+fn mesvalue_sets_the_script_keyed_text_variable() {
+    let program = decode_program(&[102, 0, 3, 0xfb, 0xff, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 5);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTextVariable {
+            script: 3,
+            value: -5
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
 }

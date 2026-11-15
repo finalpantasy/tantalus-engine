@@ -64,14 +64,15 @@
     "B_ANGLE2 102 ports the reference quadrant logic and host-provided arctangent table reads with equivalent integer output",
     "pad0e 0x0E consumes its flag and yields before continuing, matching the default FLOW_STATE_WAIT path",
     "SHADOWON 0x7F consumes its flag and emits SetShadowEnabled for the current actor",
-    "pad17 0x17 consumes its flag and yields through the shared opcode-preserving Yield instruction"
+    "pad17 0x17 consumes its flag and yields through the shared opcode-preserving Yield instruction",
+    "MESVALUE 0x66 decodes script ID and signed value operands and emits SetTextVariable"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 972,
-    "opcode": "0x66",
-    "kind": "event",
-    "instruction": "MESVALUE"
+    "offset": 1012,
+    "opcode": "0x2E",
+    "instruction": "B_LET_E",
+    "expression_start": 1012
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

@@ -295,6 +295,12 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetShadowEnabled { actor, enabled });
                 }
+                InstructionKind::SetTextVariable { script, value } => {
+                    let script = self.evaluate(host, &script, instruction.offset, opcode)?;
+                    let value = self.evaluate(host, &value, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetTextVariable { script, value });
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -901,6 +907,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::SetNavigationAttributeMask(_) => 0x27,
         InstructionKind::Yield(opcode) => *opcode,
         InstructionKind::SetShadowEnabled(_) => 0x7f,
+        InstructionKind::SetTextVariable { .. } => 0x66,
     }
 }
 

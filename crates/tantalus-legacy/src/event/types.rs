@@ -153,6 +153,10 @@ pub enum InstructionKind {
     SetNavigationAttributeMask(Expression),
     Yield(u8),
     SetShadowEnabled(bool),
+    SetTextVariable {
+        script: Expression,
+        value: Expression,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -252,6 +256,10 @@ pub enum HostEvent {
     SetShadowEnabled {
         actor: EntityId,
         enabled: bool,
+    },
+    SetTextVariable {
+        script: i32,
+        value: i32,
     },
 }
 

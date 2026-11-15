@@ -28,6 +28,7 @@ const OP_SET_NAVIGATION_ATTRIBUTE_MASK: u8 = 0x27;
 const OP_YIELD: u8 = 0x0e;
 const OP_PADDING17: u8 = 0x17;
 const OP_SHADOW_ON: u8 = 0x7f;
+const OP_SET_TEXT_VARIABLE: u8 = 0x66;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -232,6 +233,26 @@ impl Decoder<'_> {
             OP_SHADOW_ON => {
                 self.byte()?;
                 InstructionKind::SetShadowEnabled(true)
+            }
+            OP_SET_TEXT_VARIABLE => {
+                let flags = self.byte()?;
+                let script = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                let value = if flags & 2 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.i16()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::SetTextVariable { script, value }
             }
             _ => {
                 return Err(VmError::new(
