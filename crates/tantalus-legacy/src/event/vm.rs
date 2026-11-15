@@ -841,6 +841,10 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::RunBattleCode { code, value });
                 }
+                InstructionKind::SetRunEnabled { enabled, .. } => {
+                    self.pc = next;
+                    events.push(HostEvent::SetRunEnabled { enabled });
+                }
                 InstructionKind::AttachTile {
                     overlay,
                     x,
@@ -1812,6 +1816,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::InitializeCharacter { .. } => 0xfe,
         InstructionKind::StopTextureAnimation { .. } => 0xc2,
         InstructionKind::RunBattleCode { .. } => 0x4a,
+        InstructionKind::SetRunEnabled { opcode, .. } => u32::from(*opcode),
         InstructionKind::AttachTile { .. } => 0x92,
     }
 }

@@ -138,7 +138,8 @@
     "AJUMP 0x94 emits actor-bound SetJumpAnimation with a wide animation ID and two byte parameters",
     "JOIN 0xFE decodes five immediate/expression fields and emits complete InitializeCharacter host commands",
     "TEXSTOP 0xC2 decodes object and animation operands and emits StopTextureAnimation",
-    "BTLSET 0x4A emits RunBattleCode with an unsigned code and signed-wide value"
+    "BTLSET 0x4A emits RunBattleCode with an unsigned code and signed-wide value",
+    "DASHON 0xF0 consumes its flag and emits SetRunEnabled(true) while preserving its opcode"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -173,10 +174,10 @@
     "entry": 3,
     "function": 1,
     "function_tag": 1,
-    "offset": 587,
-    "opcode": 240,
+    "offset": 617,
+    "opcode": 210,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0xF0 after battle-code command support"
+    "instruction": "event opcode 0xD2 after run-enable support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

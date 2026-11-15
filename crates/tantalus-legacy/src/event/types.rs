@@ -292,6 +292,10 @@ pub enum InstructionKind {
         code: Expression,
         value: Expression,
     },
+    SetRunEnabled {
+        enabled: bool,
+        opcode: u8,
+    },
     AttachTile {
         overlay: Expression,
         x: Expression,
@@ -547,6 +551,9 @@ pub enum HostEvent {
     RunBattleCode {
         code: u32,
         value: i32,
+    },
+    SetRunEnabled {
+        enabled: bool,
     },
     AttachTile {
         overlay: i32,

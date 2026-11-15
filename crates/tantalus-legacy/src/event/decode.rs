@@ -70,6 +70,7 @@ const OP_OPEN_PARTY_MENU: u32 = 0xb2;
 const OP_INITIALIZE_CHARACTER: u32 = 0xfe;
 const OP_STOP_TEXTURE_ANIMATION: u32 = 0xc2;
 const OP_RUN_BATTLE_CODE: u32 = 0x4a;
+const OP_DASH_ON: u32 = 0xf0;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -863,6 +864,13 @@ impl Decoder<'_> {
                 InstructionKind::RunBattleCode {
                     code: argument(1, false)?,
                     value: argument(2, true)?,
+                }
+            }
+            OP_DASH_ON => {
+                self.byte()?;
+                InstructionKind::SetRunEnabled {
+                    enabled: true,
+                    opcode: opcode as u8,
                 }
             }
             OP_ATTACH_TILE => {

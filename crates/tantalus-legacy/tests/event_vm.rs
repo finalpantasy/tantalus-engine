@@ -177,6 +177,7 @@ impl LegacyEventHost for Host {
                 HostEvent::InitializeCharacter { .. } => {}
                 HostEvent::StopTextureAnimation { .. } => {}
                 HostEvent::RunBattleCode { .. } => {}
+                HostEvent::SetRunEnabled { .. } => {}
                 HostEvent::AttachTile { .. } => {}
             }
         }
@@ -3195,6 +3196,24 @@ fn btlset_emits_unsigned_code_and_signed_value() {
             value: 300
         }]
     );
+}
+
+#[test]
+fn dashon_enables_running() {
+    let program = decode_program(&[240, 0, 4]).unwrap();
+    assert_eq!(
+        program.instructions[&0].kind,
+        InstructionKind::SetRunEnabled {
+            enabled: true,
+            opcode: 240
+        }
+    );
+    assert_eq!(program.instructions[&0].length, 2);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::SetRunEnabled { enabled: true }]);
+    assert_eq!(vm.status(), VmStatus::Completed);
 }
 
 #[test]
