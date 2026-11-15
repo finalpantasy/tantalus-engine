@@ -127,6 +127,8 @@ pub struct FieldWorld {
     /// Last actor observed in applied host events; v1 stand-in for the
     /// reference's current-executing-object member target.
     current_actor: Option<EntityId>,
+    /// The player-controlled actor, once the caller designates one.
+    player: Option<EntityId>,
 }
 
 impl Default for FieldWorld {
@@ -167,6 +169,7 @@ impl FieldWorld {
             atan_table: None,
             navigation: None,
             current_actor: None,
+            player: None,
         }
     }
 
@@ -180,6 +183,14 @@ impl FieldWorld {
 
     pub fn set_input(&mut self, mask: i32) {
         self.input_mask = mask;
+    }
+
+    pub fn set_player(&mut self, actor: EntityId) {
+        self.player = Some(actor);
+    }
+
+    pub fn player(&self) -> Option<EntityId> {
+        self.player
     }
 
     pub fn input_mask(&self) -> i32 {

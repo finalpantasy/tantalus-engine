@@ -4,7 +4,7 @@
 
 use tantalus_contracts::{ContentId, EntityId, Tick};
 use tantalus_game::battle::*;
-use tantalus_game::{FieldDirector, FieldSnapshot, FieldWorld};
+use tantalus_game::{FieldDirector, FieldHost, FieldSnapshot, FieldWorld};
 
 fn content(name: &str) -> ContentId {
     ContentId::parse(&format!("fixture:{name}")).unwrap()
@@ -175,4 +175,42 @@ fn request_orchestration_cycle_spawns_completes_and_clears() {
     // Completing the request clears the host pend so a waiting REQSW resumes.
     director.world_mut().complete_request(EntityId::new(1));
     assert!(!director.world().request_pending(EntityId::new(1)));
+}
+
+#[test]
+fn player_input_injection_reaches_host_key_queries() {
+    use tantalus_legacy::LegacyEventHost;
+
+    let mut director = FieldDirector::new(FieldWorld::new());
+    director.world_mut().add_actor(EntityId::new(1), [0.0; 3]);
+    director.set_player(EntityId::new(1));
+    assert_eq!(director.world().player(), Some(EntityId::new(1)));
+
+    // No input: key reads report zero.
+    {
+        let mut host = FieldHost::new(director.world_mut());
+        assert_eq!(host.read_key_on().unwrap(), 0);
+    }
+
+    // Injected input is visible to the host key queries until changed.
+    director.set_input_mask(0x10);
+    {
+        let mut host = FieldHost::new(director.world_mut());
+        assert_eq!(host.read_key_on().unwrap(), 0x10);
+        assert_eq!(
+            host.read_key_state(tantalus_legacy::KeyState::Held)
+                .unwrap(),
+            0x10
+        );
+        assert_eq!(
+            host.read_key_state(tantalus_legacy::KeyState::Off).unwrap(),
+            0
+        );
+    }
+
+    director.set_input_mask(0);
+    {
+        let mut host = FieldHost::new(director.world_mut());
+        assert_eq!(host.read_key_on().unwrap(), 0);
+    }
 }

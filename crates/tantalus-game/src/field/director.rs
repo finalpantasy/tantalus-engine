@@ -82,6 +82,22 @@ impl FieldDirector {
         self.tick
     }
 
+    /// Per-tick player input injection: scripts read this through the
+    /// host key queries (`B_KEYON` family). Held until changed.
+    pub fn set_input_mask(&mut self, mask: i32) {
+        self.world.set_input(mask);
+    }
+
+    pub fn input_mask(&self) -> i32 {
+        self.world.input_mask()
+    }
+
+    /// Designate the player-controlled actor for host-side interaction
+    /// checks (talk proximity and confirm, once those land).
+    pub fn set_player(&mut self, actor: EntityId) {
+        self.world.set_player(actor);
+    }
+
     /// Observed per-entry VM state (entity, pc, status, wait).
     pub fn entry_states(
         &self,
