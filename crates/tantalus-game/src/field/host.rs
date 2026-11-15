@@ -10,8 +10,6 @@ use super::world::{EncounterRequest, FieldWorld, Jump, Movement, Turn};
 use tantalus_contracts::{EngineError, EntityId, ErrorCategory};
 use tantalus_legacy::{CharacterStat, HostEvent, KeyState, LegacyEventHost, ObjectMemberRef};
 
-const MAX_GIL: u32 = 9_999_999;
-
 pub struct FieldHost<'a> {
     world: &'a mut FieldWorld,
 }
@@ -183,7 +181,7 @@ impl LegacyEventHost for FieldHost<'_> {
                     *entry = (*entry - *count).max(0);
                 }
                 HostEvent::AddGil { amount } => {
-                    self.world.gil = self.world.gil.saturating_add(*amount).min(MAX_GIL);
+                    self.world.add_gil(*amount);
                 }
                 HostEvent::RemoveGil { amount } => {
                     self.world.gil = self.world.gil.saturating_sub(*amount);

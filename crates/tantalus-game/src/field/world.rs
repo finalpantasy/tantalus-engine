@@ -75,6 +75,8 @@ pub struct CharacterStats {
     pub max_mp: i32,
 }
 
+pub(crate) const MAX_GIL: u32 = 9_999_999;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldWorld {
     pub actors: BTreeMap<EntityId, ActorState>,
@@ -105,6 +107,8 @@ pub struct FieldWorld {
     pub animation_default_ticks: u16,
     /// Exit walks report movement active until the director marks the arrival.
     pub exit_arrivals: BTreeSet<EntityId>,
+    /// Reward resolutions already applied to this world (exactly-once ledger).
+    applied_resolutions: BTreeSet<u64>,
 }
 
 impl Default for FieldWorld {
@@ -141,6 +145,7 @@ impl FieldWorld {
             walk_speed: 16.0,
             animation_default_ticks: 32,
             exit_arrivals: BTreeSet::new(),
+            applied_resolutions: BTreeSet::new(),
         }
     }
 
@@ -298,5 +303,14 @@ impl FieldWorld {
 
     pub(crate) fn push_world_transition(&mut self, destination: i16) {
         self.world_transitions.push(destination);
+    }
+
+    /// Record a reward resolution as applied; returns false on a duplicate.
+    pub(crate) fn apply_resolution(&mut self, resolution_id: u64) -> bool {
+        self.applied_resolutions.insert(resolution_id)
+    }
+
+    pub fn add_gil(&mut self, amount: u32) {
+        self.gil = self.gil.saturating_add(amount).min(MAX_GIL);
     }
 }
