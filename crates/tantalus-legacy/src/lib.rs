@@ -1,3 +1,4 @@
+pub mod battle;
 pub mod effects;
 pub mod event;
 pub mod saves;
