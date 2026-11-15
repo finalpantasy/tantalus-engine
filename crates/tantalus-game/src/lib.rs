@@ -2,6 +2,7 @@ pub mod actor;
 pub mod battle;
 pub mod field;
 pub mod navigation;
+pub mod new_game;
 pub mod world;
 
 pub use field::{

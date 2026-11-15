@@ -102,6 +102,51 @@ impl EventVm {
         self.variables.get(&(scope, index)).copied().unwrap_or(0)
     }
 
+    /// Reads a variable from the host's shared memory for its scope, or
+    /// from this VM's private storage when the host has none.
+    fn load_variable(
+        &self,
+        host: &mut dyn LegacyEventHost,
+        variable: VariableRef,
+        offset: u32,
+        opcode: u32,
+    ) -> Result<i32, VmError> {
+        match host.variable_memory(variable.scope) {
+            Some(memory) => memory
+                .get(variable.index, variable.value_type)
+                .ok_or_else(|| variable_range_error(variable, offset, opcode)),
+            None => Ok(self.variable(variable.scope, variable.index)),
+        }
+    }
+
+    /// Writes a variable and returns the value a following read yields
+    /// (the stored bits for shared memory, the normalized value otherwise).
+    fn store_variable(
+        &mut self,
+        host: &mut dyn LegacyEventHost,
+        variable: VariableRef,
+        value: i32,
+        offset: u32,
+        opcode: u32,
+    ) -> Result<i32, VmError> {
+        match host.variable_memory(variable.scope) {
+            Some(memory) => {
+                memory
+                    .set(variable.index, variable.value_type, value)
+                    .ok_or_else(|| variable_range_error(variable, offset, opcode))?;
+                memory
+                    .get(variable.index, variable.value_type)
+                    .ok_or_else(|| variable_range_error(variable, offset, opcode))
+            }
+            None => {
+                let normalized = normalize(value, variable.value_type);
+                self.variables
+                    .insert((variable.scope, variable.index), normalized);
+                Ok(normalized)
+            }
+        }
+    }
+
     pub fn traces(&self) -> impl Iterator<Item = &VmTraceEvent> {
         self.traces.iter()
     }
@@ -3124,7 +3169,7 @@ impl EventVm {
                     target: None,
                 }),
                 ExpressionOp::Variable(reference) => stack.push(StackValue {
-                    value: self.variable(reference.scope, reference.index),
+                    value: self.load_variable(host, *reference, offset, opcode)?,
                     target: Some(StackTarget::Variable(*reference)),
                 }),
                 ExpressionOp::Member(member) => stack.push(StackValue {
@@ -3638,9 +3683,7 @@ impl EventVm {
                     if write {
                         match target.target {
                             Some(StackTarget::Variable(variable)) => {
-                                let normalized = normalize(value, variable.value_type);
-                                self.variables
-                                    .insert((variable.scope, variable.index), normalized);
+                                self.store_variable(host, variable, value, offset, opcode)?;
                             }
                             Some(StackTarget::Member(member)) => {
                                 let object = host
@@ -3677,10 +3720,7 @@ impl EventVm {
                     })?;
                     let normalized = match target.target {
                         Some(StackTarget::Variable(variable)) => {
-                            let normalized = normalize(value, variable.value_type);
-                            self.variables
-                                .insert((variable.scope, variable.index), normalized);
-                            normalized
+                            self.store_variable(host, variable, value, offset, opcode)?
                         }
                         Some(StackTarget::Member(member)) => {
                             let object = host
@@ -3722,13 +3762,13 @@ impl EventVm {
                         -1
                     };
                     let changed = match target.target {
-                        Some(StackTarget::Variable(variable)) => {
-                            let changed =
-                                normalize(current.wrapping_add(delta), variable.value_type);
-                            self.variables
-                                .insert((variable.scope, variable.index), changed);
-                            changed
-                        }
+                        Some(StackTarget::Variable(variable)) => self.store_variable(
+                            host,
+                            variable,
+                            current.wrapping_add(delta),
+                            offset,
+                            opcode,
+                        )?,
                         Some(StackTarget::Member(member)) => {
                             let changed = current.wrapping_add(delta);
                             let object = host
@@ -3857,9 +3897,7 @@ impl EventVm {
                         }
                         match lvalue.target {
                             Some(StackTarget::Variable(variable)) => {
-                                let stored = normalize(result, variable.value_type);
-                                self.variables
-                                    .insert((variable.scope, variable.index), stored);
+                                self.store_variable(host, variable, result, offset, opcode)?;
                             }
                             Some(StackTarget::Member(member)) => {
                                 let object = host
@@ -4554,6 +4592,17 @@ fn normalize(value: i32, value_type: VariableType) -> i32 {
         VariableType::Int16 => i32::from(value as i16),
         VariableType::UInt16 => i32::from(value as u16),
     }
+}
+
+fn variable_range_error(variable: VariableRef, offset: u32, opcode: u32) -> VmError {
+    expression_error(
+        offset,
+        opcode,
+        format!(
+            "{:?} {:?} variable {} is outside shared variable memory",
+            variable.scope, variable.value_type, variable.index
+        ),
+    )
 }
 
 fn expression_error(offset: u32, opcode: u32, message: impl Into<String>) -> VmError {

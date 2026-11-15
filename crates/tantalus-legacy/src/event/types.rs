@@ -1994,4 +1994,11 @@ pub trait LegacyEventHost {
     ) -> Result<bool, EngineError>;
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError>;
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError>;
+    /// Shared byte memory for a variable scope (`gEventGlobal` for Global,
+    /// `EventContext.mapvar` for Map). `None` keeps the VM's private
+    /// per-VM storage for that scope.
+    fn variable_memory(&mut self, scope: VariableScope) -> Option<&mut super::VariableMemory> {
+        let _ = scope;
+        None
+    }
 }

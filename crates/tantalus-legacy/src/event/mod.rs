@@ -1,5 +1,6 @@
 mod binary;
 mod decode;
+mod memory;
 mod probe;
 mod types;
 mod vm;
@@ -9,6 +10,7 @@ pub use binary::{
     EventFunctionError,
 };
 pub use decode::decode_program;
+pub use memory::{GLOBAL_VARIABLE_BYTES, MAP_VARIABLE_BYTES, VariableMemory};
 pub use probe::{FunctionProbe, probe_program};
 pub use types::*;
 pub use vm::EventVm;
