@@ -181,11 +181,20 @@ impl LegacyEventHost for FieldHost<'_> {
                 } => {
                     let ticks = 1 + ((*speed).max(1) as u32);
                     let state = self.actor_mut(*actor, "turn")?;
+                    state.facing = *angle;
                     state.turn = Some(Turn {
                         target: *angle,
                         speed: *speed,
                         remaining_ticks: ticks,
                     });
+                }
+                HostEvent::SetActorFacing { actor, angle } => {
+                    let state = self.actor_mut(*actor, "set facing")?;
+                    state.facing = *angle;
+                }
+                HostEvent::SetObjectFlags { object, flags } => {
+                    let state = self.actor_mut(*object, "set object flags")?;
+                    state.flags = i32::from(*flags);
                 }
                 HostEvent::SetupJump {
                     actor,
@@ -311,6 +320,12 @@ impl LegacyEventHost for FieldHost<'_> {
         {
             return Ok(value);
         }
+        // Referenced objects always exist in the reference's object table;
+        // implicitly register a zero-state actor for uids no event declared
+        // yet (dynamic NEW3 objects observed before their init runs).
+        if !self.world.actors.contains_key(&reference.object) {
+            self.world.add_actor(reference.object, [0.0; 3]);
+        }
         let state = self
             .world
             .actors
@@ -328,11 +343,20 @@ impl LegacyEventHost for FieldHost<'_> {
         if let Some(value) = position {
             return Ok(Self::cast_float_with_checking(value));
         }
+        // Members 3/4/6/7: facing, flags, level, animation frame, tracked
+        // in actor state (facing stores the raw angle operand).
         match reference.member {
+            3 => Ok(i32::from(state.facing)),
+            4 => Ok(state.flags),
             5 => self
                 .world
                 .uid_of(reference.object)
                 .ok_or_else(|| Self::unknown("object member uid without a UID mapping")),
+            6 => Ok(state.level),
+            7 => Ok(i32::from(state.animation_frame)),
+            // Members 8 and above fall through to the reference's
+            // battle-data lookup, which yields zero for non-battle objects.
+            8.. => Ok(0),
             _ => Err(Self::unknown("object member read is not backed yet")),
         }
     }

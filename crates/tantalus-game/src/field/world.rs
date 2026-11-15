@@ -37,6 +37,10 @@ pub struct ActorState {
     pub exit_walk: bool,
     pub turn: Option<Turn>,
     pub animation_frames: u16,
+    pub animation_frame: u16,
+    pub facing: i16,
+    pub flags: i32,
+    pub level: i32,
     pub jump: Option<Jump>,
 }
 
@@ -48,6 +52,10 @@ impl ActorState {
             exit_walk: false,
             turn: None,
             animation_frames: 0,
+            animation_frame: 0,
+            facing: 0,
+            flags: 0,
+            level: 0,
             jump: None,
         }
     }
@@ -270,7 +278,10 @@ impl FieldWorld {
                     state.turn = None;
                 }
             }
-            state.animation_frames = state.animation_frames.saturating_sub(1);
+            if state.animation_frames > 0 {
+                state.animation_frames = state.animation_frames.saturating_sub(1);
+                state.animation_frame = state.animation_frame.saturating_add(1);
+            }
         }
     }
 

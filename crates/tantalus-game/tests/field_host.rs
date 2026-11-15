@@ -199,20 +199,31 @@ fn object_member_reads_use_reference_member_semantics() {
         .unwrap(),
         7
     );
-    // Unbacked members and unknown actors stay explicit.
-    assert!(
+    // Members 3/4/6/7 read tracked actor state; 8+ follow the reference's
+    // zero battle-data default; unknown uids implicitly register zero state.
+    assert_eq!(
         host.read_object_member(ObjectMemberRef {
             object: actor(1),
             member: 4,
         })
-        .is_err()
+        .unwrap(),
+        0
     );
-    assert!(
+    assert_eq!(
+        host.read_object_member(ObjectMemberRef {
+            object: actor(1),
+            member: 40,
+        })
+        .unwrap(),
+        0
+    );
+    assert_eq!(
         host.read_object_member(ObjectMemberRef {
             object: actor(99),
             member: 0,
         })
-        .is_err()
+        .unwrap(),
+        0
     );
     // Halfway floats round away from zero in the reference, matching ceil.
     world.actors.get_mut(&actor(1)).unwrap().position = [0.5, 0.0, 0.0];
