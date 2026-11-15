@@ -456,6 +456,9 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut battle_scene = None;
     let mut world_map = false;
     let mut world_map_audit = None;
+    let mut assemble_model_dir = None;
+    let mut assemble_all_models = false;
+    let mut clips_bundle = None;
     let mut index = 2;
     while index < args.len() {
         match args[index].to_str() {
@@ -636,6 +639,26 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     .get(index)
                     .ok_or_else(|| "`--world-map-audit` requires a path".to_owned())?;
                 world_map_audit = Some(PathBuf::from(value));
+            }
+            Some("--assemble-all") => assemble_all_models = true,
+            Some("--assemble-model") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--assemble-model` requires a model directory".to_owned())?;
+                if assemble_model_dir.replace(value.to_owned()).is_some() {
+                    return Err("`--assemble-model` may only be supplied once".to_owned());
+                }
+            }
+            Some("--clips") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| "`--clips` requires an animation bundle path".to_owned())?;
+                if clips_bundle.replace(PathBuf::from(value)).is_some() {
+                    return Err("`--clips` may only be supplied once".to_owned());
+                }
             }
             Some("--class") => {
                 index += 1;
@@ -1177,6 +1200,18 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     if mbg_all || map_config_all {
         return run_parse_all(&bundle, &path, mbg_all, map_config_all);
     }
+    if assemble_model_dir.is_some() || assemble_all_models {
+        return tantalus_tools::model_cli::run_model_request(
+            &bundle,
+            &path,
+            &tantalus_tools::model_cli::ModelRequest {
+                model: assemble_model_dir,
+                all: assemble_all_models,
+                clips: clips_bundle,
+                json,
+            },
+        );
+    }
     if unity_objects {
         return run_unity_objects(&bundle, &path, class_filter, json);
     }
@@ -1679,12 +1714,12 @@ fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 
@@ -2111,6 +2146,31 @@ fn run_mes_dump(
 /// Classifies every sound asset in a bundle and prints AKB2/Ogg statistics.
 fn run_audio_all(path: &std::path::Path, json: bool) -> Result<(), String> {
     let report = tantalus_assets::pc::akb2::inspect_audio_bundle(path)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        return Ok(());
+    }
+    println!("{}: {} sound assets", report.bundle, report.sound_assets);
+    println!("container types: {:?}", report.by_container_type);
+    println!("payload magic: {:?}", report.by_magic);
+    println!(
+        "AKB headers parsed {} (payload in range {}); sample rate {:?}..{:?}; looped {} ({} alternate); header samples {}, stream samples {}",
+        report.akb_parsed,
+        report.akb_payload_in_range,
+        report.min_sample_rate,
+        report.max_sample_rate,
+        report.looped,
+        report.with_alternate_loop,
+        report.total_samples,
+        report.total_granule_samples
+    );
+    println!(
+        "codecs: {:?}; ogg pages {}; sample_count != last granule: {}",
+        report.codecs, report.ogg_pages, report.sample_count_mismatches
+    );
+    for failure in &report.failures {
+        println!("FAIL {}: {}", failure.path, failure.reason);
+    }
     Ok(())
 }
 
@@ -2144,26 +2204,83 @@ fn run_world_map(
         println!("{}", serde_json::to_string_pretty(&report).unwrap());
         return Ok(());
     }
-    println!("{}: {} sound assets", report.bundle, report.sound_assets);
-    println!("container types: {:?}", report.by_container_type);
-    println!("payload magic: {:?}", report.by_magic);
     println!(
-        "AKB headers parsed {} (payload in range {}); sample rate {:?}..{:?}; looped {} ({} alternate); header samples {}, stream samples {}",
-        report.akb_parsed,
-        report.akb_payload_in_range,
-        report.min_sample_rate,
-        report.max_sample_rate,
-        report.looped,
-        report.with_alternate_loop,
-        report.total_samples,
-        report.total_granule_samples
+        "{} container entries ({} distinct paths): {} classified, {} unclassified",
+        report.container_entries,
+        report.distinct_container_paths,
+        report.classified_entries,
+        report.unclassified_entries
+    );
+    for group in &report.groups {
+        println!(
+            "  {:<36} class {:>3} {:>5}",
+            group.group, group.class_id, group.count
+        );
+    }
+    println!(
+        "block meshes: {} decoded, {} failed, {} vertices, {} triangles",
+        report.block_meshes_decoded,
+        report.block_meshes_failed,
+        report.block_mesh_vertices,
+        report.block_mesh_triangles
+    );
+    for disc in &report.discs {
+        println!(
+            "  disc {}: {} cells with meshes ({} meshes, {} vertices, {} triangles), {} prefabs, {}/{} prefab slots match their block, {} meshes unreferenced, grid x {}..={} y {}..={}",
+            disc.disc,
+            disc.cells_with_meshes,
+            disc.block_meshes,
+            disc.vertices,
+            disc.triangles,
+            disc.block_prefabs,
+            disc.prefab_slots_matching_block,
+            disc.prefab_slots,
+            disc.meshes_not_in_any_prefab,
+            disc.grid_min_x,
+            disc.grid_max_x,
+            disc.grid_min_y,
+            disc.grid_max_y
+        );
+    }
+    println!(
+        "other objects: {}/{} materials, {}/{} textures, {} render textures, {}/{} other meshes",
+        report.objects.materials_decoded,
+        report.objects.materials,
+        report.objects.textures_decoded,
+        report.objects.textures,
+        report.objects.render_textures,
+        report.objects.other_meshes_decoded,
+        report.objects.other_meshes
     );
     println!(
-        "codecs: {:?}; ogg pages {}; sample_count != last granule: {}",
-        report.codecs, report.ogg_pages, report.sample_count_mismatches
+        "wmap binaries: {} assets, {} bytes: {} parsed, {} zero padding, {} raw named, {} unexplained; {} with failures",
+        report.wmap_assets.len(),
+        report.wmap_bytes_total,
+        report.wmap_bytes_parsed,
+        report.wmap_bytes_zero_padding,
+        report.wmap_bytes_raw_named,
+        report.wmap_bytes_unexplained,
+        report.wmap_failures
     );
-    for failure in &report.failures {
-        println!("FAIL {}: {}", failure.path, failure.reason);
+    for asset in &report.wmap_assets {
+        println!(
+            "  {:<12} {:>8} B  parsed {:>7} pad {:>6} raw {:>8} unexplained {:>5}  {}",
+            asset.kind,
+            asset.bytes,
+            asset.account.parsed,
+            asset.account.zero_padding,
+            asset.account.raw_named,
+            asset.account.unexplained,
+            asset
+                .path
+                .trim_start_matches("assets/resources/worldmap/wmap/")
+        );
+        for failure in &asset.failures {
+            println!("      failure: {failure}");
+        }
+    }
+    for failure in report.failures.iter().take(20) {
+        println!("failure: {failure}");
     }
     Ok(())
 }
@@ -2345,86 +2462,5 @@ fn run_assets_inspect_movie(args: Vec<OsString>) -> Result<(), String> {
         println!("{line}");
     }
     println!("{totals}");
-    Ok(())
-}
-
-    println!(
-        "{} container entries ({} distinct paths): {} classified, {} unclassified",
-        report.container_entries,
-        report.distinct_container_paths,
-        report.classified_entries,
-        report.unclassified_entries
-    );
-    for group in &report.groups {
-        println!(
-            "  {:<36} class {:>3} {:>5}",
-            group.group, group.class_id, group.count
-        );
-    }
-    println!(
-        "block meshes: {} decoded, {} failed, {} vertices, {} triangles",
-        report.block_meshes_decoded,
-        report.block_meshes_failed,
-        report.block_mesh_vertices,
-        report.block_mesh_triangles
-    );
-    for disc in &report.discs {
-        println!(
-            "  disc {}: {} cells with meshes ({} meshes, {} vertices, {} triangles), {} prefabs, {}/{} prefab slots match their block, {} meshes unreferenced, grid x {}..={} y {}..={}",
-            disc.disc,
-            disc.cells_with_meshes,
-            disc.block_meshes,
-            disc.vertices,
-            disc.triangles,
-            disc.block_prefabs,
-            disc.prefab_slots_matching_block,
-            disc.prefab_slots,
-            disc.meshes_not_in_any_prefab,
-            disc.grid_min_x,
-            disc.grid_max_x,
-            disc.grid_min_y,
-            disc.grid_max_y
-        );
-    }
-    println!(
-        "other objects: {}/{} materials, {}/{} textures, {} render textures, {}/{} other meshes",
-        report.objects.materials_decoded,
-        report.objects.materials,
-        report.objects.textures_decoded,
-        report.objects.textures,
-        report.objects.render_textures,
-        report.objects.other_meshes_decoded,
-        report.objects.other_meshes
-    );
-    println!(
-        "wmap binaries: {} assets, {} bytes: {} parsed, {} zero padding, {} raw named, {} unexplained; {} with failures",
-        report.wmap_assets.len(),
-        report.wmap_bytes_total,
-        report.wmap_bytes_parsed,
-        report.wmap_bytes_zero_padding,
-        report.wmap_bytes_raw_named,
-        report.wmap_bytes_unexplained,
-        report.wmap_failures
-    );
-    for asset in &report.wmap_assets {
-        println!(
-            "  {:<12} {:>8} B  parsed {:>7} pad {:>6} raw {:>8} unexplained {:>5}  {}",
-            asset.kind,
-            asset.bytes,
-            asset.account.parsed,
-            asset.account.zero_padding,
-            asset.account.raw_named,
-            asset.account.unexplained,
-            asset
-                .path
-                .trim_start_matches("assets/resources/worldmap/wmap/")
-        );
-        for failure in &asset.failures {
-            println!("      failure: {failure}");
-        }
-    }
-    for failure in report.failures.iter().take(20) {
-        println!("failure: {failure}");
-    }
     Ok(())
 }

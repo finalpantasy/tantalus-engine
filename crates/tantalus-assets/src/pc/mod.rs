@@ -8,6 +8,7 @@ pub mod field;
 pub mod map_config;
 pub mod mbg;
 pub mod mes;
+pub mod model_assembly;
 pub mod ogg;
 pub mod serialized;
 pub mod serialized_inventory;

@@ -79,3 +79,31 @@ fn invalid_dimensions_sizes_formats_and_truncation_fail() {
     assert!(Texture2D::parse(&unsupported, "format").is_err());
     assert!(Texture2D::parse(&fixture(4, 1, &solid_dxt5()[..15]), "truncated").is_err());
 }
+
+#[test]
+fn dxt1_texture_decodes_four_color_and_transparent_blocks() {
+    let mut block = [0_u8; 8];
+    // c0 <= c1 selects the 3-color mode: index 2 is the midpoint, 3 is transparent.
+    block[0..2].copy_from_slice(&0x07e0_u16.to_le_bytes());
+    block[2..4].copy_from_slice(&0xf800_u16.to_le_bytes());
+    block[4..8].copy_from_slice(&(3_u32 | (2 << 2)).to_le_bytes());
+    let mut bytes = fixture(4, 4, &block);
+    bytes[24..28].copy_from_slice(&10_i32.to_le_bytes());
+    let texture = Texture2D::parse(&bytes, "dxt1").unwrap();
+    let rgba = texture.rgba_bytes().unwrap();
+    // Decoded rows are flipped to top-first: block row 0 is the last row.
+    assert_eq!(&rgba[48..52], [0, 0, 0, 0]);
+    assert_eq!(&rgba[52..56], [127, 127, 0, 255]);
+    assert_eq!(&rgba[56..60], [0, 255, 0, 255]);
+
+    // The 4-color mode (c0 > c1) keeps every pixel opaque.
+    block[0..2].copy_from_slice(&0xf800_u16.to_le_bytes());
+    block[2..4].copy_from_slice(&0x07e0_u16.to_le_bytes());
+    let mut bytes = fixture(4, 4, &block);
+    bytes[24..28].copy_from_slice(&10_i32.to_le_bytes());
+    let rgba = Texture2D::parse(&bytes, "dxt1")
+        .unwrap()
+        .rgba_bytes()
+        .unwrap();
+    assert!(rgba.chunks_exact(4).all(|pixel| pixel[3] == 255));
+}
