@@ -117,6 +117,7 @@ impl LegacyEventHost for Host {
                     self.movements.push((actor.get(), *x, *z));
                 }
                 HostEvent::DeleteObject { .. } => {}
+                HostEvent::SetActorPosition { .. } => {}
                 HostEvent::AimAtCamera => {}
                 HostEvent::DefinePlayerControl { .. } => {}
                 HostEvent::SetControlDirection { .. } => {}
@@ -431,6 +432,41 @@ fn jump_switch_selects_consecutive_cases_and_uses_default_outside_range() {
     }
 
     assert!(decode_program(&[11, 1, 0]).is_err());
+}
+
+#[test]
+fn pos_sets_current_actor_xz_and_reference_default_height() {
+    let program = decode_program(&[29, 0, 0xf6, 0xff, 20, 0, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetActorPosition {
+            actor: EntityId::new(42),
+            position: [-10, 32768, 20]
+        }]
+    );
+
+    let mut bytes = vec![29, 3];
+    append_expression(&mut bytes, constant(-1000));
+    append_expression(&mut bytes, constant(2000));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetActorPosition {
+            actor: EntityId::new(42),
+            position: [-1000, 32768, 2000]
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[29, 0, 1, 0, 20, 0, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
 }
 
 #[test]

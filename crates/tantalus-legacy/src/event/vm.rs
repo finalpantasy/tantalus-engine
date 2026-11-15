@@ -196,6 +196,23 @@ impl EventVm {
                         self.evaluate(host, &expression, instruction.offset, opcode)?;
                     self.pc = next;
                 }
+                InstructionKind::SetActorPosition { x, z } => {
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)?;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)?;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "positioning requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetActorPosition {
+                        actor,
+                        position: [x, 32768, z],
+                    });
+                }
                 InstructionKind::DeleteObject(target) => {
                     let (target, terminates) = if target == u8::MAX {
                         let Some(actor) = self.entity else {
@@ -1246,6 +1263,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::JumpIf { .. } => 0x03,
         InstructionKind::JumpSwitch { .. } => 0x0b,
         InstructionKind::DeleteObject(_) => 0x1c,
+        InstructionKind::SetActorPosition { .. } => 0x1d,
         InstructionKind::Return => 0x04,
         InstructionKind::Evaluate(_) => 0x05,
         InstructionKind::WindowSync { .. } => 0x1f,

@@ -10,6 +10,7 @@ const OP_JUMP_IF: u32 = 0x03;
 const OP_RETURN: u32 = 0x04;
 const OP_JUMP_SWITCH: u32 = 0x0b;
 const OP_DELETE_OBJECT: u32 = 0x1c;
+const OP_SET_ACTOR_POSITION: u32 = 0x1d;
 const OP_EVALUATE: u32 = 0x05;
 const OP_WINDOW_SYNC: u32 = 0x1f;
 const OP_WINDOW_ASYNC: u32 = 0x20;
@@ -126,6 +127,23 @@ impl Decoder<'_> {
                 }
             }
             OP_DELETE_OBJECT => InstructionKind::DeleteObject(self.byte()?),
+            OP_SET_ACTOR_POSITION => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.i16()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetActorPosition {
+                    x: argument(1)?,
+                    z: argument(2)?,
+                }
+            }
             OP_RETURN => InstructionKind::Return,
             OP_EVALUATE => InstructionKind::Evaluate(self.expression()?),
             OP_WAIT => {

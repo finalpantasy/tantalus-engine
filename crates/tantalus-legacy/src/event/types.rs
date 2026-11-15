@@ -108,6 +108,10 @@ pub enum InstructionKind {
     },
     Evaluate(Expression),
     DeleteObject(u8),
+    SetActorPosition {
+        x: Expression,
+        z: Expression,
+    },
     Return,
     Wait(Expression),
     WindowSync {
@@ -292,6 +296,10 @@ pub enum HostEvent {
     },
     DeleteObject {
         target: EntityId,
+    },
+    SetActorPosition {
+        actor: EntityId,
+        position: [i32; 3],
     },
     AimAtCamera,
     DefinePlayerControl {
