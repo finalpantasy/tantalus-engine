@@ -2,6 +2,7 @@ pub mod director;
 pub mod fmv;
 pub mod host;
 pub mod region;
+pub mod shop;
 pub mod snapshot;
 pub mod world;
 
