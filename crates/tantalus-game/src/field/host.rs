@@ -213,7 +213,7 @@ impl LegacyEventHost for FieldHost<'_> {
                 } => {
                     let ticks = 1 + ((*speed).max(1) as u32);
                     let state = self.actor_mut(*actor, "turn")?;
-                    state.facing = *angle;
+                    state.facing = facing_from_fixed_point(*angle);
                     state.turn = Some(Turn {
                         target: *angle,
                         speed: *speed,
@@ -222,7 +222,7 @@ impl LegacyEventHost for FieldHost<'_> {
                 }
                 HostEvent::SetActorFacing { actor, angle } => {
                     let state = self.actor_mut(*actor, "set facing")?;
-                    state.facing = *angle;
+                    state.facing = facing_from_fixed_point(*angle);
                 }
                 HostEvent::SetObjectFlags { object, flags } => {
                     let state = self.actor_mut(*object, "set object flags")?;
@@ -368,6 +368,14 @@ impl LegacyEventHost for FieldHost<'_> {
     }
 
     fn read_object_member(&mut self, reference: ObjectMemberRef) -> Result<i32, EngineError> {
+        // `GetUIDFromLocalUID`: 250 is the controlled object. The VM has
+        // already replaced 255 (the running object) with its entity.
+        let mut reference = reference;
+        if reference.object == EntityId::new(CONTROL_OBJECT_UID)
+            && let Some(control) = self.world.control_actor.or(self.world.player())
+        {
+            reference.object = control;
+        }
         if let Some(value) = self
             .world
             .object_member(&(reference.object, reference.member))
@@ -683,4 +691,14 @@ impl LegacyEventHost for FieldHost<'_> {
             VariableScope::Instance => None,
         }
     }
+}
+
+/// Local object uid that names the controlled object (`EventContext.controlUID`).
+const CONTROL_OBJECT_UID: u64 = 250;
+
+/// Facing as `getvobj` member 3 reports it: the VM passes `DIRE`/`TURNA`
+/// angles as `angle << 4` (the reference's 12-bit fixed point), and the
+/// read returns `fixed >> 4 & 255` (0 south, 64 west, 128 north, 192 east).
+fn facing_from_fixed_point(angle: i16) -> i16 {
+    (angle >> 4) & 0xFF
 }

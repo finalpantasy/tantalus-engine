@@ -4,6 +4,8 @@ use tantalus_contracts::{EntityId, Tick};
 
 const DEFAULT_INSTRUCTION_BUDGET: u32 = 1024;
 const TRACE_CAPACITY: usize = 256;
+/// Local object uid that names the running object (`EventEngine.GetUIDFromLocalUID`).
+const SELF_OBJECT_UID: u64 = 255;
 
 #[derive(Debug, Clone)]
 pub struct EventVm {
@@ -4048,8 +4050,16 @@ impl EventVm {
                     target: None,
                 }),
                 ExpressionOp::ReadObjectMember(reference) => {
+                    // `GetObjByUID` -> `GetUIDFromLocalUID`: uid 255 is the
+                    // running object (`gCur`); the host resolves the others.
+                    let mut reference = *reference;
+                    if reference.object == EntityId::new(SELF_OBJECT_UID)
+                        && let Some(entity) = self.entity
+                    {
+                        reference.object = entity;
+                    }
                     let value = host
-                        .read_object_member(*reference)
+                        .read_object_member(reference)
                         .map_err(|error| VmError::host(error, offset, opcode))?;
                     stack.push(StackValue {
                         value,

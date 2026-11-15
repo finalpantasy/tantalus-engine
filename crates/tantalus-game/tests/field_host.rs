@@ -316,3 +316,29 @@ fn walking_faces_the_movement_direction_on_the_reference_scale() {
         );
     }
 }
+
+#[test]
+fn turn_loops_read_their_own_facing_through_uid_255() {
+    use tantalus_legacy::decode_program;
+
+    // Map 100 entry 19 turns itself with `DIRE(self.facing + n)` and polls
+    // `self.facing` (`getvobj(255, 3)`). Uid 255 is the running object and
+    // member 3 is `fixed >> 4 & 255`, so the value wraps at 256.
+    let program = decode_program(&[
+        0x36, 0, 250, // DIRE 250
+        0x22, 0, 1, // WAIT 1: host events apply at the end of the step
+        0x36, 1, 120, 255, 3, 125, 10, 0, 20, 127, // DIRE self.facing + 10
+        0x04,
+    ])
+    .unwrap();
+    let mut scene = tantalus_game::FieldScene::new();
+    scene.add_entry(actor(1), program).unwrap();
+    let mut world = FieldWorld::new();
+    world.add_actor(actor(1), [0.0; 3]);
+    let mut host = FieldHost::new(&mut world);
+    for tick in 0..3 {
+        scene.step(Tick::new(tick), &mut host).unwrap();
+    }
+    assert_eq!(world.actors[&actor(1)].facing, 4);
+    assert!(!world.actors.contains_key(&actor(255)));
+}
