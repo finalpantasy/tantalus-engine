@@ -5,6 +5,7 @@ pub mod bgi;
 pub mod bgs;
 pub mod bundled_field;
 pub mod field;
+pub mod field_composition;
 pub mod field_models;
 pub mod font_bundle;
 pub mod map_config;
