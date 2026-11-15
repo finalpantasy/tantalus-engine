@@ -435,6 +435,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut orchestrate = false;
     let mut scan_requests = false;
     let mut talk_confirm = None;
+    let mut talk_radius = None;
     let mut atan_table = None;
     let mut navigation_bundle = None;
     let mut navigation_bgi = None;
@@ -495,6 +496,18 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             Some("--all-functions") => all_functions = true,
             Some("--orchestrate") => orchestrate = true,
             Some("--scan-requests") => scan_requests = true,
+            Some("--talk-radius") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--talk-radius` requires a byte".to_owned())?;
+                talk_radius = Some(
+                    value
+                        .parse()
+                        .map_err(|_| "`--talk-radius` requires a byte".to_owned())?,
+                );
+            }
             Some("--talk-confirm") => {
                 index += 1;
                 let value = args
@@ -1105,6 +1118,16 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             director.set_player(tantalus_contracts::EntityId::new(0));
             director.set_confirm_mask(Some(mask));
             director.set_input_mask(mask);
+        }
+        if let Some(radius) = talk_radius {
+            // Demo aid: the real engine assigns talk radii from field init
+            // data we do not import yet; assign uniformly so the tag-3
+            // dispatch path is exercisable on real archives.
+            for entry in 0..pool.len() {
+                director
+                    .world_mut()
+                    .set_talk_radius(tantalus_contracts::EntityId::new(entry as u64), radius);
+            }
         }
         let mut operations = 0u64;
         let mut error = None;

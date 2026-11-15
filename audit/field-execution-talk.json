@@ -1,0 +1,426 @@
+{
+  "completed_entries": 38,
+  "entries": [
+    {
+      "entry": 0,
+      "tag": 0
+    },
+    {
+      "entry": 1,
+      "tag": 0
+    },
+    {
+      "entry": 2,
+      "tag": 0
+    },
+    {
+      "entry": 3,
+      "tag": 0
+    },
+    {
+      "entry": 4,
+      "tag": 0
+    },
+    {
+      "entry": 5,
+      "tag": 0
+    },
+    {
+      "entry": 6,
+      "tag": 0
+    },
+    {
+      "entry": 7,
+      "tag": 0
+    },
+    {
+      "entry": 8,
+      "tag": 0
+    },
+    {
+      "entry": 9,
+      "tag": 0
+    },
+    {
+      "entry": 10,
+      "tag": 0
+    },
+    {
+      "entry": 11,
+      "tag": 0
+    },
+    {
+      "entry": 12,
+      "tag": 0
+    },
+    {
+      "entry": 13,
+      "tag": 0
+    },
+    {
+      "entry": 14,
+      "tag": 0
+    },
+    {
+      "entry": 15,
+      "tag": 0
+    },
+    {
+      "entry": 16,
+      "tag": 0
+    },
+    {
+      "entry": 17,
+      "tag": 0
+    },
+    {
+      "entry": 18,
+      "tag": 0
+    },
+    {
+      "entry": 19,
+      "tag": 0
+    },
+    {
+      "entry": 20,
+      "tag": 0
+    },
+    {
+      "entry": 21,
+      "tag": 0
+    },
+    {
+      "entry": 22,
+      "tag": 0
+    },
+    {
+      "entry": 23,
+      "tag": 0
+    },
+    {
+      "entry": 24,
+      "tag": 0
+    },
+    {
+      "entry": 25,
+      "tag": 0
+    },
+    {
+      "entry": 26,
+      "tag": 0
+    },
+    {
+      "entry": 27,
+      "tag": 0
+    },
+    {
+      "entry": 28,
+      "tag": 0
+    },
+    {
+      "entry": 30,
+      "tag": 0
+    },
+    {
+      "entry": 3,
+      "tag": 3
+    },
+    {
+      "entry": 4,
+      "tag": 3
+    },
+    {
+      "entry": 8,
+      "tag": 3
+    },
+    {
+      "entry": 11,
+      "tag": 3
+    },
+    {
+      "entry": 13,
+      "tag": 3
+    },
+    {
+      "entry": 15,
+      "tag": 3
+    },
+    {
+      "entry": 16,
+      "tag": 3
+    },
+    {
+      "entry": 17,
+      "tag": 3
+    },
+    {
+      "entry": 18,
+      "tag": 3
+    },
+    {
+      "entry": 28,
+      "tag": 3
+    }
+  ],
+  "error": null,
+  "final_states": [
+    {
+      "entry": 0,
+      "pc": 678,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 256,
+      "pc": 0,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 512,
+      "pc": 0,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 768,
+      "pc": 110,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 771,
+      "pc": 7,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 1024,
+      "pc": 114,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 1028,
+      "pc": 7,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 1280,
+      "pc": 79,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 1536,
+      "pc": 108,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 1792,
+      "pc": 108,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 2048,
+      "pc": 117,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 2050,
+      "pc": 7,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 2304,
+      "pc": 98,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 2560,
+      "pc": 0,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 2816,
+      "pc": 113,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 2830,
+      "pc": 7,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 3072,
+      "pc": 35,
+      "status": "Waiting",
+      "wait": "Frames(0)"
+    },
+    {
+      "entry": 3328,
+      "pc": 113,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 3342,
+      "pc": 7,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 3584,
+      "pc": 35,
+      "status": "Waiting",
+      "wait": "Frames(0)"
+    },
+    {
+      "entry": 3840,
+      "pc": 99,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 3842,
+      "pc": 7,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 4096,
+      "pc": 99,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 4098,
+      "pc": 7,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 4352,
+      "pc": 99,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 4354,
+      "pc": 7,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 4608,
+      "pc": 184,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 4610,
+      "pc": 7,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 4864,
+      "pc": 0,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 5120,
+      "pc": 0,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 5376,
+      "pc": 0,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 5632,
+      "pc": 19,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 5888,
+      "pc": 19,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 6144,
+      "pc": 19,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 6400,
+      "pc": 19,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 6656,
+      "pc": 19,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 6912,
+      "pc": 19,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 7168,
+      "pc": 19,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 7170,
+      "pc": 7,
+      "status": "Completed",
+      "wait": null
+    },
+    {
+      "entry": 7680,
+      "pc": 515,
+      "status": "Completed",
+      "wait": null
+    }
+  ],
+  "name": "EVT_ALEX1_AT_CENTER.eb",
+  "operations": 29111,
+  "orchestrated": true,
+  "skipped_empty_entries": [
+    29,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37
+  ],
+  "spawned_functions": 0,
+  "ticks_requested": 2048,
+  "ticks_run": 2048,
+  "unspawned_requests": 0,
+  "_note": "Talk-dispatch demonstration on the real EVT_ALEX1_AT_CENTER.eb (Alexandria Center, 10 tag-3 talk functions): with the confirm demo mask held and uniform demo radii (the real engine assigns radii from field init data not yet imported), the director reported talk triggers and the orchestrator spawned all 10 tag-3 functions as VMs; 38 of 38 VMs completed with zero errors (28 tag-0 mains + 10 tag-3 talks)."
+}
