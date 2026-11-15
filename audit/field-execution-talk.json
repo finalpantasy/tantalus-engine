@@ -167,246 +167,446 @@
     {
       "entry": 0,
       "pc": 678,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 256,
       "pc": 0,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 512,
       "pc": 0,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 768,
       "pc": 110,
+      "position": [
+        -907.0,
+        -506.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 771,
       "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 1024,
       "pc": 114,
+      "position": [
+        -907.0,
+        -506.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 1028,
       "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 1280,
       "pc": 79,
+      "position": [
+        -2550.0,
+        228.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 1536,
       "pc": 108,
+      "position": [
+        -2981.0,
+        -98.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 1792,
       "pc": 108,
+      "position": [
+        -2108.0,
+        577.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 2048,
       "pc": 117,
+      "position": [
+        -2550.0,
+        228.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 2050,
       "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 2304,
       "pc": 98,
+      "position": [
+        -2550.0,
+        228.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 2560,
       "pc": 0,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 2816,
       "pc": 113,
+      "position": [
+        -310.0,
+        7450.0,
+        96.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 2830,
       "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 3072,
       "pc": 35,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Waiting",
       "wait": "Frames(0)"
     },
     {
       "entry": 3328,
       "pc": 113,
+      "position": [
+        150.0,
+        7450.0,
+        96.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 3342,
       "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 3584,
       "pc": 35,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Waiting",
       "wait": "Frames(0)"
     },
     {
       "entry": 3840,
       "pc": 99,
+      "position": [
+        2388.0,
+        -1061.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 3842,
       "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 4096,
       "pc": 99,
+      "position": [
+        2011.0,
+        -1453.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 4098,
       "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 4352,
       "pc": 99,
+      "position": [
+        2220.0,
+        -1639.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 4354,
       "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 4608,
       "pc": 184,
+      "position": [
+        -306.0,
+        -4722.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 4610,
       "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 4864,
       "pc": 0,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 5120,
       "pc": 0,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 5376,
       "pc": 0,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 5632,
       "pc": 19,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 5888,
       "pc": 19,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 6144,
       "pc": 19,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 6400,
       "pc": 19,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 6656,
       "pc": 19,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 6912,
       "pc": 19,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 7168,
       "pc": 19,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 7170,
       "pc": 7,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "status": "Completed",
       "wait": null
     },
     {
       "entry": 7680,
       "pc": 515,
+      "position": [
+        -75.0,
+        32768.0,
+        -2210.0
+      ],
       "status": "Completed",
       "wait": null
     }
   ],
   "name": "EVT_ALEX1_AT_CENTER.eb",
-  "operations": 29111,
+  "operations": 29121,
   "orchestrated": true,
   "skipped_empty_entries": [
     29,
@@ -422,5 +622,5 @@
   "ticks_requested": 2048,
   "ticks_run": 2048,
   "unspawned_requests": 0,
-  "_note": "Talk-dispatch demonstration on the real EVT_ALEX1_AT_CENTER.eb (Alexandria Center, 10 tag-3 talk functions): with the confirm demo mask held and uniform demo radii (the real engine assigns radii from field init data not yet imported), the director reported talk triggers and the orchestrator spawned all 10 tag-3 functions as VMs; 38 of 38 VMs completed with zero errors (28 tag-0 mains + 10 tag-3 talks)."
+  "_note": "ORGANIC talk dispatch on real EVT_ALEX1_AT_CENTER.eb: with the reference talk-radius rule (default 16, effective reach 4*(a+b) per EventCollision.Collision) and the archive own script-assigned positions, holding confirm spawned all 10 tag-3 talk functions with no radius overrides. 38/38 VMs complete with zero errors (28 tag-0 mains + 10 tag-3 talks). The demo flags are no longer needed for this archive."
 }

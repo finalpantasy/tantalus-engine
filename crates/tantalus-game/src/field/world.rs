@@ -54,7 +54,8 @@ impl ActorState {
             turn: None,
             animation_frames: 0,
             animation_frame: 0,
-            talk_radius: 0,
+            // Reference PosObj defaults both radii to 16.
+            talk_radius: 16,
             facing: 0,
             flags: 0,
             level: 0,
@@ -228,17 +229,23 @@ impl FieldWorld {
     }
 
     /// Objects whose talk radius contains the player while confirm is held.
+    /// Objects whose talk range contains the player while confirm is held.
+    /// The reference sums both radii scaled by four
+    /// (`EventCollision.Collision`): `4 * (self.talkRad + other.talkRad)`.
     pub(crate) fn talkable_from(&self, player: EntityId) -> Vec<EntityId> {
-        let Some(position) = self.actors.get(&player).map(|state| state.position) else {
+        let Some(player_state) = self.actors.get(&player) else {
             return Vec::new();
         };
+        let position = player_state.position;
         self.actors
             .iter()
             .filter(|(entity, state)| {
-                **entity != player && state.talk_radius > 0 && {
+                **entity != player && {
+                    let reach =
+                        4 * (i32::from(player_state.talk_radius) + i32::from(state.talk_radius));
                     let dx = f64::from(state.position[0] - position[0]);
                     let dz = f64::from(state.position[2] - position[2]);
-                    (dx * dx + dz * dz).sqrt() <= f64::from(state.talk_radius)
+                    (dx * dx + dz * dz).sqrt() <= f64::from(reach)
                 }
             })
             .map(|(entity, _)| *entity)

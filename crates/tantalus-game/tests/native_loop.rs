@@ -219,10 +219,12 @@ fn player_input_injection_reaches_host_key_queries() {
 fn talk_triggers_fire_when_player_confirms_within_talk_radius() {
     let mut director = FieldDirector::new(FieldWorld::new());
     director.world_mut().add_actor(EntityId::new(1), [0.0; 3]);
+    // Default radii are 16 each (reference PosObj), so the default reach
+    // is 4 * (16 + 16) = 128; the object at (30, 40) is 50 away (inside),
+    // and 500 away is outside.
     director
         .world_mut()
         .add_actor(EntityId::new(2), [30.0, 0.0, 40.0]);
-    director.world_mut().set_talk_radius(EntityId::new(2), 50);
     director.set_player(EntityId::new(1));
 
     // No confirm mask configured: detection stays disabled.
@@ -236,13 +238,18 @@ fn talk_triggers_fire_when_player_confirms_within_talk_radius() {
     let step = director.step().unwrap();
     assert!(step.talk_triggers.is_empty());
 
-    // Confirm pressed within range: the object reports a trigger.
+    // Confirm pressed within the default reach: the object reports a trigger.
     director.set_input_mask(0x20);
     let step = director.step().unwrap();
     assert_eq!(step.talk_triggers, [EntityId::new(2)]);
 
-    // Out of range: the radius excludes the object.
-    director.world_mut().set_talk_radius(EntityId::new(2), 10);
+    // Out of range: distance beyond the summed reach excludes the object.
+    director
+        .world_mut()
+        .actors
+        .get_mut(&EntityId::new(2))
+        .unwrap()
+        .position = [500.0, 0.0, 0.0];
     let step = director.step().unwrap();
     assert!(step.talk_triggers.is_empty());
 }
