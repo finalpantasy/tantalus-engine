@@ -211,6 +211,15 @@ pub struct FieldWorld {
     pub item_id_map: Option<ItemIdMap>,
     /// Total experience per character id.
     pub character_exp: BTreeMap<i32, u64>,
+    /// Ability learning progress per party character: character -> ability
+    /// id -> AP accumulated toward the ability's max (reference `player.pa`).
+    #[serde(default)]
+    pub ability_pa: BTreeMap<i32, BTreeMap<i32, i32>>,
+    /// Abilities a character has learned through [`FieldWorld::apply_ap`]
+    /// (reached max AP). The reference derives this from `pa` on equip;
+    /// denormalized here for save/inspection.
+    #[serde(default)]
+    pub learned_abilities: BTreeMap<i32, BTreeSet<i32>>,
     /// Experience-to-stats provider (runtime-only).
     #[serde(skip)]
     pub level_growth: Option<LevelGrowth>,
@@ -272,6 +281,8 @@ impl PartialEq for FieldWorld {
             && self.confirm_mask == other.confirm_mask
             && self.walk_bits == other.walk_bits
             && self.character_exp == other.character_exp
+            && self.ability_pa == other.ability_pa
+            && self.learned_abilities == other.learned_abilities
     }
 }
 
@@ -332,6 +343,8 @@ impl FieldWorld {
             fmv_frame_counts: None,
             item_id_map: None,
             character_exp: BTreeMap::new(),
+            ability_pa: BTreeMap::new(),
+            learned_abilities: BTreeMap::new(),
             level_growth: None,
         }
     }
@@ -672,6 +685,38 @@ impl FieldWorld {
             None => next,
         };
         self.character_stats.insert(character, merged);
+    }
+
+    /// `AddAp` (`BattleResultUI.cs:561-587`) for one ability of one
+    /// character. The caller loops the character's equipped learnable
+    /// abilities (as the result screen does); this applies the reference
+    /// semantics per ability: skip when there is no AP goal or it is already
+    /// learned; learn (set to max) when `cur + amount >= max`; otherwise
+    /// accumulate. Returns true exactly when the ability is learned by this
+    /// call.
+    pub fn apply_ap(&mut self, character: i32, ability: i32, max_ap: i32, amount: i32) -> bool {
+        if max_ap <= 0 || amount <= 0 {
+            return false;
+        }
+        let pa = self
+            .ability_pa
+            .entry(character)
+            .or_default()
+            .entry(ability)
+            .or_insert(0);
+        if *pa >= max_ap {
+            return false;
+        }
+        if *pa + amount >= max_ap {
+            *pa = max_ap;
+            self.learned_abilities
+                .entry(character)
+                .or_default()
+                .insert(ability);
+            return true;
+        }
+        *pa += amount;
+        false
     }
 
     pub fn add_item_amount(&mut self, item: i32, amount: i32) {

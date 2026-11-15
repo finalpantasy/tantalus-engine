@@ -104,6 +104,30 @@ fn snapshot_round_trips_world_and_rebuilds_entries() {
 }
 
 #[test]
+fn snapshot_preserves_ability_learning_progress() {
+    // The result screen's AddAp lands in world state and survives save/reload.
+    let mut world = FieldWorld::new();
+    assert!(world.apply_ap(0, 0x41, 30, 30));
+    assert!(!world.apply_ap(0, 0x41, 30, 5), "already learned");
+    assert!(!world.apply_ap(0, 0x42, 0, 40), "no AP goal");
+    assert!(!world.apply_ap(1, 0x43, 50, 20), "accumulates, not learned");
+
+    let scene = FieldScene::new();
+    let snapshot = snapshot_scene(&scene, &world, &BTreeMap::new()).unwrap();
+    let decoded = tantalus_game::FieldSnapshot::from_json(&snapshot.to_json().unwrap()).unwrap();
+    let (_, restored) = restore_scene(&decoded).unwrap();
+    assert_eq!(restored, world);
+    assert_eq!(restored.ability_pa[&0][&0x41], 30);
+    assert_eq!(restored.ability_pa[&1][&0x43], 20);
+    assert!(restored.learned_abilities[&0].contains(&0x41));
+
+    // Learning resumes where the save left off.
+    let mut restored = restored;
+    assert!(restored.apply_ap(1, 0x43, 50, 30));
+    assert!(restored.learned_abilities[&1].contains(&0x43));
+}
+
+#[test]
 fn snapshot_rejects_unknown_format_and_missing_sources() {
     let scene = FieldScene::new();
     let world = FieldWorld::new();
