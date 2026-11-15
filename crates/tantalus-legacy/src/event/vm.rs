@@ -925,6 +925,30 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::AngleToObject => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing angle-target operand")
+                    })?;
+                    let uid = read_value(host, value, offset, opcode)?;
+                    let source = self.entity.ok_or_else(|| {
+                        expression_error(offset, opcode, "angle target requires object context")
+                    })?;
+                    let target = host
+                        .resolve_object_uid(uid)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    let target_position = host
+                        .read_object_position(target)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    let source_position = host
+                        .read_object_position(source)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    let delta_x = (target_position[0] - source_position[0]) as i32;
+                    let delta_z = (target_position[2] - source_position[2]) as i32;
+                    stack.push(StackValue {
+                        value: angle2(host, delta_x, delta_z, offset, opcode)?,
+                        target: None,
+                    });
+                }
                 ExpressionOp::Add
                 | ExpressionOp::Subtract
                 | ExpressionOp::Multiply
@@ -1724,6 +1748,7 @@ fn operand_start(
         | ExpressionOp::Not
         | ExpressionOp::Complement
         | ExpressionOp::Sine
+        | ExpressionOp::AngleToObject
         | ExpressionOp::ConsumeAndZero
         | ExpressionOp::PreIncrement
         | ExpressionOp::PreDecrement

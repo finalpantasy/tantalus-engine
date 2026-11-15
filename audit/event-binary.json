@@ -120,7 +120,8 @@
     "B_PRE_PLUS_A 10 increments and writes every selected member and returns the last new value; empty masks return zero without host access",
     "B_GE_E 31 returns selected-member greater-or-equal flags without writes; empty masks return zero without target selection",
     "B_AND_LET_A 64 ANDs and writes every selected member and returns the last value; empty masks return zero without host access",
-    "B_KEY2 92 consumes its operand and pushes zero through the same reference compatibility path as B_KEYON2"
+    "B_KEY2 92 consumes its operand and pushes zero through the same reference compatibility path as B_KEYON2",
+    "B_ANGLEA 96 resolves the target by script UID, truncates target-minus-current position deltas, and uses the B_ANGLE2 fixed-point angle path"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -145,11 +146,11 @@
     "entry": 6,
     "function": 1,
     "function_tag": 1,
-    "offset": 197,
-    "expression_offset": 115,
-    "opcode": 96,
+    "offset": 218,
+    "expression_offset": 108,
+    "opcode": 50,
     "kind": "UnsupportedOpcode",
-    "instruction": "B_ANGLEA after consume-and-zero B_KEY2 support"
+    "instruction": "B_PLUS_LET in a new expression after object-angle support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

@@ -87,6 +87,24 @@ impl LegacyEventHost for Host {
         ))
     }
 
+    fn resolve_object_uid(&mut self, uid: i32) -> Result<EntityId, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            format!("field fixture has no object UID {uid}"),
+            "fixture-host",
+            true,
+        ))
+    }
+
+    fn read_object_position(&mut self, entity: EntityId) -> Result<[f32; 3], EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            format!("field fixture has no position for {entity}"),
+            "fixture-host",
+            true,
+        ))
+    }
+
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,

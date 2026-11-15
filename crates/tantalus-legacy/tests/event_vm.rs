@@ -73,6 +73,8 @@ struct Host {
     object_members: BTreeMap<ObjectMemberRef, i32>,
     member_writes: Vec<(ObjectMemberRef, i32)>,
     script_request_complete: bool,
+    object_uids: BTreeMap<i32, EntityId>,
+    object_positions: BTreeMap<EntityId, [f32; 3]>,
     fail: bool,
 }
 
@@ -86,6 +88,8 @@ impl Host {
             object_members: BTreeMap::new(),
             member_writes: Vec::new(),
             script_request_complete: false,
+            object_uids: BTreeMap::new(),
+            object_positions: BTreeMap::new(),
             fail: false,
         }
     }
@@ -219,6 +223,20 @@ impl LegacyEventHost for Host {
                 "unknown arctangent table offset {offset}"
             ))),
         }
+    }
+
+    fn resolve_object_uid(&mut self, uid: i32) -> Result<EntityId, EngineError> {
+        self.object_uids
+            .get(&uid)
+            .copied()
+            .ok_or_else(|| Self::target_error(format!("unknown object UID {uid}")))
+    }
+
+    fn read_object_position(&mut self, object: EntityId) -> Result<[f32; 3], EngineError> {
+        self.object_positions
+            .get(&object)
+            .copied()
+            .ok_or_else(|| Self::target_error(format!("unknown position for object {object}")))
     }
 
     fn script_request_is_complete(&mut self, _entity: EntityId) -> Result<bool, EngineError> {
@@ -2141,6 +2159,32 @@ fn key2_consumes_its_operand_and_returns_zero() {
 
     assert_eq!(vm.variable(VariableScope::Global, 42), 0);
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn angle_to_object_resolves_uid_and_truncates_position_deltas() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 43);
+    let expression = assign(result, binary(constant(7), vec![], 96));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let source = EntityId::new(42);
+    let target = EntityId::new(77);
+    let mut vm = EventVm::new(program).with_entity(source);
+    let mut host = Host::new();
+    host.object_uids.insert(7, target);
+    host.object_positions.insert(source, [10.25, 0.0, 20.75]);
+    host.object_positions.insert(target, [11.75, 0.0, 20.25]);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 43), -4);
+
+    let result = variable(VariableScope::Global, VariableType::Int16, 43);
+    let expression = assign(result, binary(constant(7), vec![], 96));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::InvalidExpression);
+    assert!(error.message.contains("object context"));
 }
 
 #[test]
