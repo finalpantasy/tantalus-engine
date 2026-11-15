@@ -169,7 +169,8 @@
     "AFRAME 0x3D emits SetAnimationRange with current-actor start/end bytes",
     "B_OR 38 evaluates ordinary bitwise union through the shared binary expression path",
     "B_NAND_E 85 returns selected-member negated-intersection flags with no writes and zero for an empty selection",
-    "NECKFLAG 0x47 emits SetHeadFocusFlags with the current actor and operand masked to 0x07; missing actor context is explicit"
+    "NECKFLAG 0x47 emits SetHeadFocusFlags with the current actor and operand masked to 0x07; missing actor context is explicit",
+    "MROT 0x55 emits SetWalkTurnSpeed with exact zero mapped to 255 before byte conversion; missing actor context is explicit"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -274,11 +275,12 @@
     "entry": 15,
     "function": 0,
     "function_tag": 0,
-    "instruction_offset": 92,
-    "offset": 102,
-    "opcode": 85,
+    "instruction_offset": 103,
+    "expression_offset": 104,
+    "offset": 131,
+    "opcode": 95,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x55 after head-focus flag support"
+    "instruction": "conditional jump contains unsupported expression opcode 0x5F after walk-turn speed support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

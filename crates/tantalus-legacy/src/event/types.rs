@@ -169,6 +169,7 @@ pub enum InstructionKind {
         target_mask: Expression,
     },
     SetHeadFocusFlags(Expression),
+    SetWalkTurnSpeed(Expression),
     SetObjectFlags(Expression),
     SetActorFacing(Expression),
     Return,
@@ -511,6 +512,10 @@ pub enum HostEvent {
     SetHeadFocusFlags {
         actor: EntityId,
         flags: u8,
+    },
+    SetWalkTurnSpeed {
+        actor: EntityId,
+        speed: u8,
     },
     SetObjectFlags {
         object: EntityId,

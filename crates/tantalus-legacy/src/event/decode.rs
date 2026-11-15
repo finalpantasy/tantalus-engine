@@ -26,6 +26,7 @@ const OP_SET_ACTOR_RADII: u32 = 0x4b;
 const OP_SET_IDLE_ANIMATION_SPEEDS: u32 = 0x86;
 const OP_SET_HEAD_FOCUS_MASKS: u32 = 0x8b;
 const OP_SET_HEAD_FOCUS_FLAGS: u32 = 0x47;
+const OP_SET_WALK_TURN_SPEED: u32 = 0x55;
 const OP_SET_OBJECT_FLAGS: u32 = 0x93;
 const OP_SET_ACTOR_FACING: u32 = 0x36;
 const OP_EVALUATE: u32 = 0x05;
@@ -301,6 +302,18 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::SetHeadFocusFlags(enabled)
+            }
+            OP_SET_WALK_TURN_SPEED => {
+                let flags = self.byte()?;
+                let speed = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::SetWalkTurnSpeed(speed)
             }
             OP_SET_OBJECT_FLAGS => {
                 let flags = self.byte()?;

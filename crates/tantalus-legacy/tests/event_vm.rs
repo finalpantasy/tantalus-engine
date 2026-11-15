@@ -197,6 +197,7 @@ impl LegacyEventHost for Host {
                 HostEvent::PlayAnimation { .. } => {}
                 HostEvent::SetAnimationRange { .. } => {}
                 HostEvent::SetHeadFocusFlags { .. } => {}
+                HostEvent::SetWalkTurnSpeed { .. } => {}
                 HostEvent::PreloadField { .. } => {}
                 HostEvent::ChangeElementalAffinity { .. } => {}
                 HostEvent::SetRain { .. } => {}
@@ -1431,6 +1432,48 @@ fn neckflag_replaces_head_focus_flags_with_the_masked_operand() {
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));
     assert!(decode_program(&[71, 0]).is_err());
+}
+
+#[test]
+fn mrot_sets_walk_turn_speed_before_wrapping_to_a_byte() {
+    let program = decode_program(&[85, 0, 0, 85, 0, 16, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 3);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [
+            HostEvent::SetWalkTurnSpeed {
+                actor: EntityId::new(42),
+                speed: 255
+            },
+            HostEvent::SetWalkTurnSpeed {
+                actor: EntityId::new(42),
+                speed: 16
+            }
+        ]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![85, 1];
+    append_expression(&mut bytes, constant(256));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap()).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetWalkTurnSpeed {
+            actor: EntityId::new(42),
+            speed: 0
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[85, 0, 16, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
+    assert!(decode_program(&[85, 0]).is_err());
 }
 
 #[test]

@@ -293,6 +293,20 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetHeadFocusFlags { actor, flags });
                 }
+                InstructionKind::SetWalkTurnSpeed(speed) => {
+                    let speed = self.evaluate(host, &speed, instruction.offset, opcode)?;
+                    let speed = if speed == 0 { u8::MAX } else { speed as u8 };
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "walk turn speed requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetWalkTurnSpeed { actor, speed });
+                }
                 InstructionKind::SetIdleAnimationSpeeds(expressions) => {
                     let [first, second, third, fourth] = expressions;
                     let speeds = [
@@ -2118,6 +2132,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetIdleAnimationSpeeds { .. } => 0x86,
         InstructionKind::SetHeadFocusMasks { .. } => 0x8b,
         InstructionKind::SetHeadFocusFlags { .. } => 0x47,
+        InstructionKind::SetWalkTurnSpeed { .. } => 0x55,
         InstructionKind::SetObjectFlags { .. } => 0x93,
         InstructionKind::SetActorFacing { .. } => 0x36,
         InstructionKind::Return => 0x04,
