@@ -62,6 +62,7 @@ const OP_CALCULATE_EXIT_POSITION: u32 = 0xa4;
 const OP_REQUEST_CALLER_SYNC: u32 = 0x14;
 const OP_ATTACH_TILE: u32 = 0x92;
 const OP_SET_SIMULATION_FLOOR: u32 = 0x104;
+const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -706,6 +707,28 @@ impl Decoder<'_> {
                 InstructionKind::SetSimulationFloor {
                     simulation: argument(1)?,
                     floor: argument(2)?,
+                }
+            }
+            OP_SET_SIMULATION_FRAME_RATE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetSimulationFrameRate {
+                    simulation: argument(1, false)?,
+                    frame_rate: argument(2, true)?,
                 }
             }
             OP_ATTACH_TILE => {

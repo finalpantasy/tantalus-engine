@@ -255,6 +255,10 @@ pub enum InstructionKind {
         simulation: Expression,
         floor: Expression,
     },
+    SetSimulationFrameRate {
+        simulation: Expression,
+        frame_rate: Expression,
+    },
     AttachTile {
         overlay: Expression,
         x: Expression,
@@ -477,6 +481,10 @@ pub enum HostEvent {
     SetSimulationFloor {
         simulation: u32,
         floor: u32,
+    },
+    SetSimulationFrameRate {
+        simulation: u32,
+        frame_rate: i16,
     },
     AttachTile {
         overlay: i32,

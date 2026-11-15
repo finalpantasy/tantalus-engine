@@ -164,6 +164,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetSpsParameters { .. } => {}
                 HostEvent::SetTileShadeColor { .. } => {}
                 HostEvent::SetSimulationFloor { .. } => {}
+                HostEvent::SetSimulationFrameRate { .. } => {}
                 HostEvent::AttachTile { .. } => {}
             }
         }
@@ -2808,6 +2809,38 @@ fn bsfloor_sets_simulation_floor_with_extended_opcode() {
         [HostEvent::SetSimulationFloor {
             simulation: 1,
             floor: 4
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn bsrate_sets_signed_simulation_frame_rate_with_extended_opcode() {
+    let program = decode_program(&[255, 5, 0, 2, 0xfe, 0xff, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 6);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetSimulationFrameRate {
+            simulation: 2,
+            frame_rate: -2
+        }]
+    );
+
+    let mut bytes = vec![255, 5, 3];
+    append_expression(&mut bytes, constant(1));
+    append_expression(&mut bytes, constant(30));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetSimulationFrameRate {
+            simulation: 1,
+            frame_rate: 30
         }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);

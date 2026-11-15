@@ -735,6 +735,20 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetSimulationFloor { simulation, floor });
                 }
+                InstructionKind::SetSimulationFrameRate {
+                    simulation,
+                    frame_rate,
+                } => {
+                    let simulation =
+                        self.evaluate(host, &simulation, instruction.offset, opcode)? as u32;
+                    let frame_rate =
+                        self.evaluate(host, &frame_rate, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::SetSimulationFrameRate {
+                        simulation,
+                        frame_rate,
+                    });
+                }
                 InstructionKind::AttachTile {
                     overlay,
                     x,
@@ -1670,6 +1684,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::CalculateExitPosition => 0xa4,
         InstructionKind::RequestCallerSync { .. } => 0x14,
         InstructionKind::SetSimulationFloor { .. } => 0x104,
+        InstructionKind::SetSimulationFrameRate { .. } => 0x105,
         InstructionKind::AttachTile { .. } => 0x92,
     }
 }
