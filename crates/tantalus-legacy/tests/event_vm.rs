@@ -150,6 +150,10 @@ impl LegacyEventHost for Host {
                 HostEvent::RemoveItem { .. } => {}
                 HostEvent::AddGil { .. } => {}
                 HostEvent::RemoveGil { .. } => {}
+                HostEvent::SetPartyHp { .. } => {}
+                HostEvent::SetPartyMp { .. } => {}
+                HostEvent::ClearAbilityAp { .. } => {}
+                HostEvent::MasterAbility { .. } => {}
                 HostEvent::WalkActor { .. } => {}
                 HostEvent::MoveActorToExit { .. } => {}
                 HostEvent::DeleteObject { .. } => {}
@@ -4873,6 +4877,106 @@ fn gil_commands_decode_unsigned_amounts_and_leave_clamping_to_the_host() {
         let error = decode_program(truncated).unwrap_err();
         assert_eq!(error.kind, VmErrorKind::Decode);
         assert!(error.message.contains("opcode Some(20"));
+    }
+}
+
+#[test]
+fn party_member_commands_decode_character_and_value_operands() {
+    let mut host = Host::new();
+    // Immediate operands: HP/MP use a signed 16-bit value, AP commands a byte ability index.
+    let cases: [(u8, &[u8], HostEvent); 4] = [
+        (
+            0xf1,
+            &[3, 0x0f, 0x27],
+            HostEvent::SetPartyHp {
+                character: 3,
+                hp: 9999,
+            },
+        ),
+        (
+            0xf2,
+            &[1, 0xe7, 0x03],
+            HostEvent::SetPartyMp {
+                character: 1,
+                mp: 999,
+            },
+        ),
+        (
+            0xf3,
+            &[2, 17],
+            HostEvent::ClearAbilityAp {
+                character: 2,
+                ability: 17,
+            },
+        ),
+        (
+            0xf4,
+            &[8, 0xff],
+            HostEvent::MasterAbility {
+                character: 8,
+                ability: 255,
+            },
+        ),
+    ];
+    for (opcode, operands, expected) in cases {
+        let mut bytes = vec![opcode, 0];
+        bytes.extend_from_slice(operands);
+        bytes.push(4);
+        let program = decode_program(&bytes).unwrap();
+        assert_eq!(program.instructions[&0].length, 2 + operands.len() as u32);
+        let mut vm = EventVm::new(program);
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(report.events, [expected]);
+        assert!(
+            vm.traces()
+                .any(|trace| trace.opcode == Some(u32::from(opcode)))
+        );
+        assert_eq!(report.status, VmStatus::Completed);
+    }
+
+    // Both operands as expressions; negative HP stays raw for the host.
+    let mut bytes = vec![0xf1, 3];
+    append_expression(&mut bytes, constant(5));
+    append_expression(&mut bytes, constant(-7));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetPartyHp {
+            character: 5,
+            hp: -7,
+        }]
+    );
+
+    // Mixed: expression character, immediate ability.
+    let mut bytes = vec![0xf4, 1];
+    append_expression(&mut bytes, constant(4));
+    bytes.push(9);
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::MasterAbility {
+            character: 4,
+            ability: 9,
+        }]
+    );
+
+    // Truncated operands report the opcode.
+    for truncated in [
+        &[0xf1_u8, 0, 3, 0x0f][..],
+        &[0xf3, 0, 2][..],
+        &[0xf2, 1][..],
+    ] {
+        let error = decode_program(truncated).unwrap_err();
+        assert_eq!(error.kind, VmErrorKind::Decode);
+        assert!(
+            error.message.contains("opcode Some(24"),
+            "{}",
+            error.message
+        );
     }
 }
 

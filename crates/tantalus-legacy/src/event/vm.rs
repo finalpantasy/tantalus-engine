@@ -1468,6 +1468,30 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::RemoveGil { amount });
                 }
+                InstructionKind::SetPartyHp { character, value } => {
+                    let character = self.evaluate(host, &character, instruction.offset, opcode)?;
+                    let hp = self.evaluate(host, &value, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetPartyHp { character, hp });
+                }
+                InstructionKind::SetPartyMp { character, value } => {
+                    let character = self.evaluate(host, &character, instruction.offset, opcode)?;
+                    let mp = self.evaluate(host, &value, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetPartyMp { character, mp });
+                }
+                InstructionKind::ClearAbilityAp { character, ability } => {
+                    let character = self.evaluate(host, &character, instruction.offset, opcode)?;
+                    let ability = self.evaluate(host, &ability, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::ClearAbilityAp { character, ability });
+                }
+                InstructionKind::MasterAbility { character, ability } => {
+                    let character = self.evaluate(host, &character, instruction.offset, opcode)?;
+                    let ability = self.evaluate(host, &ability, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::MasterAbility { character, ability });
+                }
                 InstructionKind::WalkActor { x, z } => {
                     let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
                     let z = self.evaluate(host, &z, instruction.offset, opcode)? as i16;
@@ -2662,6 +2686,10 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::RemoveItem { .. } => 0x49,
         InstructionKind::AddGil(_) => 0xce,
         InstructionKind::RemoveGil(_) => 0xcf,
+        InstructionKind::SetPartyHp { .. } => 0xf1,
+        InstructionKind::SetPartyMp { .. } => 0xf2,
+        InstructionKind::ClearAbilityAp { .. } => 0xf3,
+        InstructionKind::MasterAbility { .. } => 0xf4,
         InstructionKind::WalkActor { .. } => 0x23,
         InstructionKind::MoveActor { .. } => 0xbf,
         InstructionKind::AimAtCamera => 0xb8,
