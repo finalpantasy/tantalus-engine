@@ -87,6 +87,7 @@ pub enum ExpressionOp {
     XorAssignMembers,
     XorAssignAllMembers,
     AndAssignAllMembers,
+    AssignAllMembers,
     AssignMembers,
     EqualMembers,
     AndMembers,

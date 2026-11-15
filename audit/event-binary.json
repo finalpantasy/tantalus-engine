@@ -149,7 +149,8 @@
     "B_LT_E 28 returns strict selected-member less-than flags without writes; empty masks return zero",
     "SETROW 0x61 emits SetCharacterRow with character identity and a wrapped byte row",
     "ROTXZ 0x37 emits actor-bound pitch/roll after wrapping shift-by-four fixed-point conversion",
-    "B_KEYON 79 returns whether the host key-down bitmap intersects the operand mask"
+    "B_KEYON 79 returns whether the host key-down bitmap intersects the operand mask",
+    "B_LET_A 45 writes every selected member without reading old values and returns the last assigned value"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -214,11 +215,10 @@
     "entry": 8,
     "function": 1,
     "function_tag": 1,
-    "offset": 153,
-    "expression_offset": 13,
-    "opcode": 45,
+    "offset": 216,
+    "opcode": 13,
     "kind": "UnsupportedOpcode",
-    "instruction": "B_LET_A after key-down input query support"
+    "instruction": "event opcode 0x0D after all-member direct assignment support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
