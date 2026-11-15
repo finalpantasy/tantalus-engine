@@ -86,7 +86,11 @@ pub fn decode_program(bytes: &[u8]) -> Result<EventProgram, VmError> {
     let mut decoder = Decoder { bytes, position: 0 };
     let mut instructions = BTreeMap::new();
     while decoder.position < bytes.len() {
-        let instruction = decoder.instruction()?;
+        let offset = decoder.position as u32;
+        let instruction = decoder.instruction().map_err(|mut error| {
+            error.message = format!("instruction at {offset}: {}", error.message);
+            error
+        })?;
         instructions.insert(instruction.offset, instruction);
     }
     Ok(EventProgram {

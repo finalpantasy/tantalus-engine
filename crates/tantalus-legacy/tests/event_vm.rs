@@ -440,6 +440,7 @@ fn unsupported_and_truncated_programs_report_the_byte_offset() {
     let truncated = decode_program(&[5, 126, 1]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert_eq!(truncated.offset, 3);
+    assert!(truncated.message.contains("instruction at 0"));
 
     let truncated_variable = decode_program(&[5, 0xaf, 0xff]).unwrap_err();
     assert_eq!(truncated_variable.kind, VmErrorKind::Decode);

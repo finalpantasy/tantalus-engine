@@ -131,7 +131,8 @@
     "B_BAFRAME 101 reads a BGI animation frame through the host using the reference's unsigned ID conversion",
     "B_PARTYCHK 107 returns one or zero from the host's party-membership query",
     "B_AND_LET_E 67 builds truth flags from selected member values, ANDs them with the operand, and writes the result through the current target",
-    "B_XOR_LET_E 68 now follows the same source-compatible selected-value mask construction instead of using the operand or old target value as flags"
+    "B_XOR_LET_E 68 now follows the same source-compatible selected-value mask construction instead of using the operand or old target value as flags",
+    "decode diagnostics identify the instruction start as well as the missing-byte offset"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -152,14 +153,24 @@
     "instruction": "function ends while its final expression is still active"
   },
   "truncated_extended_entries": [4, 5],
-  "next_decode_boundary": {
+  "truncated_conditional_boundary": {
     "entry": 6,
     "function": 1,
     "function_tag": 1,
+    "instruction_offset": 526,
     "offset": 624,
-    "opcode": null,
+    "opcode": 3,
     "kind": "Decode",
-    "instruction": "function boundary after selected-member AND assignment; valid termination is not yet established"
+    "instruction": "conditional jump expression/operands do not complete before the function boundary"
+  },
+  "next_decode_boundary": {
+    "entry": 3,
+    "function": 1,
+    "function_tag": 1,
+    "offset": 100,
+    "opcode": 231,
+    "kind": "UnsupportedOpcode",
+    "instruction": "event opcode 0xE7 after classifying the truncated conditional entry"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
