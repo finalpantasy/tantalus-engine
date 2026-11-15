@@ -94,6 +94,7 @@ pub enum ExpressionOp {
     NoOp,
     ConsumeAndZero,
     ShiftRightAssignMembers,
+    ShiftRightAssignAllMembers,
     AndAssignMembers,
     XorAssignMembers,
     XorAssignAllMembers,

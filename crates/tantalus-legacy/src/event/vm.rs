@@ -1977,7 +1977,9 @@ impl EventVm {
                         target: None,
                     });
                 }
-                ExpressionOp::XorAssignAllMembers | ExpressionOp::AndAssignAllMembers => {
+                ExpressionOp::XorAssignAllMembers
+                | ExpressionOp::AndAssignAllMembers
+                | ExpressionOp::ShiftRightAssignAllMembers => {
                     if stack.len() < 3 {
                         return Err(expression_error(
                             offset,
@@ -2007,6 +2009,9 @@ impl EventVm {
                             result = match operation {
                                 ExpressionOp::AndAssignAllMembers => current & operand,
                                 ExpressionOp::XorAssignAllMembers => current ^ operand,
+                                ExpressionOp::ShiftRightAssignAllMembers => {
+                                    current.wrapping_shr(operand as u32)
+                                }
                                 _ => unreachable!(),
                             };
                             host.write_object_member(reference, result)
@@ -2539,6 +2544,7 @@ fn operand_start(
         | ExpressionOp::XorAssignMembers
         | ExpressionOp::XorAssignAllMembers
         | ExpressionOp::AndAssignAllMembers
+        | ExpressionOp::ShiftRightAssignAllMembers
         | ExpressionOp::AssignAllMembers
         | ExpressionOp::EqualMembers
         | ExpressionOp::NotEqualMembers
