@@ -104,6 +104,7 @@ pub enum ExpressionOp {
     NotEqualMembers,
     AndMembers,
     NandMembers,
+    XorMembers,
     LessMembers,
     LessOrEqualMembers,
     GreaterOrEqualMembers,

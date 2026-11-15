@@ -2013,6 +2013,7 @@ impl EventVm {
                 | ExpressionOp::NotEqualMembers
                 | ExpressionOp::AndMembers
                 | ExpressionOp::NandMembers
+                | ExpressionOp::XorMembers
                 | ExpressionOp::LessMembers
                 | ExpressionOp::LessOrEqualMembers
                 | ExpressionOp::GreaterOrEqualMembers
@@ -2046,6 +2047,7 @@ impl EventVm {
                                 ExpressionOp::NotEqualMembers => value != comparison,
                                 ExpressionOp::AndMembers => value & comparison != 0,
                                 ExpressionOp::NandMembers => value & comparison == 0,
+                                ExpressionOp::XorMembers => value ^ comparison != 0,
                                 ExpressionOp::LessMembers => value < comparison,
                                 ExpressionOp::LessOrEqualMembers => value <= comparison,
                                 ExpressionOp::GreaterOrEqualMembers => value >= comparison,
@@ -2518,6 +2520,7 @@ fn operand_start(
         | ExpressionOp::NotEqualMembers
         | ExpressionOp::AndMembers
         | ExpressionOp::NandMembers
+        | ExpressionOp::XorMembers
         | ExpressionOp::LessMembers
         | ExpressionOp::LessOrEqualMembers
         | ExpressionOp::GreaterOrEqualMembers

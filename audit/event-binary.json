@@ -181,7 +181,8 @@
     "TURN 0x56 emits StartActorTurn with a wrapped fixed-point angle and raw speed without an implicit VM wait",
     "WAITTURN 0x50 consumes no operand and uses an actor-context host-completion wait",
     "B_COS2 81 computes fixed-point cosine using the operand directly without a left shift",
-    "B_SIN2 80 computes fixed-point sine using the operand directly without a left shift"
+    "B_SIN2 80 computes fixed-point sine using the operand directly without a left shift",
+    "B_XOR_E 86 returns selected-member nonzero-XOR flags without writes and zero for an empty selection"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -282,7 +283,7 @@
     "kind": "Decode",
     "instruction": "JMP_IFNOT expression/relative operand do not complete before the function boundary after selected-member NAND support"
   },
-  "next_decode_boundary": {
+  "truncated_conditional_entry_15": {
     "entry": 15,
     "function": 0,
     "function_tag": 0,
@@ -293,16 +294,25 @@
     "kind": "Decode",
     "instruction": "conditional jump expression/operands do not complete before the function boundary after B_BGIID support"
   },
-  "unsupported_expression_entry_18": {
+  "truncated_nop_entry_18": {
     "entry": 18,
     "function": 1,
     "function_tag": 1,
-    "instruction_offset": 340,
-    "expression_offset": 342,
-    "offset": 434,
-    "opcode": 86,
+    "instruction_offset": 424,
+    "offset": 516,
+    "opcode": 0,
+    "kind": "Decode",
+    "instruction": "the final NOP does not contain its argument-flag byte before the function boundary after selected-member XOR support"
+  },
+  "next_decode_boundary": {
+    "entry": 16,
+    "function": 0,
+    "function_tag": 0,
+    "instruction_offset": 92,
+    "offset": 102,
+    "opcode": 136,
     "kind": "UnsupportedOpcode",
-    "instruction": "WAIT contains unsupported selected-member B_XOR_E expression opcode 0x56 after unshifted sine support"
+    "instruction": "event opcode 0x88 after preserving the entry 15 and 18 malformed boundaries"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

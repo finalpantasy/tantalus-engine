@@ -1379,6 +1379,7 @@ impl Decoder<'_> {
                 81 => ExpressionOp::Cosine,
                 84 => ExpressionOp::AndMembers,
                 85 => ExpressionOp::NandMembers,
+                86 => ExpressionOp::XorMembers,
                 90 | 92 => ExpressionOp::ConsumeAndZero,
                 93 => ExpressionOp::Angle,
                 95 => ExpressionOp::ObjectPointer(self.byte()?),
