@@ -19,8 +19,8 @@
     "asset_bytes": 10924,
     "entries": 22,
     "functions": 36,
-    "decoded_functions": 13,
-    "decode_error_count": 23,
+    "decoded_functions": 14,
+    "decode_error_count": 22,
     "script_bytes": 10620,
     "script_sha256": "c6033b9d6da5043468ae416074644cf64002e86d1c40be8f80cc16891579f16e",
     "reference_match": "UnityPy 1.25.0 independently reproduces the entry count, byte count, and concatenated script SHA-256"
@@ -206,7 +206,8 @@
     "B_PARTYADD 109 delegates party insertion to the host and returns the reference failure flag",
     "FLDSND0 through FLDSND3 (0xC5-0xC8) share signed code/ID and variant-specific argument decoding while retaining the actual opcode",
     "B_OR_LET_E 69 ORs the selected-value mask with its operand and writes the last selected target",
-    "ADD_STATUS 0x11D decodes target, status, permanent flag, and three signed 24-bit script arguments and emits AddBattleStatus"
+    "ADD_STATUS 0x11D decodes target, status, permanent flag, and three signed 24-bit script arguments and emits AddBattleStatus",
+    "MOVE 0x23 decodes signed X/Z destinations and emits WalkActor with a repeatable host-owned movement wait"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -351,23 +352,13 @@
     },
     {
       "entry": 13,
-      "function": 3,
-      "function_tag": 12,
-      "instruction_offset": 11,
-      "offset": 2407,
-      "opcode": 35,
-      "kind": "UnsupportedOpcode",
-      "instruction": "event opcode 0x23"
-    },
-    {
-      "entry": 13,
       "function": 4,
       "function_tag": 13,
       "instruction_offset": 48,
       "offset": 2492,
       "opcode": 239,
       "kind": "UnsupportedOpcode",
-      "instruction": "event opcode 0xEF"
+      "instruction": "HEREON event opcode 0xEF after MOVE support"
     },
     {
       "entry": 13,

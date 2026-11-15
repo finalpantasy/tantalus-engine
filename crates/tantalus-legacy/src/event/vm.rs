@@ -129,6 +129,25 @@ impl EventVm {
                     self.wait = None;
                     self.status = VmStatus::Running;
                 }
+                WaitState::ActorMovement { next } => {
+                    self.status = VmStatus::Waiting;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            self.pc,
+                            Some(0x23),
+                            "movement wait requires current actor context",
+                        ));
+                    };
+                    let active = host
+                        .field_actor_movement_is_active(actor)
+                        .map_err(|error| VmError::host(error, self.pc, 0x23))?;
+                    self.wait = None;
+                    self.status = VmStatus::Running;
+                    if !active {
+                        self.pc = next;
+                    }
+                }
                 WaitState::ActorAnimation => {
                     self.status = VmStatus::Waiting;
                     let Some(actor) = self.entity else {
@@ -1395,6 +1414,25 @@ impl EventVm {
                         color: [red, green, blue],
                     });
                 }
+                InstructionKind::WalkActor { x, z } => {
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)? as i16;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "walk requires current actor context",
+                        ));
+                    };
+                    self.pc = instruction.offset;
+                    self.wait = Some(WaitState::ActorMovement { next });
+                    self.status = VmStatus::Waiting;
+                    events.push(HostEvent::WalkActor {
+                        actor,
+                        destination: [x, z],
+                    });
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -2566,6 +2604,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::WaitAnimation => 0x41,
         InstructionKind::WaitTurn => 0x50,
         InstructionKind::WaitWindow(_) => 0x54,
+        InstructionKind::WalkActor { .. } => 0x23,
         InstructionKind::MoveActor { .. } => 0xbf,
         InstructionKind::AimAtCamera => 0xb8,
         InstructionKind::DefinePlayerControl => 0x2c,

@@ -211,6 +211,10 @@ pub enum InstructionKind {
     },
     WaitWindow(Expression),
     CloseWindow(Expression),
+    WalkActor {
+        x: Expression,
+        z: Expression,
+    },
     MoveActor {
         actor: Expression,
         x: Expression,
@@ -489,6 +493,9 @@ pub enum WaitState {
     PartyMenu,
     ActorTurn,
     ActorAnimation,
+    ActorMovement {
+        next: u32,
+    },
     CallerRequest {
         level: i32,
         tag: u8,
@@ -511,6 +518,10 @@ pub enum HostEvent {
     },
     CloseWindow {
         window: u8,
+    },
+    WalkActor {
+        actor: EntityId,
+        destination: [i16; 2],
     },
     MoveActor {
         actor: EntityId,
@@ -939,6 +950,7 @@ pub trait LegacyEventHost {
     fn party_menu_is_open(&self) -> bool;
     fn actor_turn_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn actor_animation_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
+    fn field_actor_movement_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn field_exit_movement_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn read_random_u8(&mut self) -> Result<u8, EngineError>;
     fn read_key_on(&mut self) -> Result<i32, EngineError>;

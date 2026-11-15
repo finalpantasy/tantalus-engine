@@ -188,6 +188,10 @@ impl LegacyEventHost for Host {
         Ok(false)
     }
 
+    fn field_actor_movement_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
+        Ok(false)
+    }
+
     fn field_exit_movement_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
         Ok(false)
     }

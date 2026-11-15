@@ -39,6 +39,7 @@ const OP_WAIT: u32 = 0x22;
 const OP_WAIT_ANIMATION: u32 = 0x41;
 const OP_WAIT_TURN: u32 = 0x50;
 const OP_WAIT_WINDOW: u32 = 0x54;
+const OP_WALK_ACTOR: u32 = 0x23;
 const OP_MOVE_ACTOR: u32 = 0xbf;
 const OP_AIM_AT_CAMERA: u32 = 0xb8;
 const OP_DEFINE_PLAYER_CONTROL: u32 = 0x2c;
@@ -519,6 +520,23 @@ impl Decoder<'_> {
             OP_CLOSE_WINDOW => {
                 self.byte()?;
                 InstructionKind::CloseWindow(self.expression()?)
+            }
+            OP_WALK_ACTOR => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.i16()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::WalkActor {
+                    x: argument(1)?,
+                    z: argument(2)?,
+                }
             }
             OP_MOVE_ACTOR => {
                 self.byte()?;
