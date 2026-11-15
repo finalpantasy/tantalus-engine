@@ -68,14 +68,15 @@
     "MESVALUE 0x66 decodes script ID and signed value operands and emits SetTextVariable",
     "B_LET_E 46 computes selected-member truth masks and writes the lower assignment target, including the empty-stack global-bit fallback",
     "CHRSCALE 0x9F decodes object and ratio operands, preserves signed-byte times-64 renderer scale, and carries the vertical-scale byte",
-    "VIBRATE 0xFA decodes a signed frame-rate operand and emits SetVibrationFrameRate"
+    "VIBRATE 0xFA decodes a signed frame-rate operand and emits SetVibrationFrameRate",
+    "REQ 0x10 decodes level, target, and immediate function tag and emits RequestScriptAsync"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 1103,
-    "opcode": "0x10",
+    "offset": 1110,
+    "opcode": "0xC8",
     "kind": "event",
-    "instruction": "REQ"
+    "instruction": "BGVDEFINE"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

@@ -326,6 +326,23 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetVibrationFrameRate { rate });
                 }
+                InstructionKind::RequestScriptAsync { level, target, tag } => {
+                    let level = self.evaluate(host, &level, instruction.offset, opcode)?;
+                    let target = self.evaluate(host, &target, instruction.offset, opcode)?;
+                    if target < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "script target cannot be negative",
+                        ));
+                    }
+                    self.pc = next;
+                    events.push(HostEvent::RequestScriptAsync {
+                        level,
+                        target: EntityId::new(target as u64),
+                        tag,
+                    });
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -991,6 +1008,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::SetTextVariable { .. } => 0x66,
         InstructionKind::SetObjectScale { .. } => 0x9f,
         InstructionKind::SetVibrationFrameRate(_) => 0xfa,
+        InstructionKind::RequestScriptAsync { .. } => 0x10,
     }
 }
 

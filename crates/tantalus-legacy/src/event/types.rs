@@ -165,6 +165,11 @@ pub enum InstructionKind {
         y: Expression,
     },
     SetVibrationFrameRate(Expression),
+    RequestScriptAsync {
+        level: Expression,
+        target: Expression,
+        tag: u8,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -276,6 +281,11 @@ pub enum HostEvent {
     },
     SetVibrationFrameRate {
         rate: i16,
+    },
+    RequestScriptAsync {
+        level: i32,
+        target: EntityId,
+        tag: u8,
     },
 }
 

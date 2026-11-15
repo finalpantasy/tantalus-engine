@@ -128,6 +128,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetTextVariable { .. } => {}
                 HostEvent::SetObjectScale { .. } => {}
                 HostEvent::SetVibrationFrameRate { .. } => {}
+                HostEvent::RequestScriptAsync { .. } => {}
             }
         }
         Ok(())
@@ -1328,6 +1329,26 @@ fn vibrate_sets_the_signed_frame_rate() {
     assert_eq!(
         report.events,
         [HostEvent::SetVibrationFrameRate { rate: -256 }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn req_emits_an_async_script_request_with_level_target_and_tag() {
+    let program = decode_program(&[16, 0, 2, 7, 11, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 5);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(
+        report.events,
+        [HostEvent::RequestScriptAsync {
+            level: 2,
+            target: EntityId::new(7),
+            tag: 11
+        }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);
 }
