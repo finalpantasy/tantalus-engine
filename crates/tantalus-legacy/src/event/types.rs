@@ -178,6 +178,10 @@ pub enum InstructionKind {
     SetWalkTurnSpeed(Expression),
     SetObjectFlags(Expression),
     SetActorFacing(Expression),
+    StartActorTurn {
+        angle: Expression,
+        speed: Expression,
+    },
     Return,
     Wait(Expression),
     WindowSync {
@@ -531,6 +535,11 @@ pub enum HostEvent {
     SetActorFacing {
         actor: EntityId,
         angle: i16,
+    },
+    StartActorTurn {
+        actor: EntityId,
+        angle: i16,
+        speed: i32,
     },
     AimAtCamera,
     DefinePlayerControl {

@@ -29,6 +29,7 @@ const OP_SET_HEAD_FOCUS_FLAGS: u32 = 0x47;
 const OP_SET_WALK_TURN_SPEED: u32 = 0x55;
 const OP_SET_OBJECT_FLAGS: u32 = 0x93;
 const OP_SET_ACTOR_FACING: u32 = 0x36;
+const OP_START_ACTOR_TURN: u32 = 0x56;
 const OP_EVALUATE: u32 = 0x05;
 const OP_WINDOW_SYNC: u32 = 0x1f;
 const OP_WINDOW_ASYNC: u32 = 0x20;
@@ -450,6 +451,23 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::SetActorFacing(angle)
+            }
+            OP_START_ACTOR_TURN => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::StartActorTurn {
+                    angle: argument(1)?,
+                    speed: argument(2)?,
+                }
             }
             OP_RETURN => InstructionKind::Return,
             OP_EVALUATE => InstructionKind::Evaluate(self.expression()?),

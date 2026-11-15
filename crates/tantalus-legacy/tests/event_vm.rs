@@ -149,6 +149,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetHeadFocusMasks { .. } => {}
                 HostEvent::SetObjectFlags { .. } => {}
                 HostEvent::SetActorFacing { .. } => {}
+                HostEvent::StartActorTurn { .. } => {}
                 HostEvent::AimAtCamera => {}
                 HostEvent::DefinePlayerControl { .. } => {}
                 HostEvent::SetControlDirection { .. } => {}
@@ -1594,6 +1595,45 @@ fn dire_sets_actor_facing_with_shifted_fixed_point_angle() {
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));
+}
+
+#[test]
+fn turn_starts_an_animated_actor_turn_with_angle_and_speed() {
+    let program = decode_program(&[86, 0, 192, 16, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::StartActorTurn {
+            actor: EntityId::new(42),
+            angle: 3072,
+            speed: 16
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![86, 3];
+    append_expression(&mut bytes, constant(-1));
+    append_expression(&mut bytes, constant(-2));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap()).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::StartActorTurn {
+            actor: EntityId::new(42),
+            angle: -16,
+            speed: -2
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[86, 0, 192, 16, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
+    assert!(decode_program(&[86, 0, 192]).is_err());
 }
 
 #[test]
