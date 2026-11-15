@@ -9,7 +9,9 @@ Reference: local Memoria source snapshot `c716e1faaeee8c856cc10921234d017f1187b4
 - `Assembly-CSharp/Global/AESCryptography.cs:7-100` defines AES/Rijndael with a 256-bit key, 128-bit blocks, CBC mode, PBKDF2 (`Rfc2898DeriveBytes`) with 1,000 iterations, and a fixed password/salt. This is format compatibility information, not a security feature for protecting user data.
 - `Assembly-CSharp/Global/JsonParser.cs:33-83` and the remaining parser map game state into a schema-driven typed tree. `JsonParser` is therefore not evidence of a plain-text JSON disk format.
 
-Base AES decoding and complete schema mapping are not yet implemented in Tantalus. `LegacySaveImporter::inspect` reports bytes, SHA-256, expected fixed-size agreement, and `decoded: false`; it does not infer validity from size alone.
+Tantalus implements the AES layer and container framing in `crates/tantalus-legacy/src/saves/base.rs`: PBKDF2-HMAC-SHA1 (password is the two GUID strings concatenated, 8-byte salt `03 03 01 04 07 00 09 07`, 1,000 rounds) yields one 48-byte stream, the first 32 bytes are the AES-256 key and the next 16 the CBC IV; PKCS7 padding always adds 1-16 bytes (`SharedDataAesEncryption.GetCipherSize`). The key/IV and a sample ciphertext were cross-checked against Python `hashlib` and OpenSSL, not only against this crate. Metadata is the 39-byte header (`SAVE`, version f32, data size, latest slot/save, timestamp f64, finish flag, language, auto-login, achievement byte, rotation) inside a 288-byte plaintext, encrypted to 304 bytes at offset 0. A save block is read at `153,920 + 18,432 * (1 + slot * 15 + save)` (autosave: `153,920`), is `GetCipherSize(DataSize + 4)` bytes long, and must decrypt to exactly `DataSize + 4` bytes starting `SAVE` or `NONE`. Tantalus additionally refuses a negative `DataSize` or one whose cipher exceeds a block, where the reference would read into the next block.
+
+`LegacySaveImporter::decode_base` returns the metadata and one decrypted block (`Saved` payload bytes or `Empty`). The schema-driven field mapping of the `SAVE` payload (`ReadDataFromStream`, schema validation, `ParseDataListToJsonTree`) and the slot-preview records are not implemented. `LegacySaveImporter::inspect` is unchanged: bytes, SHA-256, expected fixed-size agreement, and `decoded: false`.
 
 ## Memoria extra data
 
@@ -23,4 +25,4 @@ Tantalus rejects duplicate class keys, excessive nesting/nodes, invalid UTF-8, t
 
 ## Compatibility limits
 
-No owned original or Memoria save has been supplied. Real decryption, field mapping, sidecar/base behavior, and export are `NOT_RUN`. No legacy source file is modified by the inspector. Original save writing in the reference is a separate base/sidecar operation and is not used as a model for native atomicity.
+No owned original or Memoria save has been supplied (none exists under the standard `LocalLow` location on this machine). Base AES and framing are verified only against project-owned synthetic containers and independent known-answer values; real decryption, field mapping, sidecar/base behavior, and export are `NOT_RUN`. No legacy source file is modified by the inspector. Original save writing in the reference is a separate base/sidecar operation and is not used as a model for native atomicity.

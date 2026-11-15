@@ -28,7 +28,7 @@ pub struct LegacySaveError {
 }
 
 impl LegacySaveError {
-    fn new(offset: usize, context: impl Into<String>) -> Self {
+    pub(crate) fn new(offset: usize, context: impl Into<String>) -> Self {
         Self {
             offset,
             context: context.into(),

@@ -1,4 +1,4 @@
-use super::{LegacySaveError, SimpleJsonDocument};
+use super::{BaseSaveBlock, BaseSaveMetadata, LegacySaveError, SimpleJsonDocument};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::Path;
@@ -35,6 +35,13 @@ pub struct LegacySaveReport {
     pub pairing: PairingStatus,
 }
 
+/// Decrypted base metadata and one decrypted `SAVE`/`NONE` block. Field mapping is not decoded.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DecodedBaseSave {
+    pub metadata: BaseSaveMetadata,
+    pub block: BaseSaveBlock,
+}
+
 pub struct LegacySaveImporter;
 
 impl LegacySaveImporter {
@@ -49,6 +56,16 @@ impl LegacySaveImporter {
             extra: extra.map(SimpleJsonDocument::decode).transpose()?,
             pairing: PairingStatus::NotChecked,
         })
+    }
+
+    /// Decrypts the metadata and one block of an original PC base container (read-only).
+    pub fn decode_base(
+        base: &[u8],
+        location: &LegacySaveLocation,
+    ) -> Result<DecodedBaseSave, LegacySaveError> {
+        let metadata = BaseSaveMetadata::decode(base)?;
+        let block = BaseSaveBlock::decode(base, &metadata, location)?;
+        Ok(DecodedBaseSave { metadata, block })
     }
 
     pub fn validate_pairing(

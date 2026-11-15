@@ -24,7 +24,7 @@ Implementation method: use the pinned Memoria C# source to identify functions, o
 - `T07` — Verified for additive packages, world actors, encounter ownership, persistence, and respawn. Evidence: `tasks/T07.md`.
 - `T08` — Synthetic battle/action/effect/reward foundation verified; real original ability compatibility remains pending. Evidence: `tasks/T08.md`.
 - `T09` — Synthetic encounter lifecycle, mapping, cancellation, and presentation-command foundation verified; real visual/camera integration remains pending. Evidence: `tasks/T09.md`.
-- `T10` — Native atomic saves, recovery, migration boundaries, exactly-once outcomes, and Memoria binary sidecar codec verified. Base-save AES/schema decoding and real-save checks remain Building/NOT_RUN. Evidence: `tasks/T10.md`.
+- `T10` — Native atomic saves, recovery, migration boundaries, exactly-once outcomes, and Memoria binary sidecar codec verified. Base-save AES decryption and block framing are verified on synthetic containers; payload schema mapping and real-save checks remain Building/NOT_RUN. Evidence: `tasks/T10.md`.
 - `T11` — Resolver/profile locks, Wasmtime ABI, packaged entry points, external action/card fixtures, pure migration, and single-provider lifecycle verified. WIT component bindings, multi-provider transactions, and multi-module migration remain Building. Evidence: `tasks/T11.md`.
 - `T12` — Typed headless real-field navigation scenario verified; event, battle, reward, and save integration remain Building. Evidence: `tasks/T12.md`.
 - Architecture review — integrated in `docs/REVIEW_2026-11-14.md` and `audit/review-ledger.csv`; diagnostic policy verified, backend selection and real-reference probes remain open.
