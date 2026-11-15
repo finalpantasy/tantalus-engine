@@ -129,7 +129,9 @@
     "BSRATE 0x105 decodes immediate/expression simulation and signed-wide frame-rate operands and emits SetSimulationFrameRate",
     "SHADOWOFF 0x80 consumes its flag and emits SetShadowEnabled(false) while preserving its opcode in diagnostics",
     "B_BAFRAME 101 reads a BGI animation frame through the host using the reference's unsigned ID conversion",
-    "B_PARTYCHK 107 returns one or zero from the host's party-membership query"
+    "B_PARTYCHK 107 returns one or zero from the host's party-membership query",
+    "B_AND_LET_E 67 builds truth flags from selected member values, ANDs them with the operand, and writes the result through the current target",
+    "B_XOR_LET_E 68 now follows the same source-compatible selected-value mask construction instead of using the operand or old target value as flags"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -154,11 +156,10 @@
     "entry": 6,
     "function": 1,
     "function_tag": 1,
-    "offset": 515,
-    "expression_offset": 98,
-    "opcode": 67,
-    "kind": "UnsupportedOpcode",
-    "instruction": "B_AND_LET_E after party-membership query support"
+    "offset": 624,
+    "opcode": null,
+    "kind": "Decode",
+    "instruction": "function boundary after selected-member AND assignment; valid termination is not yet established"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

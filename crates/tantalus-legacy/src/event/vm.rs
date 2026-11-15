@@ -1317,40 +1317,43 @@ impl EventVm {
                         target: None,
                     });
                 }
-                ExpressionOp::XorAssignMembers => {
+                ExpressionOp::AndAssignMembers | ExpressionOp::XorAssignMembers => {
                     if stack.len() < 3 {
                         return Err(expression_error(
                             offset,
                             opcode,
-                            "member XOR assignment requires target, mask, and value inputs",
+                            "member bitwise assignment requires target, mask, and value inputs",
                         ));
                     }
                     let Some(StackTarget::Member(member)) = stack[stack.len() - 3].target else {
                         return Err(expression_error(
                             offset,
                             opcode,
-                            "member XOR assignment target is not a selected member",
+                            "member bitwise assignment target is not a selected member",
                         ));
                     };
                     let mask = read_value(host, stack[stack.len() - 2], offset, opcode)?;
                     let operand = read_value(host, stack[stack.len() - 1], offset, opcode)?;
+                    let target = stack[stack.len() - 3];
                     let mut selected_values = 0i32;
                     for slot in 0..8 {
                         selected_values >>= 1;
                         if mask & (1 << slot) != 0 {
                             host.select_object_member_target(Some(slot))
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
-                            selected_values |= i32::from(operand != 0) << 7;
+                            selected_values |=
+                                i32::from(read_value(host, target, offset, opcode)? != 0) << 7;
                         }
                     }
                     let object = host
                         .select_object_member_target(None)
                         .map_err(|error| VmError::host(error, offset, opcode))?;
                     let reference = ObjectMemberRef { object, member };
-                    let value = host
-                        .read_object_member(reference)
-                        .map_err(|error| VmError::host(error, offset, opcode))?
-                        ^ selected_values;
+                    let value = match operation {
+                        ExpressionOp::AndAssignMembers => selected_values & operand,
+                        ExpressionOp::XorAssignMembers => selected_values ^ operand,
+                        _ => unreachable!(),
+                    };
                     host.write_object_member(reference, value)
                         .map_err(|error| VmError::host(error, offset, opcode))?;
                     stack.truncate(stack.len() - 3);
@@ -1865,7 +1868,8 @@ fn operand_start(
             let right = operand_start(operations, index, offset, opcode)?;
             operand_start(operations, right, offset, opcode)
         }
-        ExpressionOp::XorAssignMembers
+        ExpressionOp::AndAssignMembers
+        | ExpressionOp::XorAssignMembers
         | ExpressionOp::XorAssignAllMembers
         | ExpressionOp::AndAssignAllMembers
         | ExpressionOp::EqualMembers

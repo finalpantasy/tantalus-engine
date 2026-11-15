@@ -798,6 +798,7 @@ impl Decoder<'_> {
                 59 => ExpressionOp::ShiftRightAssignMembers,
                 64 => ExpressionOp::AndAssignAllMembers,
                 65 => ExpressionOp::XorAssignAllMembers,
+                67 => ExpressionOp::AndAssignMembers,
                 68 => ExpressionOp::XorAssignMembers,
                 70 => ExpressionOp::CastI8,
                 71 => ExpressionOp::CastU8,
