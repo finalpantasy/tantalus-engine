@@ -943,6 +943,39 @@ impl EventVm {
                         target: EntityId::new(target as u64),
                     });
                 }
+                InstructionKind::StartBattle {
+                    rush,
+                    group,
+                    battle,
+                } => {
+                    let rush = self.evaluate(host, &rush, instruction.offset, opcode)?;
+                    let group = match group {
+                        Some(group) => {
+                            Some(self.evaluate(host, &group, instruction.offset, opcode)?)
+                        }
+                        None => None,
+                    };
+                    let battle = self.evaluate(host, &battle, instruction.offset, opcode)?;
+                    self.pc = next;
+                    self.status = VmStatus::Completed;
+                    events.push(HostEvent::StartBattle {
+                        rush,
+                        group,
+                        battle: battle & 0x7fff,
+                        steiner_state: battle >> 15 & 1 != 0,
+                    });
+                }
+                InstructionKind::ChangeWorldMap { destination } => {
+                    let destination =
+                        self.evaluate(host, &destination, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    self.status = VmStatus::Completed;
+                    events.push(HostEvent::ChangeWorldMap { destination });
+                }
+                InstructionKind::SyncPartyUid => {
+                    self.pc = next;
+                    events.push(HostEvent::SyncPartyUid);
+                }
                 InstructionKind::AimAtCamera => {
                     self.pc = next;
                     events.push(HostEvent::AimAtCamera);
@@ -3013,6 +3046,32 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::CharacterStat(stat) => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing character-stat operand")
+                    })?;
+                    let character = read_value(host, value, offset, opcode)?;
+                    let result = host
+                        .read_character_stat(character, *stat)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    stack.push(StackValue {
+                        value: result,
+                        target: None,
+                    });
+                }
+                ExpressionOp::KeyState(state) => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing key-state operand")
+                    })?;
+                    let mask = read_value(host, value, offset, opcode)?;
+                    let inputs = host
+                        .read_key_state(*state)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    stack.push(StackValue {
+                        value: i32::from(mask & inputs != 0),
+                        target: None,
+                    });
+                }
                 ExpressionOp::KeyOn => {
                     let value = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing key-on operand")
@@ -3877,6 +3936,10 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::WalkActor { .. } => 0x23,
         InstructionKind::MoveActor { .. } => 0xbf,
         InstructionKind::AimAtCamera => 0xb8,
+        InstructionKind::StartBattle { group: None, .. } => 0x2a,
+        InstructionKind::StartBattle { group: Some(_), .. } => 0x8c,
+        InstructionKind::ChangeWorldMap { .. } => 0xb6,
+        InstructionKind::SyncPartyUid => 0xe9,
         InstructionKind::ExitField => 0x9e,
         InstructionKind::PlayJumpAnimation { landing: false } => 0x9c,
         InstructionKind::PlayJumpAnimation { landing: true } => 0x9d,
@@ -4163,6 +4226,8 @@ fn operand_start(
         | ExpressionOp::PartyAdd
         | ExpressionOp::SelectRandomMember
         | ExpressionOp::KeyOn
+        | ExpressionOp::KeyState(_)
+        | ExpressionOp::CharacterStat(_)
         | ExpressionOp::ConsumeAndZero
         | ExpressionOp::PreIncrement
         | ExpressionOp::PreDecrement

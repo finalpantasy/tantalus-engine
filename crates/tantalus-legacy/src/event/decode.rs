@@ -54,6 +54,10 @@ const OP_WAIT_WINDOW: u32 = 0x54;
 const OP_WALK_ACTOR: u32 = 0x23;
 const OP_MOVE_ACTOR: u32 = 0xbf;
 const OP_AIM_AT_CAMERA: u32 = 0xb8;
+const OP_START_BATTLE: u32 = 0x2a;
+const OP_START_BATTLE_GROUP: u32 = 0x8c;
+const OP_CHANGE_WORLD_MAP: u32 = 0xb6;
+const OP_SYNC_PARTY: u32 = 0xe9;
 const OP_EXIT_FIELD: u32 = 0x9e;
 const OP_PLAY_JUMP_ANIMATION: u32 = 0x9c;
 const OP_PLAY_LAND_ANIMATION: u32 = 0x9d;
@@ -741,6 +745,29 @@ impl Decoder<'_> {
                     target: self.operand(flags, 1, false)?,
                 }
             }
+            OP_START_BATTLE => {
+                let flags = self.byte()?;
+                InstructionKind::StartBattle {
+                    rush: self.operand(flags, 1, false)?,
+                    group: None,
+                    battle: self.operand(flags, 2, true)?,
+                }
+            }
+            OP_START_BATTLE_GROUP => {
+                let flags = self.byte()?;
+                InstructionKind::StartBattle {
+                    rush: self.operand(flags, 1, false)?,
+                    group: Some(self.operand(flags, 2, false)?),
+                    battle: self.operand(flags, 4, true)?,
+                }
+            }
+            OP_CHANGE_WORLD_MAP => {
+                let flags = self.byte()?;
+                InstructionKind::ChangeWorldMap {
+                    destination: self.operand(flags, 1, true)?,
+                }
+            }
+            OP_SYNC_PARTY => InstructionKind::SyncPartyUid,
             OP_AIM_AT_CAMERA => InstructionKind::AimAtCamera,
             OP_DEFINE_PLAYER_CONTROL => InstructionKind::DefinePlayerControl,
             OP_SET_CONTROL_DIRECTION => {
@@ -3100,6 +3127,11 @@ impl Decoder<'_> {
                 106 => ExpressionOp::AnimationFrame,
                 107 => ExpressionOp::PartyContains,
                 111 => ExpressionOp::CharacterMaxMp,
+                82 => ExpressionOp::CharacterStat(CharacterStat::CurrentHp),
+                83 => ExpressionOp::CharacterStat(CharacterStat::MaxHp),
+                110 => ExpressionOp::CharacterStat(CharacterStat::CurrentMp),
+                88 => ExpressionOp::KeyState(KeyState::Off),
+                89 => ExpressionOp::KeyState(KeyState::Held),
                 26 => ExpressionOp::LessOrEqual,
                 42 => ExpressionOp::ActiveBitCount,
                 112 => ExpressionOp::BgiCharacterTriangle,

@@ -32,9 +32,28 @@ pub struct VariableRef {
     pub index: u16,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CharacterStat {
+    CurrentHp,
+    MaxHp,
+    CurrentMp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KeyState {
+    Off,
+    Held,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExpressionOp {
+    /// `B_CURHP` 82, `B_MAXHP` 83 and `B_CURMP` 110: a party member's stat by character id.
+    CharacterStat(CharacterStat),
+    /// `B_KEYOFF` 88 and `B_KEY` 89: the mask intersected with a host input state.
+    KeyState(KeyState),
     Constant(i32),
     Variable(VariableRef),
     Negate,
@@ -273,6 +292,18 @@ pub enum InstructionKind {
         z: Expression,
     },
     AimAtCamera,
+    /// `ENCOUNT` 0x2A (`group: None`) and `ENCOUNT2` 0x8C: start a scripted battle.
+    StartBattle {
+        rush: Expression,
+        group: Option<Expression>,
+        battle: Expression,
+    },
+    /// `WMAPJUMP` 0xB6.
+    ChangeWorldMap {
+        destination: Expression,
+    },
+    /// `SYNCPARTY` 0xE9.
+    SyncPartyUid,
     /// `MOVQ` 0x9E: walk the controlled character to the field exit and flush the field.
     ExitField,
     /// `PREJUMP` 0x9C (`landing: false`) and `POSTJUMP` 0x9D (`landing: true`).
@@ -1035,6 +1066,16 @@ pub enum HostEvent {
         speed: i32,
     },
     AimAtCamera,
+    StartBattle {
+        rush: i32,
+        group: Option<i32>,
+        battle: i32,
+        steiner_state: bool,
+    },
+    ChangeWorldMap {
+        destination: i16,
+    },
+    SyncPartyUid,
     ExitField,
     PlayJumpAnimation {
         actor: EntityId,
@@ -1731,6 +1772,12 @@ pub trait LegacyEventHost {
     fn actor_jump_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn read_random_u8(&mut self) -> Result<u8, EngineError>;
     fn read_key_on(&mut self) -> Result<i32, EngineError>;
+    fn read_key_state(&mut self, state: KeyState) -> Result<i32, EngineError>;
+    fn read_character_stat(
+        &mut self,
+        character: i32,
+        stat: CharacterStat,
+    ) -> Result<i32, EngineError>;
     fn caller_request_acceptable(&mut self, level: i32) -> Result<bool, EngineError>;
     fn script_request_acceptable(
         &mut self,

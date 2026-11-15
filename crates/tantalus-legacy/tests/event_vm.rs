@@ -91,6 +91,8 @@ struct Host {
     jump_active: bool,
     random_u8: u8,
     key_on: i32,
+    key_off: i32,
+    key_held: i32,
     fail: bool,
 }
 
@@ -122,6 +124,8 @@ impl Host {
             jump_active: false,
             random_u8: 0,
             key_on: 0,
+            key_off: 0,
+            key_held: 0,
             fail: false,
         }
     }
@@ -177,6 +181,9 @@ impl LegacyEventHost for Host {
                 HostEvent::SetActorFacing { .. } => {}
                 HostEvent::StartActorTurn { .. } => {}
                 HostEvent::AimAtCamera => {}
+                HostEvent::StartBattle { .. } => {}
+                HostEvent::ChangeWorldMap { .. } => {}
+                HostEvent::SyncPartyUid => {}
                 HostEvent::ExitField => {}
                 HostEvent::PlayJumpAnimation { .. } => {}
                 HostEvent::DisableIdleAnimation => {}
@@ -517,6 +524,28 @@ impl LegacyEventHost for Host {
 
     fn read_random_u8(&mut self) -> Result<u8, EngineError> {
         Ok(self.random_u8)
+    }
+
+    fn read_key_state(&mut self, state: KeyState) -> Result<i32, EngineError> {
+        Ok(match state {
+            KeyState::Off => self.key_off,
+            KeyState::Held => self.key_held,
+        })
+    }
+
+    fn read_character_stat(
+        &mut self,
+        character: i32,
+        stat: CharacterStat,
+    ) -> Result<i32, EngineError> {
+        match (character, stat) {
+            (7, CharacterStat::CurrentHp) => Ok(412),
+            (7, CharacterStat::MaxHp) => Ok(900),
+            (7, CharacterStat::CurrentMp) => Ok(33),
+            _ => Err(Self::target_error(format!(
+                "unknown stat {stat:?} for character {character}"
+            ))),
+        }
     }
 
     fn read_key_on(&mut self) -> Result<i32, EngineError> {
@@ -4831,6 +4860,86 @@ fn path_floor_activation_and_pretend_to_be_decode_flag_bit_operands() {
             .message
             .contains("actor context")
     );
+}
+
+#[test]
+fn scripted_battles_and_world_map_jumps_complete_the_event_with_decoded_operands() {
+    let mut host = Host::new();
+
+    // ENCOUNT: rush byte, then a 16-bit word whose top bit is Steiner's state.
+    let program = decode_program(&[0x2a, 0, 7, 0x34, 0x92, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 5);
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::StartBattle {
+            rush: 7,
+            group: None,
+            battle: 0x1234,
+            steiner_state: true,
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    // ENCOUNT2 adds a group byte between the rush byte and the battle word.
+    let program = decode_program(&[0x8c, 0, 1, 2, 0x10, 0, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::StartBattle {
+            rush: 1,
+            group: Some(2),
+            battle: 16,
+            steiner_state: false,
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let program = decode_program(&[0xb6, 0, 0x2c, 0x01, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ChangeWorldMap { destination: 300 }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let program = decode_program(&[0xe9, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 1);
+    let mut vm = EventVm::new(program);
+    assert_eq!(
+        vm.step(Tick::new(0), &mut host).unwrap().events,
+        [HostEvent::SyncPartyUid]
+    );
+}
+
+#[test]
+fn character_stat_and_key_state_expressions_read_through_the_host() {
+    let mut host = Host::new();
+    host.key_off = 0b0100;
+    host.key_held = 0b0011;
+    for (opcode, operand, expected) in [
+        (82, 7, 412),
+        (83, 7, 900),
+        (110, 7, 33),
+        (88, 0b0100, 1),
+        (88, 0b0011, 0),
+        (89, 0b0010, 1),
+        (89, 0b1000, 0),
+    ] {
+        let result = variable(VariableScope::Global, VariableType::Int16, 31);
+        let expression = assign(result, binary(constant(operand), vec![], opcode));
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(
+            vm.variable(VariableScope::Global, 31),
+            expected,
+            "opcode {opcode} operand {operand}"
+        );
+    }
 }
 
 #[test]
