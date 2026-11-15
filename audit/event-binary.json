@@ -163,7 +163,8 @@
     "MAPJUMP 0x2B emits ChangeField with a signed 16-bit destination and completes the old VM before later old-scene effects",
     "JMP_SWITCHEX 0x06 supports explicit nonconsecutive 16-bit cases, first-match/default selection, and its fixed post-header branch anchor",
     "B_MULT_LET 47 multiplies variable/member targets, normalizes variable storage, and returns the raw arithmetic result",
-    "B_ANGLE 93 subtracts the current actor position and uses source-compatible fixed-point output; shared angle scaling is corrected to a right shift by four"
+    "B_ANGLE 93 subtracts the current actor position and uses source-compatible fixed-point output; shared angle scaling is corrected to a right shift by four",
+    "REPLYSW 0x18 waits for caller acceptance and emits one RequestCallerAsync before continuing"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -258,10 +259,10 @@
     "entry": 13,
     "function": 0,
     "function_tag": 0,
-    "offset": 291,
-    "opcode": 24,
+    "offset": 297,
+    "opcode": 18,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x18 after coordinate-angle and fixed-point scaling support"
+    "instruction": "REQSW event opcode 0x12 after caller-readiness wait support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

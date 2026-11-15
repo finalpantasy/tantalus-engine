@@ -70,6 +70,7 @@ const OP_PRESERVE_AND_HIDE_ALL: u32 = 0xd5;
 const OP_RESTORE_ALL_VISIBILITY: u32 = 0xd6;
 const OP_SET_TIMER_RUNNING: u32 = 0x7d;
 const OP_REQUEST_CALLER_ASYNC: u32 = 0x16;
+const OP_REQUEST_CALLER_WHEN_READY: u32 = 0x18;
 const OP_CALCULATE_EXIT_POSITION: u32 = 0xa4;
 const OP_CHANGE_FIELD: u32 = 0x2b;
 const OP_REQUEST_CALLER_SYNC: u32 = 0x14;
@@ -880,6 +881,21 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::RequestCallerAsync {
+                    level,
+                    tag: self.byte()?,
+                }
+            }
+            OP_REQUEST_CALLER_WHEN_READY => {
+                let flags = self.byte()?;
+                let level = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::RequestCallerWhenReady {
                     level,
                     tag: self.byte()?,
                 }

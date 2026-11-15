@@ -158,6 +158,10 @@ impl LegacyEventHost for Host {
         ))
     }
 
+    fn caller_request_acceptable(&mut self, _level: i32) -> Result<bool, EngineError> {
+        Ok(false)
+    }
+
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,

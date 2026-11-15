@@ -73,6 +73,7 @@ struct Host {
     object_members: BTreeMap<ObjectMemberRef, i32>,
     member_writes: Vec<(ObjectMemberRef, i32)>,
     script_request_complete: bool,
+    caller_request_acceptable: bool,
     object_uids: BTreeMap<i32, EntityId>,
     object_positions: BTreeMap<EntityId, [f32; 3]>,
     item_counts: BTreeMap<i32, i32>,
@@ -94,6 +95,7 @@ impl Host {
             object_members: BTreeMap::new(),
             member_writes: Vec::new(),
             script_request_complete: false,
+            caller_request_acceptable: false,
             object_uids: BTreeMap::new(),
             object_positions: BTreeMap::new(),
             item_counts: BTreeMap::new(),
@@ -305,6 +307,10 @@ impl LegacyEventHost for Host {
 
     fn read_key_on(&mut self) -> Result<i32, EngineError> {
         Ok(self.key_on)
+    }
+
+    fn caller_request_acceptable(&mut self, _level: i32) -> Result<bool, EngineError> {
+        Ok(self.caller_request_acceptable)
     }
 
     fn script_request_is_complete(&mut self, _entity: EntityId) -> Result<bool, EngineError> {
@@ -3432,6 +3438,45 @@ fn reply_emits_a_caller_targeted_async_request() {
         [HostEvent::RequestCallerAsync { level: 2, tag: 11 }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn replysw_waits_for_caller_acceptance_and_requests_once() {
+    let program = decode_program(&[24, 0, 2, 11, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Waiting);
+    assert!(report.events.is_empty());
+    assert_eq!(vm.pc(), 0);
+    assert_eq!(
+        vm.wait_state(),
+        Some(WaitState::CallerRequest { level: 2, tag: 11 })
+    );
+    assert!(vm.step(Tick::new(1), &mut host).unwrap().events.is_empty());
+
+    host.caller_request_acceptable = true;
+    let report = vm.step(Tick::new(2), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RequestCallerAsync { level: 2, tag: 11 }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+    assert!(vm.step(Tick::new(3), &mut host).unwrap().events.is_empty());
+
+    let mut bytes = vec![24, 1];
+    append_expression(&mut bytes, constant(3));
+    bytes.extend_from_slice(&[12, 4]);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RequestCallerAsync { level: 3, tag: 12 }]
+    );
+
+    assert!(decode_program(&[24, 0, 2]).is_err());
 }
 
 #[test]

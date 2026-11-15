@@ -110,6 +110,17 @@ impl EventVm {
                     self.wait = None;
                     self.status = VmStatus::Running;
                 }
+                WaitState::CallerRequest { level, .. } => {
+                    self.status = VmStatus::Waiting;
+                    if !host
+                        .caller_request_acceptable(level)
+                        .map_err(|error| VmError::host(error, self.pc, 0x18))?
+                    {
+                        return Ok(self.report(tick, 0, Vec::new()));
+                    }
+                    self.wait = None;
+                    self.status = VmStatus::Running;
+                }
                 WaitState::ScriptRequest => {
                     self.status = VmStatus::Waiting;
                     let Some(entity) = self.entity else {
@@ -791,6 +802,19 @@ impl EventVm {
                     let level = self.evaluate(host, &level, instruction.offset, opcode)?;
                     self.pc = next;
                     events.push(HostEvent::RequestCallerAsync { level, tag });
+                }
+                InstructionKind::RequestCallerWhenReady { level, tag } => {
+                    let level = self.evaluate(host, &level, instruction.offset, opcode)?;
+                    if host
+                        .caller_request_acceptable(level)
+                        .map_err(|error| VmError::host(error, instruction.offset, opcode))?
+                    {
+                        self.pc = next;
+                        events.push(HostEvent::RequestCallerAsync { level, tag });
+                    } else {
+                        self.wait = Some(WaitState::CallerRequest { level, tag });
+                        self.status = VmStatus::Waiting;
+                    }
                 }
                 InstructionKind::CalculateExitPosition => {
                     self.pc = next;
@@ -2070,6 +2094,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::RestoreAllVisibility => 0xd6,
         InstructionKind::SetTimerRunning(_) => 0x7d,
         InstructionKind::RequestCallerAsync { .. } => 0x16,
+        InstructionKind::RequestCallerWhenReady { .. } => 0x18,
         InstructionKind::CalculateExitPosition => 0xa4,
         InstructionKind::ChangeField { .. } => 0x2b,
         InstructionKind::RequestCallerSync { .. } => 0x14,
