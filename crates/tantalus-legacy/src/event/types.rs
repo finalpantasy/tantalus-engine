@@ -151,6 +151,7 @@ pub enum InstructionKind {
         z: Expression,
     },
     SetNavigationAttributeMask(Expression),
+    Yield,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

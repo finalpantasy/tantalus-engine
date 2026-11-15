@@ -25,6 +25,7 @@ const OP_SET_TRIANGLE_ACTIVE: u8 = 0x9a;
 const OP_RUN_SOUND: u8 = 0xc5;
 const OP_ATTACH_OBJECT_OFFSET: u8 = 0xd4;
 const OP_SET_NAVIGATION_ATTRIBUTE_MASK: u8 = 0x27;
+const OP_YIELD: u8 = 0x0e;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -221,6 +222,10 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::SetNavigationAttributeMask(mask)
+            }
+            OP_YIELD => {
+                self.byte()?;
+                InstructionKind::Yield
             }
             _ => {
                 return Err(VmError::new(

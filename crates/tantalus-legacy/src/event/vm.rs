@@ -131,7 +131,7 @@ impl EventVm {
             let next = instruction.next_offset();
 
             match instruction.kind {
-                InstructionKind::Nop => {
+                InstructionKind::Nop | InstructionKind::Yield => {
                     self.pc = next;
                     break;
                 }
@@ -887,6 +887,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::RunSound { .. } => 0xc5,
         InstructionKind::AttachObjectOffset { .. } => 0xd4,
         InstructionKind::SetNavigationAttributeMask(_) => 0x27,
+        InstructionKind::Yield => 0x0e,
     }
 }
 

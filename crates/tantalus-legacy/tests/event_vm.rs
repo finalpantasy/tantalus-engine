@@ -1170,3 +1170,21 @@ fn angle2_uses_the_reference_quadrants_and_atan_table() {
         );
     }
 }
+
+#[test]
+fn pad0e_consumes_its_flag_and_yields_before_continuing() {
+    let program = decode_program(&[14, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].kind, InstructionKind::Yield);
+    assert_eq!(program.instructions[&0].length, 2);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Running);
+    assert_eq!(vm.pc(), 2);
+    assert!(report.events.is_empty());
+    assert_eq!(
+        vm.step(Tick::new(1), &mut host).unwrap().status,
+        VmStatus::Completed
+    );
+}
