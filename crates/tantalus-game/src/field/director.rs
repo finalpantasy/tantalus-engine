@@ -33,6 +33,9 @@ pub struct DirectorStep {
     pub encounters: Vec<EncounterRequest>,
     /// Script requests emitted this tick (REQ/REQEW/REQSW family).
     pub requests: Vec<RequestedScript>,
+    /// Objects whose talk radius contains the player while the configured
+    /// confirm mask is held. The caller decides which function to spawn.
+    pub talk_triggers: Vec<EntityId>,
 }
 
 #[derive(Debug)]
@@ -93,9 +96,15 @@ impl FieldDirector {
     }
 
     /// Designate the player-controlled actor for host-side interaction
-    /// checks (talk proximity and confirm, once those land).
+    /// checks (talk proximity and confirm).
     pub fn set_player(&mut self, actor: EntityId) {
         self.world.set_player(actor);
+    }
+
+    /// Configure the confirm-button bit that arms talk triggers; `None`
+    /// disables detection until the caller knows the pad layout.
+    pub fn set_confirm_mask(&mut self, mask: Option<i32>) {
+        self.world.set_confirm_mask(mask);
     }
 
     /// Observed per-entry VM state (entity, pc, status, wait).
@@ -170,6 +179,12 @@ impl FieldDirector {
                 _ => None,
             })
             .collect();
+        let talk_triggers = match (self.world.player(), self.world.confirm_mask()) {
+            (Some(player), Some(mask)) if self.world.input_mask() & mask != 0 => {
+                self.world.talkable_from(player)
+            }
+            _ => Vec::new(),
+        };
         Ok(DirectorStep {
             tick,
             operations,
@@ -180,6 +195,7 @@ impl FieldDirector {
                 .collect(),
             encounters: self.world.take_encounters(),
             requests,
+            talk_triggers,
         })
     }
 

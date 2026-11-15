@@ -208,6 +208,11 @@ impl LegacyEventHost for FieldHost<'_> {
                     let state = self.actor_mut(*object, "set object flags")?;
                     state.flags = i32::from(*flags);
                 }
+                HostEvent::SetActorRadii {
+                    actor, talk_radius, ..
+                } => {
+                    self.world.set_talk_radius(*actor, *talk_radius);
+                }
                 HostEvent::SetupJump {
                     actor,
                     x,

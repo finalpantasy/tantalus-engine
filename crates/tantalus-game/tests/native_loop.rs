@@ -214,3 +214,35 @@ fn player_input_injection_reaches_host_key_queries() {
         assert_eq!(host.read_key_on().unwrap(), 0);
     }
 }
+
+#[test]
+fn talk_triggers_fire_when_player_confirms_within_talk_radius() {
+    let mut director = FieldDirector::new(FieldWorld::new());
+    director.world_mut().add_actor(EntityId::new(1), [0.0; 3]);
+    director
+        .world_mut()
+        .add_actor(EntityId::new(2), [30.0, 0.0, 40.0]);
+    director.world_mut().set_talk_radius(EntityId::new(2), 50);
+    director.set_player(EntityId::new(1));
+
+    // No confirm mask configured: detection stays disabled.
+    director.set_input_mask(0x20);
+    let step = director.step().unwrap();
+    assert!(step.talk_triggers.is_empty());
+
+    // Confirm armed but not pressed.
+    director.set_confirm_mask(Some(0x20));
+    director.set_input_mask(0);
+    let step = director.step().unwrap();
+    assert!(step.talk_triggers.is_empty());
+
+    // Confirm pressed within range: the object reports a trigger.
+    director.set_input_mask(0x20);
+    let step = director.step().unwrap();
+    assert_eq!(step.talk_triggers, [EntityId::new(2)]);
+
+    // Out of range: the radius excludes the object.
+    director.world_mut().set_talk_radius(EntityId::new(2), 10);
+    let step = director.step().unwrap();
+    assert!(step.talk_triggers.is_empty());
+}

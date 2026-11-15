@@ -38,6 +38,7 @@ pub struct ActorState {
     pub turn: Option<Turn>,
     pub animation_frames: u16,
     pub animation_frame: u16,
+    pub talk_radius: u8,
     pub facing: i16,
     pub flags: i32,
     pub level: i32,
@@ -53,6 +54,7 @@ impl ActorState {
             turn: None,
             animation_frames: 0,
             animation_frame: 0,
+            talk_radius: 0,
             facing: 0,
             flags: 0,
             level: 0,
@@ -133,6 +135,9 @@ pub struct FieldWorld {
     current_actor: Option<EntityId>,
     /// The player-controlled actor, once the caller designates one.
     player: Option<EntityId>,
+    /// Confirm-button bit for talk triggers; none disables detection until
+    /// the caller configures the pad layout.
+    confirm_mask: Option<i32>,
 }
 
 impl Default for FieldWorld {
@@ -176,6 +181,7 @@ impl FieldWorld {
             navigation: None,
             current_actor: None,
             player: None,
+            confirm_mask: None,
         }
     }
 
@@ -197,6 +203,38 @@ impl FieldWorld {
 
     pub fn player(&self) -> Option<EntityId> {
         self.player
+    }
+
+    pub fn set_confirm_mask(&mut self, mask: Option<i32>) {
+        self.confirm_mask = mask;
+    }
+
+    pub fn confirm_mask(&self) -> Option<i32> {
+        self.confirm_mask
+    }
+
+    pub fn set_talk_radius(&mut self, actor: EntityId, radius: u8) {
+        if let Some(state) = self.actors.get_mut(&actor) {
+            state.talk_radius = radius;
+        }
+    }
+
+    /// Objects whose talk radius contains the player while confirm is held.
+    pub(crate) fn talkable_from(&self, player: EntityId) -> Vec<EntityId> {
+        let Some(position) = self.actors.get(&player).map(|state| state.position) else {
+            return Vec::new();
+        };
+        self.actors
+            .iter()
+            .filter(|(entity, state)| {
+                **entity != player && state.talk_radius > 0 && {
+                    let dx = f64::from(state.position[0] - position[0]);
+                    let dz = f64::from(state.position[2] - position[2]);
+                    (dx * dx + dz * dz).sqrt() <= f64::from(state.talk_radius)
+                }
+            })
+            .map(|(entity, _)| *entity)
+            .collect()
     }
 
     pub fn input_mask(&self) -> i32 {
