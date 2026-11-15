@@ -1066,8 +1066,14 @@ impl EventVm {
                         None => None,
                     };
                     let battle = self.evaluate(host, &battle, instruction.offset, opcode)?;
+                    // ENCOUNT/ENCOUNT2 return FLOW_STATE_JUMP_BATTLE: the event
+                    // loop halts with ip past the opcode (EBin.EntryLoopDone),
+                    // and the object resumes there on the first field frame
+                    // after the battle. Yield one frame; the caller does not
+                    // step the field while the battle runs.
                     self.pc = next;
-                    self.status = VmStatus::Completed;
+                    self.wait = Some(WaitState::Frames(0));
+                    self.status = VmStatus::Waiting;
                     events.push(HostEvent::StartBattle {
                         rush,
                         group,

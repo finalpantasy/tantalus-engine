@@ -57,7 +57,9 @@ fn field_encounter_runs_a_battle_and_commits_rewards_exactly_once() {
     {
         let mut host = FieldHost::new(&mut world);
         let steps = scene.step(Tick::new(0), &mut host).unwrap();
-        assert_eq!(steps[0].report.status, VmStatus::Completed);
+        // The battle jump halts the script past the opcode; it resumes on the
+        // next field frame after the battle.
+        assert_eq!(steps[0].report.status, VmStatus::Waiting);
     }
 
     let encounters = world.take_encounters();

@@ -12,7 +12,7 @@
 //! map-number-to-archive table is read at run time from the pinned Memoria
 //! source file; it is not copied into this repository.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -30,7 +30,7 @@ fn main() -> ExitCode {
 }
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--character-data <Data/Characters dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--character-data <Data/Characters dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -44,6 +44,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut max_fields = 12usize;
     let mut ticks = 4000u64;
     let mut confirm_after = 0u64;
+    let mut explore = false;
     let mut character_data: Option<PathBuf> = None;
     while let Some(flag) = iter.next() {
         let mut value = || {
@@ -60,6 +61,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
             "--max-fields" => max_fields = parse_number(&value()?, "--max-fields")?,
             "--ticks" => ticks = parse_number(&value()?, "--ticks")?,
             "--character-data" => character_data = Some(PathBuf::from(value()?)),
+            "--explore" => explore = true,
             "--confirm-after" => confirm_after = parse_number(&value()?, "--confirm-after")?,
             other => return Err(format!("unrecognized argument `{other}`\n{USAGE}")),
         }
@@ -106,6 +108,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     max_fields,
                     ticks,
                     confirm_after,
+                    explore,
                     stats,
                 },
             )
@@ -279,11 +282,32 @@ fn nonzero(bytes: &[u8]) -> BTreeMap<usize, u8> {
         .collect()
 }
 
+/// `EventInput.Confirm`.
+const CONFIRM: i32 = 0x20000;
+const CONFIRM_PERIOD: u64 = 15;
+/// Ticks the scripted player stays in one region before moving on.
+const REGION_DWELL: u64 = 120;
+
+/// Entity `register` uses for an entry's function with `tag`.
+fn function_entity(pool: &Pool, entry: usize, tag: u16) -> Option<EntityId> {
+    let position = pool[entry].iter().position(|(t, _)| *t == tag)?;
+    Some(EntityId::new(entry as u64 * 256 + position as u64))
+}
+
+fn centroid(vertices: &[[i16; 2]]) -> [f32; 2] {
+    let n = vertices.len().max(1) as f32;
+    let (x, z) = vertices.iter().fold((0.0, 0.0), |(x, z), [vx, vz]| {
+        (x + f32::from(*vx), z + f32::from(*vz))
+    });
+    [x / n, z / n]
+}
+
 struct ChainOptions {
     start: i32,
     max_fields: usize,
     ticks: u64,
     confirm_after: u64,
+    explore: bool,
     stats: BTreeMap<i32, tantalus_game::field::CharacterStats>,
 }
 
@@ -298,6 +322,7 @@ fn chain(
         max_fields,
         ticks,
         confirm_after,
+        explore,
         stats,
     } = options;
     let mut world = tantalus_game::FieldWorld::new();
@@ -356,6 +381,17 @@ fn chain(
         // is closed as if confirm were pressed (0 disables).
         let mut open_since: BTreeMap<u8, u64> = BTreeMap::new();
         let mut confirms = 0usize;
+        // Scripted player (--explore): while user control is on, step the
+        // controlled actor into each region that has a tag-2 function, run
+        // that function once (the reference `Request(quad, 1, 2)` from
+        // `EventCollision.CollisionRequest`), and press Confirm every
+        // CONFIRM_PERIOD ticks. Placing the actor at the region centroid
+        // stands in for walking there.
+        let mut triggered: BTreeSet<usize> = BTreeSet::new();
+        let mut region_triggers = 0usize;
+        let mut dwell_ticks: BTreeMap<usize, u64> = BTreeMap::new();
+        let mut presses = 0usize;
+        let mut pressed = false;
         let mut operations = 0u64;
         let mut ticks_run = 0u64;
         let mut error = None;
@@ -363,12 +399,16 @@ fn chain(
         let mut spawned: Vec<(EntityId, u64)> = Vec::new();
         let mut unspawned = 0usize;
         let mut encounters = 0usize;
+        let mut battles: Vec<i32> = Vec::new();
         while ticks_run < ticks {
             match director.step() {
                 Ok(step) => {
                     ticks_run += 1;
                     operations += step.operations;
                     encounters += step.encounters.len();
+                    // No battle engine yet: each scripted battle is skipped
+                    // and the field resumes on the next tick, as after a win.
+                    battles.extend(step.encounters.iter().map(|request| request.battle));
                     for request in &step.requests {
                         let target = request.target.get() as usize;
                         if target >= pool.len() {
@@ -437,6 +477,77 @@ fn chain(
                     }
                 }
             }
+            if explore {
+                if pressed {
+                    director.world_mut().set_input(0);
+                    pressed = false;
+                }
+                let world = director.world();
+                let controlled = world
+                    .user_control
+                    .then_some(world.control_actor)
+                    .flatten()
+                    .and_then(|actor| Some((actor, world.actors.get(&actor)?.position)));
+                if let Some((actor, position)) = controlled {
+                    let has_tag2 = |region: &EntityId| {
+                        let entry = (region.get() / 256) as usize;
+                        entry < pool.len() && pool[entry].iter().any(|(tag, _)| *tag == 2)
+                    };
+                    let hit = tantalus_game::field::region::regions_at(
+                        &world.regions,
+                        position[0],
+                        position[2],
+                    )
+                    .into_iter()
+                    .find(|region| {
+                        has_tag2(region) && !triggered.contains(&((region.get() / 256) as usize))
+                    })
+                    .map(|region| (region.get() / 256) as usize);
+                    let next = world
+                        .regions
+                        .iter()
+                        .find(|(region, _)| {
+                            has_tag2(region)
+                                && !triggered.contains(&((region.get() / 256) as usize))
+                        })
+                        .map(|(_, region)| centroid(&region.vertices));
+                    match hit {
+                        Some(entry) => {
+                            // Request(quad, 1, 2) every frame while inside: rerun
+                            // the region function once the previous run finished.
+                            let entity = function_entity(&pool, entry, 2);
+                            let finished =
+                                director.entry_states().iter().any(|(e, _, status, _)| {
+                                    Some(*e) == entity && *status == VmStatus::Completed
+                                });
+                            if finished {
+                                director.remove_entry(entity.expect("tag-2 function exists"));
+                            }
+                            if register(&mut director, &pool, entry, Some(2))?.is_some() {
+                                region_triggers += 1;
+                            }
+                            let dwell = dwell_ticks.entry(entry).or_insert(0);
+                            *dwell += 1;
+                            if *dwell >= REGION_DWELL {
+                                triggered.insert(entry);
+                            }
+                        }
+                        None => {
+                            if let (Some([x, z]), Some(state)) =
+                                (next, director.world_mut().actors.get_mut(&actor))
+                            {
+                                state.position = [x, state.position[1], z];
+                                state.movement = None;
+                            }
+                        }
+                    }
+                    if ticks_run.is_multiple_of(CONFIRM_PERIOD) {
+                        director.world_mut().set_input(CONFIRM);
+                        pressed = true;
+                        presses += 1;
+                    }
+                }
+            }
             let transitions = director.world_mut().take_field_transitions();
             if let Some(next) = transitions.first() {
                 transition = Some(i32::from(*next));
@@ -461,6 +572,9 @@ fn chain(
                 "map_memory": nonzero(director.world().map_memory.bytes()),
                 "global_memory": nonzero(director.world().global_memory.bytes()),
                 "confirms": confirms,
+                "battles_skipped": battles,
+                "region_triggers": region_triggers,
+                "confirm_presses": presses,
                 "vms": states.len(),
                 "spawned_pending": spawned.len(),
                 "unspawned_requests": unspawned,

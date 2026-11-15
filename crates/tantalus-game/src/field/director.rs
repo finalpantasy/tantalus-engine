@@ -101,6 +101,14 @@ impl FieldDirector {
         self.world.set_player(actor);
     }
 
+    /// Remove an entry and its program source; returns whether it existed.
+    /// Callers re-add it to run the function again from its start, as the
+    /// reference does for per-frame region requests.
+    pub fn remove_entry(&mut self, entity: EntityId) -> bool {
+        self.program_sources.remove(&entity);
+        self.scene.remove_entry(entity).is_some()
+    }
+
     /// Configure the confirm-button bit that arms talk triggers; `None`
     /// disables detection until the caller knows the pad layout.
     pub fn set_confirm_mask(&mut self, mask: Option<i32>) {
