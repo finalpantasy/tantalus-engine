@@ -41,6 +41,7 @@ pub enum ExpressionOp {
     Not,
     Complement,
     Sine,
+    SineUnshifted,
     Cosine,
     Add,
     Subtract,

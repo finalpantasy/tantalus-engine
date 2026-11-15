@@ -1373,6 +1373,17 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::SineUnshifted => {
+                    let angle = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing unshifted sine operand")
+                    })?;
+                    let angle = read_value(host, angle, offset, opcode)?;
+                    let radians = angle as f32 / 4096.0 * 360.0 * 0.017_453_292;
+                    stack.push(StackValue {
+                        value: (radians.sin() * 4096.0) as i32,
+                        target: None,
+                    });
+                }
                 ExpressionOp::Cosine => {
                     let angle = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing cosine operand")
@@ -2446,6 +2457,7 @@ fn operand_start(
         | ExpressionOp::Not
         | ExpressionOp::Complement
         | ExpressionOp::Sine
+        | ExpressionOp::SineUnshifted
         | ExpressionOp::Cosine
         | ExpressionOp::AngleToObject
         | ExpressionOp::DistanceToObject

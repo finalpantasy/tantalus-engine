@@ -1375,6 +1375,7 @@ impl Decoder<'_> {
                 73 => ExpressionOp::CastU16,
                 74 => ExpressionOp::CastList,
                 79 => ExpressionOp::KeyOn,
+                80 => ExpressionOp::SineUnshifted,
                 81 => ExpressionOp::Cosine,
                 84 => ExpressionOp::AndMembers,
                 85 => ExpressionOp::NandMembers,
