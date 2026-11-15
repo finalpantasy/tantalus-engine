@@ -51,6 +51,7 @@ pub enum ExpressionOp {
     Assign,
     PostIncrementMembers,
     PostDecrement,
+    ReadObjectMember(ObjectMemberRef),
     Pad,
     End,
 }
@@ -219,7 +220,14 @@ impl Display for VmError {
 
 impl Error for VmError {}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct ObjectMemberRef {
+    pub object: EntityId,
+    pub member: u8,
+}
+
 pub trait LegacyEventHost {
     fn apply(&mut self, events: &[HostEvent]) -> Result<(), EngineError>;
     fn window_is_open(&self, window: u8) -> bool;
+    fn read_object_member(&mut self, reference: ObjectMemberRef) -> Result<i32, EngineError>;
 }

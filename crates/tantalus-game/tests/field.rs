@@ -34,6 +34,18 @@ impl LegacyEventHost for Host {
     fn window_is_open(&self, _window: u8) -> bool {
         false
     }
+
+    fn read_object_member(
+        &mut self,
+        _reference: tantalus_legacy::ObjectMemberRef,
+    ) -> Result<i32, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            "field fixture has no object members",
+            "fixture-host",
+            true,
+        ))
+    }
 }
 
 #[test]

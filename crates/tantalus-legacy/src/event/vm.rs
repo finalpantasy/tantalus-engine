@@ -143,7 +143,7 @@ impl EventVm {
                     relative,
                 } => {
                     let target = jump_target(&instruction, relative)?;
-                    let value = self.evaluate(condition, instruction.offset, opcode)?;
+                    let value = self.evaluate(host, condition, instruction.offset, opcode)?;
                     self.pc = if value == 0 { target } else { next };
                 }
                 InstructionKind::JumpIf {
@@ -151,18 +151,18 @@ impl EventVm {
                     relative,
                 } => {
                     let target = jump_target(&instruction, relative)?;
-                    let value = self.evaluate(condition, instruction.offset, opcode)?;
+                    let value = self.evaluate(host, condition, instruction.offset, opcode)?;
                     self.pc = if value != 0 { target } else { next };
                 }
                 InstructionKind::Evaluate(expression) => {
-                    self.evaluate(&expression, instruction.offset, opcode)?;
+                    self.evaluate(host, &expression, instruction.offset, opcode)?;
                     self.pc = next;
                 }
                 InstructionKind::Return => {
                     self.status = VmStatus::Completed;
                 }
                 InstructionKind::Wait(expression) => {
-                    let frames = self.evaluate(&expression, instruction.offset, opcode)?;
+                    let frames = self.evaluate(host, &expression, instruction.offset, opcode)?;
                     self.pc = next;
                     if frames <= 0 {
                         continue;
@@ -181,9 +181,9 @@ impl EventVm {
                     flags,
                     text,
                 } => {
-                    let window = self.evaluate_u8(&window, instruction.offset, opcode)?;
-                    let flags = self.evaluate_u8(&flags, instruction.offset, opcode)?;
-                    let text = self.evaluate_u16(&text, instruction.offset, opcode)?;
+                    let window = self.evaluate_u8(host, &window, instruction.offset, opcode)?;
+                    let flags = self.evaluate_u8(host, &flags, instruction.offset, opcode)?;
+                    let text = self.evaluate_u16(host, &text, instruction.offset, opcode)?;
                     self.pc = next;
                     events.push(HostEvent::ShowWindow {
                         window,
@@ -196,13 +196,13 @@ impl EventVm {
                     }
                 }
                 InstructionKind::WaitWindow(window) => {
-                    let window = self.evaluate_u8(&window, instruction.offset, opcode)?;
+                    let window = self.evaluate_u8(host, &window, instruction.offset, opcode)?;
                     self.pc = next;
                     self.wait = Some(WaitState::Window(window));
                     self.status = VmStatus::Waiting;
                 }
                 InstructionKind::CloseWindow(window) => {
-                    let window = self.evaluate_u8(&window, instruction.offset, opcode)?;
+                    let window = self.evaluate_u8(host, &window, instruction.offset, opcode)?;
                     self.pc = next;
                     events.push(HostEvent::CloseWindow { window });
                 }
@@ -223,9 +223,9 @@ impl EventVm {
                     events.push(HostEvent::AimAtCamera);
                 }
                 InstructionKind::MoveActor { actor, x, z } => {
-                    let actor = self.evaluate(&actor, instruction.offset, opcode)?;
-                    let x = self.evaluate(&x, instruction.offset, opcode)?;
-                    let z = self.evaluate(&z, instruction.offset, opcode)?;
+                    let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)?;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)?;
                     if actor < 0 {
                         return Err(VmError::new(
                             VmErrorKind::InvalidExpression,
@@ -253,6 +253,7 @@ impl EventVm {
 
     fn evaluate(
         &mut self,
+        host: &mut dyn LegacyEventHost,
         expression: &Expression,
         offset: u32,
         opcode: u8,
@@ -372,6 +373,15 @@ impl EventVm {
                         variable: None,
                     });
                 }
+                ExpressionOp::ReadObjectMember(reference) => {
+                    let value = host
+                        .read_object_member(*reference)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    stack.push(StackValue {
+                        value,
+                        variable: None,
+                    });
+                }
                 ExpressionOp::Pad => stack.push(StackValue {
                     value: 0,
                     variable: None,
@@ -401,11 +411,12 @@ impl EventVm {
 
     fn evaluate_u8(
         &mut self,
+        host: &mut dyn LegacyEventHost,
         expression: &Expression,
         offset: u32,
         opcode: u8,
     ) -> Result<u8, VmError> {
-        let value = self.evaluate(expression, offset, opcode)?;
+        let value = self.evaluate(host, expression, offset, opcode)?;
         if !(0..=u8::MAX.into()).contains(&value) {
             return Err(expression_error(offset, opcode, "value does not fit in u8"));
         }
@@ -414,11 +425,12 @@ impl EventVm {
 
     fn evaluate_u16(
         &mut self,
+        host: &mut dyn LegacyEventHost,
         expression: &Expression,
         offset: u32,
         opcode: u8,
     ) -> Result<u16, VmError> {
-        let value = self.evaluate(expression, offset, opcode)?;
+        let value = self.evaluate(host, expression, offset, opcode)?;
         if !(0..=u16::MAX.into()).contains(&value) {
             return Err(expression_error(
                 offset,

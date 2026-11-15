@@ -1,5 +1,6 @@
 use super::*;
 use std::collections::BTreeMap;
+use tantalus_contracts::EntityId;
 
 const OP_NOP: u8 = 0x00;
 const OP_JUMP: u8 = 0x01;
@@ -155,6 +156,10 @@ impl Decoder<'_> {
                 EXPR_EQUAL => ExpressionOp::Equal,
                 EXPR_NOT_EQUAL => ExpressionOp::NotEqual,
                 EXPR_ASSIGN => ExpressionOp::Assign,
+                120 => ExpressionOp::ReadObjectMember(ObjectMemberRef {
+                    object: EntityId::new(self.byte()? as u64),
+                    member: self.byte()?,
+                }),
                 EXPR_END => {
                     operations.push(ExpressionOp::End);
                     break;

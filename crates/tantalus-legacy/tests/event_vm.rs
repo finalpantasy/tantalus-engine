@@ -112,6 +112,10 @@ impl LegacyEventHost for Host {
     fn window_is_open(&self, window: u8) -> bool {
         self.windows.get(&window).copied().unwrap_or(false)
     }
+
+    fn read_object_member(&mut self, reference: ObjectMemberRef) -> Result<i32, EngineError> {
+        Ok(((reference.object.get() as i32) << 8) | reference.member as i32)
+    }
 }
 
 #[test]
@@ -381,4 +385,26 @@ fn player_control_uses_the_current_entity_when_available() {
         }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn direct_object_member_reads_use_object_and_member_identity() {
+    let target = variable(VariableScope::Global, VariableType::Int16, 9);
+    let read = vec![120, 42, 7];
+    let program = decode_program(&[evaluate(assign(target, read)), vec![4]].concat()).unwrap();
+    let InstructionKind::Evaluate(expression) = &program.instructions[&0].kind else {
+        panic!("expected expression");
+    };
+    assert!(expression.0.iter().any(|operation| {
+        matches!(
+            operation,
+            ExpressionOp::ReadObjectMember(ObjectMemberRef { object, member: 7 })
+                if object.get() == 42
+        )
+    }));
+
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 9), (42 << 8) | 7);
 }
