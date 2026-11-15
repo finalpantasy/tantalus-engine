@@ -894,6 +894,24 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetCharacterRow { character, row });
                 }
+                InstructionKind::SetActorPitchRoll { pitch, roll } => {
+                    let pitch = self
+                        .evaluate(host, &pitch, instruction.offset, opcode)?
+                        .wrapping_shl(4) as i16;
+                    let roll = self
+                        .evaluate(host, &roll, instruction.offset, opcode)?
+                        .wrapping_shl(4) as i16;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "pitch/roll requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetActorPitchRoll { actor, pitch, roll });
+                }
                 InstructionKind::AttachTile {
                     overlay,
                     x,
@@ -1873,6 +1891,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::MoveTile { .. } => 0x5a,
         InstructionKind::SetCameraBounds { .. } => 0x1e,
         InstructionKind::SetCharacterRow { .. } => 0x61,
+        InstructionKind::SetActorPitchRoll { .. } => 0x37,
         InstructionKind::AttachTile { .. } => 0x92,
     }
 }

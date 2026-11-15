@@ -313,6 +313,10 @@ pub enum InstructionKind {
         character: Expression,
         row: Expression,
     },
+    SetActorPitchRoll {
+        pitch: Expression,
+        roll: Expression,
+    },
     AttachTile {
         overlay: Expression,
         x: Expression,
@@ -589,6 +593,11 @@ pub enum HostEvent {
     SetCharacterRow {
         character: i32,
         row: u8,
+    },
+    SetActorPitchRoll {
+        actor: EntityId,
+        pitch: i16,
+        roll: i16,
     },
     AttachTile {
         overlay: i32,

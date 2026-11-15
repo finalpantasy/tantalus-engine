@@ -147,7 +147,8 @@
     "BGLMOVE 0x5A emits MoveTile with signed X/Y/depth offsets",
     "BGVPORT 0x1E emits SetCameraBounds with signed min/max X/Y operands",
     "B_LT_E 28 returns strict selected-member less-than flags without writes; empty masks return zero",
-    "SETROW 0x61 emits SetCharacterRow with character identity and a wrapped byte row"
+    "SETROW 0x61 emits SetCharacterRow with character identity and a wrapped byte row",
+    "ROTXZ 0x37 emits actor-bound pitch/roll after wrapping shift-by-four fixed-point conversion"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -212,10 +213,11 @@
     "entry": 8,
     "function": 1,
     "function_tag": 1,
-    "offset": 97,
-    "opcode": 55,
+    "offset": 129,
+    "expression_offset": 22,
+    "opcode": 79,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x37 after character-row support"
+    "instruction": "B_KEYON after actor pitch/roll support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

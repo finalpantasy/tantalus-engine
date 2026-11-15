@@ -183,6 +183,7 @@ impl LegacyEventHost for Host {
                 HostEvent::MoveTile { .. } => {}
                 HostEvent::SetCameraBounds { .. } => {}
                 HostEvent::SetCharacterRow { .. } => {}
+                HostEvent::SetActorPitchRoll { .. } => {}
                 HostEvent::AttachTile { .. } => {}
             }
         }
@@ -3423,6 +3424,44 @@ fn setrow_emits_character_and_wrapped_row() {
             row: 255
         }]
     );
+}
+
+#[test]
+fn rotxz_sets_wrapped_actor_pitch_and_roll() {
+    let program = decode_program(&[55, 0, 1, 2, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetActorPitchRoll {
+            actor: EntityId::new(42),
+            pitch: 16,
+            roll: 32
+        }]
+    );
+
+    let mut bytes = vec![55, 3];
+    append_expression(&mut bytes, constant(-1));
+    append_expression(&mut bytes, constant(2));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetActorPitchRoll {
+            actor: EntityId::new(42),
+            pitch: -16,
+            roll: 32
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[55, 0, 1, 2, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
 }
 
 #[test]
