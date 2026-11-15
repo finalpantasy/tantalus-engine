@@ -1582,6 +1582,190 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetFieldName { text });
                 }
+                InstructionKind::AttachObject {
+                    attached,
+                    carrying,
+                    bone,
+                } => {
+                    let attached = self.evaluate(host, &attached, instruction.offset, opcode)?;
+                    if attached < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let carrying = self.evaluate(host, &carrying, instruction.offset, opcode)?;
+                    if carrying < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let bone = self.evaluate(host, &bone, instruction.offset, opcode)?;
+                    let attached = EntityId::new(attached as u64);
+                    let carrying = EntityId::new(carrying as u64);
+                    self.pc = next;
+                    events.push(HostEvent::AttachObject {
+                        attached,
+                        carrying,
+                        bone,
+                    });
+                }
+                InstructionKind::DetachObject { attached } => {
+                    let attached = self.evaluate(host, &attached, instruction.offset, opcode)?;
+                    if attached < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let attached = EntityId::new(attached as u64);
+                    self.pc = next;
+                    events.push(HostEvent::DetachObject { attached });
+                }
+                InstructionKind::TrackStart { x, z } => {
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)? as i16;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::TrackStart { actor, x, z });
+                }
+                InstructionKind::TrackSetLast { x, z } => {
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)? as i16;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::TrackSetLast { actor, x, z });
+                }
+                InstructionKind::TrackAdd => {
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::TrackAdd { actor });
+                }
+                InstructionKind::SetSoundPosition { x, z, y, volume } => {
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)?;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)?;
+                    let y = self.evaluate(host, &y, instruction.offset, opcode)?;
+                    let volume = self.evaluate(host, &volume, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetSoundPosition {
+                        position: [x, z, y],
+                        volume,
+                    });
+                }
+                InstructionKind::SetSoundObjectPosition { object, volume } => {
+                    let object = self.evaluate(host, &object, instruction.offset, opcode)?;
+                    if object < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let object = EntityId::new(object as u64);
+                    let volume = self.evaluate(host, &volume, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetSoundObjectPosition { object, volume });
+                }
+                InstructionKind::ShowTimer { show } => {
+                    let show = self.evaluate(host, &show, instruction.offset, opcode)? != 0;
+                    self.pc = next;
+                    events.push(HostEvent::ShowTimer { show });
+                }
+                InstructionKind::RunWorldCode { code, value } => {
+                    let code = self.evaluate(host, &code, instruction.offset, opcode)?;
+                    let value = self.evaluate(host, &value, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::RunWorldCode { code, value });
+                }
+                InstructionKind::EnableVictoryPose { character, enabled } => {
+                    let character = self.evaluate(host, &character, instruction.offset, opcode)?;
+                    let enabled = self.evaluate(host, &enabled, instruction.offset, opcode)? != 0;
+                    self.pc = next;
+                    events.push(HostEvent::EnableVictoryPose { character, enabled });
+                }
+                InstructionKind::RemoveParty { character } => {
+                    let character = self.evaluate(host, &character, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::RemoveParty { character });
+                }
+                InstructionKind::SetPlayerName { character, text } => {
+                    let character = self.evaluate(host, &character, instruction.offset, opcode)?;
+                    let text = self.evaluate(host, &text, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetPlayerName { character, text });
+                }
+                InstructionKind::SetupJump { x, z, y, steps } => {
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)? as i16;
+                    // The reference stores the second operand negated
+                    // (`actor.jumpy = (short)-this.getv2()`); keep that sign
+                    // convention here so the host receives actor-state values.
+                    let y = (self.evaluate(host, &y, instruction.offset, opcode)?).wrapping_neg()
+                        as i16;
+                    let mut steps = self.evaluate(host, &steps, instruction.offset, opcode)? as u8;
+                    if steps == 0 {
+                        steps = 8;
+                    }
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetupJump {
+                        actor,
+                        x,
+                        z,
+                        y,
+                        steps,
+                    });
+                }
+                InstructionKind::SetDialogSignal { signal } => {
+                    let signal = self.evaluate(host, &signal, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetDialogSignal { signal });
+                }
+                InstructionKind::SetTileLoopType {
+                    overlay,
+                    screen_anchored,
+                } => {
+                    let overlay = self.evaluate(host, &overlay, instruction.offset, opcode)?;
+                    let screen_anchored =
+                        self.evaluate(host, &screen_anchored, instruction.offset, opcode)? != 0;
+                    self.pc = next;
+                    events.push(HostEvent::SetTileLoopType {
+                        overlay,
+                        screen_anchored,
+                    });
+                }
                 InstructionKind::SetTileAnimationRate {
                     animation,
                     frame_rate,
@@ -3229,6 +3413,21 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetTimerTime { .. } => 0x69,
         InstructionKind::EnableDialogChoices { .. } => 0x7c,
         InstructionKind::SetFieldName { .. } => 0xb0,
+        InstructionKind::AttachObject { .. } => 0x4c,
+        InstructionKind::DetachObject { .. } => 0x4d,
+        InstructionKind::TrackStart { .. } => 0x76,
+        InstructionKind::TrackSetLast { .. } => 0x77,
+        InstructionKind::TrackAdd => 0x78,
+        InstructionKind::SetSoundPosition { .. } => 0x89,
+        InstructionKind::SetSoundObjectPosition { .. } => 0x8a,
+        InstructionKind::ShowTimer { .. } => 0x8d,
+        InstructionKind::RunWorldCode { .. } => 0xc4,
+        InstructionKind::EnableVictoryPose { .. } => 0xdb,
+        InstructionKind::RemoveParty { .. } => 0xdd,
+        InstructionKind::SetPlayerName { .. } => 0xde,
+        InstructionKind::SetupJump { .. } => 0xe2,
+        InstructionKind::SetDialogSignal { .. } => 0xe3,
+        InstructionKind::SetTileViewportAlpha { .. } => 0xed,
         InstructionKind::SetRandomBattles { .. } => 0x3c,
         InstructionKind::SetRandomBattleFrequency { .. } => 0x57,
         InstructionKind::SetBackgroundColor { .. } => 0x6b,
@@ -3274,7 +3473,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetPartyAvailability { .. } => 0xb4,
         InstructionKind::MoveTile { .. } => 0x5a,
         InstructionKind::SetTileScrollWithOffset { .. } => 0xe4,
-        InstructionKind::SetTileViewportAlpha { .. } => 0xe6,
+        InstructionKind::SetTileLoopType { .. } => 0xe6,
         InstructionKind::SetCameraBounds { .. } => 0x1e,
         InstructionKind::SetCharacterRow { .. } => 0x62,
         InstructionKind::ClearPartyStatus { .. } => 0xd9,

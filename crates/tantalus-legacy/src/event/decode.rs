@@ -18,7 +18,8 @@ const OP_SET_WALK_ANIMATION: u32 = 0x34;
 const OP_SET_RUN_ANIMATION: u32 = 0x35;
 const OP_PLAY_ANIMATION: u32 = 0x40;
 const OP_SET_ANIMATION_RANGE: u32 = 0x3d;
-const OP_PRINT_QUAD: u32 = 0x78;
+const OP_TRACK_ADD: u32 = 0x78;
+const OP_PRINT_QUAD: u32 = 0x79;
 const OP_SET_LEFT_TURN_ANIMATION: u32 = 0x7a;
 const OP_SET_RIGHT_TURN_ANIMATION: u32 = 0x7b;
 const OP_SET_JUMP_ANIMATION: u32 = 0x94;
@@ -76,7 +77,8 @@ const OP_SET_HERE_ICON: u32 = 0xef;
 const OP_REQUEST_SCRIPT_ASYNC: u32 = 0x10;
 const OP_REQUEST_SCRIPT_WHEN_READY: u32 = 0x12;
 const OP_DEFINE_TILE_VIEWPORT: u32 = 0xc9;
-const OP_SET_TILE_VIEWPORT_ALPHA: u32 = 0xe6;
+const OP_SET_TILE_VIEWPORT_ALPHA: u32 = 0xed;
+const OP_SET_TILE_LOOP_TYPE: u32 = 0xe6;
 const OP_BATTLE_MESSAGE: u32 = 0xd0;
 const OP_GLOBAL_CLEAR: u32 = 0xd1;
 const OP_DEBUG_SAVE: u32 = 0xd2;
@@ -166,6 +168,19 @@ const OP_SET_CAMERA_BOUNDS: u32 = 0x1e;
 const OP_SET_CHARACTER_ROW: u32 = 0x62;
 const OP_CLEAR_PARTY_STATUS: u32 = 0xd9;
 const OP_SET_ACTOR_PITCH_ROLL: u32 = 0x37;
+const OP_ATTACH_OBJECT: u32 = 0x4c;
+const OP_DETACH_OBJECT: u32 = 0x4d;
+const OP_TRACK_START: u32 = 0x76;
+const OP_TRACK_SET_LAST: u32 = 0x77;
+const OP_SET_SOUND_POSITION: u32 = 0x89;
+const OP_SET_SOUND_OBJECT_POSITION: u32 = 0x8a;
+const OP_SHOW_TIMER: u32 = 0x8d;
+const OP_RUN_WORLD_CODE: u32 = 0xc4;
+const OP_ENABLE_VICTORY_POSE: u32 = 0xdb;
+const OP_REMOVE_PARTY: u32 = 0xdd;
+const OP_SET_PLAYER_NAME: u32 = 0xde;
+const OP_SET_DIALOG_SIGNAL: u32 = 0xe3;
+const OP_SETUP_JUMP: u32 = 0xe2;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -240,10 +255,8 @@ impl Decoder<'_> {
                 InstructionKind::Nop
             }
             OP_UNUSED_PRINT => InstructionKind::NoOp(opcode),
-            OP_PRINT_QUAD => {
-                self.byte()?;
-                InstructionKind::NoOp(opcode)
-            }
+            OP_TRACK_ADD => InstructionKind::TrackAdd,
+            OP_PRINT_QUAD => InstructionKind::NoOp(opcode),
             OP_JUMP => InstructionKind::Jump(self.i16()?),
             OP_JUMP_IF_NOT => InstructionKind::JumpIfNot {
                 condition: self.expression()?,
@@ -1144,6 +1157,23 @@ impl Decoder<'_> {
                 InstructionKind::SetTileViewportAlpha {
                     viewport,
                     alpha: [argument(2)?, argument(4)?],
+                }
+            }
+            OP_SET_TILE_LOOP_TYPE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetTileLoopType {
+                    overlay: argument(1)?,
+                    screen_anchored: argument(2)?,
                 }
             }
             OP_BATTLE_MESSAGE => {
@@ -2163,6 +2193,218 @@ impl Decoder<'_> {
                 InstructionKind::SetFieldName {
                     text: argument(1, true)?,
                 }
+            }
+            OP_ATTACH_OBJECT => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::AttachObject {
+                    attached: argument(1)?,
+                    carrying: argument(2)?,
+                    bone: argument(4)?,
+                }
+            }
+            OP_DETACH_OBJECT => {
+                let flags = self.byte()?;
+                let attached = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::DetachObject { attached }
+            }
+            OP_TRACK_START | OP_TRACK_SET_LAST => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.i16()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                let x = argument(1)?;
+                let z = argument(2)?;
+                if opcode == OP_TRACK_START {
+                    InstructionKind::TrackStart { x, z }
+                } else {
+                    InstructionKind::TrackSetLast { x, z }
+                }
+            }
+            OP_SET_SOUND_POSITION => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetSoundPosition {
+                    x: argument(1, true)?,
+                    z: argument(2, true)?,
+                    y: argument(4, true)?,
+                    volume: argument(8, false)?,
+                }
+            }
+            OP_SET_SOUND_OBJECT_POSITION => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetSoundObjectPosition {
+                    object: argument(1)?,
+                    volume: argument(2)?,
+                }
+            }
+            OP_SHOW_TIMER => {
+                let flags = self.byte()?;
+                let show = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::ShowTimer { show }
+            }
+            OP_RUN_WORLD_CODE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::RunWorldCode {
+                    code: argument(1, false)?,
+                    value: argument(2, true)?,
+                }
+            }
+            OP_ENABLE_VICTORY_POSE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::EnableVictoryPose {
+                    character: argument(1)?,
+                    enabled: argument(2)?,
+                }
+            }
+            OP_REMOVE_PARTY => {
+                let flags = self.byte()?;
+                let character = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::RemoveParty { character }
+            }
+            OP_SET_PLAYER_NAME => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetPlayerName {
+                    character: argument(1, false)?,
+                    text: argument(2, true)?,
+                }
+            }
+            OP_SETUP_JUMP => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetupJump {
+                    x: argument(1, true)?,
+                    z: argument(2, true)?,
+                    y: argument(4, true)?,
+                    steps: argument(8, false)?,
+                }
+            }
+            OP_SET_DIALOG_SIGNAL => {
+                let flags = self.byte()?;
+                let signal = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::SetDialogSignal { signal }
             }
             OP_SET_TILE_ANIMATION_FLAGS => {
                 let flags = self.byte()?;

@@ -533,6 +533,64 @@ pub enum InstructionKind {
     SetFieldName {
         text: Expression,
     },
+    AttachObject {
+        attached: Expression,
+        carrying: Expression,
+        bone: Expression,
+    },
+    DetachObject {
+        attached: Expression,
+    },
+    TrackStart {
+        x: Expression,
+        z: Expression,
+    },
+    TrackSetLast {
+        x: Expression,
+        z: Expression,
+    },
+    TrackAdd,
+    SetSoundPosition {
+        x: Expression,
+        z: Expression,
+        y: Expression,
+        volume: Expression,
+    },
+    SetSoundObjectPosition {
+        object: Expression,
+        volume: Expression,
+    },
+    ShowTimer {
+        show: Expression,
+    },
+    RunWorldCode {
+        code: Expression,
+        value: Expression,
+    },
+    EnableVictoryPose {
+        character: Expression,
+        enabled: Expression,
+    },
+    RemoveParty {
+        character: Expression,
+    },
+    SetPlayerName {
+        character: Expression,
+        text: Expression,
+    },
+    SetupJump {
+        x: Expression,
+        z: Expression,
+        y: Expression,
+        steps: Expression,
+    },
+    SetDialogSignal {
+        signal: Expression,
+    },
+    SetTileLoopType {
+        overlay: Expression,
+        screen_anchored: Expression,
+    },
     SetTileAnimationRate {
         animation: Expression,
         frame_rate: Expression,
@@ -1139,6 +1197,67 @@ pub enum HostEvent {
     },
     SetFieldName {
         text: i32,
+    },
+    AttachObject {
+        attached: EntityId,
+        carrying: EntityId,
+        bone: i32,
+    },
+    DetachObject {
+        attached: EntityId,
+    },
+    TrackStart {
+        actor: EntityId,
+        x: i16,
+        z: i16,
+    },
+    TrackSetLast {
+        actor: EntityId,
+        x: i16,
+        z: i16,
+    },
+    TrackAdd {
+        actor: EntityId,
+    },
+    SetSoundPosition {
+        position: [i32; 3],
+        volume: i32,
+    },
+    SetSoundObjectPosition {
+        object: EntityId,
+        volume: i32,
+    },
+    ShowTimer {
+        show: bool,
+    },
+    RunWorldCode {
+        code: i32,
+        value: i32,
+    },
+    EnableVictoryPose {
+        character: i32,
+        enabled: bool,
+    },
+    RemoveParty {
+        character: i32,
+    },
+    SetPlayerName {
+        character: i32,
+        text: i32,
+    },
+    SetupJump {
+        actor: EntityId,
+        x: i16,
+        z: i16,
+        y: i16,
+        steps: u8,
+    },
+    SetDialogSignal {
+        signal: i32,
+    },
+    SetTileLoopType {
+        overlay: i32,
+        screen_anchored: bool,
     },
     SetTileAnimationRate {
         animation: i32,

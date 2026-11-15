@@ -259,6 +259,21 @@ impl LegacyEventHost for Host {
                 HostEvent::MoveTile { .. } => {}
                 HostEvent::SetTileScrollWithOffset { .. } => {}
                 HostEvent::SetTileViewportAlpha { .. } => {}
+                HostEvent::SetTileLoopType { .. } => {}
+                HostEvent::AttachObject { .. } => {}
+                HostEvent::DetachObject { .. } => {}
+                HostEvent::TrackStart { .. } => {}
+                HostEvent::TrackSetLast { .. } => {}
+                HostEvent::TrackAdd { .. } => {}
+                HostEvent::SetSoundPosition { .. } => {}
+                HostEvent::SetSoundObjectPosition { .. } => {}
+                HostEvent::ShowTimer { .. } => {}
+                HostEvent::RunWorldCode { .. } => {}
+                HostEvent::EnableVictoryPose { .. } => {}
+                HostEvent::RemoveParty { .. } => {}
+                HostEvent::SetPlayerName { .. } => {}
+                HostEvent::SetupJump { .. } => {}
+                HostEvent::SetDialogSignal { .. } => {}
                 HostEvent::SetCameraBounds { .. } => {}
                 HostEvent::SetCharacterRow { .. } => {}
                 HostEvent::SetActorPitchRoll { .. } => {}
@@ -1208,7 +1223,9 @@ fn sps_consumes_two_operands_and_returns_zero_without_host_effects() {
 
 #[test]
 fn bgvalpha_emits_viewport_and_signed_alpha_factors() {
-    let program = decode_program(&[0xe6, 0, 3, 0xd0, 0x02, 0x30, 0xfd, 4]).unwrap();
+    // `BGVALPHA` is 0xED in the pinned dispatcher enum; the earlier 0xE6
+    // guess was `BGLLOOPTYPE` (see `bgllooptype` below).
+    let program = decode_program(&[0xed, 0, 3, 0xd0, 0x02, 0x30, 0xfd, 4]).unwrap();
     assert_eq!(program.instructions[&0].length, 7);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
@@ -1220,10 +1237,10 @@ fn bgvalpha_emits_viewport_and_signed_alpha_factors() {
             alpha: [720, -720],
         }]
     );
-    assert!(vm.traces().any(|trace| trace.opcode == Some(0xe6)));
+    assert!(vm.traces().any(|trace| trace.opcode == Some(0xed)));
     assert_eq!(report.status, VmStatus::Completed);
 
-    let mut bytes = vec![0xe6, 7];
+    let mut bytes = vec![0xed, 7];
     for value in [5, -300, 700] {
         append_expression(&mut bytes, constant(value));
     }
@@ -1238,7 +1255,42 @@ fn bgvalpha_emits_viewport_and_signed_alpha_factors() {
         }]
     );
 
-    let truncated = decode_program(&[0xe6, 0, 3, 1]).unwrap_err();
+    let truncated = decode_program(&[0xed, 0, 3, 1]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(237)"));
+}
+
+#[test]
+fn bgllooptype_emits_overlay_and_screen_anchored_flag() {
+    let program = decode_program(&[0xe6, 0, 3, 1, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileLoopType {
+            overlay: 3,
+            screen_anchored: true,
+        }]
+    );
+    assert!(vm.traces().any(|trace| trace.opcode == Some(0xe6)));
+
+    let mut bytes = vec![0xe6, 3];
+    for value in [9, 0] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileLoopType {
+            overlay: 9,
+            screen_anchored: false,
+        }]
+    );
+
+    let truncated = decode_program(&[0xe6, 0, 3]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(230)"));
 }
@@ -5264,10 +5316,12 @@ fn pushhide_emits_visibility_preservation_command() {
 }
 
 #[test]
-fn printquad_consumes_its_flag_and_continues_without_side_effects() {
-    let program = decode_program(&[120, 0, 4]).unwrap();
-    assert_eq!(program.instructions[&0].kind, InstructionKind::NoOp(120));
-    assert_eq!(program.instructions[&0].length, 2);
+fn printquad_is_a_noop_without_operands() {
+    // `PRINTQUAD` is 0x79 per the pinned dispatcher enum; the earlier 0x78
+    // guess was `TRACKADD` (see `trackadd` below).
+    let program = decode_program(&[0x79, 4]).unwrap();
+    assert_eq!(program.instructions[&0].kind, InstructionKind::NoOp(0x79));
+    assert_eq!(program.instructions[&0].length, 1);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
     let report = vm.step(Tick::new(0), &mut host).unwrap();
@@ -6623,4 +6677,312 @@ fn extended_prefixes_preserve_the_accumulated_opcode_in_errors() {
     let truncated = decode_program(&[255]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert_eq!(truncated.offset, 1);
+}
+
+#[test]
+fn attach_object_emits_carried_carrying_and_bone_operands() {
+    let program = decode_program(&[0x4c, 0, 5, 6, 13, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::AttachObject {
+            attached: EntityId::new(5),
+            carrying: EntityId::new(6),
+            bone: 13,
+        }]
+    );
+
+    let mut bytes = vec![0x4c, 7];
+    for value in [9, 10, 11] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::AttachObject {
+            attached: EntityId::new(9),
+            carrying: EntityId::new(10),
+            bone: 11,
+        }]
+    );
+
+    let mut negative = vec![0x4c, 1];
+    append_expression(&mut negative, constant(-1));
+    negative.extend_from_slice(&[6, 13, 4]);
+    let mut vm = EventVm::new(decode_program(&negative).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("object identity cannot be negative"));
+
+    let truncated = decode_program(&[0x4c, 0, 5, 6]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(76)"));
+}
+
+#[test]
+fn detach_object_emits_carried_operand() {
+    let program = decode_program(&[0x4d, 0, 7, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::DetachObject {
+            attached: EntityId::new(7),
+        }]
+    );
+
+    let mut negative = vec![0x4d, 1];
+    append_expression(&mut negative, constant(-1));
+    negative.push(4);
+    let mut vm = EventVm::new(decode_program(&negative).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("object identity cannot be negative"));
+}
+
+#[test]
+fn trackstart_places_two_starting_vertices_at_one_position() {
+    // x = 300, z = -8 as signed 16-bit immediates.
+    let program = decode_program(&[0x76, 0, 0x2c, 0x01, 0xf8, 0xff, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::TrackStart {
+            actor: EntityId::new(42),
+            x: 300,
+            z: -8,
+        }]
+    );
+
+    let without_entity = EventVm::new(decode_program(&[0x76, 0, 1, 0, 2, 0, 4]).unwrap());
+    let mut vm = without_entity;
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("current actor context"));
+}
+
+#[test]
+fn tracksetlast_moves_the_ending_vertex() {
+    let program = decode_program(&[0x77, 0, 0x10, 0x27, 0x39, 0x30, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::TrackSetLast {
+            actor: EntityId::new(42),
+            x: 0x2710,
+            z: 0x3039,
+        }]
+    );
+
+    let without_entity = EventVm::new(decode_program(&[0x77, 0, 1, 0, 2, 0, 4]).unwrap());
+    let mut vm = without_entity;
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("current actor context"));
+}
+
+#[test]
+fn trackadd_duplicates_the_last_vertex_for_the_current_object() {
+    let program = decode_program(&[0x78, 4]).unwrap();
+    assert_eq!(program.instructions[&0].kind, InstructionKind::TrackAdd);
+    assert_eq!(program.instructions[&0].length, 1);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::TrackAdd {
+            actor: EntityId::new(42),
+        }]
+    );
+
+    let without_entity = EventVm::new(decode_program(&[0x78, 4]).unwrap());
+    let mut vm = without_entity;
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("current actor context"));
+}
+
+#[test]
+fn set_sound_position_carries_x_z_y_and_volume() {
+    // Reference passes the three getv2 operands to the position helper as
+    // (X, Z, Y); the volume is a getv1 operand scaled host-side.
+    let program = decode_program(&[0x89, 0, 0x64, 0x00, 0x9c, 0xff, 0x0a, 0x00, 127, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetSoundPosition {
+            position: [100, -100, 10],
+            volume: 127,
+        }]
+    );
+
+    let truncated = decode_program(&[0x89, 0, 1, 0, 2, 0, 3]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(137)"));
+}
+
+#[test]
+fn set_sound_object_position_binds_volume_to_an_object() {
+    let program = decode_program(&[0x8a, 0, 5, 90, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetSoundObjectPosition {
+            object: EntityId::new(5),
+            volume: 90,
+        }]
+    );
+
+    let mut negative = vec![0x8a, 1];
+    append_expression(&mut negative, constant(-1));
+    negative.extend_from_slice(&[90, 4]);
+    let mut vm = EventVm::new(decode_program(&negative).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("object identity cannot be negative"));
+}
+
+#[test]
+fn show_timer_emits_the_display_flag() {
+    let program = decode_program(&[0x8d, 0, 1, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::ShowTimer { show: true }]);
+
+    let program = decode_program(&[0x8d, 0, 0, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::ShowTimer { show: false }]);
+}
+
+#[test]
+fn run_world_code_emits_code_and_value() {
+    let program = decode_program(&[0xc4, 0, 3, 0x39, 0x30, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RunWorldCode {
+            code: 3,
+            value: 0x3039,
+        }]
+    );
+
+    let mut bytes = vec![0xc4, 3];
+    append_expression(&mut bytes, constant(7));
+    append_expression(&mut bytes, constant(-2));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RunWorldCode { code: 7, value: -2 }]
+    );
+}
+
+#[test]
+fn enable_victory_pose_emits_character_and_flag() {
+    let program = decode_program(&[0xdb, 0, 2, 1, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::EnableVictoryPose {
+            character: 2,
+            enabled: true,
+        }]
+    );
+
+    let program = decode_program(&[0xdb, 0, 2, 0, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::EnableVictoryPose {
+            character: 2,
+            enabled: false,
+        }]
+    );
+}
+
+#[test]
+fn remove_party_emits_the_character_operand() {
+    let program = decode_program(&[0xdd, 0, 4, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::RemoveParty { character: 4 }]);
+}
+
+#[test]
+fn set_player_name_emits_character_and_text_operands() {
+    let program = decode_program(&[0xde, 0, 0, 0x15, 0xcd, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetPlayerName {
+            character: 0,
+            text: -13035,
+        }]
+    );
+}
+
+#[test]
+fn setup_jump_negates_the_height_and_defaults_zero_steps() {
+    let program = decode_program(&[0xe2, 0, 0x2c, 0x01, 0x64, 0x00, 0x0a, 0x00, 12, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetupJump {
+            actor: EntityId::new(42),
+            x: 300,
+            z: 100,
+            y: -10,
+            steps: 12,
+        }]
+    );
+
+    // The reference substitutes 8 when the step operand is zero.
+    let program = decode_program(&[0xe2, 0, 1, 0, 2, 0, 3, 0, 0, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetupJump {
+            actor: EntityId::new(42),
+            x: 1,
+            z: 2,
+            y: -3,
+            steps: 8,
+        }]
+    );
+
+    let without_entity = EventVm::new(decode_program(&[0xe2, 0, 1, 0, 2, 0, 3, 0, 4, 4]).unwrap());
+    let mut vm = without_entity;
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("current actor context"));
+}
+
+#[test]
+fn set_dialog_signal_emits_the_progression_value() {
+    let program = decode_program(&[0xe3, 0, 2, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::SetDialogSignal { signal: 2 }]);
 }

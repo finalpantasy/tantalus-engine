@@ -223,7 +223,17 @@
     "BGLACTIVE 0x5B, BGLLOOP 0x5C, BGLPARALLAX 0x5D, and BGLORIGIN 0x5E decode byte tile-block indices, byte or signed 16-bit operands (immediate or expression) and emit SetTileBlockActive, SetTileLoop, SetTileParallax, and SetTileOrigin",
     "BGAANIME 0x5F, BGAACTIVE 0x60, and BGAVISIBLE 0xCA decode two byte operands and emit RunTileAnimation, SetTileAnimationActive, and ResetTileAnimation; the per-map Memoria patches (map 352 chest, map 2925 Crystal World) stay host-owned",
     "GILADD 0xCE and GILDELETE 0xCF decode a flag byte plus an expression or unsigned 24-bit amount and emit AddGil and RemoveGil with the raw u32",
-    "SETHP 0xF1 and SETMP 0xF2 decode a byte character plus a signed 16-bit value, CLEARAP 0xF3 and MAXAP 0xF4 a byte character plus a byte ability; all emit raw-operand host events"
+    "SETHP 0xF1 and SETMP 0xF2 decode a byte character plus a signed 16-bit value, CLEARAP 0xF3 and MAXAP 0xF4 a byte character plus a byte ability; all emit raw-operand host events",
+    "ATTACH 0x4C (carried uid, carrying uid, bone) and DETACH 0x4D (carried uid) decode byte operands (each an immediate or expression; a negative uid is an error) and emit AttachObject and DetachObject; the field/world/battle attach engines stay host-owned",
+    "TRACKSTART 0x76 and TRACK 0x77 decode signed 16-bit X/Z vertex operands (each an immediate or expression), TRACKADD 0x78 has no operands; all bind to the current object and emit TrackStart, TrackSetLast, and TrackAdd; the convex draw-region quad stays host-owned",
+    "PRINTQUAD is corrected to 0x79 as a no-operand no-op; the earlier 0x78 mapping consumed a spurious flags byte and mis-framed following instructions",
+    "SEPV 0x89 decodes three signed 16-bit position operands (X, Z, Y) plus a byte volume and SEPVA 0x8A an object uid plus a byte volume (each an immediate or expression; a negative uid is an error); both emit SetSoundPosition and SetSoundObjectPosition; volume scaling and clamping stay host-owned",
+    "TIMERDISPLAY 0x8D decodes a byte show flag (immediate or expression) and emits ShowTimer; the timer window stays host-owned",
+    "WPRM 0xC4 decodes a byte world code plus a signed 16-bit value (each an immediate or expression) and emits RunWorldCode; world-parameter effects stay host-owned",
+    "WINPOSE 0xDB decodes a byte character plus a byte flag and PARTYDELETE 0xDD a byte character (each an immediate or expression); both emit raw-operand host events, as does PLAYERNAME 0xDE (byte character plus signed 16-bit text id); party membership and naming stay host-owned",
+    "SETVY3 0xE2 decodes signed 16-bit X/Z/Y destination operands plus a byte step count for the current object (each an immediate or expression), negates the height like the reference, substitutes 8 for a zero step count, and emits SetupJump; the jump animation/arc stays host-owned",
+    "SETSIGNAL 0xE3 decodes a byte dialog-progression value (immediate or expression) and emits SetDialogSignal; dialog progression stays host-owned",
+    "BGVALPHA is corrected to 0xED (viewport plus two signed 16-bit alpha factors) matching the pinned dispatcher enum; the earlier 0xE6 mapping moves to BGLLOOPTYPE 0xE6, which decodes a byte overlay plus a byte screen-anchored flag and emits SetTileLoopType"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -243,7 +253,10 @@
     "kind": "Decode",
     "instruction": "function ends while its final expression is still active"
   },
-  "truncated_extended_entries": [4, 5],
+  "truncated_extended_entries": [
+    4,
+    5
+  ],
   "truncated_conditional_boundary": {
     "entry": 6,
     "function": 1,
@@ -285,7 +298,10 @@
     "instruction": "JMP_IFNOT expression/relative operand do not complete before the function boundary"
   },
   "truncated_wide_switch_boundaries": {
-    "entries": [8, 9],
+    "entries": [
+      8,
+      9
+    ],
     "function": 1,
     "function_tag": 1,
     "instruction_offset": 205,
@@ -305,7 +321,10 @@
     "instruction": "JMP_IFNOT expression/relative operand do not complete before the function boundary after cinematic dispatch support"
   },
   "truncated_nop_entries_11_12": {
-    "entries": [11, 12],
+    "entries": [
+      11,
+      12
+    ],
     "function": 1,
     "function_tag": 2,
     "instruction_offset": 357,
@@ -418,5 +437,14 @@
     "instruction": "unknown extended event opcode 0x180; no matching pinned enum or dispatcher operation was found"
   },
   "event_execution": "NOT_RUN",
-  "payload_redistributed": false
+  "payload_redistributed": false,
+  "real_archive_recheck": {
+    "command": "tantalusctl assets inspect-bundle --path <owned-install>/StreamingAssets/p0data7.bin --event EVT_ALEX1_TS_CARGO_3.eb --json",
+    "note": "the event asset name carries the .eb suffix; the bare EVT_ALEX1_TS_CARGO_3 name resolves to a non-EV placeholder asset and the inspect command aborts on it",
+    "candidates": 7,
+    "decoded_entries_per_candidate": 4,
+    "decoded_functions": "14/36",
+    "decode_errors": 22,
+    "unchanged_by": "the attach/track/sound/dialog batch; the cargo-ship script reaches its known truncated boundaries first (entry 13 function 1 unknown extended 0x180, entry 16 function 1 unknown extended 0x1C8, truncated WindowSync/WAIT/wide-switch records)"
+  }
 }
