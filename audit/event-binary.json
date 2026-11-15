@@ -215,6 +215,7 @@
     "ITEMDELETE 0x49 decodes the same item/count layout and emits RemoveItem",
     "BGARANGE 0x65 decodes animation, first-frame, and last-frame bytes and emits SetTileAnimationRange",
     "BGARATE 0x61 decodes a byte animation and a signed 16-bit frame rate (each an immediate or expression) and emits SetTileAnimationRate; the Prima Vista fast-forward rate override stays host-owned",
+    "zero-state probe (probe_program, inspect-bundle --event --probe) ran 3723 functions of 154 sampled real events: 3151 completed, 571 waiting, 1 runtime error (EVT_DOWNSHIP_BT_CF1_0 entry 0 tag 1, jump target missing, uninvestigated); not a gameplay claim; it exposed and fixed the all-member assignment operand order (mask, member, value); B_LET_E 46 and 67-69 keep an unverified older order",
     "CHRCOLOR 0x8F decodes as SetModelColor and yields one frame after the event, matching the two-pass SetCharColor in Memoria",
     "DTURN 0xBB and DANIM 0xBD reuse the StartActorTurn and PlayAnimation events for an entry-addressed object; TEXPLAY 0xC0 and TEXPLAY1 0xC1 decode as PlayTextureAnimation; DASHOFF 0x6A and GAMEOVER 0xF5 are one byte; BGVSET 0xC3 decodes as SetTileCamera; MINIGAME 0xAE decodes as StartCardGame with the transition host-owned",
     "expression operation B_PICK (43) decodes as PickFirstMember: it reads the member operand through the first active slot of the mask, zero when empty",

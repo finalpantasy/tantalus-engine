@@ -2835,7 +2835,7 @@ fn all_member_assignment_writes_each_selection_without_reading_old_values() {
     let result = variable(VariableScope::Global, VariableType::Int16, 54);
     let expression = assign(
         result,
-        [vec![41, 2], constant(0b101), constant(7), vec![45]].concat(),
+        [constant(0b101), vec![41, 2], constant(7), vec![45]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -2862,7 +2862,7 @@ fn all_member_assignment_writes_each_selection_without_reading_old_values() {
     let result = variable(VariableScope::Global, VariableType::Int16, 54);
     let expression = assign(
         result,
-        [vec![41, 4], constant(0), constant(1), vec![45]].concat(),
+        [constant(0), vec![41, 4], constant(1), vec![45]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -2878,7 +2878,7 @@ fn all_member_xor_assignment_writes_each_selection_and_returns_the_last_value() 
     let result = variable(VariableScope::Global, VariableType::Int16, 36);
     let expression = assign(
         result,
-        [vec![41, 2], constant(0b101), constant(2), vec![65]].concat(),
+        [constant(0b101), vec![41, 2], constant(2), vec![65]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -2907,7 +2907,7 @@ fn all_member_xor_assignment_writes_each_selection_and_returns_the_last_value() 
     let result = variable(VariableScope::Global, VariableType::Int16, 36);
     let expression = assign(
         result,
-        [vec![41, 4], constant(0), constant(1), vec![65]].concat(),
+        [constant(0), vec![41, 4], constant(1), vec![65]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -3437,7 +3437,7 @@ fn all_member_and_assignment_writes_each_selection_and_returns_the_last_value() 
     let result = variable(VariableScope::Global, VariableType::Int16, 38);
     let expression = assign(
         result,
-        [vec![41, 2], constant(0b101), constant(6), vec![64]].concat(),
+        [constant(0b101), vec![41, 2], constant(6), vec![64]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -3466,7 +3466,7 @@ fn all_member_and_assignment_writes_each_selection_and_returns_the_last_value() 
     let result = variable(VariableScope::Global, VariableType::Int16, 38);
     let expression = assign(
         result,
-        [vec![41, 4], constant(0), constant(1), vec![64]].concat(),
+        [constant(0), vec![41, 4], constant(1), vec![64]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -3482,7 +3482,7 @@ fn all_member_right_shift_assignment_writes_each_selection_and_returns_the_last_
     let result = variable(VariableScope::Global, VariableType::Int16, 68);
     let expression = assign(
         result,
-        [vec![41, 2], constant(0b101), constant(2), vec![60]].concat(),
+        [constant(0b101), vec![41, 2], constant(2), vec![60]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -3511,7 +3511,7 @@ fn all_member_right_shift_assignment_writes_each_selection_and_returns_the_last_
     let result = variable(VariableScope::Global, VariableType::Int16, 68);
     let expression = assign(
         result,
-        [vec![41, 4], constant(0), constant(1), vec![60]].concat(),
+        [constant(0), vec![41, 4], constant(1), vec![60]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -3527,7 +3527,7 @@ fn all_member_subtract_assignment_writes_each_selection_and_returns_the_last_val
     let result = variable(VariableScope::Global, VariableType::Int16, 69);
     let expression = assign(
         result,
-        [vec![41, 2], constant(0b101), constant(6), vec![58]].concat(),
+        [constant(0b101), vec![41, 2], constant(6), vec![58]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -3556,7 +3556,7 @@ fn all_member_subtract_assignment_writes_each_selection_and_returns_the_last_val
     let result = variable(VariableScope::Global, VariableType::Int16, 69);
     let expression = assign(
         result,
-        [vec![41, 4], constant(0), constant(1), vec![58]].concat(),
+        [constant(0), vec![41, 4], constant(1), vec![58]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -3572,7 +3572,7 @@ fn all_member_divide_assignment_preserves_zero_divisors_and_returns_the_last_val
     let result = variable(VariableScope::Global, VariableType::Int16, 70);
     let expression = assign(
         result,
-        [vec![41, 2], constant(0b101), constant(2), vec![55]].concat(),
+        [constant(0b101), vec![41, 2], constant(2), vec![55]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -3601,7 +3601,7 @@ fn all_member_divide_assignment_preserves_zero_divisors_and_returns_the_last_val
     let result = variable(VariableScope::Global, VariableType::Int16, 70);
     let expression = assign(
         result,
-        [vec![41, 2], constant(0b101), constant(0), vec![55]].concat(),
+        [constant(0b101), vec![41, 2], constant(0), vec![55]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -3615,7 +3615,7 @@ fn all_member_divide_assignment_preserves_zero_divisors_and_returns_the_last_val
     let result = variable(VariableScope::Global, VariableType::Int16, 70);
     let expression = assign(
         result,
-        [vec![41, 4], constant(0), constant(1), vec![55]].concat(),
+        [constant(0), vec![41, 4], constant(1), vec![55]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -3631,7 +3631,7 @@ fn all_member_multiply_assignment_writes_each_selection_and_returns_the_last_val
     let result = variable(VariableScope::Global, VariableType::Int16, 71);
     let expression = assign(
         result,
-        [vec![41, 2], constant(0b101), constant(2), vec![54]].concat(),
+        [constant(0b101), vec![41, 2], constant(2), vec![54]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -3660,7 +3660,7 @@ fn all_member_multiply_assignment_writes_each_selection_and_returns_the_last_val
     let result = variable(VariableScope::Global, VariableType::Int16, 71);
     let expression = assign(
         result,
-        [vec![41, 4], constant(0), constant(1), vec![54]].concat(),
+        [constant(0), vec![41, 4], constant(1), vec![54]].concat(),
     );
     let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
     let mut vm = EventVm::new(program);
@@ -5102,6 +5102,56 @@ fn model_color_sets_the_color_then_yields_one_frame() {
 
     let report = vm.step(Tick::new(1), &mut host).unwrap();
     assert_eq!(report.status, VmStatus::Completed);
+}
+
+#[test]
+fn probe_runs_a_function_against_a_zero_state_host_and_reports_errors() {
+    let actor = EntityId::new(3);
+
+    // Wait(2) then a window command on a zero-state host: completes, counting its events.
+    let program = decode_program(&[0xa1, 0, 10, 0, 20, 0, 30, 0, 0x22, 0, 2, 4]).unwrap();
+    let probe = probe_program(&program, actor, 16);
+    assert_eq!(probe.status, VmStatus::Completed);
+    assert!(probe.error.is_none());
+    assert_eq!(probe.events.get("SetActorPosition"), Some(&1));
+    assert!(probe.ticks >= 2);
+
+    // A division by an unwritten (zero) variable stays a recorded runtime outcome, not a panic.
+    let result = variable(VariableScope::Global, VariableType::Int16, 31);
+    let expression = assign(result, binary(constant(7), constant(0), 21));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let probe = probe_program(&program, actor, 16);
+    assert!(probe.error.is_some() || probe.status == VmStatus::Completed);
+
+    // A function that never finishes is cut off at the tick limit and reported as running.
+    let program = decode_program(&[0x22, 0, 0xff, 4]).unwrap();
+    let probe = probe_program(&program, actor, 4);
+    assert_eq!(probe.ticks, 4);
+    assert_ne!(probe.status, VmStatus::Completed);
+}
+
+#[test]
+fn all_member_assignment_reads_its_mask_from_a_system_list_first() {
+    // Real battle streams push mask, member, value in that order; the mask can be a system list.
+    let result = variable(VariableScope::Global, VariableType::Int16, 54);
+    let expression = assign(
+        result,
+        [vec![121, 3], vec![41, 2], constant(7), vec![45]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.system_lists.insert(3, 0b100);
+    host.slots.insert(2, EntityId::new(12));
+    let target = ObjectMemberRef {
+        object: EntityId::new(12),
+        member: 2,
+    };
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 54), 7);
+    assert_eq!(host.member_writes, [(target, 7)]);
 }
 
 #[test]

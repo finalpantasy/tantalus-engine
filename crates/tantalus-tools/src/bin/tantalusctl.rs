@@ -153,6 +153,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut objects = false;
     let mut text_asset = None;
     let mut event = None;
+    let mut probe = false;
     let mut texture = None;
     let mut texture_id = None;
     let mut rgba_output = None;
@@ -265,6 +266,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             }
             Some("--json") => json = true,
             Some("--objects") => objects = true,
+            Some("--probe") => probe = true,
             _ => {
                 return Err(format!(
                     "unrecognized argument: {}",
@@ -353,6 +355,71 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     })),
                 }
             }
+            let probe_report = if probe {
+                let mut probed = 0_usize;
+                let mut empty = 0_usize;
+                let mut completed = 0_usize;
+                let mut waiting = 0_usize;
+                let mut failures: std::collections::BTreeMap<String, (usize, String)> =
+                    std::collections::BTreeMap::new();
+                let mut events: std::collections::BTreeMap<String, usize> =
+                    std::collections::BTreeMap::new();
+                for entry in &binary.entries {
+                    let Ok(decoded) = binary.decode_entry_with_diagnostics(entry.index) else {
+                        continue;
+                    };
+                    for function in &decoded.functions {
+                        if function.program.instructions.is_empty() {
+                            empty += 1;
+                            continue;
+                        }
+                        probed += 1;
+                        let outcome = tantalus_legacy::probe_program(
+                            &function.program,
+                            tantalus_contracts::EntityId::new(entry.index as u64),
+                            64,
+                        );
+                        for (name, count) in outcome.events {
+                            *events.entry(name).or_insert(0) += count;
+                        }
+                        match outcome.error {
+                            Some(failure) => {
+                                let key = format!(
+                                    "{:?} opcode {:?}: {}",
+                                    failure.kind, failure.opcode, failure.message
+                                );
+                                let slot = failures.entry(key).or_insert_with(|| {
+                                    (0, format!("entry {} tag {}", entry.index, function.tag))
+                                });
+                                slot.0 += 1;
+                            }
+                            None if outcome.status == tantalus_legacy::VmStatus::Completed => {
+                                completed += 1;
+                            }
+                            None => waiting += 1,
+                        }
+                    }
+                }
+                Some(serde_json::json!({
+                    "scope": "zero-state dry run: permissive host, reads return zero, waits finish; not a gameplay claim",
+                    "max_ticks": 64,
+                    "functions_probed": probed,
+                    "empty_functions": empty,
+                    "completed": completed,
+                    "still_waiting": waiting,
+                    "runtime_errors": failures
+                        .iter()
+                        .map(|(message, (count, example))| serde_json::json!({
+                            "message": message,
+                            "count": count,
+                            "first_at": example,
+                        }))
+                        .collect::<Vec<_>>(),
+                    "events": events,
+                }))
+            } else {
+                None
+            };
             let first_decode_error = decode_errors.first().cloned();
             candidates.push(serde_json::json!({
                 "path_id": object.path_id,
@@ -366,6 +433,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 "decode_errors": decode_errors,
                 "script_bytes": script_bytes,
                 "script_sha256": format!("{:x}", digest.finalize()),
+                "probe": probe_report,
             }));
         }
         if candidates.is_empty() {
@@ -823,11 +891,11 @@ fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--event <name>] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--event <name>] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
