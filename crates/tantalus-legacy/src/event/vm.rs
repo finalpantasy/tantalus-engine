@@ -524,6 +524,13 @@ impl EventVm {
                         color: [red, green, blue],
                     });
                 }
+                InstructionKind::SetSimulationFloor { simulation, floor } => {
+                    let simulation =
+                        self.evaluate(host, &simulation, instruction.offset, opcode)? as u32;
+                    let floor = self.evaluate(host, &floor, instruction.offset, opcode)? as u32;
+                    self.pc = next;
+                    events.push(HostEvent::SetSimulationFloor { simulation, floor });
+                }
                 InstructionKind::AttachTile {
                     overlay,
                     x,
@@ -1255,6 +1262,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::RequestCallerAsync { .. } => 0x16,
         InstructionKind::CalculateExitPosition => 0xa4,
         InstructionKind::RequestCallerSync { .. } => 0x14,
+        InstructionKind::SetSimulationFloor { .. } => 0x104,
         InstructionKind::AttachTile { .. } => 0x92,
     }
 }

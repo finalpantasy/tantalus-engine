@@ -48,6 +48,7 @@ const OP_REQUEST_CALLER_ASYNC: u32 = 0x16;
 const OP_CALCULATE_EXIT_POSITION: u32 = 0xa4;
 const OP_REQUEST_CALLER_SYNC: u32 = 0x14;
 const OP_ATTACH_TILE: u32 = 0x92;
+const OP_SET_SIMULATION_FLOOR: u32 = 0x104;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -496,6 +497,23 @@ impl Decoder<'_> {
                 InstructionKind::RequestCallerSync {
                     level,
                     tag: self.byte()?,
+                }
+            }
+            OP_SET_SIMULATION_FLOOR => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetSimulationFloor {
+                    simulation: argument(1)?,
+                    floor: argument(2)?,
                 }
             }
             OP_ATTACH_TILE => {

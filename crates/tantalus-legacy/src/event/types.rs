@@ -214,6 +214,10 @@ pub enum InstructionKind {
         green: Expression,
         blue: Expression,
     },
+    SetSimulationFloor {
+        simulation: Expression,
+        floor: Expression,
+    },
     AttachTile {
         overlay: Expression,
         x: Expression,
@@ -380,6 +384,10 @@ pub enum HostEvent {
     SetTileShadeColor {
         overlay: i32,
         color: [u8; 3],
+    },
+    SetSimulationFloor {
+        simulation: u32,
+        floor: u32,
     },
     AttachTile {
         overlay: i32,

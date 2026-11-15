@@ -98,7 +98,8 @@
     "JMP_SWITCH 0x0B decodes consecutive case offsets and consumes the retained prior EXPR result",
     "MSPEED 0x26 emits actor-bound SetMovementSpeed with immediate/expression byte operands",
     "CLRDIST 0x25 emits actor-bound ResetWalkState and rejects missing actor context",
-    "DELETE 0x1C emits typed object deletion and terminates the current entry for target 255"
+    "DELETE 0x1C emits typed object deletion and terminates the current entry for target 255",
+    "BSFLOOR 0x104 decodes two unsigned IDs and emits SetSimulationFloor; real entries 4 and 5 truncate before its argument flag"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -118,14 +119,15 @@
     "kind": "Decode",
     "instruction": "function ends while its final expression is still active"
   },
+  "truncated_extended_entries": [4, 5],
   "next_decode_boundary": {
-    "entry": 4,
+    "entry": 6,
     "function": 0,
     "function_tag": 0,
-    "offset": 18,
-    "opcode": 260,
+    "offset": 34,
+    "opcode": 47,
     "kind": "UnsupportedOpcode",
-    "instruction": "extended opcode 0x104 after DELETE"
+    "instruction": "next non-malformed entry; entries 4 and 5 omit BSFLOOR's argument flag"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

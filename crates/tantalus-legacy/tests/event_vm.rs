@@ -143,6 +143,7 @@ impl LegacyEventHost for Host {
                 HostEvent::RequestCallerSync { .. } => {}
                 HostEvent::SetSpsParameters { .. } => {}
                 HostEvent::SetTileShadeColor { .. } => {}
+                HostEvent::SetSimulationFloor { .. } => {}
                 HostEvent::AttachTile { .. } => {}
             }
         }
@@ -1864,6 +1865,38 @@ fn globalclear_consumes_its_flag_and_continues_without_side_effects() {
     assert_eq!(report.status, VmStatus::Completed);
     assert_eq!(report.operations, 2);
     assert!(report.events.is_empty());
+}
+
+#[test]
+fn bsfloor_sets_simulation_floor_with_extended_opcode() {
+    let program = decode_program(&[255, 4, 0, 2, 3, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 5);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetSimulationFloor {
+            simulation: 2,
+            floor: 3
+        }]
+    );
+
+    let mut bytes = vec![255, 4, 3];
+    append_expression(&mut bytes, constant(1));
+    append_expression(&mut bytes, constant(4));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetSimulationFloor {
+            simulation: 1,
+            floor: 4
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
 }
 
 #[test]
