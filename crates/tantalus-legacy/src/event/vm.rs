@@ -859,14 +859,14 @@ impl EventVm {
                 InstructionKind::Cinematic {
                     operation,
                     argument,
+                    auxiliary,
                 } => {
-                    let operation_value =
-                        self.evaluate(host, &operation, instruction.offset, opcode)?;
+                    let operation = self.evaluate(host, &operation, instruction.offset, opcode)?;
                     let argument = self.evaluate(host, &argument, instruction.offset, opcode)?;
-                    let auxiliary = self.evaluate(host, &operation, instruction.offset, opcode)?;
+                    let auxiliary = self.evaluate(host, &auxiliary, instruction.offset, opcode)?;
                     self.pc = next;
                     events.push(HostEvent::DispatchCinematic {
-                        operation: operation_value,
+                        operation,
                         argument,
                         auxiliary,
                     });

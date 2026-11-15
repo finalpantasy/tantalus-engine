@@ -1040,9 +1040,9 @@ fn wide_jump_switch_supports_more_than_255_cases_and_uses_default() {
 }
 
 #[test]
-fn cinematic_dispatches_operation_argument_and_repeated_first_operand() {
-    let program = decode_program(&[40, 0, 24, 120, 4]).unwrap();
-    assert_eq!(program.instructions[&0].length, 4);
+fn cinematic_dispatches_a_byte_a_short_movie_and_a_byte_in_order() {
+    let program = decode_program(&[40, 0, 24, 120, 0, 7, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 6);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
     let report = vm.step(Tick::new(0), &mut host).unwrap();
@@ -1051,16 +1051,31 @@ fn cinematic_dispatches_operation_argument_and_repeated_first_operand() {
         [HostEvent::DispatchCinematic {
             operation: 24,
             argument: 120,
-            auxiliary: 24
+            auxiliary: 7
         }]
     );
     assert_eq!(report.status, VmStatus::Completed);
 
+    // Real stream from EVT_DOWNSHIP_BT_CF1_0: movie 0x010d, then an expression statement follows.
+    let program = decode_program(&[40, 0, 0, 0x0d, 1, 1, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 6);
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::DispatchCinematic {
+            operation: 0,
+            argument: 269,
+            auxiliary: 1
+        }]
+    );
+
+    // An expression operand is evaluated once, not repeated for the third argument.
     let mut bytes = vec![40, 1];
     let mut operation = variable(VariableScope::Global, VariableType::UInt16, 7);
     operation.push(6);
     append_expression(&mut bytes, operation);
-    bytes.extend_from_slice(&[120, 4]);
+    bytes.extend_from_slice(&[120, 0, 7, 4]);
     let mut vm = EventVm::new(decode_program(&bytes).unwrap());
     let report = vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(
@@ -1068,12 +1083,12 @@ fn cinematic_dispatches_operation_argument_and_repeated_first_operand() {
         [HostEvent::DispatchCinematic {
             operation: 1,
             argument: 120,
-            auxiliary: 2
+            auxiliary: 7
         }]
     );
-    assert_eq!(vm.variable(VariableScope::Global, 7), 2);
+    assert_eq!(vm.variable(VariableScope::Global, 7), 1);
 
-    let truncated = decode_program(&[40, 0, 1]).unwrap_err();
+    let truncated = decode_program(&[40, 0, 1, 2]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(40)"));
 }

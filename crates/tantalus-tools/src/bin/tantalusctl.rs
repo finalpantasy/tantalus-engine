@@ -389,7 +389,13 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                                     failure.kind, failure.opcode, failure.message
                                 );
                                 let slot = failures.entry(key).or_insert_with(|| {
-                                    (0, format!("entry {} tag {}", entry.index, function.tag))
+                                    (
+                                        0,
+                                        format!(
+                                            "entry {} tag {} pc {}",
+                                            entry.index, function.tag, failure.offset
+                                        ),
+                                    )
                                 });
                                 slot.0 += 1;
                             }
