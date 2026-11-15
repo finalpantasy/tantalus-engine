@@ -773,6 +773,53 @@ pub enum InstructionKind {
     CloseAllWindows,
     AlignActorToCameraEye,
     ProgressJump,
+    WalkTowardObject {
+        target: Expression,
+    },
+    PreventWindowInit,
+    LockCameraFollow,
+    UnlockCameraFollow,
+    TurnObjectToAngle {
+        target: Expression,
+        angle: Expression,
+    },
+    ReturnEntryFunctions {
+        object: Expression,
+    },
+    ResetFieldName,
+    DeleteAllCards,
+    WaitObjectTurn {
+        target: Expression,
+    },
+    WaitObjectAnimation {
+        target: Expression,
+    },
+    QueueSpecialAttack {
+        attack: Expression,
+    },
+    ChangeDisc {
+        destination: Expression,
+    },
+    SetSimulationFlags {
+        simulation: Expression,
+        flags: Expression,
+    },
+    SetSimulationAlgorithm {
+        simulation: Expression,
+        algorithm: Expression,
+    },
+    SetSimulationDelta {
+        simulation: Expression,
+        delta: [Expression; 2],
+    },
+    SetSimulationAxis {
+        simulation: Expression,
+        axis: Expression,
+    },
+    ShowNavigationAnimationFrame {
+        animation: Expression,
+        frame: Expression,
+    },
     QueueEnemyAttack {
         attack: Expression,
     },
@@ -969,6 +1016,12 @@ pub enum WaitState {
     PartyMenu,
     ActorTurn,
     ActorAnimation,
+    ObjectTurn {
+        actor: EntityId,
+    },
+    ObjectAnimation {
+        actor: EntityId,
+    },
     ActorMovement {
         next: u32,
     },
@@ -1587,6 +1640,48 @@ pub enum HostEvent {
     },
     ProgressJump {
         actor: EntityId,
+    },
+    WalkTowardObject {
+        actor: EntityId,
+        target: EntityId,
+    },
+    PreventWindowInit,
+    LockCameraFollow,
+    UnlockCameraFollow,
+    TurnObjectToAngle {
+        actor: EntityId,
+        angle: i32,
+    },
+    ReturnEntryFunctions {
+        object: EntityId,
+    },
+    ResetFieldName,
+    DeleteAllCards,
+    QueueSpecialAttack {
+        attack: i32,
+    },
+    ChangeDisc {
+        destination: i32,
+    },
+    SetSimulationFlags {
+        simulation: i32,
+        flags: i32,
+    },
+    SetSimulationAlgorithm {
+        simulation: i32,
+        algorithm: i32,
+    },
+    SetSimulationDelta {
+        simulation: i32,
+        delta: [i16; 2],
+    },
+    SetSimulationAxis {
+        simulation: i32,
+        axis: i32,
+    },
+    ShowNavigationAnimationFrame {
+        animation: i32,
+        frame: i32,
     },
     QueueEnemyAttack {
         attack: i32,

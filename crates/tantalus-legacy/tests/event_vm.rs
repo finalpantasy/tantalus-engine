@@ -325,6 +325,21 @@ impl LegacyEventHost for Host {
                 HostEvent::AlignActorToCameraEye { .. } => {}
                 HostEvent::ProgressJump { .. } => {}
                 HostEvent::QueueEnemyAttack { .. } => {}
+                HostEvent::WalkTowardObject { .. } => {}
+                HostEvent::PreventWindowInit => {}
+                HostEvent::LockCameraFollow => {}
+                HostEvent::UnlockCameraFollow => {}
+                HostEvent::TurnObjectToAngle { .. } => {}
+                HostEvent::ReturnEntryFunctions { .. } => {}
+                HostEvent::ResetFieldName => {}
+                HostEvent::DeleteAllCards => {}
+                HostEvent::QueueSpecialAttack { .. } => {}
+                HostEvent::ChangeDisc { .. } => {}
+                HostEvent::SetSimulationFlags { .. } => {}
+                HostEvent::SetSimulationAlgorithm { .. } => {}
+                HostEvent::SetSimulationDelta { .. } => {}
+                HostEvent::SetSimulationAxis { .. } => {}
+                HostEvent::ShowNavigationAnimationFrame { .. } => {}
                 HostEvent::ShowObjectWindow { .. } => {}
                 HostEvent::RunSpsCode { .. } => {}
                 HostEvent::SetCameraBounds { .. } => {}
@@ -8033,4 +8048,172 @@ fn sps2_decodes_simple_special_effect_parameters() {
     let truncated = decode_program(&[0xda, 0, 3, 9, 0x7f]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(218)"));
+}
+
+#[test]
+fn mova_walks_toward_an_object_and_waits_on_movement() {
+    let program = decode_program(&[0x24, 0, 7, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::WalkTowardObject {
+            actor: EntityId::new(42),
+            target: EntityId::new(7),
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Waiting);
+    assert_eq!(vm.pc(), 0);
+}
+
+#[test]
+fn window_camera_and_card_commands_emit_host_events() {
+    for (byte, expected) in [
+        (0x53_u8, HostEvent::PreventWindowInit),
+        (0x73_u8, HostEvent::LockCameraFollow),
+        (0x74_u8, HostEvent::UnlockCameraFollow),
+        (0xb1_u8, HostEvent::ResetFieldName),
+        (0xaf_u8, HostEvent::DeleteAllCards),
+    ] {
+        let program = decode_program(&[byte, 4]).unwrap();
+        assert_eq!(program.instructions[&0].length, 1);
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(report.events, [expected]);
+        assert_eq!(report.status, VmStatus::Completed);
+    }
+}
+
+#[test]
+fn ddir_turns_a_target_object_to_an_angle() {
+    let program = decode_program(&[0x87, 0, 5, 128, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::TurnObjectToAngle {
+            actor: EntityId::new(5),
+            angle: 128,
+        }]
+    );
+
+    let mut negative = vec![0x87, 1];
+    append_expression(&mut negative, constant(-1));
+    negative.extend_from_slice(&[128, 4]);
+    let mut vm = EventVm::new(decode_program(&negative).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("object identity cannot be negative"));
+}
+
+#[test]
+fn dret_returns_entry_functions_for_an_object() {
+    let program = decode_program(&[0x97, 0, 9, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ReturnEntryFunctions {
+            object: EntityId::new(9),
+        }]
+    );
+}
+
+#[test]
+fn dwaittturn_and_dwaitanim_wait_on_the_target_object() {
+    // Host defaults report no active turn/animation, so the waits complete
+    // on the next tick like the current-object variants.
+    for byte in [0xbc_u8, 0xbe] {
+        let program = decode_program(&[byte, 0, 6, 4]).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(report.status, VmStatus::Waiting);
+        assert!(vm.step(Tick::new(1), &mut host).unwrap().events.is_empty());
+        assert_eq!(vm.status(), VmStatus::Completed);
+    }
+}
+
+#[test]
+fn btlseq_and_discchange_emit_raw_operands() {
+    let program = decode_program(&[0xe5, 0, 0x1d, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::QueueSpecialAttack { attack: 29 }]
+    );
+
+    let program = decode_program(&[0xac, 0, 0x15, 0xcd, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ChangeDisc {
+            destination: -13035,
+        }]
+    );
+}
+
+#[test]
+fn battle_simulation_commands_decode_their_operands() {
+    let cases: &[(&[u8], HostEvent)] = &[
+        (
+            &[0xff, 0x03, 0, 1, 2, 4],
+            HostEvent::SetSimulationFlags {
+                simulation: 1,
+                flags: 2,
+            },
+        ),
+        (
+            &[0xff, 0x06, 0, 3, 4, 4],
+            HostEvent::SetSimulationAlgorithm {
+                simulation: 3,
+                algorithm: 4,
+            },
+        ),
+        (
+            &[0xff, 0x08, 0, 5, 6, 4],
+            HostEvent::SetSimulationAxis {
+                simulation: 5,
+                axis: 6,
+            },
+        ),
+    ];
+    for (bytes, expected) in cases {
+        let mut owned = bytes.to_vec();
+        let program = decode_program(&owned).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(report.events, std::slice::from_ref(expected));
+        owned.clear();
+    }
+
+    let program = decode_program(&[0xff, 0x07, 0, 7, 0x2c, 0x01, 0x9c, 0xff, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetSimulationDelta {
+            simulation: 7,
+            delta: [300, -100],
+        }]
+    );
+
+    let program = decode_program(&[0xff, 0x0a, 0, 8, 9, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ShowNavigationAnimationFrame {
+            animation: 8,
+            frame: 9,
+        }]
+    );
 }

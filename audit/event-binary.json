@@ -257,7 +257,14 @@
     "JUMP3 0xDC is operand-less, binds to the current actor, emits ProgressJump once per tick, and repeats while the host reports an active jump (MOVJ-style wait; new host query actor_jump_is_active); jump frame interpolation stays host-owned",
     "BTLCMD 0x38 decodes a byte attack operand (immediate or expression) and emits QueueEnemyAttack; SV_Target reads and ATB/counter queueing stay host-owned",
     "MESA 0x95 and MESAN 0x96 decode an object talker, a byte window id, a byte UI flag list, and a signed 16-bit text id (each an immediate or expression; a negative object is an error) and emit ShowObjectWindow; MESA then waits on the window like WindowSync while MESAN continues",
-    "SPS2 0xDA decodes a byte sps id, a byte parameter type, a byte first argument, and two signed 16-bit values (each an immediate or expression) and emits RunSpsCode; the field/battle/world SPS engines stay host-owned"
+    "SPS2 0xDA decodes a byte sps id, a byte parameter type, a byte first argument, and two signed 16-bit values (each an immediate or expression) and emits RunSpsCode; the field/battle/world SPS engines stay host-owned",
+    "MOVA 0x24 decodes an object operand (immediate or expression; a negative object is an error), requires the current actor, emits WalkTowardObject, and waits on the host movement query like MOVE; following the target stays host-owned",
+    "NOINITMES 0x53, BGCLOCK 0x73, BGCUNLOCK 0x74, RESETMAPNAME 0xB1, and DELETEALLCARD 0xAF are operand-less and emit PreventWindowInit, LockCameraFollow, UnlockCameraFollow, ResetFieldName, and DeleteAllCards; window, camera-follow, field-name, and card-deck state stay host-owned",
+    "DDIR 0x87 decodes an object plus a byte angle and emits TurnObjectToAngle for that object; DRET 0x97 decodes an object and emits ReturnEntryFunctions; entry-state reset stays host-owned",
+    "DWAITTURN 0xBC and DWAITANIM 0xBE decode an object operand and wait on the existing turn/animation host queries for that object via new target-carrying wait states",
+    "BTLSEQ 0xE5 decodes a byte attack operand and emits QueueSpecialAttack; SV_Target reads and battle-state checks stay host-owned",
+    "DISCCHANGE 0xAC decodes a signed 16-bit field/disc destination (immediate or expression) and emits ChangeDisc with the raw value; map/disc splitting and presentation stay host-owned",
+    "BSFLAG 0x103, BSALGO 0x106, BSAXIS 0x108, and BAFRAME 0x10A decode two byte operands and BSDELTA 0x107 a byte plus two signed 16-bit operands (each an immediate or expression), emitting SetSimulationFlags, SetSimulationAlgorithm, SetSimulationAxis, ShowNavigationAnimationFrame, and SetSimulationDelta; the BGI simulation engine stays host-owned"
   ],
   "malformed_entry_boundary": {
     "entry": 1,

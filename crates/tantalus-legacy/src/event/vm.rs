@@ -186,6 +186,28 @@ impl EventVm {
                     self.wait = None;
                     self.status = VmStatus::Running;
                 }
+                WaitState::ObjectTurn { actor } => {
+                    self.status = VmStatus::Waiting;
+                    if host
+                        .actor_turn_is_active(actor)
+                        .map_err(|error| VmError::host(error, self.pc, 0xbc))?
+                    {
+                        return Ok(self.report(tick, 0, Vec::new()));
+                    }
+                    self.wait = None;
+                    self.status = VmStatus::Running;
+                }
+                WaitState::ObjectAnimation { actor } => {
+                    self.status = VmStatus::Waiting;
+                    if host
+                        .actor_animation_is_active(actor)
+                        .map_err(|error| VmError::host(error, self.pc, 0xbe))?
+                    {
+                        return Ok(self.report(tick, 0, Vec::new()));
+                    }
+                    self.wait = None;
+                    self.status = VmStatus::Running;
+                }
                 WaitState::CallerRequest { level, .. } => {
                     self.status = VmStatus::Waiting;
                     if !host
@@ -2288,6 +2310,159 @@ impl EventVm {
                         value,
                     });
                 }
+                InstructionKind::WalkTowardObject { target } => {
+                    let target = self.evaluate(host, &target, instruction.offset, opcode)?;
+                    if target < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let target = EntityId::new(target as u64);
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "walk requires current actor context",
+                        ));
+                    };
+                    self.pc = instruction.offset;
+                    self.wait = Some(WaitState::ActorMovement { next });
+                    self.status = VmStatus::Waiting;
+                    events.push(HostEvent::WalkTowardObject { actor, target });
+                }
+                InstructionKind::PreventWindowInit => {
+                    self.pc = next;
+                    events.push(HostEvent::PreventWindowInit);
+                }
+                InstructionKind::LockCameraFollow => {
+                    self.pc = next;
+                    events.push(HostEvent::LockCameraFollow);
+                }
+                InstructionKind::UnlockCameraFollow => {
+                    self.pc = next;
+                    events.push(HostEvent::UnlockCameraFollow);
+                }
+                InstructionKind::TurnObjectToAngle { target, angle } => {
+                    let target = self.evaluate(host, &target, instruction.offset, opcode)?;
+                    if target < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let actor = EntityId::new(target as u64);
+                    let angle = self.evaluate(host, &angle, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::TurnObjectToAngle { actor, angle });
+                }
+                InstructionKind::ReturnEntryFunctions { object } => {
+                    let object = self.evaluate(host, &object, instruction.offset, opcode)?;
+                    if object < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let object = EntityId::new(object as u64);
+                    self.pc = next;
+                    events.push(HostEvent::ReturnEntryFunctions { object });
+                }
+                InstructionKind::ResetFieldName => {
+                    self.pc = next;
+                    events.push(HostEvent::ResetFieldName);
+                }
+                InstructionKind::DeleteAllCards => {
+                    self.pc = next;
+                    events.push(HostEvent::DeleteAllCards);
+                }
+                InstructionKind::WaitObjectTurn { target } => {
+                    let target = self.evaluate(host, &target, instruction.offset, opcode)?;
+                    if target < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let actor = EntityId::new(target as u64);
+                    self.pc = next;
+                    self.wait = Some(WaitState::ObjectTurn { actor });
+                    self.status = VmStatus::Waiting;
+                }
+                InstructionKind::WaitObjectAnimation { target } => {
+                    let target = self.evaluate(host, &target, instruction.offset, opcode)?;
+                    if target < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let actor = EntityId::new(target as u64);
+                    self.pc = next;
+                    self.wait = Some(WaitState::ObjectAnimation { actor });
+                    self.status = VmStatus::Waiting;
+                }
+                InstructionKind::QueueSpecialAttack { attack } => {
+                    // SV_Target reads and battle-state checks are host-owned.
+                    let attack = self.evaluate(host, &attack, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::QueueSpecialAttack { attack });
+                }
+                InstructionKind::ChangeDisc { destination } => {
+                    let destination =
+                        self.evaluate(host, &destination, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::ChangeDisc { destination });
+                }
+                InstructionKind::SetSimulationFlags { simulation, flags } => {
+                    let simulation =
+                        self.evaluate(host, &simulation, instruction.offset, opcode)?;
+                    let flags = self.evaluate(host, &flags, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetSimulationFlags { simulation, flags });
+                }
+                InstructionKind::SetSimulationAlgorithm {
+                    simulation,
+                    algorithm,
+                } => {
+                    let simulation =
+                        self.evaluate(host, &simulation, instruction.offset, opcode)?;
+                    let algorithm = self.evaluate(host, &algorithm, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetSimulationAlgorithm {
+                        simulation,
+                        algorithm,
+                    });
+                }
+                InstructionKind::SetSimulationDelta { simulation, delta } => {
+                    let simulation =
+                        self.evaluate(host, &simulation, instruction.offset, opcode)?;
+                    let delta = [
+                        self.evaluate(host, &delta[0], instruction.offset, opcode)? as i16,
+                        self.evaluate(host, &delta[1], instruction.offset, opcode)? as i16,
+                    ];
+                    self.pc = next;
+                    events.push(HostEvent::SetSimulationDelta { simulation, delta });
+                }
+                InstructionKind::SetSimulationAxis { simulation, axis } => {
+                    let simulation =
+                        self.evaluate(host, &simulation, instruction.offset, opcode)?;
+                    let axis = self.evaluate(host, &axis, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetSimulationAxis { simulation, axis });
+                }
+                InstructionKind::ShowNavigationAnimationFrame { animation, frame } => {
+                    let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
+                    let frame = self.evaluate(host, &frame, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::ShowNavigationAnimationFrame { animation, frame });
+                }
                 InstructionKind::SetUserControl { enabled, .. } => {
                     self.pc = next;
                     events.push(HostEvent::SetUserControl { enabled });
@@ -4283,6 +4458,23 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::CloseAllWindows => 0xeb,
         InstructionKind::AlignActorToCameraEye => 0xb7,
         InstructionKind::ProgressJump => 0xdc,
+        InstructionKind::WalkTowardObject { .. } => 0x24,
+        InstructionKind::PreventWindowInit => 0x53,
+        InstructionKind::LockCameraFollow => 0x73,
+        InstructionKind::UnlockCameraFollow => 0x74,
+        InstructionKind::TurnObjectToAngle { .. } => 0x87,
+        InstructionKind::ReturnEntryFunctions { .. } => 0x97,
+        InstructionKind::ResetFieldName => 0xb1,
+        InstructionKind::DeleteAllCards => 0xaf,
+        InstructionKind::WaitObjectTurn { .. } => 0xbc,
+        InstructionKind::WaitObjectAnimation { .. } => 0xbe,
+        InstructionKind::QueueSpecialAttack { .. } => 0xe5,
+        InstructionKind::ChangeDisc { .. } => 0xac,
+        InstructionKind::SetSimulationFlags { .. } => 0x103,
+        InstructionKind::SetSimulationAlgorithm { .. } => 0x106,
+        InstructionKind::SetSimulationDelta { .. } => 0x107,
+        InstructionKind::SetSimulationAxis { .. } => 0x108,
+        InstructionKind::ShowNavigationAnimationFrame { .. } => 0x10a,
         InstructionKind::QueueEnemyAttack { .. } => 0x38,
         InstructionKind::ShowObjectWindow { opcode, .. } => u32::from(*opcode),
         InstructionKind::RunSpsCode { .. } => 0xda,

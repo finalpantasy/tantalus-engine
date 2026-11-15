@@ -232,6 +232,23 @@ const OP_RESET_IDLE_TIMER: u32 = 0xee;
 const OP_CLOSE_ALL_WINDOWS: u32 = 0xeb;
 const OP_ALIGN_ACTOR_TO_CAMERA_EYE: u32 = 0xb7;
 const OP_PROGRESS_JUMP: u32 = 0xdc;
+const OP_WALK_TOWARD_OBJECT: u32 = 0x24;
+const OP_PREVENT_WINDOW_INIT: u32 = 0x53;
+const OP_LOCK_CAMERA_FOLLOW: u32 = 0x73;
+const OP_UNLOCK_CAMERA_FOLLOW: u32 = 0x74;
+const OP_TURN_OBJECT_TO_ANGLE: u32 = 0x87;
+const OP_RETURN_ENTRY_FUNCTIONS: u32 = 0x97;
+const OP_RESET_FIELD_NAME: u32 = 0xb1;
+const OP_DELETE_ALL_CARDS: u32 = 0xaf;
+const OP_WAIT_OBJECT_TURN: u32 = 0xbc;
+const OP_WAIT_OBJECT_ANIMATION: u32 = 0xbe;
+const OP_QUEUE_SPECIAL_ATTACK: u32 = 0xe5;
+const OP_CHANGE_DISC: u32 = 0xac;
+const OP_SET_SIMULATION_FLAGS: u32 = 0x103;
+const OP_SET_SIMULATION_ALGORITHM: u32 = 0x106;
+const OP_SET_SIMULATION_DELTA: u32 = 0x107;
+const OP_SET_SIMULATION_AXIS: u32 = 0x108;
+const OP_SHOW_NAVIGATION_ANIMATION_FRAME: u32 = 0x10a;
 const OP_QUEUE_ENEMY_ATTACK: u32 = 0x38;
 const OP_SHOW_OBJECT_WINDOW: u32 = 0x95;
 const OP_SHOW_OBJECT_WINDOW_ASYNC: u32 = 0x96;
@@ -327,6 +344,11 @@ impl Decoder<'_> {
             OP_NOP => InstructionKind::Nop,
             OP_UNUSED_PRINT => InstructionKind::NoOp(opcode),
             OP_TRACK_ADD => InstructionKind::TrackAdd,
+            OP_PREVENT_WINDOW_INIT => InstructionKind::PreventWindowInit,
+            OP_LOCK_CAMERA_FOLLOW => InstructionKind::LockCameraFollow,
+            OP_UNLOCK_CAMERA_FOLLOW => InstructionKind::UnlockCameraFollow,
+            OP_RESET_FIELD_NAME => InstructionKind::ResetFieldName,
+            OP_DELETE_ALL_CARDS => InstructionKind::DeleteAllCards,
             OP_TERMINATE_BATTLE => InstructionKind::TerminateBattle,
             OP_RESET_IDLE_TIMER => InstructionKind::ResetIdleTimer,
             OP_CLOSE_ALL_WINDOWS => InstructionKind::CloseAllWindows,
@@ -2685,6 +2707,84 @@ impl Decoder<'_> {
                 let flags = self.byte()?;
                 InstructionKind::ChangeWorldMap {
                     destination: self.operand(flags, 1, true)?,
+                }
+            }
+            OP_WALK_TOWARD_OBJECT => {
+                let flags = self.byte()?;
+                InstructionKind::WalkTowardObject {
+                    target: self.operand(flags, 1, false)?,
+                }
+            }
+            OP_TURN_OBJECT_TO_ANGLE => {
+                let flags = self.byte()?;
+                InstructionKind::TurnObjectToAngle {
+                    target: self.operand(flags, 1, false)?,
+                    angle: self.operand(flags, 2, false)?,
+                }
+            }
+            OP_RETURN_ENTRY_FUNCTIONS => {
+                let flags = self.byte()?;
+                InstructionKind::ReturnEntryFunctions {
+                    object: self.operand(flags, 1, false)?,
+                }
+            }
+            OP_WAIT_OBJECT_TURN => {
+                let flags = self.byte()?;
+                InstructionKind::WaitObjectTurn {
+                    target: self.operand(flags, 1, false)?,
+                }
+            }
+            OP_WAIT_OBJECT_ANIMATION => {
+                let flags = self.byte()?;
+                InstructionKind::WaitObjectAnimation {
+                    target: self.operand(flags, 1, false)?,
+                }
+            }
+            OP_QUEUE_SPECIAL_ATTACK => {
+                let flags = self.byte()?;
+                InstructionKind::QueueSpecialAttack {
+                    attack: self.operand(flags, 1, false)?,
+                }
+            }
+            OP_CHANGE_DISC => {
+                let flags = self.byte()?;
+                InstructionKind::ChangeDisc {
+                    destination: self.operand(flags, 1, true)?,
+                }
+            }
+            OP_SET_SIMULATION_FLAGS | OP_SET_SIMULATION_ALGORITHM | OP_SET_SIMULATION_AXIS => {
+                let flags = self.byte()?;
+                let simulation = self.operand(flags, 1, false)?;
+                let value = self.operand(flags, 2, false)?;
+                if opcode == OP_SET_SIMULATION_FLAGS {
+                    InstructionKind::SetSimulationFlags {
+                        simulation,
+                        flags: value,
+                    }
+                } else if opcode == OP_SET_SIMULATION_ALGORITHM {
+                    InstructionKind::SetSimulationAlgorithm {
+                        simulation,
+                        algorithm: value,
+                    }
+                } else {
+                    InstructionKind::SetSimulationAxis {
+                        simulation,
+                        axis: value,
+                    }
+                }
+            }
+            OP_SET_SIMULATION_DELTA => {
+                let flags = self.byte()?;
+                InstructionKind::SetSimulationDelta {
+                    simulation: self.operand(flags, 1, false)?,
+                    delta: [self.operand(flags, 2, true)?, self.operand(flags, 4, true)?],
+                }
+            }
+            OP_SHOW_NAVIGATION_ANIMATION_FRAME => {
+                let flags = self.byte()?;
+                InstructionKind::ShowNavigationAnimationFrame {
+                    animation: self.operand(flags, 1, false)?,
+                    frame: self.operand(flags, 2, false)?,
                 }
             }
             OP_DISABLE_USER_CONTROL | OP_ENABLE_USER_CONTROL => InstructionKind::SetUserControl {
