@@ -137,6 +137,7 @@ impl LegacyEventHost for Host {
                 HostEvent::RequestCallerAsync { .. } => {}
                 HostEvent::CalculateExitPosition => {}
                 HostEvent::RequestCallerSync { .. } => {}
+                HostEvent::SetSpsParameters { .. } => {}
                 HostEvent::SetTileShadeColor { .. } => {}
                 HostEvent::AttachTile { .. } => {}
             }
@@ -1577,6 +1578,41 @@ fn bglcolor_decodes_immediate_and_expression_components() {
         [HostEvent::SetTileShadeColor {
             overlay: 3,
             color: [128, 255, 255]
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn sps_decodes_byte_ids_and_signed_wide_arguments() {
+    let bytes = [179, 0, 2, 3, 0xf6, 0xff, 20, 0, 0xd2, 0xff, 4];
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetSpsParameters {
+            object: 2,
+            operation: 3,
+            arguments: [-10, 20, -46]
+        }]
+    );
+
+    let mut bytes = vec![179, 31];
+    for value in [1, 4, -100, 200, -300] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetSpsParameters {
+            object: 1,
+            operation: 4,
+            arguments: [-100, 200, -300]
         }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);

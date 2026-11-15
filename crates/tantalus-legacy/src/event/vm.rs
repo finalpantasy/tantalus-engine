@@ -416,6 +416,26 @@ impl EventVm {
                     self.status = VmStatus::Waiting;
                     events.push(HostEvent::RequestCallerSync { level, tag });
                 }
+                InstructionKind::SetSpsParameters {
+                    object,
+                    operation,
+                    arguments,
+                } => {
+                    let object = self.evaluate(host, &object, instruction.offset, opcode)?;
+                    let operation = self.evaluate(host, &operation, instruction.offset, opcode)?;
+                    let [first, second, third] = arguments;
+                    let arguments = [
+                        self.evaluate(host, &first, instruction.offset, opcode)? as i16,
+                        self.evaluate(host, &second, instruction.offset, opcode)? as i16,
+                        self.evaluate(host, &third, instruction.offset, opcode)? as i16,
+                    ];
+                    self.pc = next;
+                    events.push(HostEvent::SetSpsParameters {
+                        object,
+                        operation,
+                        arguments,
+                    });
+                }
                 InstructionKind::SetTileShadeColor {
                     overlay,
                     red,
@@ -1132,6 +1152,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetControlDirection { .. } => 0x67,
         InstructionKind::BackgroundMove { .. } => 0x58,
         InstructionKind::SetTileShadeColor { .. } => 0x59,
+        InstructionKind::SetSpsParameters { .. } => 0xb3,
         InstructionKind::InitializeObject { .. } => 0x09,
         InstructionKind::InitializeRegion { .. } => 0x08,
         InstructionKind::InitializeCode { .. } => 0x07,

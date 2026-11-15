@@ -191,6 +191,11 @@ pub enum InstructionKind {
         level: Expression,
         tag: u8,
     },
+    SetSpsParameters {
+        object: Expression,
+        operation: Expression,
+        arguments: [Expression; 3],
+    },
     SetTileShadeColor {
         overlay: Expression,
         red: Expression,
@@ -343,6 +348,11 @@ pub enum HostEvent {
     RequestCallerSync {
         level: i32,
         tag: u8,
+    },
+    SetSpsParameters {
+        object: i32,
+        operation: i32,
+        arguments: [i16; 3],
     },
     SetTileShadeColor {
         overlay: i32,

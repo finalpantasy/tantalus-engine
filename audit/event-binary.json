@@ -88,7 +88,8 @@
     "B_SHIFT_LEFT 22 performs wrapping left shifts with the reference's masked shift count",
     "B_SIN 98 shifts its angle by four and applies the reference f32 fixed-point sine conversion",
     "BGLCOLOR 0x59 decodes overlay and byte-color operands and emits SetTileShadeColor",
-    "CLI reports every failing entry plus decoded and total function counts"
+    "CLI reports every failing entry plus decoded and total function counts",
+    "SPS 0xB3 decodes byte IDs and three signed-wide arguments and emits SetSpsParameters"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -103,10 +104,11 @@
     "entry": 2,
     "function": 1,
     "function_tag": 1,
-    "offset": 54,
-    "opcode": 179,
+    "offset": 151,
+    "expression_offset": 138,
+    "opcode": 114,
     "kind": "UnsupportedOpcode",
-    "instruction": "first unsupported event opcode after the independently malformed entry 1"
+    "instruction": "expression operation after SPS support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

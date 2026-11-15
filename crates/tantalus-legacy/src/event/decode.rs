@@ -19,6 +19,7 @@ const OP_DEFINE_PLAYER_CONTROL: u32 = 0x2c;
 const OP_SET_CONTROL_DIRECTION: u32 = 0x67;
 const OP_BACKGROUND_MOVE: u32 = 0x58;
 const OP_SET_TILE_SHADE_COLOR: u32 = 0x59;
+const OP_SET_SPS_PARAMETERS: u32 = 0xb3;
 const OP_INITIALIZE_OBJECT: u32 = 0x09;
 const OP_INITIALIZE_REGION: u32 = 0x08;
 const OP_INITIALIZE_CODE: u32 = 0x07;
@@ -178,6 +179,36 @@ impl Decoder<'_> {
                     red: argument(2)?,
                     green: argument(4)?,
                     blue: argument(8)?,
+                }
+            }
+            OP_SET_SPS_PARAMETERS => {
+                let flags = self.byte()?;
+                let mut byte_argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                let object = byte_argument(1)?;
+                let operation = byte_argument(2)?;
+                let mut wide_argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.i16()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetSpsParameters {
+                    object,
+                    operation,
+                    arguments: [wide_argument(4)?, wide_argument(8)?, wide_argument(16)?],
                 }
             }
             OP_INITIALIZE_OBJECT => InstructionKind::InitializeObject {
