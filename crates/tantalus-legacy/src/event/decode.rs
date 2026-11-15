@@ -1069,6 +1069,7 @@ impl Decoder<'_> {
                 27 => ExpressionOp::GreaterOrEqual,
                 EXPR_EQUAL => ExpressionOp::Equal,
                 EXPR_NOT_EQUAL => ExpressionOp::NotEqual,
+                28 => ExpressionOp::LessMembers,
                 29 => ExpressionOp::GreaterMembers,
                 30 => ExpressionOp::LessOrEqualMembers,
                 31 => ExpressionOp::GreaterOrEqualMembers,
