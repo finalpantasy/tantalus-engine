@@ -1683,6 +1683,20 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::Sps => {
+                    let right = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing second SPS operand")
+                    })?;
+                    read_value(host, right, offset, opcode)?;
+                    let left = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing first SPS operand")
+                    })?;
+                    read_value(host, left, offset, opcode)?;
+                    stack.push(StackValue {
+                        value: 0,
+                        target: None,
+                    });
+                }
                 ExpressionOp::SelectRandomMember => {
                     let value = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing random-selection operand")
@@ -2683,7 +2697,8 @@ fn operand_start(
         | ExpressionOp::CastU8
         | ExpressionOp::CastI16
         | ExpressionOp::CastU16 => operand_start(operations, index, offset, opcode),
-        ExpressionOp::Add
+        ExpressionOp::Sps
+        | ExpressionOp::Add
         | ExpressionOp::Subtract
         | ExpressionOp::Multiply
         | ExpressionOp::Divide

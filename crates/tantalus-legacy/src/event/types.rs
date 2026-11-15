@@ -63,6 +63,7 @@ pub enum ExpressionOp {
     CharacterMaxMp,
     PartyContains,
     SelectRandomMember,
+    Sps,
     KeyOn,
     Less,
     Greater,

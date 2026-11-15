@@ -1112,6 +1112,25 @@ fn preload_field_preserves_hint_and_signed_field_identity() {
 }
 
 #[test]
+fn sps_consumes_two_operands_and_returns_zero_without_host_effects() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 74);
+    let expression = assign(result.clone(), binary(constant(11), constant(22), 108));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 74), 0);
+    assert!(report.events.is_empty());
+    assert!(host.member_writes.is_empty());
+
+    let missing = binary(constant(11), vec![], 108);
+    let mut vm = EventVm::new(decode_program(&evaluate(missing)).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("missing first SPS operand"));
+}
+
+#[test]
 fn bgvalpha_emits_viewport_and_signed_alpha_factors() {
     let program = decode_program(&[0xe6, 0, 3, 0xd0, 0x02, 0x30, 0xfd, 4]).unwrap();
     assert_eq!(program.instructions[&0].length, 7);

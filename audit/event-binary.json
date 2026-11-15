@@ -200,7 +200,8 @@
     "B_COS 99 shifts its operand left by four before fixed-point cosine",
     "B_OBJSPEC 78 matches the pinned extended-expression default zero without consuming an operand or accessing object members",
     "MCF_MODEL 0x121 decodes six signed 24-bit fields and emits SetModelLight with wrapped RGB and signed shadow values",
-    "BGVALPHA 0xE6 decodes a byte viewport and signed-wide X/Y factors and emits SetTileViewportAlpha"
+    "BGVALPHA 0xE6 decodes a byte viewport and signed-wide X/Y factors and emits SetTileViewportAlpha",
+    "B_SPS 108 consumes two expression operands and returns zero through the pinned no-effect path"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -337,12 +338,11 @@
       "entry": 13,
       "function": 1,
       "function_tag": 1,
-      "instruction_offset": 873,
-      "expression_offset": 896,
-      "offset": 1411,
-      "opcode": 108,
+      "instruction_offset": 964,
+      "offset": 1469,
+      "opcode": 98,
       "kind": "UnsupportedOpcode",
-      "instruction": "WAIT contains unsupported B_SPS expression opcode 0x6C after BGVALPHA support"
+      "instruction": "BGAWAIT event opcode 0x62 after B_SPS support"
     },
     {
       "entry": 13,
@@ -400,12 +400,11 @@
     "entry": 13,
     "function": 1,
     "function_tag": 1,
-    "instruction_offset": 873,
-    "expression_offset": 896,
-    "offset": 1411,
-    "opcode": 108,
+    "instruction_offset": 964,
+    "offset": 1469,
+    "opcode": 98,
     "kind": "UnsupportedOpcode",
-    "instruction": "WAIT contains unsupported B_SPS expression opcode 0x6C after BGVALPHA support"
+    "instruction": "BGAWAIT event opcode 0x62 after B_SPS support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
