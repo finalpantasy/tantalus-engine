@@ -201,6 +201,13 @@ impl LegacyEventHost for Host {
                 HostEvent::SetTileShadeColor { .. } => {}
                 HostEvent::SetSimulationFloor { .. } => {}
                 HostEvent::SetSimulationFrameRate { .. } => {}
+                HostEvent::SetTileBlockActive { .. } => {}
+                HostEvent::SetTileLoop { .. } => {}
+                HostEvent::SetTileParallax { .. } => {}
+                HostEvent::SetTileOrigin { .. } => {}
+                HostEvent::RunTileAnimation { .. } => {}
+                HostEvent::SetTileAnimationActive { .. } => {}
+                HostEvent::ResetTileAnimation { .. } => {}
                 HostEvent::SetTileAnimationRate { .. } => {}
                 HostEvent::SetTileAnimationFrameWait { .. } => {}
                 HostEvent::SetTileAnimationFlags { .. } => {}
@@ -5458,6 +5465,129 @@ fn incfrog_emits_a_no_operand_host_command() {
     assert_eq!(report.events, [HostEvent::IncrementFrogCount]);
     assert!(vm.traces().any(|trace| trace.opcode == Some(224)));
     assert_eq!(report.status, VmStatus::Completed);
+}
+
+#[test]
+fn tile_block_commands_decode_flag_and_signed_word_operands() {
+    let mut host = Host::new();
+
+    let program = decode_program(&[91, 0, 3, 2, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileBlockActive {
+            block: 3,
+            active: true,
+        }]
+    );
+    assert!(vm.traces().any(|trace| trace.opcode == Some(91)));
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![92, 0b1000, 2, 1];
+    bytes.extend_from_slice(&(-3i16).to_le_bytes());
+    append_expression(&mut bytes, constant(-40));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileLoop {
+            block: 2,
+            enabled: 1,
+            x_speed: -3,
+            y_speed: -40,
+        }]
+    );
+
+    let mut bytes = vec![93, 0, 1, 0];
+    bytes.extend_from_slice(&256i16.to_le_bytes());
+    bytes.extend_from_slice(&(-256i16).to_le_bytes());
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileParallax {
+            block: 1,
+            enabled: 0,
+            x_speed: 256,
+            y_speed: -256,
+        }]
+    );
+
+    let mut bytes = vec![94, 0, 4];
+    bytes.extend_from_slice(&(-20i16).to_le_bytes());
+    bytes.extend_from_slice(&30i16.to_le_bytes());
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileOrigin {
+            block: 4,
+            x: -20,
+            y: 30,
+        }]
+    );
+
+    assert_eq!(
+        decode_program(&[92, 0, 2, 1, 0]).unwrap_err().kind,
+        VmErrorKind::Decode
+    );
+    assert_eq!(
+        decode_program(&[94, 0, 4, 1]).unwrap_err().kind,
+        VmErrorKind::Decode
+    );
+}
+
+#[test]
+fn tile_animation_run_active_and_reset_commands_emit_raw_operands() {
+    let mut host = Host::new();
+
+    let program = decode_program(&[95, 0, 1, 7, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RunTileAnimation {
+            animation: 1,
+            start_frame: 7,
+        }]
+    );
+    assert!(vm.traces().any(|trace| trace.opcode == Some(95)));
+
+    let mut bytes = vec![96, 3];
+    append_expression(&mut bytes, constant(2));
+    append_expression(&mut bytes, constant(0));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileAnimationActive {
+            animation: 2,
+            active: false,
+        }]
+    );
+
+    let program = decode_program(&[202, 0, 5, 9, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ResetTileAnimation {
+            animation: 5,
+            show_first_frame: 9,
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let truncated = decode_program(&[95, 0, 1]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(95)"));
 }
 
 #[test]

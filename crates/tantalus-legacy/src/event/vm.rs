@@ -1114,6 +1114,87 @@ impl EventVm {
                         frame_rate,
                     });
                 }
+                InstructionKind::SetTileBlockActive { block, active } => {
+                    let block = self.evaluate(host, &block, instruction.offset, opcode)?;
+                    let active = self.evaluate(host, &active, instruction.offset, opcode)? != 0;
+                    self.pc = next;
+                    events.push(HostEvent::SetTileBlockActive { block, active });
+                }
+                InstructionKind::SetTileLoop {
+                    block,
+                    enabled,
+                    x_speed,
+                    y_speed,
+                } => {
+                    let block = self.evaluate(host, &block, instruction.offset, opcode)?;
+                    let enabled = self.evaluate(host, &enabled, instruction.offset, opcode)?;
+                    let x_speed = self.evaluate(host, &x_speed, instruction.offset, opcode)? as i16;
+                    let y_speed = self.evaluate(host, &y_speed, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::SetTileLoop {
+                        block,
+                        enabled,
+                        x_speed,
+                        y_speed,
+                    });
+                }
+                InstructionKind::SetTileParallax {
+                    block,
+                    enabled,
+                    x_speed,
+                    y_speed,
+                } => {
+                    let block = self.evaluate(host, &block, instruction.offset, opcode)?;
+                    let enabled = self.evaluate(host, &enabled, instruction.offset, opcode)?;
+                    let x_speed = self.evaluate(host, &x_speed, instruction.offset, opcode)? as i16;
+                    let y_speed = self.evaluate(host, &y_speed, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::SetTileParallax {
+                        block,
+                        enabled,
+                        x_speed,
+                        y_speed,
+                    });
+                }
+                InstructionKind::SetTileOrigin { block, x, y } => {
+                    let block = self.evaluate(host, &block, instruction.offset, opcode)?;
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
+                    let y = self.evaluate(host, &y, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::SetTileOrigin { block, x, y });
+                }
+                InstructionKind::RunTileAnimation {
+                    animation,
+                    start_frame,
+                } => {
+                    let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
+                    let start_frame =
+                        self.evaluate(host, &start_frame, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::RunTileAnimation {
+                        animation,
+                        start_frame,
+                    });
+                }
+                InstructionKind::SetTileAnimationActive { animation, active } => {
+                    let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
+                    let active = self.evaluate(host, &active, instruction.offset, opcode)? != 0;
+                    self.pc = next;
+                    events.push(HostEvent::SetTileAnimationActive { animation, active });
+                }
+                InstructionKind::ResetTileAnimation {
+                    animation,
+                    show_first_frame,
+                } => {
+                    let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
+                    let show_first_frame =
+                        self.evaluate(host, &show_first_frame, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::ResetTileAnimation {
+                        animation,
+                        show_first_frame,
+                    });
+                }
                 InstructionKind::SetTileAnimationRate {
                     animation,
                     frame_rate,
@@ -2748,6 +2829,13 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
         InstructionKind::SetTileAnimationFlags { .. } => 0x64,
         InstructionKind::SetTileAnimationRange { .. } => 0x65,
+        InstructionKind::SetTileBlockActive { .. } => 0x5b,
+        InstructionKind::SetTileLoop { .. } => 0x5c,
+        InstructionKind::SetTileParallax { .. } => 0x5d,
+        InstructionKind::SetTileOrigin { .. } => 0x5e,
+        InstructionKind::RunTileAnimation { .. } => 0x5f,
+        InstructionKind::SetTileAnimationActive { .. } => 0x60,
+        InstructionKind::ResetTileAnimation { .. } => 0xca,
         InstructionKind::SetTileAnimationFrameWait { .. } => 0x63,
         InstructionKind::SetTileAnimationRate { .. } => 0x61,
         InstructionKind::IncrementFrogCount => 0xe0,
