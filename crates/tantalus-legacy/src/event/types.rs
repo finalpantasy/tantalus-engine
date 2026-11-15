@@ -83,6 +83,7 @@ pub enum ExpressionOp {
     AndAssignAllMembers,
     AssignMembers,
     EqualMembers,
+    AndMembers,
     LessOrEqualMembers,
     GreaterOrEqualMembers,
     GreaterMembers,

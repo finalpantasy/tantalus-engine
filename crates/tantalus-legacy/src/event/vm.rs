@@ -1346,6 +1346,7 @@ impl EventVm {
                     target: None,
                 }),
                 ExpressionOp::EqualMembers
+                | ExpressionOp::AndMembers
                 | ExpressionOp::LessOrEqualMembers
                 | ExpressionOp::GreaterOrEqualMembers
                 | ExpressionOp::GreaterMembers => {
@@ -1353,14 +1354,14 @@ impl EventVm {
                         return Err(expression_error(
                             offset,
                             opcode,
-                            "member comparison requires mask, target, and comparison inputs",
+                            "member extraction requires mask, target, and operand inputs",
                         ));
                     }
                     let Some(StackTarget::Member(_)) = stack[stack.len() - 2].target else {
                         return Err(expression_error(
                             offset,
                             opcode,
-                            "member comparison target is not a selected member",
+                            "member extraction target is not a selected member",
                         ));
                     };
                     let mask = read_value(host, stack[stack.len() - 3], offset, opcode)?;
@@ -1375,6 +1376,7 @@ impl EventVm {
                             let value = read_value(host, target, offset, opcode)?;
                             let matches = match operation {
                                 ExpressionOp::EqualMembers => value == comparison,
+                                ExpressionOp::AndMembers => value & comparison != 0,
                                 ExpressionOp::LessOrEqualMembers => value <= comparison,
                                 ExpressionOp::GreaterOrEqualMembers => value >= comparison,
                                 ExpressionOp::GreaterMembers => value > comparison,
@@ -1793,6 +1795,7 @@ fn operand_start(
         | ExpressionOp::XorAssignAllMembers
         | ExpressionOp::AndAssignAllMembers
         | ExpressionOp::EqualMembers
+        | ExpressionOp::AndMembers
         | ExpressionOp::LessOrEqualMembers
         | ExpressionOp::GreaterOrEqualMembers
         | ExpressionOp::GreaterMembers => {

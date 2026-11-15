@@ -122,7 +122,8 @@
     "B_AND_LET_A 64 ANDs and writes every selected member and returns the last value; empty masks return zero without host access",
     "B_KEY2 92 consumes its operand and pushes zero through the same reference compatibility path as B_KEYON2",
     "B_ANGLEA 96 resolves the target by script UID, truncates target-minus-current position deltas, and uses the B_ANGLE2 fixed-point angle path",
-    "B_PLUS_LET 50 adds to variable/current-member targets, writes the normalized result, and returns it"
+    "B_PLUS_LET 50 adds to variable/current-member targets, writes the normalized result, and returns it",
+    "B_AND_E 84 returns selected-member bit-intersection flags without writes; empty masks return zero without target selection"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -147,11 +148,11 @@
     "entry": 6,
     "function": 1,
     "function_tag": 1,
-    "offset": 238,
-    "expression_offset": 99,
-    "opcode": 84,
+    "offset": 245,
+    "expression_offset": 106,
+    "opcode": 100,
     "kind": "UnsupportedOpcode",
-    "instruction": "B_AND_E in a new expression after direct addition-assignment support"
+    "instruction": "B_HAVE_ITEM after selected-member bit-intersection support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
