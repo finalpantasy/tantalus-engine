@@ -151,7 +151,7 @@ pub enum InstructionKind {
         z: Expression,
     },
     SetNavigationAttributeMask(Expression),
-    Yield,
+    Yield(u8),
     SetShadowEnabled(bool),
 }
 

@@ -63,14 +63,15 @@
     "B_SHIFT_RIGHT 23 performs signed arithmetic shifts with the reference's masked shift count",
     "B_ANGLE2 102 ports the reference quadrant logic and host-provided arctangent table reads with equivalent integer output",
     "pad0e 0x0E consumes its flag and yields before continuing, matching the default FLOW_STATE_WAIT path",
-    "SHADOWON 0x7F consumes its flag and emits SetShadowEnabled for the current actor"
+    "SHADOWON 0x7F consumes its flag and emits SetShadowEnabled for the current actor",
+    "pad17 0x17 consumes its flag and yields through the shared opcode-preserving Yield instruction"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 970,
-    "opcode": "0x17",
+    "offset": 972,
+    "opcode": "0x66",
     "kind": "event",
-    "instruction": "pad17"
+    "instruction": "MESVALUE"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
