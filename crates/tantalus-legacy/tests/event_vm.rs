@@ -179,6 +179,7 @@ impl LegacyEventHost for Host {
                 HostEvent::StopTextureAnimation { .. } => {}
                 HostEvent::RunBattleCode { .. } => {}
                 HostEvent::SetRunEnabled { .. } => {}
+                HostEvent::SetPartyAvailability { .. } => {}
                 HostEvent::AttachTile { .. } => {}
             }
         }
@@ -3252,6 +3253,28 @@ fn dashon_enables_running() {
     let report = vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(report.events, [HostEvent::SetRunEnabled { enabled: true }]);
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn fullmember_remaps_legacy_party_availability_bits() {
+    let program = decode_program(&[180, 0, 0xff, 1, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetPartyAvailability { mask: 0x8ff }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
+
+    let mut bytes = vec![180, 1];
+    append_expression(&mut bytes, constant(2));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::SetPartyAvailability { mask: 2 }]);
 }
 
 #[test]

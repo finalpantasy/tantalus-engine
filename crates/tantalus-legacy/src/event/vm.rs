@@ -850,6 +850,16 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetRunEnabled { enabled });
                 }
+                InstructionKind::SetPartyAvailability(mask) => {
+                    let mask = self.evaluate(host, &mask, instruction.offset, opcode)?;
+                    let mut available = mask & !0xf00;
+                    available |= (mask >> 1) & 0x700;
+                    if mask & 0x100 != 0 {
+                        available |= 0x800;
+                    }
+                    self.pc = next;
+                    events.push(HostEvent::SetPartyAvailability { mask: available });
+                }
                 InstructionKind::AttachTile {
                     overlay,
                     x,
@@ -1823,6 +1833,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::StopTextureAnimation { .. } => 0xc2,
         InstructionKind::RunBattleCode { .. } => 0x4a,
         InstructionKind::SetRunEnabled { opcode, .. } => u32::from(*opcode),
+        InstructionKind::SetPartyAvailability { .. } => 0xb4,
         InstructionKind::AttachTile { .. } => 0x92,
     }
 }

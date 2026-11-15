@@ -74,6 +74,7 @@ const OP_INITIALIZE_CHARACTER: u32 = 0xfe;
 const OP_STOP_TEXTURE_ANIMATION: u32 = 0xc2;
 const OP_RUN_BATTLE_CODE: u32 = 0x4a;
 const OP_DASH_ON: u32 = 0xf0;
+const OP_FULL_MEMBER: u32 = 0xb4;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -898,6 +899,18 @@ impl Decoder<'_> {
                     code: argument(1, false)?,
                     value: argument(2, true)?,
                 }
+            }
+            OP_FULL_MEMBER => {
+                let flags = self.byte()?;
+                let mask = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.i16()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::SetPartyAvailability(mask)
             }
             OP_DASH_ON => {
                 self.byte()?;

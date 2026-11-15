@@ -142,7 +142,8 @@
     "DASHON 0xF0 consumes its flag and emits SetRunEnabled(true) while preserving its opcode",
     "MESB 0xD0 emits ShowBattleMessage with a signed-wide text ID",
     "GLOBALCLEAR 0xD1 and DEBUGSAVE/DEBUGLOAD 0xD2/0xD3 follow the corrected no-op mapping",
-    "decode diagnostics include active opcode and a bounded instruction-byte preview"
+    "decode diagnostics include active opcode and a bounded instruction-byte preview",
+    "FULLMEMBER 0xB4 remaps legacy party-reserve bits and emits SetPartyAvailability"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -187,10 +188,10 @@
     "entry": 3,
     "function": 1,
     "function_tag": 1,
-    "offset": 647,
-    "opcode": 180,
+    "offset": 737,
+    "opcode": 90,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0xB4 after correcting the MESB/GLOBALCLEAR/debug mapping"
+    "instruction": "event opcode 0x5A after party-availability remapping"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

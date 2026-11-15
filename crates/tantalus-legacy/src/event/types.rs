@@ -297,6 +297,7 @@ pub enum InstructionKind {
         enabled: bool,
         opcode: u8,
     },
+    SetPartyAvailability(Expression),
     AttachTile {
         overlay: Expression,
         x: Expression,
@@ -558,6 +559,9 @@ pub enum HostEvent {
     },
     SetRunEnabled {
         enabled: bool,
+    },
+    SetPartyAvailability {
+        mask: i32,
     },
     AttachTile {
         overlay: i32,
