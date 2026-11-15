@@ -54,6 +54,7 @@ const OP_WAIT_WINDOW: u32 = 0x54;
 const OP_WALK_ACTOR: u32 = 0x23;
 const OP_MOVE_ACTOR: u32 = 0xbf;
 const OP_AIM_AT_CAMERA: u32 = 0xb8;
+const OP_SET_MODEL_COLOR: u32 = 0x8f;
 const OP_START_OBJECT_TURN: u32 = 0xbb;
 const OP_PLAY_OBJECT_ANIMATION: u32 = 0xbd;
 const OP_PLAY_TEXTURE_ANIMATION: u32 = 0xc0;
@@ -812,6 +813,15 @@ impl Decoder<'_> {
                 let flags = self.byte()?;
                 InstructionKind::StartCardGame {
                     opponent: self.operand(flags, 1, true)?,
+                }
+            }
+            OP_SET_MODEL_COLOR => {
+                let flags = self.byte()?;
+                InstructionKind::SetModelColor {
+                    object: self.operand(flags, 1, false)?,
+                    red: self.operand(flags, 2, false)?,
+                    green: self.operand(flags, 4, false)?,
+                    blue: self.operand(flags, 8, false)?,
                 }
             }
             OP_AIM_AT_CAMERA => InstructionKind::AimAtCamera,
