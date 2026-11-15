@@ -783,6 +783,7 @@ impl Decoder<'_> {
                 98 => ExpressionOp::Sine,
                 100 => ExpressionOp::ItemCount,
                 102 => ExpressionOp::Angle2,
+                106 => ExpressionOp::AnimationFrame,
                 114 => ExpressionOp::NoOp,
                 EXPR_CONST_I16 => ExpressionOp::Constant(i32::from(self.i16()?)),
                 EXPR_CONST_I32 => ExpressionOp::Constant(self.i32()?),

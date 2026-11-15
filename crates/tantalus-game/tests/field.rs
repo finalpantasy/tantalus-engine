@@ -114,6 +114,19 @@ impl LegacyEventHost for Host {
         ))
     }
 
+    fn read_animation_frame(
+        &mut self,
+        entity: EntityId,
+        animation: i32,
+    ) -> Result<i32, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            format!("field fixture has no animation {animation} frame for {entity}"),
+            "fixture-host",
+            true,
+        ))
+    }
+
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,

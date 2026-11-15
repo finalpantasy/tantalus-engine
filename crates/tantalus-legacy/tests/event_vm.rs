@@ -76,6 +76,7 @@ struct Host {
     object_uids: BTreeMap<i32, EntityId>,
     object_positions: BTreeMap<EntityId, [f32; 3]>,
     item_counts: BTreeMap<i32, i32>,
+    animation_frames: BTreeMap<(EntityId, i32), i32>,
     fail: bool,
 }
 
@@ -92,6 +93,7 @@ impl Host {
             object_uids: BTreeMap::new(),
             object_positions: BTreeMap::new(),
             item_counts: BTreeMap::new(),
+            animation_frames: BTreeMap::new(),
             fail: false,
         }
     }
@@ -243,6 +245,17 @@ impl LegacyEventHost for Host {
 
     fn read_item_count(&mut self, item: i32) -> Result<i32, EngineError> {
         Ok(self.item_counts.get(&item).copied().unwrap_or(0))
+    }
+
+    fn read_animation_frame(
+        &mut self,
+        actor: EntityId,
+        animation: i32,
+    ) -> Result<i32, EngineError> {
+        self.animation_frames
+            .get(&(actor, animation))
+            .copied()
+            .ok_or_else(|| Self::target_error(format!("unknown animation {animation} for {actor}")))
     }
 
     fn script_request_is_complete(&mut self, _entity: EntityId) -> Result<bool, EngineError> {
@@ -2264,6 +2277,29 @@ fn have_item_returns_the_actual_count() {
     let mut vm = EventVm::new(program);
     vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(vm.variable(VariableScope::Global, 47), 0);
+}
+
+#[test]
+fn frame_reads_the_current_object_animation_frame() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 48);
+    let expression = assign(result, binary(constant(7), vec![], 106));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let actor = EntityId::new(42);
+    let mut vm = EventVm::new(program).with_entity(actor);
+    let mut host = Host::new();
+    host.animation_frames.insert((actor, 7), 19);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 48), 19);
+
+    let result = variable(VariableScope::Global, VariableType::Int16, 48);
+    let expression = assign(result, binary(constant(7), vec![], 106));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::InvalidExpression);
+    assert!(error.message.contains("object context"));
 }
 
 #[test]
