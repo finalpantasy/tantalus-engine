@@ -168,6 +168,7 @@ pub enum InstructionKind {
         self_mask: Expression,
         target_mask: Expression,
     },
+    SetHeadFocusFlags(Expression),
     SetObjectFlags(Expression),
     SetActorFacing(Expression),
     Return,
@@ -506,6 +507,10 @@ pub enum HostEvent {
         actor: EntityId,
         self_mask: u8,
         target_mask: u8,
+    },
+    SetHeadFocusFlags {
+        actor: EntityId,
+        flags: u8,
     },
     SetObjectFlags {
         object: EntityId,

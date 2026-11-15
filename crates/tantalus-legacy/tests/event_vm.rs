@@ -196,6 +196,7 @@ impl LegacyEventHost for Host {
                 HostEvent::ClearPartyStatus { .. } => {}
                 HostEvent::PlayAnimation { .. } => {}
                 HostEvent::SetAnimationRange { .. } => {}
+                HostEvent::SetHeadFocusFlags { .. } => {}
                 HostEvent::PreloadField { .. } => {}
                 HostEvent::ChangeElementalAffinity { .. } => {}
                 HostEvent::SetRain { .. } => {}
@@ -1394,6 +1395,42 @@ fn neckid_sets_actor_head_focus_masks() {
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));
+}
+
+#[test]
+fn neckflag_replaces_head_focus_flags_with_the_masked_operand() {
+    let program = decode_program(&[71, 0, 3, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 3);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetHeadFocusFlags {
+            actor: EntityId::new(42),
+            flags: 3
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![71, 1];
+    append_expression(&mut bytes, constant(-1));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap()).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetHeadFocusFlags {
+            actor: EntityId::new(42),
+            flags: 7
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[71, 0, 3, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
+    assert!(decode_program(&[71, 0]).is_err());
 }
 
 #[test]

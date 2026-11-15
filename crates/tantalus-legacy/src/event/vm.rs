@@ -280,6 +280,19 @@ impl EventVm {
                         target_mask,
                     });
                 }
+                InstructionKind::SetHeadFocusFlags(flags) => {
+                    let flags = self.evaluate(host, &flags, instruction.offset, opcode)? as u8 & 7;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "head-focus flags require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetHeadFocusFlags { actor, flags });
+                }
                 InstructionKind::SetIdleAnimationSpeeds(expressions) => {
                     let [first, second, third, fourth] = expressions;
                     let speeds = [
@@ -2104,6 +2117,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetActorRadii { .. } => 0x4b,
         InstructionKind::SetIdleAnimationSpeeds { .. } => 0x86,
         InstructionKind::SetHeadFocusMasks { .. } => 0x8b,
+        InstructionKind::SetHeadFocusFlags { .. } => 0x47,
         InstructionKind::SetObjectFlags { .. } => 0x93,
         InstructionKind::SetActorFacing { .. } => 0x36,
         InstructionKind::Return => 0x04,
