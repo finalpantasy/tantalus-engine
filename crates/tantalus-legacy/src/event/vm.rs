@@ -635,6 +635,62 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::AssignMembers => {
+                    if stack.len() < 2 {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "member assignment requires target and mask inputs",
+                        ));
+                    }
+                    let Some(StackTarget::Member(_)) = stack[stack.len() - 2].target else {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "member assignment input is not a selected member",
+                        ));
+                    };
+                    let mask = read_value(host, stack[stack.len() - 1], offset, opcode)?;
+                    let target = stack[stack.len() - 2];
+                    let mut result = 0i32;
+                    for slot in 0..8 {
+                        result >>= 1;
+                        if mask & (1 << slot) != 0 {
+                            host.select_object_member_target(Some(slot))
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            result |=
+                                i32::from(read_value(host, target, offset, opcode)? != 0) << 7;
+                        }
+                    }
+                    stack.truncate(stack.len() - 2);
+                    if let Some(target) = stack.pop() {
+                        match target.target {
+                            Some(StackTarget::Variable(variable)) => {
+                                let value = normalize(result, variable.value_type);
+                                self.variables
+                                    .insert((variable.scope, variable.index), value);
+                            }
+                            Some(StackTarget::Member(member)) => {
+                                let object = host
+                                    .select_object_member_target(None)
+                                    .map_err(|error| VmError::host(error, offset, opcode))?;
+                                host.write_object_member(
+                                    ObjectMemberRef { object, member },
+                                    result,
+                                )
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            }
+                            None => {}
+                        }
+                    } else {
+                        self.variables
+                            .insert((VariableScope::Global, 0), i32::from(result != 0));
+                    }
+                    stack.push(StackValue {
+                        value: result,
+                        target: None,
+                    });
+                }
                 ExpressionOp::XorAssignMembers => {
                     if stack.len() < 3 {
                         return Err(expression_error(
@@ -1027,6 +1083,7 @@ fn operand_start(
         | ExpressionOp::PostIncrementMembers
         | ExpressionOp::PostDecrementMembers
         | ExpressionOp::PreDecrementMembers
+        | ExpressionOp::AssignMembers
         | ExpressionOp::NotMembers
         | ExpressionOp::LogicalAnd
         | ExpressionOp::LogicalOr => {

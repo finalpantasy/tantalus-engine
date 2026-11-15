@@ -65,14 +65,15 @@
     "pad0e 0x0E consumes its flag and yields before continuing, matching the default FLOW_STATE_WAIT path",
     "SHADOWON 0x7F consumes its flag and emits SetShadowEnabled for the current actor",
     "pad17 0x17 consumes its flag and yields through the shared opcode-preserving Yield instruction",
-    "MESVALUE 0x66 decodes script ID and signed value operands and emits SetTextVariable"
+    "MESVALUE 0x66 decodes script ID and signed value operands and emits SetTextVariable",
+    "B_LET_E 46 computes selected-member truth masks and writes the lower assignment target, including the empty-stack global-bit fallback"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 1012,
-    "opcode": "0x2E",
-    "instruction": "B_LET_E",
-    "expression_start": 1012
+    "offset": 1024,
+    "opcode": "0x9F",
+    "kind": "event",
+    "instruction": "MOVJ"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

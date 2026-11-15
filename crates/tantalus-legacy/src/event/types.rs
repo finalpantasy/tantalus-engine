@@ -70,6 +70,7 @@ pub enum ExpressionOp {
     CastList,
     ShiftRightAssignMembers,
     XorAssignMembers,
+    AssignMembers,
     EqualMembers,
     NotMembers,
     LogicalAnd,
