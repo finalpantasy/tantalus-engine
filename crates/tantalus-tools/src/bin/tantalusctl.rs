@@ -461,6 +461,9 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut assemble_model_dir = None;
     let mut assemble_all_models = false;
     let mut field_models = false;
+    let mut field_composition = false;
+    let mut composition_png: Option<PathBuf> = None;
+    let mut composition_out: Option<PathBuf> = None;
     let mut models_bundle: Option<PathBuf> = None;
     let mut clips_bundle = None;
     let mut index = 2;
@@ -669,6 +672,21 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             }
             Some("--assemble-all") => assemble_all_models = true,
             Some("--field-models") => field_models = true,
+            Some("--field-composition") => field_composition = true,
+            Some(flag @ ("--png" | "--composition-out")) => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| format!("`{flag}` requires a path"))?;
+                let slot = if flag == "--png" {
+                    &mut composition_png
+                } else {
+                    &mut composition_out
+                };
+                if slot.replace(PathBuf::from(value)).is_some() {
+                    return Err(format!("`{flag}` may only be supplied once"));
+                }
+            }
             Some("--models") => {
                 index += 1;
                 let value = args
@@ -719,6 +737,9 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let path = path.ok_or_else(|| "missing required `--path <path>`".to_owned())?;
     if battle_scenes || battle_scene.is_some() {
         return run_battle_scene_report(&path, battle_scene.as_deref());
+    }
+    if field_composition {
+        return run_field_composition(&path, composition_out, composition_png);
     }
     let bundle = tantalus_assets::pc::unity_raw::UnityRawBundle::open(&path)
         .map_err(|error| error.to_string())?;
@@ -1803,13 +1824,121 @@ fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
     }
 }
 
+/// `--path` is a directory holding `p0data11.bin`-`p0data19.bin` or one such
+/// bundle. Writes the per-field JSON and, with `png`, camera 0 of every 40th
+/// field plus any failing field.
+fn run_field_composition(
+    path: &std::path::Path,
+    out: Option<PathBuf>,
+    png: Option<PathBuf>,
+) -> Result<(), String> {
+    use tantalus_assets::pc::field_composition::compose_bundle;
+    use tantalus_assets::pc::ui_atlas::encode_png_rgba;
+    let bundles: Vec<PathBuf> = if path.is_dir() {
+        (11..=19)
+            .map(|n| path.join(format!("p0data{n}.bin")))
+            .collect()
+    } else {
+        vec![path.to_path_buf()]
+    };
+    if let Some(dir) = &png {
+        std::fs::create_dir_all(dir)
+            .map_err(|error| format!("could not create {}: {error}", dir.display()))?;
+    }
+    let mut fields = Vec::new();
+    let mut bundle_errors = Vec::new();
+    let mut locale_variants = Vec::new();
+    for bundle in &bundles {
+        let name = bundle
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let result = compose_bundle(bundle, png.is_some(), |composed| {
+            let take = fields.len() % 40 == 0 || !composed.report.passed;
+            if let (Some(dir), true) = (&png, take) {
+                for (camera, raster) in &composed.rasters {
+                    let file = dir.join(format!("{}_cam{camera}.png", composed.report.field));
+                    let _ = std::fs::write(
+                        file,
+                        encode_png_rgba(raster.width, raster.height, &raster.rgba),
+                    );
+                }
+            }
+            let mut report = composed.report;
+            report.bundle = name.clone();
+            fields.push(report);
+        });
+        match result {
+            Ok(outcome) => locale_variants.extend(outcome.locale_variants),
+            Err(error) => bundle_errors
+                .push(serde_json::json!({ "bundle": name, "error": error.to_string() })),
+        }
+    }
+    fields.sort_by(|a, b| a.field.cmp(&b.field));
+    let passed = fields.iter().filter(|f| f.passed).count();
+    let failed = fields.len() - passed;
+    let total = serde_json::json!({
+        "fields": fields.len(),
+        "passed": passed,
+        "failed": failed,
+        "bundle_errors": bundle_errors.len(),
+        "locale_variants": locale_variants.len(),
+        "locale_variants_with_problems": locale_variants
+            .iter()
+            .filter(|v| !v.problems.is_empty() || v.unaccounted_bytes > 0)
+            .count(),
+        "pass": failed == 0 && bundle_errors.is_empty() && !fields.is_empty(),
+        "padding_bytes": fields.iter().map(|f| f.padding_bytes).sum::<usize>(),
+        "overlays": fields.iter().map(|f| f.overlay_count).sum::<usize>(),
+        "layers": fields.iter().map(|f| f.layer_count).sum::<usize>(),
+        "tiles": fields.iter().map(|f| f.tile_count).sum::<usize>(),
+        "non_empty_pixels": fields.iter().map(|f| f.non_empty_pixels).sum::<usize>(),
+        "out_of_bounds_tiles": fields.iter().map(|f| f.out_of_bounds_tiles).sum::<usize>(),
+        "tiles_outside_overlay": fields.iter().map(|f| f.tiles_outside_overlay).sum::<usize>(),
+        "animations": fields.iter().map(|f| f.animation_count).sum::<usize>(),
+        "animation_frames": fields.iter().map(|f| f.animation_frame_count).sum::<usize>(),
+        "unconsumed_animations": fields.iter().map(|f| f.unconsumed_animations.len()).sum::<usize>(),
+        "unaccounted_bytes": fields.iter().map(|f| f.unaccounted_bytes).sum::<usize>(),
+        "overlapping_bytes": fields.iter().map(|f| f.overlapping_bytes).sum::<usize>(),
+    });
+    let report = serde_json::json!({
+        "total": total,
+        "bundle_errors": bundle_errors,
+        "locale_variants": locale_variants,
+        "fields": fields,
+    });
+    let target = out.unwrap_or_else(|| PathBuf::from("audit/field-composition.json"));
+    std::fs::write(
+        &target,
+        serde_json::to_string_pretty(&report).unwrap()
+            + "
+",
+    )
+    .map_err(|error| format!("could not write {}: {error}", target.display()))?;
+    println!(
+        "field composition: {} fields, {passed} passed, {failed} failed, {} bundle errors -> {}",
+        fields.len(),
+        bundle_errors.len(),
+        target.display()
+    );
+    println!(
+        "{}",
+        if total["pass"] == true {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    Ok(())
+}
+
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--fonts [--font-png <dir>]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--field-models [--models <p0data4.bin>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--fonts [--font-png <dir>]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--field-models [--models <p0data4.bin>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 
