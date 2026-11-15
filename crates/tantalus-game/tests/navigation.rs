@@ -41,6 +41,7 @@ fn mesh() -> FieldNavigationMesh {
         ],
         active_floor: 0,
         active_triangle: 0,
+        actor_anchor: point(2, 7, 2),
     }
 }
 

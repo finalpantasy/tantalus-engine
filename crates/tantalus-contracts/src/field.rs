@@ -51,6 +51,13 @@ pub struct FieldNavigationMesh {
     pub triangles: Vec<NavigationTriangle>,
     pub active_floor: i16,
     pub active_triangle: i32,
+    pub actor_anchor: Point3,
+}
+
+impl FieldNavigationMesh {
+    pub fn actor_anchor(&self) -> Point3 {
+        self.actor_anchor
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

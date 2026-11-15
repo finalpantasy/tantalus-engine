@@ -18,7 +18,7 @@ pub struct NavigationError {
 }
 
 impl NavigationError {
-    fn new(context: impl Into<String>) -> Self {
+    pub(crate) fn new(context: impl Into<String>) -> Self {
         Self {
             context: context.into(),
         }

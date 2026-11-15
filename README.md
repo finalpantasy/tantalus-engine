@@ -46,6 +46,7 @@ The current source includes:
 - Renderer-independent mapping of the real field's camera, actor anchor, navigation, overlays, and sprite atlas/depth data.
 - Bevy field-sprite spawning with the real container-selected atlas, native-size/texture-resolution separation, deterministic depth order, and atomic missing-resource failure.
 - Repeatable synthetic 2D/3D and coherent real selected-camera field captures; original-reference comparison remains open.
+- A typed headless scenario runner with real-field press/hold/release input, BGI movement, expected-state checks, and presentation reports.
 - Synthetic tests for missing resources, incorrect file types, non-ASCII paths, and unchanged source files.
 - A pinned Memoria reference baseline with 22 initial capability groups and 204 configuration bindings.
 - A Bevy 0.19.1 client driven by renderer-independent scene snapshots.

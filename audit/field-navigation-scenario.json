@@ -1,0 +1,22 @@
+{
+  "scenario": "tests/scenarios/field_navigation.json",
+  "field": "FBG_N00_TSHP_MAP001_TH_CGR_0",
+  "source_bundle_sha256": "f16fce89e8da60f4d7b83751fcc7db6f3c284c12436af359f3a71d5f0d65c1a2",
+  "ticks": 6,
+  "input": [
+    { "tick": 1, "action": "none" },
+    { "tick": 2, "action": "press move_right" },
+    { "ticks": [2, 5], "action": "held move_right at four units per tick" },
+    { "tick": 6, "action": "release move_right" }
+  ],
+  "domain_events": 2,
+  "initial_position": [-130, 0, -648],
+  "expected_position": [-114, 0, -648],
+  "final_position": [-114, 0, -648],
+  "expected_triangle": 0,
+  "final_triangle": 0,
+  "presentation_actor_matches_final_state": true,
+  "passed": true,
+  "full_game_loop": "NOT_RUN",
+  "payload_redistributed": false
+}

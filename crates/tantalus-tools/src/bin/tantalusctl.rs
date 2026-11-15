@@ -28,6 +28,7 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
         (Some("install"), Some("inspect")) => run_install_inspect(args),
         (Some("assets"), Some("import")) => run_assets_import(args),
         (Some("assets"), Some("inspect-bundle")) => run_assets_inspect_bundle(args),
+        (Some("scenario"), Some("run")) => run_scenario(args),
         _ => Err(usage().to_owned()),
     }
 }
@@ -647,12 +648,73 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     Ok(())
 }
 
+fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
+    let mut case = None;
+    let mut bundle = None;
+    let mut json = false;
+    let mut index = 2;
+    while index < args.len() {
+        match args[index].to_str() {
+            Some("--case") | Some("--bundle") => {
+                let is_case = args[index] == "--case";
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| "scenario option requires a path".to_owned())?;
+                let destination = if is_case { &mut case } else { &mut bundle };
+                if destination.replace(PathBuf::from(value)).is_some() {
+                    return Err("scenario paths may only be supplied once".to_owned());
+                }
+            }
+            Some("--json") => json = true,
+            _ => {
+                return Err(format!(
+                    "unrecognized scenario argument: {}",
+                    args[index].to_string_lossy()
+                ));
+            }
+        }
+        index += 1;
+    }
+    let case = case.ok_or_else(|| "missing required `--case <path>`".to_owned())?;
+    let mut spec =
+        tantalus_tools::scenario::ScenarioRunner::read(&case).map_err(|error| error.to_string())?;
+    if let Some(bundle) = bundle {
+        spec.bundle = bundle;
+    }
+    let report =
+        tantalus_tools::scenario::ScenarioRunner::run(&spec).map_err(|error| error.to_string())?;
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report)
+                .map_err(|error| format!("could not serialize scenario report: {error}"))?
+        );
+    } else {
+        println!(
+            "{}: {} ticks, final position {:?}, triangle {}",
+            report.field, report.ticks, report.final_position, report.final_triangle
+        );
+    }
+    if report.passed {
+        Ok(())
+    } else {
+        Err(format!(
+            "scenario expectation failed: expected {:?} on triangle {}, got {:?} on triangle {}",
+            spec.expected.position,
+            spec.expected.triangle_index,
+            report.final_position,
+            report.final_triangle
+        ))
+    }
+}
+
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, or `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]\n\nInspect installations and UnityRaw bundles without modifying them, or import validated local asset packs."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }

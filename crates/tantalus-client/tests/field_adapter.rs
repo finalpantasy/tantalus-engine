@@ -43,6 +43,7 @@ fn field(atlas: &ContentId) -> FieldSceneDescription {
             triangles: Vec::new(),
             active_floor: 0,
             active_triangle: 0,
+            actor_anchor: Point3::default(),
         },
         overlays: vec![FieldOverlayPresentation {
             overlay_index: 0,

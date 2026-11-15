@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "field": "FBG_N00_TSHP_MAP001_TH_CGR_0",
+  "speed_per_tick": 4,
+  "steps": [
+    { "ticks": 1 },
+    { "ticks": 4, "press": ["move_right"] },
+    { "ticks": 1, "release": ["move_right"] }
+  ],
+  "expected": {
+    "position": { "x": -114, "y": 0, "z": -648 },
+    "triangle_index": 0
+  }
+}

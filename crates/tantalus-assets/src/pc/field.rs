@@ -213,5 +213,10 @@ fn map_navigation(value: &BgiFile) -> Result<tantalus_contracts::FieldNavigation
         triangles,
         active_floor: value.active_floor,
         active_triangle: value.active_triangle as i32,
+        actor_anchor: Point3 {
+            x: value.character[0] as i32,
+            y: value.character[1] as i32,
+            z: value.character[2] as i32,
+        },
     })
 }
