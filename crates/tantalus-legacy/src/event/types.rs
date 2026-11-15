@@ -135,12 +135,14 @@ pub enum InstructionKind {
     Nop,
     NoOp(u32),
     Jump(i16),
+    /// Memoria `beq`: pops the previous `Evaluate` result; jumps forward by an
+    /// unsigned offset when it is zero.
     JumpIfNot {
-        condition: Expression,
-        relative: i16,
+        relative: u16,
     },
+    /// Memoria `bne`: pops the previous `Evaluate` result; jumps by a signed
+    /// offset when it is not zero.
     JumpIf {
-        condition: Expression,
         relative: i16,
     },
     JumpSwitch {
@@ -324,6 +326,11 @@ pub enum InstructionKind {
         speed: Expression,
     },
     RequestScriptAsync {
+        level: Expression,
+        target: Expression,
+        tag: u8,
+    },
+    RequestScriptSync {
         level: Expression,
         target: Expression,
         tag: u8,
@@ -514,6 +521,13 @@ pub enum InstructionKind {
     SetAnimationLoopCount {
         count: Expression,
     },
+    SetAnimationSpeed {
+        speed: Expression,
+    },
+    SetCharacterAttribute {
+        set: bool,
+        flags: Expression,
+    },
     SetTurnSpeed {
         speed: Expression,
     },
@@ -590,6 +604,30 @@ pub enum InstructionKind {
     SetTileLoopType {
         overlay: Expression,
         screen_anchored: Expression,
+    },
+    SetUserControl {
+        enabled: bool,
+        opcode: u8,
+    },
+    RaiseWindows,
+    CalculateScreenOrigin,
+    RunSharedScript {
+        entry: Expression,
+    },
+    TurnTowardObject {
+        target: Expression,
+        speed: Expression,
+    },
+    ShowBubbleIcon {
+        icon: Expression,
+    },
+    SetFieldCamera {
+        camera: Expression,
+    },
+    EndSharedScript,
+    SetMenuControl {
+        enabled: bool,
+        opcode: u8,
     },
     SetTileAnimationRate {
         animation: Expression,
@@ -988,6 +1026,11 @@ pub enum HostEvent {
         target: EntityId,
         tag: u8,
     },
+    RequestScriptSync {
+        level: i32,
+        target: EntityId,
+        tag: u8,
+    },
     DefineTileViewport {
         viewport: i32,
         x: i16,
@@ -1176,6 +1219,15 @@ pub enum HostEvent {
         actor: EntityId,
         count: u8,
     },
+    SetAnimationSpeed {
+        actor: EntityId,
+        speed: u8,
+    },
+    SetCharacterAttribute {
+        actor: EntityId,
+        set: bool,
+        flags: i32,
+    },
     SetTurnSpeed {
         actor: EntityId,
         speed: u8,
@@ -1258,6 +1310,32 @@ pub enum HostEvent {
     SetTileLoopType {
         overlay: i32,
         screen_anchored: bool,
+    },
+    SetUserControl {
+        enabled: bool,
+    },
+    RaiseWindows,
+    CalculateScreenOrigin,
+    RunSharedScript {
+        actor: EntityId,
+        entry: i32,
+    },
+    TurnTowardObject {
+        actor: EntityId,
+        target: i32,
+        speed: i32,
+    },
+    ShowBubbleIcon {
+        icon: i32,
+    },
+    SetFieldCamera {
+        camera: i32,
+    },
+    EndSharedScript {
+        actor: EntityId,
+    },
+    SetMenuControl {
+        enabled: bool,
     },
     SetTileAnimationRate {
         animation: i32,

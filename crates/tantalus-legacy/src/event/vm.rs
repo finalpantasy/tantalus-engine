@@ -249,21 +249,20 @@ impl EventVm {
                 InstructionKind::Jump(relative) => {
                     self.pc = jump_target(&instruction, relative)?;
                 }
-                InstructionKind::JumpIfNot {
-                    ref condition,
-                    relative,
-                } => {
-                    let target = jump_target(&instruction, relative)?;
-                    let value = self.evaluate(host, condition, instruction.offset, opcode)?;
-                    self.pc = if value == 0 { target } else { next };
+                InstructionKind::JumpIfNot { relative } => {
+                    self.pc = if self.expression_value == 0 {
+                        switch_target(&instruction, relative, instruction.length)?
+                    } else {
+                        next
+                    };
                 }
-                InstructionKind::JumpIf {
-                    ref condition,
-                    relative,
-                } => {
+                InstructionKind::JumpIf { relative } => {
                     let target = jump_target(&instruction, relative)?;
-                    let value = self.evaluate(host, condition, instruction.offset, opcode)?;
-                    self.pc = if value != 0 { target } else { next };
+                    self.pc = if self.expression_value != 0 {
+                        target
+                    } else {
+                        next
+                    };
                 }
                 InstructionKind::JumpSwitch {
                     base,
@@ -936,6 +935,31 @@ impl EventVm {
                         tag,
                     });
                 }
+                InstructionKind::RequestScriptSync { level, target, tag } => {
+                    let level = self.evaluate(host, &level, instruction.offset, opcode)?;
+                    let target = self.evaluate(host, &target, instruction.offset, opcode)?;
+                    if target < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "script target cannot be negative",
+                        ));
+                    }
+                    let target = EntityId::new(target as u64);
+                    if host
+                        .script_request_acceptable(target, level)
+                        .map_err(|error| VmError::host(error, instruction.offset, opcode))?
+                    {
+                        self.pc = next;
+                        self.wait = Some(WaitState::ScriptRequest);
+                        self.status = VmStatus::Waiting;
+                        events.push(HostEvent::RequestScriptSync { level, target, tag });
+                    } else {
+                        // Memoria stay(): retry this instruction on the next step.
+                        self.pc = instruction.offset;
+                        break;
+                    }
+                }
                 InstructionKind::RequestScriptWhenReady { level, target, tag } => {
                     let level = self.evaluate(host, &level, instruction.offset, opcode)?;
                     let target = self.evaluate(host, &target, instruction.offset, opcode)?;
@@ -1519,6 +1543,32 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetAnimationLoopCount { actor, count });
                 }
+                InstructionKind::SetAnimationSpeed { speed } => {
+                    let speed = self.evaluate(host, &speed, instruction.offset, opcode)? as u8;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetAnimationSpeed { actor, speed });
+                }
+                InstructionKind::SetCharacterAttribute { set, flags } => {
+                    let flags = self.evaluate(host, &flags, instruction.offset, opcode)?;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetCharacterAttribute { actor, set, flags });
+                }
                 InstructionKind::SetTurnSpeed { speed } => {
                     let speed = self.evaluate(host, &speed, instruction.offset, opcode)? as u8;
                     let Some(actor) = self.entity else {
@@ -1765,6 +1815,86 @@ impl EventVm {
                         overlay,
                         screen_anchored,
                     });
+                }
+                InstructionKind::SetUserControl { enabled, .. } => {
+                    self.pc = next;
+                    events.push(HostEvent::SetUserControl { enabled });
+                }
+                InstructionKind::RaiseWindows => {
+                    self.pc = next;
+                    events.push(HostEvent::RaiseWindows);
+                }
+                InstructionKind::CalculateScreenOrigin => {
+                    self.pc = next;
+                    events.push(HostEvent::CalculateScreenOrigin);
+                }
+                InstructionKind::RunSharedScript { entry } => {
+                    let entry = self.evaluate(host, &entry, instruction.offset, opcode)?;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "shared script requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::RunSharedScript { actor, entry });
+                }
+                InstructionKind::TurnTowardObject { target, speed } => {
+                    let target = self.evaluate(host, &target, instruction.offset, opcode)?;
+                    let speed = self.evaluate(host, &speed, instruction.offset, opcode)?;
+                    if target < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "turn requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::TurnTowardObject {
+                        actor,
+                        target,
+                        speed,
+                    });
+                }
+                InstructionKind::ShowBubbleIcon { icon } => {
+                    let icon = self.evaluate(host, &icon, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::ShowBubbleIcon { icon });
+                }
+                InstructionKind::SetFieldCamera { camera } => {
+                    let camera = self.evaluate(host, &camera, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetFieldCamera { camera });
+                }
+                InstructionKind::EndSharedScript => {
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "shared script termination requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::EndSharedScript { actor });
+                }
+                InstructionKind::SetMenuControl { enabled, .. } => {
+                    self.pc = next;
+                    events.push(HostEvent::SetMenuControl { enabled });
+                    if !enabled {
+                        // Memoria MENUOFF returns FLOW_STATE_WAIT: yield after the command.
+                        break;
+                    }
                 }
                 InstructionKind::SetTileAnimationRate {
                     animation,
@@ -3395,11 +3525,21 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::WalkToExit => 0xa0,
         InstructionKind::CalculateScreenPosition { .. } => 0xa9,
         InstructionKind::ChangeField { .. } => 0x2b,
-        InstructionKind::RequestCallerSync { .. } => 0x14,
+        InstructionKind::RequestCallerSync { .. } => 0x1a,
+        InstructionKind::RequestScriptSync { .. } => 0x14,
         InstructionKind::SetSimulationFloor { .. } => 0x104,
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
         InstructionKind::SetTileAnimationFlags { .. } => 0x64,
         InstructionKind::SetTileAnimationRange { .. } => 0x65,
+        InstructionKind::EndSharedScript => 0x45,
+        InstructionKind::SetMenuControl { opcode, .. } => u32::from(*opcode),
+        InstructionKind::SetUserControl { opcode, .. } => u32::from(*opcode),
+        InstructionKind::RaiseWindows => 0x8e,
+        InstructionKind::CalculateScreenOrigin => 0xea,
+        InstructionKind::RunSharedScript { .. } => 0x43,
+        InstructionKind::TurnTowardObject { .. } => 0x51,
+        InstructionKind::ShowBubbleIcon { .. } => 0x68,
+        InstructionKind::SetFieldCamera { .. } => 0x7e,
         InstructionKind::ShowObjectMeshes { .. } => 0x39,
         InstructionKind::HideObjectMeshes { .. } => 0x3a,
         InstructionKind::SetObjectIndex { .. } => 0x3b,
@@ -3407,27 +3547,20 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetInactiveAnimation { .. } => 0x52,
         InstructionKind::SetFollowFocusTurn { .. } => 0x91,
         InstructionKind::SetAnimationLoopCount { .. } => 0x98,
+        InstructionKind::SetAnimationSpeed { .. } => 0x3e,
+        InstructionKind::SetCharacterAttribute { set, .. } => {
+            if *set {
+                0xcc
+            } else {
+                0xcd
+            }
+        }
         InstructionKind::SetTurnSpeed { .. } => 0x99,
         InstructionKind::SetRunSpeedLimit { .. } => 0xa6,
         InstructionKind::TurnToAngle { .. } => 0xa7,
         InstructionKind::SetTimerTime { .. } => 0x69,
         InstructionKind::EnableDialogChoices { .. } => 0x7c,
         InstructionKind::SetFieldName { .. } => 0xb0,
-        InstructionKind::AttachObject { .. } => 0x4c,
-        InstructionKind::DetachObject { .. } => 0x4d,
-        InstructionKind::TrackStart { .. } => 0x76,
-        InstructionKind::TrackSetLast { .. } => 0x77,
-        InstructionKind::TrackAdd => 0x78,
-        InstructionKind::SetSoundPosition { .. } => 0x89,
-        InstructionKind::SetSoundObjectPosition { .. } => 0x8a,
-        InstructionKind::ShowTimer { .. } => 0x8d,
-        InstructionKind::RunWorldCode { .. } => 0xc4,
-        InstructionKind::EnableVictoryPose { .. } => 0xdb,
-        InstructionKind::RemoveParty { .. } => 0xdd,
-        InstructionKind::SetPlayerName { .. } => 0xde,
-        InstructionKind::SetupJump { .. } => 0xe2,
-        InstructionKind::SetDialogSignal { .. } => 0xe3,
-        InstructionKind::SetTileViewportAlpha { .. } => 0xed,
         InstructionKind::SetRandomBattles { .. } => 0x3c,
         InstructionKind::SetRandomBattleFrequency { .. } => 0x57,
         InstructionKind::SetBackgroundColor { .. } => 0x6b,
@@ -3473,7 +3606,22 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetPartyAvailability { .. } => 0xb4,
         InstructionKind::MoveTile { .. } => 0x5a,
         InstructionKind::SetTileScrollWithOffset { .. } => 0xe4,
+        InstructionKind::SetTileViewportAlpha { .. } => 0xed,
         InstructionKind::SetTileLoopType { .. } => 0xe6,
+        InstructionKind::AttachObject { .. } => 0x4c,
+        InstructionKind::DetachObject { .. } => 0x4d,
+        InstructionKind::TrackStart { .. } => 0x76,
+        InstructionKind::TrackSetLast { .. } => 0x77,
+        InstructionKind::TrackAdd => 0x78,
+        InstructionKind::SetSoundPosition { .. } => 0x89,
+        InstructionKind::SetSoundObjectPosition { .. } => 0x8a,
+        InstructionKind::ShowTimer { .. } => 0x8d,
+        InstructionKind::RunWorldCode { .. } => 0xc4,
+        InstructionKind::EnableVictoryPose { .. } => 0xdb,
+        InstructionKind::RemoveParty { .. } => 0xdd,
+        InstructionKind::SetPlayerName { .. } => 0xde,
+        InstructionKind::SetupJump { .. } => 0xe2,
+        InstructionKind::SetDialogSignal { .. } => 0xe3,
         InstructionKind::SetCameraBounds { .. } => 0x1e,
         InstructionKind::SetCharacterRow { .. } => 0x62,
         InstructionKind::ClearPartyStatus { .. } => 0xd9,

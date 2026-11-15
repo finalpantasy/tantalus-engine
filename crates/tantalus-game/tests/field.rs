@@ -3,7 +3,7 @@ use tantalus_game::field::FieldScene;
 use tantalus_legacy::{HostEvent, LegacyEventHost, VmStatus, decode_program};
 
 fn movement_program(actor: i32) -> tantalus_legacy::EventProgram {
-    let mut bytes = vec![0xbf, 0];
+    let mut bytes = vec![0xbf, 7];
     for value in [actor, 0, 0] {
         bytes.push(126);
         bytes.extend(value.to_le_bytes());
@@ -285,7 +285,7 @@ fn duplicate_entries_are_rejected() {
 fn field_entries_supply_actor_identity_for_player_control() {
     let mut field = FieldScene::new();
     field
-        .add_entry(EntityId::new(42), decode_program(&[0x2c, 0, 4]).unwrap())
+        .add_entry(EntityId::new(42), decode_program(&[0x2c, 4]).unwrap())
         .unwrap();
     let mut host = Host::default();
     field.step(Tick::new(0), &mut host).unwrap();

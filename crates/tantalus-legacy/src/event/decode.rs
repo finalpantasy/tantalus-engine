@@ -18,8 +18,11 @@ const OP_SET_WALK_ANIMATION: u32 = 0x34;
 const OP_SET_RUN_ANIMATION: u32 = 0x35;
 const OP_PLAY_ANIMATION: u32 = 0x40;
 const OP_SET_ANIMATION_RANGE: u32 = 0x3d;
-const OP_TRACK_ADD: u32 = 0x78;
+const OP_SET_ANIMATION_SPEED: u32 = 0x3e;
+const OP_ADD_CHARACTER_ATTRIBUTE: u32 = 0xcc;
+const OP_REMOVE_CHARACTER_ATTRIBUTE: u32 = 0xcd;
 const OP_PRINT_QUAD: u32 = 0x79;
+const OP_TRACK_ADD: u32 = 0x78;
 const OP_SET_LEFT_TURN_ANIMATION: u32 = 0x7a;
 const OP_SET_RIGHT_TURN_ANIMATION: u32 = 0x7b;
 const OP_SET_JUMP_ANIMATION: u32 = 0x94;
@@ -92,12 +95,24 @@ const OP_CALCULATE_EXIT_POSITION: u32 = 0xa4;
 const OP_WALK_TO_EXIT: u32 = 0xa0;
 const OP_CALCULATE_SCREEN_POSITION: u32 = 0xa9;
 const OP_CHANGE_FIELD: u32 = 0x2b;
-const OP_REQUEST_CALLER_SYNC: u32 = 0x14;
+const OP_REQUEST_CALLER_SYNC: u32 = 0x1a;
+const OP_REQUEST_SCRIPT_SYNC: u32 = 0x14;
 const OP_ATTACH_TILE: u32 = 0x92;
 const OP_BATTLE_SCENE_START: u32 = 0x100;
 const OP_SET_SIMULATION_FLOOR: u32 = 0x104;
 const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
 const OP_SET_TILE_ANIMATION_RATE: u32 = 0x61;
+const OP_END_SHARED_SCRIPT: u32 = 0x45;
+const OP_ENABLE_MENU: u32 = 0xaa;
+const OP_DISABLE_MENU: u32 = 0xab;
+const OP_DISABLE_USER_CONTROL: u32 = 0x2d;
+const OP_ENABLE_USER_CONTROL: u32 = 0x2e;
+const OP_RUN_SHARED_SCRIPT: u32 = 0x43;
+const OP_TURN_TOWARD_OBJECT: u32 = 0x51;
+const OP_SHOW_BUBBLE_ICON: u32 = 0x68;
+const OP_SET_FIELD_CAMERA: u32 = 0x7e;
+const OP_RAISE_WINDOWS: u32 = 0x8e;
+const OP_CALCULATE_SCREEN_ORIGIN: u32 = 0xea;
 const OP_SHOW_OBJECT_MESHES: u32 = 0x39;
 const OP_HIDE_OBJECT_MESHES: u32 = 0x3a;
 const OP_SET_OBJECT_INDEX: u32 = 0x3b;
@@ -239,6 +254,24 @@ struct Decoder<'a> {
 }
 
 impl Decoder<'_> {
+    /// Memoria `getv1`/`getv2`: one flag bit per argument; set reads an
+    /// expression, clear reads an immediate byte (`short` false) or signed word.
+    fn operand(&mut self, flags: u8, bit: u8, short: bool) -> Result<Expression, VmError> {
+        if flags & bit != 0 {
+            self.expression()
+        } else {
+            let value = if short {
+                i32::from(self.i16()?)
+            } else {
+                i32::from(self.byte()?)
+            };
+            Ok(Expression(vec![
+                ExpressionOp::Constant(value),
+                ExpressionOp::End,
+            ]))
+        }
+    }
+
     fn instruction(&mut self) -> Result<Instruction, VmError> {
         let offset = self.position as u32;
         let mut code = 0u32;
@@ -250,20 +283,15 @@ impl Decoder<'_> {
         let opcode = code + u32::from(code_byte);
         self.current_opcode = Some(opcode);
         let kind = match opcode {
-            OP_NOP => {
-                self.byte()?;
-                InstructionKind::Nop
-            }
+            OP_NOP => InstructionKind::Nop,
             OP_UNUSED_PRINT => InstructionKind::NoOp(opcode),
             OP_TRACK_ADD => InstructionKind::TrackAdd,
             OP_PRINT_QUAD => InstructionKind::NoOp(opcode),
             OP_JUMP => InstructionKind::Jump(self.i16()?),
             OP_JUMP_IF_NOT => InstructionKind::JumpIfNot {
-                condition: self.expression()?,
-                relative: self.i16()?,
+                relative: self.i16()? as u16,
             },
             OP_JUMP_IF => InstructionKind::JumpIf {
-                condition: self.expression()?,
                 relative: self.i16()?,
             },
             OP_JUMP_SWITCH_EX => {
@@ -304,7 +332,10 @@ impl Decoder<'_> {
                     }
                 }
             }
-            OP_DELETE_OBJECT => InstructionKind::DeleteObject(self.byte()?),
+            OP_DELETE_OBJECT => {
+                self.byte()?;
+                InstructionKind::DeleteObject(self.byte()?)
+            }
             OP_SET_ACTOR_POSITION => {
                 let flags = self.byte()?;
                 let mut argument = |bit: u8| {
@@ -555,16 +586,16 @@ impl Decoder<'_> {
             OP_RETURN => InstructionKind::Return,
             OP_EVALUATE => InstructionKind::Evaluate(self.expression()?),
             OP_WAIT => {
-                self.byte()?;
-                InstructionKind::Wait(self.expression()?)
+                let flags = self.byte()?;
+                InstructionKind::Wait(self.operand(flags, 1, false)?)
             }
             OP_WAIT_ANIMATION => InstructionKind::WaitAnimation,
             OP_WAIT_TURN => InstructionKind::WaitTurn,
             OP_WINDOW_SYNC | OP_WINDOW_ASYNC => {
-                self.byte()?;
-                let window = self.expression()?;
-                let flags = self.expression()?;
-                let text = self.expression()?;
+                let operand_flags = self.byte()?;
+                let window = self.operand(operand_flags, 1, false)?;
+                let flags = self.operand(operand_flags, 2, false)?;
+                let text = self.operand(operand_flags, 4, true)?;
                 if opcode == OP_WINDOW_SYNC {
                     InstructionKind::WindowSync {
                         window,
@@ -580,12 +611,12 @@ impl Decoder<'_> {
                 }
             }
             OP_WAIT_WINDOW => {
-                self.byte()?;
-                InstructionKind::WaitWindow(self.expression()?)
+                let flags = self.byte()?;
+                InstructionKind::WaitWindow(self.operand(flags, 1, false)?)
             }
             OP_CLOSE_WINDOW => {
-                self.byte()?;
-                InstructionKind::CloseWindow(self.expression()?)
+                let flags = self.byte()?;
+                InstructionKind::CloseWindow(self.operand(flags, 1, false)?)
             }
             OP_WALK_ACTOR => {
                 let flags = self.byte()?;
@@ -605,26 +636,20 @@ impl Decoder<'_> {
                 }
             }
             OP_MOVE_ACTOR => {
-                self.byte()?;
+                let flags = self.byte()?;
                 InstructionKind::MoveActor {
-                    actor: self.expression()?,
-                    x: self.expression()?,
-                    z: self.expression()?,
+                    actor: self.operand(flags, 1, false)?,
+                    x: self.operand(flags, 2, true)?,
+                    z: self.operand(flags, 4, true)?,
                 }
             }
-            OP_AIM_AT_CAMERA => {
-                self.byte()?;
-                InstructionKind::AimAtCamera
-            }
-            OP_DEFINE_PLAYER_CONTROL => {
-                self.byte()?;
-                InstructionKind::DefinePlayerControl
-            }
+            OP_AIM_AT_CAMERA => InstructionKind::AimAtCamera,
+            OP_DEFINE_PLAYER_CONTROL => InstructionKind::DefinePlayerControl,
             OP_SET_CONTROL_DIRECTION => {
-                self.byte()?;
+                let flags = self.byte()?;
                 InstructionKind::SetControlDirection {
-                    arrow: self.expression()?,
-                    analog: self.expression()?,
+                    arrow: self.operand(flags, 1, false)?,
+                    analog: self.operand(flags, 2, false)?,
                 }
             }
             OP_CINEMATIC => {
@@ -681,11 +706,11 @@ impl Decoder<'_> {
                 InstructionKind::DefineRegion { vertices }
             }
             OP_BACKGROUND_MOVE => {
-                self.byte()?;
+                let flags = self.byte()?;
                 InstructionKind::BackgroundMove {
-                    x: self.expression()?,
-                    y: self.expression()?,
-                    z: self.expression()?,
+                    x: self.operand(flags, 1, true)?,
+                    y: self.operand(flags, 2, true)?,
+                    z: self.operand(flags, 4, true)?,
                 }
             }
             OP_SET_TILE_SHADE_COLOR => {
@@ -829,10 +854,7 @@ impl Decoder<'_> {
                     z: argument(4)?,
                 }
             }
-            OP_RESET_WALK_STATE => {
-                self.byte()?;
-                InstructionKind::ResetWalkState
-            }
+            OP_RESET_WALK_STATE => InstructionKind::ResetWalkState,
             OP_SET_MOVEMENT_SPEED => {
                 let flags = self.byte()?;
                 let speed = if flags & 1 != 0 {
@@ -878,16 +900,12 @@ impl Decoder<'_> {
                 InstructionKind::SetNavigationAttributeMask(mask)
             }
             OP_YIELD | OP_PADDING10 | OP_PADDING15 | OP_PADDING17 => {
-                self.byte()?;
                 InstructionKind::Yield(opcode as u8)
             }
-            OP_SHADOW_ON | OP_SHADOW_OFF => {
-                self.byte()?;
-                InstructionKind::SetShadowEnabled {
-                    enabled: opcode == OP_SHADOW_ON,
-                    opcode: opcode as u8,
-                }
-            }
+            OP_SHADOW_ON | OP_SHADOW_OFF => InstructionKind::SetShadowEnabled {
+                enabled: opcode == OP_SHADOW_ON,
+                opcode: opcode as u8,
+            },
             OP_SET_TEXT_VARIABLE => {
                 let flags = self.byte()?;
                 let script = if flags & 1 != 0 {
@@ -1088,6 +1106,14 @@ impl Decoder<'_> {
                     tag: self.byte()?,
                 }
             }
+            OP_REQUEST_SCRIPT_SYNC => {
+                let flags = self.byte()?;
+                InstructionKind::RequestScriptSync {
+                    level: self.operand(flags, 1, false)?,
+                    target: self.operand(flags, 2, false)?,
+                    tag: self.byte()?,
+                }
+            }
             OP_REQUEST_SCRIPT_WHEN_READY => {
                 let flags = self.byte()?;
                 let mut argument = |bit: u8| {
@@ -1188,18 +1214,14 @@ impl Decoder<'_> {
                 };
                 InstructionKind::ShowBattleMessage(text)
             }
-            OP_GLOBAL_CLEAR | OP_DEBUG_SAVE | OP_DEBUG_LOAD => {
-                self.byte()?;
-                InstructionKind::NoOp(opcode)
-            }
-            OP_PRESERVE_AND_HIDE_ALL => {
-                self.byte()?;
-                InstructionKind::PreserveAndHideAll
-            }
-            OP_RESTORE_ALL_VISIBILITY => {
-                self.byte()?;
-                InstructionKind::RestoreAllVisibility
-            }
+            OP_GLOBAL_CLEAR | OP_DEBUG_SAVE | OP_DEBUG_LOAD => InstructionKind::NoOp(opcode),
+            OP_END_SHARED_SCRIPT => InstructionKind::EndSharedScript,
+            OP_ENABLE_MENU | OP_DISABLE_MENU => InstructionKind::SetMenuControl {
+                enabled: opcode == OP_ENABLE_MENU,
+                opcode: opcode as u8,
+            },
+            OP_PRESERVE_AND_HIDE_ALL => InstructionKind::PreserveAndHideAll,
+            OP_RESTORE_ALL_VISIBILITY => InstructionKind::RestoreAllVisibility,
             OP_SET_TIMER_RUNNING => {
                 let flags = self.byte()?;
                 let running = if flags & 1 != 0 {
@@ -1242,10 +1264,7 @@ impl Decoder<'_> {
                     tag: self.byte()?,
                 }
             }
-            OP_CALCULATE_EXIT_POSITION => {
-                self.byte()?;
-                InstructionKind::CalculateExitPosition
-            }
+            OP_CALCULATE_EXIT_POSITION => InstructionKind::CalculateExitPosition,
             OP_WALK_TO_EXIT => InstructionKind::WalkToExit,
             OP_CALCULATE_SCREEN_POSITION => {
                 let flags = self.byte()?;
@@ -1688,11 +1707,7 @@ impl Decoder<'_> {
                     rotation: argument(1, false)?,
                 }
             }
-            OP_UNLOCK_SHADOW_ROTATION => {
-                let flags = self.byte()?;
-                let _ = flags;
-                InstructionKind::UnlockShadowRotation
-            }
+            OP_UNLOCK_SHADOW_ROTATION => InstructionKind::UnlockShadowRotation,
             OP_SET_SHADOW_AMPLIFIER => {
                 let flags = self.byte()?;
                 let mut argument = |bit: u8, short: bool| {
@@ -1980,6 +1995,19 @@ impl Decoder<'_> {
                 };
                 InstructionKind::SetObjectIndex {
                     index: argument(1, false)?,
+                }
+            }
+            OP_SET_ANIMATION_SPEED => {
+                let flags = self.byte()?;
+                InstructionKind::SetAnimationSpeed {
+                    speed: self.operand(flags, 1, false)?,
+                }
+            }
+            OP_ADD_CHARACTER_ATTRIBUTE | OP_REMOVE_CHARACTER_ATTRIBUTE => {
+                let flags = self.byte()?;
+                InstructionKind::SetCharacterAttribute {
+                    set: opcode == OP_ADD_CHARACTER_ATTRIBUTE,
+                    flags: self.operand(flags, 1, true)?,
                 }
             }
             OP_SET_ANIMATION_FLAGS => {
@@ -2406,6 +2434,37 @@ impl Decoder<'_> {
                 };
                 InstructionKind::SetDialogSignal { signal }
             }
+            OP_DISABLE_USER_CONTROL | OP_ENABLE_USER_CONTROL => InstructionKind::SetUserControl {
+                enabled: opcode == OP_ENABLE_USER_CONTROL,
+                opcode: opcode as u8,
+            },
+            OP_RAISE_WINDOWS => InstructionKind::RaiseWindows,
+            OP_CALCULATE_SCREEN_ORIGIN => InstructionKind::CalculateScreenOrigin,
+            OP_RUN_SHARED_SCRIPT => {
+                let flags = self.byte()?;
+                InstructionKind::RunSharedScript {
+                    entry: self.operand(flags, 1, false)?,
+                }
+            }
+            OP_TURN_TOWARD_OBJECT => {
+                let flags = self.byte()?;
+                InstructionKind::TurnTowardObject {
+                    target: self.operand(flags, 1, false)?,
+                    speed: self.operand(flags, 2, false)?,
+                }
+            }
+            OP_SHOW_BUBBLE_ICON => {
+                let flags = self.byte()?;
+                InstructionKind::ShowBubbleIcon {
+                    icon: self.operand(flags, 1, false)?,
+                }
+            }
+            OP_SET_FIELD_CAMERA => {
+                let flags = self.byte()?;
+                InstructionKind::SetFieldCamera {
+                    camera: self.operand(flags, 1, false)?,
+                }
+            }
             OP_SET_TILE_ANIMATION_FLAGS => {
                 let flags = self.byte()?;
                 let mut argument = |bit: u8| {
@@ -2673,13 +2732,10 @@ impl Decoder<'_> {
                 };
                 InstructionKind::SetPartyAvailability(mask)
             }
-            OP_DASH_ON => {
-                self.byte()?;
-                InstructionKind::SetRunEnabled {
-                    enabled: true,
-                    opcode: opcode as u8,
-                }
-            }
+            OP_DASH_ON => InstructionKind::SetRunEnabled {
+                enabled: true,
+                opcode: opcode as u8,
+            },
             OP_MOVE_TILE => {
                 let flags = self.byte()?;
                 let mut argument = |bit: u8, short: bool| {
