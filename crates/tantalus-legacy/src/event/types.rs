@@ -344,6 +344,11 @@ pub enum InstructionKind {
         simulation: Expression,
         frame_rate: Expression,
     },
+    SetTileAnimationFrameWait {
+        animation: Expression,
+        frame: Expression,
+        wait: Expression,
+    },
     SetTileAnimationFrame {
         animation: Expression,
         frame: Expression,
@@ -716,6 +721,11 @@ pub enum HostEvent {
     SetSimulationFrameRate {
         simulation: u32,
         frame_rate: i16,
+    },
+    SetTileAnimationFrameWait {
+        animation: i32,
+        frame: i32,
+        wait: i32,
     },
     SetTileAnimationFrame {
         animation: i32,

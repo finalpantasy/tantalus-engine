@@ -1084,6 +1084,21 @@ impl EventVm {
                         frame_rate,
                     });
                 }
+                InstructionKind::SetTileAnimationFrameWait {
+                    animation,
+                    frame,
+                    wait,
+                } => {
+                    let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
+                    let frame = self.evaluate(host, &frame, instruction.offset, opcode)?;
+                    let wait = self.evaluate(host, &wait, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetTileAnimationFrameWait {
+                        animation,
+                        frame,
+                        wait,
+                    });
+                }
                 InstructionKind::SetTileAnimationFrame { animation, frame } => {
                     let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
                     let frame = self.evaluate(host, &frame, instruction.offset, opcode)?;
@@ -2542,6 +2557,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::RequestCallerSync { .. } => 0x14,
         InstructionKind::SetSimulationFloor { .. } => 0x104,
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
+        InstructionKind::SetTileAnimationFrameWait { .. } => 0x62,
         InstructionKind::SetTileAnimationFrame { .. } => 0xe7,
         InstructionKind::OpenPartyMenu { .. } => 0xb2,
         InstructionKind::InitializeCharacter { .. } => 0xfe,
