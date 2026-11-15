@@ -143,7 +143,12 @@ pub enum ExpressionOp {
     CastList,
     NoOp,
     ConsumeAndZero,
-    ShiftRightAssignMembers,
+    /// `B_REM_LET_A` 56
+    RemainderAssignAllMembers,
+    /// `B_PLUS_LET_A` 57
+    PlusAssignAllMembers,
+    /// `B_SHIFT_LEFT_LET_A` 59
+    ShiftLeftAssignAllMembers,
     ShiftRightAssignAllMembers,
     MultiplyAssignAllMembers,
     DivideAssignAllMembers,
@@ -153,6 +158,8 @@ pub enum ExpressionOp {
     OrAssignMembers,
     XorAssignAllMembers,
     AndAssignAllMembers,
+    /// `B_OR_LET_A` 66.
+    OrAssignAllMembers,
     AssignAllMembers,
     AssignMembers,
     EqualMembers,

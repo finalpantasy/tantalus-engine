@@ -154,6 +154,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut text_asset = None;
     let mut event = None;
     let mut probe = false;
+    let mut inventory = false;
     let mut texture = None;
     let mut texture_id = None;
     let mut rgba_output = None;
@@ -267,6 +268,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             Some("--json") => json = true,
             Some("--objects") => objects = true,
             Some("--probe") => probe = true,
+            Some("--inventory") => inventory = true,
             _ => {
                 return Err(format!(
                     "unrecognized argument: {}",
@@ -451,6 +453,58 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         } else {
             println!("{name}: {} event binaries", candidates.len());
         }
+        return Ok(());
+    }
+    if inventory {
+        let bytes = bundle
+            .read_entry(0, 600 * 1024 * 1024)
+            .map_err(|error| error.to_string())?;
+        let serialized =
+            tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
+                .map_err(|error| error.to_string())?;
+        let report = serialized.report();
+        let classes: std::collections::BTreeMap<i64, u32> = report
+            .objects
+            .iter()
+            .map(|object| (object.path_id, object.class_id as u32))
+            .collect();
+        let mut class_counts: std::collections::BTreeMap<u32, usize> =
+            std::collections::BTreeMap::new();
+        for object in &report.objects {
+            *class_counts.entry(object.class_id as u32).or_insert(0) += 1;
+        }
+        let (container_index, _) = report
+            .objects
+            .iter()
+            .enumerate()
+            .find(|(_, object)| object.class_id == 142)
+            .ok_or_else(|| "AssetBundle metadata object is missing".to_owned())?;
+        let metadata = tantalus_assets::pc::asset_bundle::AssetBundleMetadata::parse(
+            serialized
+                .object_data(container_index)
+                .map_err(|error| error.to_string())?,
+            &path.to_string_lossy(),
+        )
+        .map_err(|error| error.to_string())?;
+        let entries: Vec<_> = metadata
+            .container
+            .iter()
+            .map(|(asset_path, info)| {
+                serde_json::json!({
+                    "path": asset_path,
+                    "path_id": info.path_id,
+                    "class_id": classes.get(&info.path_id),
+                })
+            })
+            .collect();
+        let inventory_report = serde_json::json!({
+            "bundle": path.file_name().map(|name| name.to_string_lossy().into_owned()),
+            "object_count": report.objects.len(),
+            "class_counts": class_counts,
+            "container_entries": entries.len(),
+            "container": entries,
+        });
+        println!("{}", serde_json::to_string(&inventory_report).unwrap());
         return Ok(());
     }
     if let Some(field) = atlas_for {
@@ -897,11 +951,11 @@ fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }

@@ -3755,28 +3755,6 @@ impl EventVm {
                     value: 0,
                     target: None,
                 }),
-                ExpressionOp::ShiftRightAssignMembers => {
-                    if stack.len() < 3 {
-                        return Err(expression_error(
-                            offset,
-                            opcode,
-                            "member shift assignment requires mask and value inputs",
-                        ));
-                    }
-                    let mask = read_value(host, stack[stack.len() - 3], offset, opcode)?;
-                    if mask != 0 {
-                        return Err(expression_error(
-                            offset,
-                            opcode,
-                            "nonzero member selections require object-slot host state",
-                        ));
-                    }
-                    stack.truncate(stack.len() - 2);
-                    stack.push(StackValue {
-                        value: 0,
-                        target: None,
-                    });
-                }
                 ExpressionOp::AssignMembers => {
                     if stack.len() < 2 {
                         return Err(expression_error(
@@ -3921,10 +3899,14 @@ impl EventVm {
                 }
                 ExpressionOp::XorAssignAllMembers
                 | ExpressionOp::AndAssignAllMembers
+                | ExpressionOp::OrAssignAllMembers
                 | ExpressionOp::ShiftRightAssignAllMembers
                 | ExpressionOp::MultiplyAssignAllMembers
                 | ExpressionOp::DivideAssignAllMembers
-                | ExpressionOp::SubtractAssignAllMembers => {
+                | ExpressionOp::SubtractAssignAllMembers
+                | ExpressionOp::RemainderAssignAllMembers
+                | ExpressionOp::PlusAssignAllMembers
+                | ExpressionOp::ShiftLeftAssignAllMembers => {
                     if stack.len() < 3 {
                         return Err(expression_error(
                             offset,
@@ -3953,6 +3935,7 @@ impl EventVm {
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
                             result = match operation {
                                 ExpressionOp::AndAssignAllMembers => current & operand,
+                                ExpressionOp::OrAssignAllMembers => current | operand,
                                 ExpressionOp::XorAssignAllMembers => current ^ operand,
                                 ExpressionOp::ShiftRightAssignAllMembers => {
                                     current.wrapping_shr(operand as u32)
@@ -3966,6 +3949,17 @@ impl EventVm {
                                     } else {
                                         current.wrapping_div(operand)
                                     }
+                                }
+                                ExpressionOp::RemainderAssignAllMembers => {
+                                    if operand == 0 {
+                                        current
+                                    } else {
+                                        current.wrapping_rem(operand)
+                                    }
+                                }
+                                ExpressionOp::PlusAssignAllMembers => current.wrapping_add(operand),
+                                ExpressionOp::ShiftLeftAssignAllMembers => {
+                                    current.wrapping_shl(operand as u32)
                                 }
                                 ExpressionOp::SubtractAssignAllMembers => {
                                     current.wrapping_sub(operand)
@@ -4676,10 +4670,14 @@ fn operand_start(
         | ExpressionOp::OrAssignMembers
         | ExpressionOp::XorAssignAllMembers
         | ExpressionOp::AndAssignAllMembers
+        | ExpressionOp::OrAssignAllMembers
         | ExpressionOp::ShiftRightAssignAllMembers
         | ExpressionOp::MultiplyAssignAllMembers
         | ExpressionOp::DivideAssignAllMembers
         | ExpressionOp::SubtractAssignAllMembers
+        | ExpressionOp::RemainderAssignAllMembers
+        | ExpressionOp::PlusAssignAllMembers
+        | ExpressionOp::ShiftLeftAssignAllMembers
         | ExpressionOp::AssignAllMembers
         | ExpressionOp::PickFirstMember
         | ExpressionOp::EqualMembers
@@ -4695,13 +4693,11 @@ fn operand_start(
             let mask = operand_start(operations, value, offset, opcode)?;
             operand_start(operations, mask, offset, opcode)
         }
-        ExpressionOp::NoOp | ExpressionOp::ShiftRightAssignMembers | ExpressionOp::End => {
-            Err(expression_error(
-                offset,
-                opcode,
-                "unsupported stack shape for a short-circuit operand",
-            ))
-        }
+        ExpressionOp::NoOp | ExpressionOp::End => Err(expression_error(
+            offset,
+            opcode,
+            "unsupported stack shape for a short-circuit operand",
+        )),
     }
 }
 

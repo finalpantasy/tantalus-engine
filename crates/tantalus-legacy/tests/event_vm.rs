@@ -2517,22 +2517,32 @@ fn direct_object_member_reads_use_object_and_member_identity() {
 }
 
 #[test]
-fn empty_member_selection_shift_assignment_preserves_the_reference_stack_behavior() {
-    let program = decode_program(&[evaluate(vec![3, 0, 1, 59, 0]), vec![4]].concat()).unwrap();
-    let mut vm = EventVm::new(program);
-    let mut host = Host::new();
-    vm.step(Tick::new(0), &mut host).unwrap();
-    assert_eq!(vm.status(), VmStatus::Completed);
-}
-
-#[test]
-fn nonzero_member_selection_shift_assignment_is_explicitly_rejected() {
-    let expression = [constant(1), constant(0), constant(0), vec![59]].concat();
-    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
-    let mut vm = EventVm::new(program);
-    let mut host = Host::new();
-    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
-    assert!(error.message.contains("object-slot host"));
+fn all_member_plus_remainder_and_shift_left_follow_memoria_operator_all() {
+    // (op, initial value, operand, expected)
+    for (op, initial, operand, expected) in [
+        (57_u8, 5, 3, 8),
+        (56, 17, 5, 2),
+        (56, 17, 0, 17),
+        (59, 3, 2, 12),
+    ] {
+        let result = variable(VariableScope::Global, VariableType::Int16, 39);
+        let expression = assign(
+            result,
+            [constant(0b1), vec![41, 2], constant(operand), vec![op]].concat(),
+        );
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+        host.slots.insert(0, EntityId::new(10));
+        let member = ObjectMemberRef {
+            object: EntityId::new(10),
+            member: 2,
+        };
+        host.object_members.insert(member, initial);
+        vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(host.object_members[&member], expected, "op {op}");
+        assert_eq!(vm.variable(VariableScope::Global, 39), expected, "op {op}");
+    }
 }
 
 #[test]
@@ -5167,6 +5177,37 @@ fn all_member_assignment_reads_its_mask_from_a_system_list_first() {
 
     assert_eq!(vm.variable(VariableScope::Global, 54), 7);
     assert_eq!(host.member_writes, [(target, 7)]);
+}
+
+#[test]
+fn all_member_or_assignment_ors_the_operand_into_each_selection_and_returns_the_last_value() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 39);
+    let expression = assign(
+        result,
+        [constant(0b101), vec![41, 2], constant(6), vec![66]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.slots.insert(0, EntityId::new(10));
+    host.slots.insert(2, EntityId::new(12));
+    let first = ObjectMemberRef {
+        object: EntityId::new(10),
+        member: 2,
+    };
+    let last = ObjectMemberRef {
+        object: EntityId::new(12),
+        member: 2,
+    };
+    host.object_members.insert(first, 1);
+    host.object_members.insert(last, 8);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(host.object_members[&first], 7);
+    assert_eq!(host.object_members[&last], 14);
+    assert_eq!(vm.variable(VariableScope::Global, 39), 14);
+    assert_eq!(host.member_writes, [(first, 7), (last, 14)]);
 }
 
 #[test]
