@@ -1,0 +1,146 @@
+{
+  "note": "Walking-vs-stationary comparison across the 20-archive interaction batch (both with held confirm). Naive constant walking is WORSE than standing: completion counts drop in 15/20 archives and organic tag-3 talks largely vanish (the moving player disrupts scene choreography), while Street A (whose facing gate demands walking) holds. Conclusion: a scripted-player policy needs deliberate, scene-aware walks (region-centroid standing with targeted movement), not constant motion - evidence for the trace-lane policy work.",
+  "archives": 20,
+  "rows": [
+    {
+      "name": "EVT_ALEX1_AT_STREET_A.eb",
+      "completed": 26,
+      "tag3": 7,
+      "regions": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_STREET_B.eb",
+      "completed": 19,
+      "tag3": 0,
+      "regions": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_STREET_C.eb",
+      "completed": 12,
+      "tag3": 0,
+      "regions": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_CENTER.eb",
+      "completed": 28,
+      "tag3": 0,
+      "regions": 0,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_INN.eb",
+      "completed": 14,
+      "tag3": 0,
+      "regions": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_PUB.eb",
+      "completed": 14,
+      "tag3": 0,
+      "regions": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_WEAPON.eb",
+      "completed": 8,
+      "tag3": 0,
+      "regions": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_MAGIC.eb",
+      "completed": 9,
+      "tag3": 2,
+      "regions": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX1_AT_ITEM.eb",
+      "completed": 6,
+      "tag3": 1,
+      "regions": 0,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX2_AC_GUARD.eb",
+      "completed": 13,
+      "tag3": 0,
+      "regions": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX2_AC_LIB.eb",
+      "completed": 12,
+      "tag3": 0,
+      "regions": 0,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX2_AC_ENT_2F.eb",
+      "completed": 10,
+      "tag3": 0,
+      "regions": 0,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX2_AC_PRISON_A.eb",
+      "completed": 10,
+      "tag3": 0,
+      "regions": 0,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX2_AC_R_HALL.eb",
+      "completed": 10,
+      "tag3": 0,
+      "regions": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_TRENO2_TR_TOT_0.eb",
+      "completed": 15,
+      "tag3": 0,
+      "regions": 0,
+      "error": false
+    },
+    {
+      "name": "EVT_LIND1_TN_LB_LDH_0.eb",
+      "completed": 9,
+      "tag3": 0,
+      "regions": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX3_AT_HOUSE_2.eb",
+      "completed": 12,
+      "tag3": 0,
+      "regions": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX3_AT_SENTOU.eb",
+      "completed": 24,
+      "tag3": 0,
+      "regions": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_ALEX5_AT_STREET_C.eb",
+      "completed": 11,
+      "tag3": 0,
+      "regions": 1,
+      "error": false
+    },
+    {
+      "name": "EVT_LIND2_CS_LB_ASD_1.eb",
+      "completed": 12,
+      "tag3": 1,
+      "regions": 0,
+      "error": false
+    }
+  ]
+}
