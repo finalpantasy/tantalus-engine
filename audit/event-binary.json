@@ -19,13 +19,13 @@
     "asset_bytes": 10924,
     "entries": 22,
     "functions": 36,
-    "decoded_functions": 1,
+    "decoded_functions": 0,
     "decode_error_count": 17,
     "script_bytes": 10620,
     "script_sha256": "c6033b9d6da5043468ae416074644cf64002e86d1c40be8f80cc16891579f16e",
     "reference_match": "UnityPy 1.25.0 independently reproduces the entry count, byte count, and concatenated script SHA-256"
   },
-  "decoded_entries_per_candidate": 5,
+  "decoded_entries_per_candidate": 4,
   "supported_followup": [
     "member post-increment 0x08 decoded; execution requires object-member host",
     "padding 0x00 through 0x03 produce zero",
@@ -139,7 +139,10 @@
     "JOIN 0xFE decodes five immediate/expression fields and emits complete InitializeCharacter host commands",
     "TEXSTOP 0xC2 decodes object and animation operands and emits StopTextureAnimation",
     "BTLSET 0x4A emits RunBattleCode with an unsigned code and signed-wide value",
-    "DASHON 0xF0 consumes its flag and emits SetRunEnabled(true) while preserving its opcode"
+    "DASHON 0xF0 consumes its flag and emits SetRunEnabled(true) while preserving its opcode",
+    "MESB 0xD0 emits ShowBattleMessage with a signed-wide text ID",
+    "GLOBALCLEAR 0xD1 and DEBUGSAVE/DEBUGLOAD 0xD2/0xD3 follow the corrected no-op mapping",
+    "decode diagnostics include active opcode and a bounded instruction-byte preview"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -170,14 +173,24 @@
     "kind": "Decode",
     "instruction": "conditional jump expression/operands do not complete before the function boundary"
   },
+  "truncated_battle_message_boundary": {
+    "entry": 0,
+    "function": 0,
+    "function_tag": 0,
+    "instruction_offset": 1107,
+    "offset": 1124,
+    "opcode": 208,
+    "kind": "Decode",
+    "instruction": "flagged MESB expression does not complete before the function boundary"
+  },
   "next_decode_boundary": {
     "entry": 3,
     "function": 1,
     "function_tag": 1,
-    "offset": 617,
-    "opcode": 210,
+    "offset": 647,
+    "opcode": 180,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0xD2 after run-enable support"
+    "instruction": "event opcode 0xB4 after correcting the MESB/GLOBALCLEAR/debug mapping"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

@@ -626,6 +626,11 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetTextVariable { script, value });
                 }
+                InstructionKind::ShowBattleMessage(text) => {
+                    let text = self.evaluate(host, &text, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::ShowBattleMessage { text });
+                }
                 InstructionKind::SetObjectScale { actor, x, z, y } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     if actor < 0 {
@@ -1799,6 +1804,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::Yield(opcode) => u32::from(*opcode),
         InstructionKind::SetShadowEnabled { opcode, .. } => u32::from(*opcode),
         InstructionKind::SetTextVariable { .. } => 0x66,
+        InstructionKind::ShowBattleMessage { .. } => 0xd0,
         InstructionKind::SetObjectScale { .. } => 0x9f,
         InstructionKind::SetVibrationFrameRate(_) => 0xfa,
         InstructionKind::RequestScriptAsync { .. } => 0x10,

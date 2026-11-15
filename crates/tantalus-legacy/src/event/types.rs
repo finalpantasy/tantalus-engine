@@ -219,6 +219,7 @@ pub enum InstructionKind {
         script: Expression,
         value: Expression,
     },
+    ShowBattleMessage(Expression),
     SetObjectScale {
         actor: Expression,
         x: Expression,
@@ -477,6 +478,9 @@ pub enum HostEvent {
     SetTextVariable {
         script: i32,
         value: i32,
+    },
+    ShowBattleMessage {
+        text: i32,
     },
     SetObjectScale {
         actor: EntityId,

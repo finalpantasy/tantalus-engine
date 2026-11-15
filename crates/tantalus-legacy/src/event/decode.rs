@@ -55,7 +55,10 @@ const OP_SET_OBJECT_SCALE: u32 = 0x9f;
 const OP_SET_VIBRATION_FRAME_RATE: u32 = 0xfa;
 const OP_REQUEST_SCRIPT_ASYNC: u32 = 0x10;
 const OP_DEFINE_TILE_VIEWPORT: u32 = 0xc8;
-const OP_GLOBAL_CLEAR: u32 = 0xd0;
+const OP_BATTLE_MESSAGE: u32 = 0xd0;
+const OP_GLOBAL_CLEAR: u32 = 0xd1;
+const OP_DEBUG_SAVE: u32 = 0xd2;
+const OP_DEBUG_LOAD: u32 = 0xd3;
 const OP_PRESERVE_AND_HIDE_ALL: u32 = 0xd5;
 const OP_RESTORE_ALL_VISIBILITY: u32 = 0xd6;
 const OP_SET_TIMER_RUNNING: u32 = 0x7d;
@@ -90,12 +93,28 @@ const EXPR_CONST_I32: u8 = 126;
 const EXPR_END: u8 = 127;
 
 pub fn decode_program(bytes: &[u8]) -> Result<EventProgram, VmError> {
-    let mut decoder = Decoder { bytes, position: 0 };
+    let mut decoder = Decoder {
+        bytes,
+        position: 0,
+        current_opcode: None,
+    };
     let mut instructions = BTreeMap::new();
     while decoder.position < bytes.len() {
         let offset = decoder.position as u32;
         let instruction = decoder.instruction().map_err(|mut error| {
-            error.message = format!("instruction at {offset}: {}", error.message);
+            let preview = decoder
+                .bytes
+                .get(offset as usize..)
+                .unwrap_or_default()
+                .iter()
+                .take(16)
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<Vec<_>>()
+                .join(" ");
+            error.message = format!(
+                "instruction at {offset} (opcode {:?}, bytes {preview}): {}",
+                decoder.current_opcode, error.message
+            );
             error
         })?;
         instructions.insert(instruction.offset, instruction);
@@ -109,6 +128,7 @@ pub fn decode_program(bytes: &[u8]) -> Result<EventProgram, VmError> {
 struct Decoder<'a> {
     bytes: &'a [u8],
     position: usize,
+    current_opcode: Option<u32>,
 }
 
 impl Decoder<'_> {
@@ -121,6 +141,7 @@ impl Decoder<'_> {
             code_byte = self.byte()?;
         }
         let opcode = code + u32::from(code_byte);
+        self.current_opcode = Some(opcode);
         let kind = match opcode {
             OP_NOP => {
                 self.byte()?;
@@ -671,7 +692,19 @@ impl Decoder<'_> {
                     height: argument(16)?,
                 }
             }
-            OP_GLOBAL_CLEAR => {
+            OP_BATTLE_MESSAGE => {
+                let flags = self.byte()?;
+                let text = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.i16()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::ShowBattleMessage(text)
+            }
+            OP_GLOBAL_CLEAR | OP_DEBUG_SAVE | OP_DEBUG_LOAD => {
                 self.byte()?;
                 InstructionKind::NoOp(opcode)
             }

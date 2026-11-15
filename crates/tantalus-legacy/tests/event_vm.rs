@@ -158,6 +158,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetNavigationAttributeMask { .. } => {}
                 HostEvent::SetShadowEnabled { .. } => {}
                 HostEvent::SetTextVariable { .. } => {}
+                HostEvent::ShowBattleMessage { .. } => {}
                 HostEvent::SetObjectScale { .. } => {}
                 HostEvent::SetVibrationFrameRate { .. } => {}
                 HostEvent::RequestScriptAsync { .. } => {}
@@ -454,6 +455,7 @@ fn unsupported_and_truncated_programs_report_the_byte_offset() {
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert_eq!(truncated.offset, 3);
     assert!(truncated.message.contains("instruction at 0"));
+    assert!(truncated.message.contains("opcode Some(5)"));
 
     let truncated_variable = decode_program(&[5, 0xaf, 0xff]).unwrap_err();
     assert_eq!(truncated_variable.kind, VmErrorKind::Decode);
@@ -2947,8 +2949,8 @@ fn printquad_consumes_its_flag_and_continues_without_side_effects() {
 
 #[test]
 fn globalclear_consumes_its_flag_and_continues_without_side_effects() {
-    let program = decode_program(&[208, 0, 4]).unwrap();
-    assert_eq!(program.instructions[&0].kind, InstructionKind::NoOp(208));
+    let program = decode_program(&[209, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].kind, InstructionKind::NoOp(209));
     assert_eq!(program.instructions[&0].length, 2);
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
@@ -2956,6 +2958,42 @@ fn globalclear_consumes_its_flag_and_continues_without_side_effects() {
     assert_eq!(report.status, VmStatus::Completed);
     assert_eq!(report.operations, 2);
     assert!(report.events.is_empty());
+}
+
+#[test]
+fn mesb_emits_battle_message_text() {
+    let program = decode_program(&[208, 0, 2, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::ShowBattleMessage { text: 2 }]);
+    assert_eq!(vm.status(), VmStatus::Completed);
+
+    let mut bytes = vec![208, 1];
+    append_expression(&mut bytes, constant(300));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::ShowBattleMessage { text: 300 }]);
+}
+
+#[test]
+fn debug_save_and_load_follow_the_reference_noop_path() {
+    for opcode in [210, 211] {
+        let program = decode_program(&[opcode, 0, 4]).unwrap();
+        assert_eq!(
+            program.instructions[&0].kind,
+            InstructionKind::NoOp(u32::from(opcode))
+        );
+        assert_eq!(program.instructions[&0].length, 2);
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(report.status, VmStatus::Completed);
+        assert!(report.events.is_empty());
+    }
 }
 
 #[test]
