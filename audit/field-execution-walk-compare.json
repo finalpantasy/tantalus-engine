@@ -1,12 +1,12 @@
 {
-  "note": "Walking-vs-stationary comparison across the 20-archive interaction batch (both with held confirm). Naive constant walking is WORSE than standing: completion counts drop in 15/20 archives and organic tag-3 talks largely vanish (the moving player disrupts scene choreography), while Street A (whose facing gate demands walking) holds. Conclusion: a scripted-player policy needs deliberate, scene-aware walks (region-centroid standing with targeted movement), not constant motion - evidence for the trace-lane policy work.",
-  "archives": 20,
+  "note": "Smart-walk (stand by default, one 64-tick leg after 256 stagnant ticks under user control) is still worse than standing (15/20), and net-zero jiggle legs fare the same: ANY player displacement or direction input during these scenes breaks their choreography, because scenes pin the player at a scripted anchor. The only movement that helps is a detected facing gate (street A). Conclusion: the scripted player must stand absolutely still unless a facing gate is positively detected (a scene polling object facing with <), which needs a trace-level watch - tantalus-trace lane.",
   "rows": [
     {
       "name": "EVT_ALEX1_AT_STREET_A.eb",
       "completed": 26,
       "tag3": 7,
       "regions": 1,
+      "legs": 1,
       "error": false
     },
     {
@@ -14,13 +14,15 @@
       "completed": 19,
       "tag3": 0,
       "regions": 1,
+      "legs": 1,
       "error": false
     },
     {
       "name": "EVT_ALEX1_AT_STREET_C.eb",
       "completed": 12,
       "tag3": 0,
-      "regions": 1,
+      "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
@@ -28,48 +30,55 @@
       "completed": 28,
       "tag3": 0,
       "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
       "name": "EVT_ALEX1_AT_INN.eb",
       "completed": 14,
       "tag3": 0,
-      "regions": 1,
+      "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
       "name": "EVT_ALEX1_AT_PUB.eb",
       "completed": 14,
       "tag3": 0,
-      "regions": 1,
+      "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
       "name": "EVT_ALEX1_AT_WEAPON.eb",
       "completed": 8,
       "tag3": 0,
-      "regions": 1,
+      "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
       "name": "EVT_ALEX1_AT_MAGIC.eb",
       "completed": 9,
       "tag3": 2,
-      "regions": 1,
+      "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
       "name": "EVT_ALEX1_AT_ITEM.eb",
       "completed": 6,
-      "tag3": 1,
+      "tag3": 0,
       "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
       "name": "EVT_ALEX2_AC_GUARD.eb",
       "completed": 13,
       "tag3": 0,
-      "regions": 1,
+      "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
@@ -77,6 +86,7 @@
       "completed": 12,
       "tag3": 0,
       "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
@@ -84,6 +94,7 @@
       "completed": 10,
       "tag3": 0,
       "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
@@ -91,13 +102,15 @@
       "completed": 10,
       "tag3": 0,
       "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
       "name": "EVT_ALEX2_AC_R_HALL.eb",
       "completed": 10,
       "tag3": 0,
-      "regions": 1,
+      "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
@@ -105,34 +118,39 @@
       "completed": 15,
       "tag3": 0,
       "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
       "name": "EVT_LIND1_TN_LB_LDH_0.eb",
       "completed": 9,
       "tag3": 0,
-      "regions": 1,
+      "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
       "name": "EVT_ALEX3_AT_HOUSE_2.eb",
       "completed": 12,
       "tag3": 0,
-      "regions": 1,
+      "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
       "name": "EVT_ALEX3_AT_SENTOU.eb",
       "completed": 24,
       "tag3": 0,
-      "regions": 1,
+      "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
       "name": "EVT_ALEX5_AT_STREET_C.eb",
       "completed": 11,
       "tag3": 0,
-      "regions": 1,
+      "regions": 0,
+      "legs": 1,
       "error": false
     },
     {
@@ -140,6 +158,7 @@
       "completed": 12,
       "tag3": 1,
       "regions": 0,
+      "legs": 1,
       "error": false
     }
   ]

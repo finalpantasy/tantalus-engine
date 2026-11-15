@@ -512,6 +512,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut talk_confirm = None;
     let mut talk_radius = None;
     let mut wander = false;
+    let mut smart_walk = false;
     let mut atan_table = None;
     let mut navigation_bundle = None;
     let mut navigation_bgi = None;
@@ -595,6 +596,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 );
             }
             Some("--wander") => wander = true,
+            Some("--smart-walk") => smart_walk = true,
             Some("--talk-confirm") => {
                 index += 1;
                 let value = args
@@ -1261,7 +1263,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         // Demo direction mapping (synthetic bits, not the pad layout):
         // 0x01 up, 0x02 down, 0x04 left, 0x08 right; confirm bit preserved.
         let confirm_only = talk_confirm.unwrap_or(0);
-        if wander {
+        if wander || smart_walk {
             director.set_walk_bits(Some((0x01, 0x02, 0x04, 0x08)));
         }
         if let Some(radius) = talk_radius {
@@ -1281,6 +1283,12 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         let mut unspawned_requests = 0usize;
         let mut regions_visited: std::collections::BTreeSet<u64> =
             std::collections::BTreeSet::new();
+        // Smart walk: stand by default; when user control is on and the
+        // scene has not progressed for a while, walk one leg, then re-
+        // evaluate. Naive constant walking disrupts scene choreography.
+        let mut last_progress = 0u64;
+        let mut leg_remaining = 0u64;
+        let mut leg_phase = 0usize;
         for tick in 0..ticks {
             if wander {
                 // 64 ticks per leg: 1024-unit square covering the field.
@@ -1290,10 +1298,36 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 let direction = [0x04u32, 0x01, 0x08, 0x02][phase as usize];
                 director.set_input_mask(confirm_only | i32::from(direction as u8));
             }
+            if smart_walk {
+                if tick == 0 {
+                    director.set_input_mask(confirm_only);
+                }
+                if director.world().user_control && tick - last_progress > 256 && leg_remaining == 0
+                {
+                    leg_remaining = 64;
+                    leg_phase = (leg_phase + 1) % 4;
+                }
+                if leg_remaining > 0 {
+                    // Alternate opposite directions each tick: facing swings
+                    // through its full range (satisfying facing gates) while
+                    // net displacement stays near zero, so scene anchors
+                    // hold. 0x08 east / 0x04 west, then 0x01/0x02 on Z.
+                    let pair = [[0x08u8, 0x04u8], [0x01, 0x02]][leg_phase % 2];
+                    let direction = pair[(leg_remaining % 2) as usize];
+                    director.set_input_mask(confirm_only | i32::from(direction));
+                    leg_remaining -= 1;
+                    if leg_remaining == 0 {
+                        director.set_input_mask(confirm_only);
+                    }
+                }
+            }
             match director.step() {
                 Ok(step) => {
                     operations += step.operations;
                     ticks_run += 1;
+                    if !step.completed_entries.is_empty() {
+                        last_progress = tick;
+                    }
                     for region in &step.region_occupancy {
                         regions_visited.insert(region.get());
                     }
@@ -1399,6 +1433,8 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 .collect::<Vec<_>>(),
             "skipped_empty_entries": skipped,
             "orchestrated": orchestrate,
+            "smart_walk": smart_walk,
+            "walk_legs": leg_phase + 1,
             "regions_visited": regions_visited.len(),
             "regions_defined": director.world().regions.len(),
             "spawned_functions": spawned.len(),
