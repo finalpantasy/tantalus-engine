@@ -1,0 +1,272 @@
+{
+  "bundle": {
+    "signature": "UnityRaw",
+    "format_version": 3,
+    "player_version": "5.x.x",
+    "engine_version": "5.2.3f1",
+    "header_size": 60,
+    "complete_file_size": 3707184,
+    "entries": [
+      {
+        "path": "CAB-53dcc15444cd1e3260ed99e2ca115655",
+        "offset": 112,
+        "size": 3707072
+      }
+    ]
+  },
+  "serialized_entry": "CAB-53dcc15444cd1e3260ed99e2ca115655",
+  "unity_version": "5.2.3f1",
+  "object_classes": {
+    "21": 3,
+    "28": 3,
+    "128": 3,
+    "142": 1
+  },
+  "fonts": [
+    {
+      "path_id": -6410978456743320580,
+      "name": "Garnet",
+      "line_spacing": 28.6875,
+      "ascent": 22.53125,
+      "descent": null,
+      "character_count": 0,
+      "characters": [],
+      "material_path_id": -3982097512987625868,
+      "texture": {
+        "name": "Font Texture",
+        "path_id": -4734000392019731906,
+        "width": 0,
+        "height": 0,
+        "format": 4,
+        "data_bytes": 0,
+        "png_file": null
+      },
+      "font_data_bytes": 36756,
+      "sfnt": {
+        "magic": "00010000",
+        "table_tags": [
+          "FFTM",
+          "GDEF",
+          "OS/2",
+          "cmap",
+          "gasp",
+          "glyf",
+          "head",
+          "hhea",
+          "hmtx",
+          "loca",
+          "maxp",
+          "name",
+          "post"
+        ],
+        "units_per_em": 512,
+        "glyph_count": 438,
+        "hhea_ascender": 721,
+        "hhea_descender": -197,
+        "hhea_line_gap": 0,
+        "family_name": "Garnet",
+        "full_name": "Garnet regular",
+        "cmap_format": 4,
+        "cmap_code_points": 436
+      },
+      "raw_fields": {
+        "m_Ascent": 22.53125,
+        "m_AsciiStartOffset": 0,
+        "m_CharacterPadding": 0,
+        "m_CharacterSpacing": 1,
+        "m_ConvertCase": -2,
+        "m_DefaultMaterial": {
+          "m_FileID": 0,
+          "m_PathID": -3982097512987625868
+        },
+        "m_DefaultStyle": 0,
+        "m_FallbackFonts": [],
+        "m_FontData": {
+          "array_len": 36756
+        },
+        "m_FontNames": [
+          "Garnet"
+        ],
+        "m_FontRenderingMode": 0,
+        "m_FontSize": 16.0,
+        "m_Kerning": 1.0,
+        "m_KerningValues": [],
+        "m_LineSpacing": 28.6875,
+        "m_Name": "Garnet",
+        "m_PixelScale": 0.10000000149011612,
+        "m_Texture": {
+          "m_FileID": 0,
+          "m_PathID": -4734000392019731906
+        }
+      }
+    },
+    {
+      "path_id": -4999884007438386290,
+      "name": "TBUDGoStd-Bold",
+      "line_spacing": 32.0,
+      "ascent": 14.079999923706055,
+      "descent": null,
+      "character_count": 0,
+      "characters": [],
+      "material_path_id": -4532362837696780643,
+      "texture": {
+        "name": "Font Texture",
+        "path_id": 2903248952580179338,
+        "width": 0,
+        "height": 0,
+        "format": 4,
+        "data_bytes": 0,
+        "png_file": null
+      },
+      "font_data_bytes": 3639592,
+      "sfnt": {
+        "magic": "00010000",
+        "table_tags": [
+          "BASE",
+          "DSIG",
+          "GDEF",
+          "GPOS",
+          "GSUB",
+          "OS/2",
+          "cmap",
+          "cvt ",
+          "fpgm",
+          "gasp",
+          "glyf",
+          "head",
+          "hhea",
+          "hmtx",
+          "kern",
+          "loca",
+          "maxp",
+          "name",
+          "post",
+          "prep"
+        ],
+        "units_per_em": 1000,
+        "glyph_count": 9360,
+        "hhea_ascender": 880,
+        "hhea_descender": -120,
+        "hhea_line_gap": 1000,
+        "family_name": "TBUDGothic Std B",
+        "full_name": "TBUDGothic Std B",
+        "cmap_format": 4,
+        "cmap_code_points": 8210
+      },
+      "raw_fields": {
+        "m_Ascent": 14.079999923706055,
+        "m_AsciiStartOffset": 0,
+        "m_CharacterPadding": 0,
+        "m_CharacterSpacing": 1,
+        "m_ConvertCase": -2,
+        "m_DefaultMaterial": {
+          "m_FileID": 0,
+          "m_PathID": -4532362837696780643
+        },
+        "m_DefaultStyle": 0,
+        "m_FallbackFonts": [],
+        "m_FontData": {
+          "array_len": 3639592
+        },
+        "m_FontNames": [
+          "TBUDGothic Std"
+        ],
+        "m_FontRenderingMode": 0,
+        "m_FontSize": 16.0,
+        "m_Kerning": 1.0,
+        "m_KerningValues": {
+          "array_len": 150
+        },
+        "m_LineSpacing": 32.0,
+        "m_Name": "TBUDGoStd-Bold",
+        "m_PixelScale": 0.10000000149011612,
+        "m_Texture": {
+          "m_FileID": 0,
+          "m_PathID": 2903248952580179338
+        }
+      }
+    },
+    {
+      "path_id": -4184774615684739057,
+      "name": "Alexandria",
+      "line_spacing": 23.109375,
+      "ascent": 19.5546875,
+      "descent": null,
+      "character_count": 0,
+      "characters": [],
+      "material_path_id": 8964751774170846260,
+      "texture": {
+        "name": "Font Texture",
+        "path_id": -857289503557172870,
+        "width": 0,
+        "height": 0,
+        "format": 4,
+        "data_bytes": 0,
+        "png_file": null
+      },
+      "font_data_bytes": 21456,
+      "sfnt": {
+        "magic": "00010000",
+        "table_tags": [
+          "FFTM",
+          "GDEF",
+          "OS/2",
+          "cmap",
+          "gasp",
+          "glyf",
+          "head",
+          "hhea",
+          "hmtx",
+          "loca",
+          "maxp",
+          "name",
+          "post"
+        ],
+        "units_per_em": 4096,
+        "glyph_count": 226,
+        "hhea_ascender": 5006,
+        "hhea_descender": -910,
+        "hhea_line_gap": 0,
+        "family_name": "Alexandria",
+        "full_name": "Alexandria Regular",
+        "cmap_format": 4,
+        "cmap_code_points": 224
+      },
+      "raw_fields": {
+        "m_Ascent": 19.5546875,
+        "m_AsciiStartOffset": 0,
+        "m_CharacterPadding": 0,
+        "m_CharacterSpacing": 1,
+        "m_ConvertCase": -2,
+        "m_DefaultMaterial": {
+          "m_FileID": 0,
+          "m_PathID": 8964751774170846260
+        },
+        "m_DefaultStyle": 0,
+        "m_FallbackFonts": [],
+        "m_FontData": {
+          "array_len": 21456
+        },
+        "m_FontNames": [
+          "Alexandria"
+        ],
+        "m_FontRenderingMode": 0,
+        "m_FontSize": 16.0,
+        "m_Kerning": 1.0,
+        "m_KerningValues": [],
+        "m_LineSpacing": 23.109375,
+        "m_Name": "Alexandria",
+        "m_PixelScale": 0.10000000149011612,
+        "m_Texture": {
+          "m_FileID": 0,
+          "m_PathID": -857289503557172870
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Garnet: dynamic Unity font; texture is empty (0x0), glyphs come from the embedded font data",
+    "TBUDGoStd-Bold: dynamic Unity font; texture is empty (0x0), glyphs come from the embedded font data",
+    "Alexandria: dynamic Unity font; texture is empty (0x0), glyphs come from the embedded font data"
+  ]
+}

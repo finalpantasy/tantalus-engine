@@ -1,6 +1,6 @@
 use sha2::{Digest, Sha256};
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use tantalus_assets::{
     CancellationToken, DirectoryAssetSource, ImportPlan, import_subset, inspect_install,
@@ -1804,12 +1804,12 @@ fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--field-models [--models <p0data4.bin>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--fonts [--font-png <dir>]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--field-models [--models <p0data4.bin>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--field-models [--models <p0data4.bin>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--fonts [--font-png <dir>]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--field-models [--models <p0data4.bin>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 
@@ -2055,6 +2055,61 @@ fn run_parse_all(
     Ok(())
 }
 
+/// `assets inspect-serialized --path <p_fa.mpc> --fonts [--font-png <dir>] [--out <json>]`.
+fn run_font_inventory(
+    path: &Path,
+    font_png: Option<PathBuf>,
+    out: Option<PathBuf>,
+) -> Result<(), String> {
+    use tantalus_assets::pc::font_bundle::inventory_encrypted;
+    use tantalus_assets::pc::ui_atlas::encode_png_rgba;
+    let bytes = std::fs::read(path)
+        .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+    let (mut inventory, pixels) = inventory_encrypted(&bytes).map_err(|error| error.to_string())?;
+    if let Some(dir) = &font_png {
+        std::fs::create_dir_all(dir)
+            .map_err(|error| format!("could not create {}: {error}", dir.display()))?;
+        for (font, blobs) in inventory.fonts.iter().zip(&pixels) {
+            if font.sfnt.is_some() {
+                let file = format!("{}.ttf", font.name);
+                std::fs::write(dir.join(&file), &blobs.font_data)
+                    .map_err(|error| format!("could not write {file}: {error}"))?;
+            }
+        }
+        for (font, blobs) in inventory.fonts.iter_mut().zip(&pixels) {
+            let rgba = &blobs.rgba;
+            let Some(texture) = font.texture.as_mut() else {
+                continue;
+            };
+            if rgba.is_empty() {
+                continue;
+            }
+            let file = format!("{}.png", font.name);
+            let png = encode_png_rgba(texture.width as u32, texture.height as u32, rgba);
+            std::fs::write(dir.join(&file), png)
+                .map_err(|error| format!("could not write {file}: {error}"))?;
+            texture.png_file = Some(file);
+        }
+    }
+    let rendered = serde_json::to_string_pretty(&inventory)
+        .map_err(|error| format!("could not serialize font inventory: {error}"))?;
+    let out = out.unwrap_or_else(|| PathBuf::from("audit/font-inventory.json"));
+    if let Some(parent) = out.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent)
+            .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
+    }
+    std::fs::write(
+        &out,
+        format!(
+            "{rendered}
+"
+        ),
+    )
+    .map_err(|error| format!("could not write {}: {error}", out.display()))?;
+    println!("{rendered}");
+    Ok(())
+}
+
 fn run_assets_inspect_serialized(args: Vec<OsString>) -> Result<(), String> {
     use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
     let mut path = None;
@@ -2063,6 +2118,8 @@ fn run_assets_inspect_serialized(args: Vec<OsString>) -> Result<(), String> {
     let mut mes = None;
     let mut mes_all = false;
     let mut ui_atlases = false;
+    let mut fonts = false;
+    let mut font_png: Option<PathBuf> = None;
     let mut atlas_png: Option<(String, PathBuf)> = None;
     let mut index = 2;
     while index < args.len() {
@@ -2070,6 +2127,14 @@ fn run_assets_inspect_serialized(args: Vec<OsString>) -> Result<(), String> {
             Some("--json") => json = true,
             Some("--mes-all") => mes_all = true,
             Some("--ui-atlases") => ui_atlases = true,
+            Some("--fonts") => fonts = true,
+            Some("--font-png") => {
+                index += 1;
+                let dir = args
+                    .get(index)
+                    .ok_or_else(|| "`--font-png` requires <dir>".to_owned())?;
+                font_png = Some(PathBuf::from(dir));
+            }
             Some("--atlas-png") => {
                 let (Some(name), Some(out)) = (args.get(index + 1), args.get(index + 2)) else {
                     return Err("`--atlas-png` requires <name> <out>".to_owned());
@@ -2101,6 +2166,9 @@ fn run_assets_inspect_serialized(args: Vec<OsString>) -> Result<(), String> {
         index += 1;
     }
     let path = path.ok_or_else(|| "missing required `--path <file>`".to_owned())?;
+    if fonts || font_png.is_some() {
+        return run_font_inventory(&path, font_png, out);
+    }
     if ui_atlases || atlas_png.is_some() {
         return run_ui_atlases(&path, ui_atlases, atlas_png, out, json);
     }
