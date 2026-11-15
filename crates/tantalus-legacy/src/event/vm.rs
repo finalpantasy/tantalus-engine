@@ -129,6 +129,25 @@ impl EventVm {
                     self.wait = None;
                     self.status = VmStatus::Running;
                 }
+                WaitState::ActorAnimation => {
+                    self.status = VmStatus::Waiting;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            self.pc,
+                            Some(0x41),
+                            "animation wait requires current actor context",
+                        ));
+                    };
+                    if host
+                        .actor_animation_is_active(actor)
+                        .map_err(|error| VmError::host(error, self.pc, 0x41))?
+                    {
+                        return Ok(self.report(tick, 0, Vec::new()));
+                    }
+                    self.wait = None;
+                    self.status = VmStatus::Running;
+                }
                 WaitState::CallerRequest { level, .. } => {
                     self.status = VmStatus::Waiting;
                     if !host
@@ -597,6 +616,25 @@ impl EventVm {
                     self.pc = next;
                     self.wait = Some(WaitState::ActorTurn);
                     self.status = VmStatus::Waiting;
+                }
+                InstructionKind::WaitAnimation => {
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "animation wait requires current actor context",
+                        ));
+                    };
+                    if host
+                        .actor_animation_is_active(actor)
+                        .map_err(|error| VmError::host(error, instruction.offset, opcode))?
+                    {
+                        self.wait = Some(WaitState::ActorAnimation);
+                        self.status = VmStatus::Waiting;
+                    } else {
+                        self.pc = next;
+                    }
                 }
                 InstructionKind::WindowSync {
                     window,
@@ -2343,6 +2381,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::WindowAsync { .. } => 0x20,
         InstructionKind::CloseWindow(_) => 0x21,
         InstructionKind::Wait(_) => 0x22,
+        InstructionKind::WaitAnimation => 0x41,
         InstructionKind::WaitTurn => 0x50,
         InstructionKind::WaitWindow(_) => 0x54,
         InstructionKind::MoveActor { .. } => 0xbf,

@@ -83,6 +83,7 @@ struct Host {
     party_members: Vec<i32>,
     party_menu_open: bool,
     actor_turn_active: bool,
+    actor_animation_active: bool,
     key_on: i32,
     fail: bool,
 }
@@ -107,6 +108,7 @@ impl Host {
             party_members: Vec::new(),
             party_menu_open: false,
             actor_turn_active: false,
+            actor_animation_active: false,
             key_on: 0,
             fail: false,
         }
@@ -343,6 +345,10 @@ impl LegacyEventHost for Host {
         Ok(self.actor_turn_active)
     }
 
+    fn actor_animation_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
+        Ok(self.actor_animation_active)
+    }
+
     fn read_key_on(&mut self) -> Result<i32, EngineError> {
         Ok(self.key_on)
     }
@@ -483,6 +489,40 @@ fn wait_turn_yields_then_resumes_after_the_actor_turn_ends() {
     );
 
     let mut vm = EventVm::new(decode_program(&[80, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
+}
+
+#[test]
+fn wait_animation_continues_immediately_or_waits_for_completion() {
+    let program = decode_program(&[65, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 1);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    assert_eq!(
+        vm.step(Tick::new(0), &mut host).unwrap().status,
+        VmStatus::Completed
+    );
+
+    let mut vm = EventVm::new(decode_program(&[65, 4]).unwrap()).with_entity(EntityId::new(42));
+    host.actor_animation_active = true;
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Waiting);
+    assert_eq!(vm.pc(), 0);
+    assert_eq!(vm.wait_state(), Some(WaitState::ActorAnimation));
+    assert_eq!(
+        vm.step(Tick::new(1), &mut host).unwrap().status,
+        VmStatus::Waiting
+    );
+
+    host.actor_animation_active = false;
+    assert_eq!(
+        vm.step(Tick::new(2), &mut host).unwrap().status,
+        VmStatus::Completed
+    );
+
+    let mut vm = EventVm::new(decode_program(&[65, 4]).unwrap());
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));

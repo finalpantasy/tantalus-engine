@@ -188,7 +188,8 @@
     "B_SHIFT_RIGHT_LET_A 60 arithmetic-shifts and writes every selected member, returning the last result or zero",
     "B_MINUS_LET_A 58 subtracts from and writes every selected member, returning the last result or zero",
     "BGLSCROLLOFFSET 0xE4 emits tile scrolling enable, signed speed/offset, and raw axis operands",
-    "pad0f 0x0F consumes its flag and yields once through the reference default path"
+    "pad0f 0x0F consumes its flag and yields once through the reference default path",
+    "WAITANIM 0x41 continues immediately when inactive and otherwise waits for host-owned animation completion"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -324,11 +325,11 @@
     "entry": 16,
     "function": 1,
     "function_tag": 1,
-    "instruction_offset": 393,
-    "offset": 640,
-    "opcode": 65,
+    "instruction_offset": 432,
+    "offset": 679,
+    "opcode": 27,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x41 after pad0f yield support"
+    "instruction": "SONGFLAG event opcode 0x1B after animation-wait support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
