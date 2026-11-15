@@ -208,7 +208,8 @@
     "B_OR_LET_E 69 ORs the selected-value mask with its operand and writes the last selected target",
     "ADD_STATUS 0x11D decodes target, status, permanent flag, and three signed 24-bit script arguments and emits AddBattleStatus",
     "MOVE 0x23 decodes signed X/Z destinations and emits WalkActor with a repeatable host-owned movement wait",
-    "HEREON 0xEF decodes a byte display mode and emits SetHereIcon"
+    "HEREON 0xEF decodes a byte display mode and emits SetHereIcon",
+    "BGAFLAG 0x63 decodes animation and raw flags bytes and emits SetTileAnimationFlags"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -355,11 +356,11 @@
       "entry": 13,
       "function": 4,
       "function_tag": 13,
-      "instruction_offset": 145,
-      "offset": 2589,
-      "opcode": 99,
+      "instruction_offset": 149,
+      "offset": 2593,
+      "opcode": 224,
       "kind": "UnsupportedOpcode",
-      "instruction": "BGAFLAG event opcode 0x63 after HEREON support"
+      "instruction": "INCFROG event opcode 0xE0 after BGAFLAG support"
     },
     {
       "entry": 13,

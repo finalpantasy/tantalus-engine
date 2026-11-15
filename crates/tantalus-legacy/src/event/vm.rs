@@ -1129,6 +1129,12 @@ impl EventVm {
                         wait,
                     });
                 }
+                InstructionKind::SetTileAnimationFlags { animation, flags } => {
+                    let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
+                    let flags = self.evaluate(host, &flags, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetTileAnimationFlags { animation, flags });
+                }
                 InstructionKind::SetTileAnimationFrame { animation, frame } => {
                     let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
                     let frame = self.evaluate(host, &frame, instruction.offset, opcode)?;
@@ -2652,6 +2658,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::RequestCallerSync { .. } => 0x14,
         InstructionKind::SetSimulationFloor { .. } => 0x104,
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
+        InstructionKind::SetTileAnimationFlags { .. } => 0x63,
         InstructionKind::SetTileAnimationFrameWait { .. } => 0x62,
         InstructionKind::SetTileAnimationFrame { .. } => 0xe7,
         InstructionKind::OpenPartyMenu { .. } => 0xb2,

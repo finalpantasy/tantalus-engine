@@ -357,6 +357,10 @@ pub enum InstructionKind {
         frame: Expression,
         wait: Expression,
     },
+    SetTileAnimationFlags {
+        animation: Expression,
+        flags: Expression,
+    },
     SetTileAnimationFrame {
         animation: Expression,
         frame: Expression,
@@ -748,6 +752,10 @@ pub enum HostEvent {
         animation: i32,
         frame: i32,
         wait: i32,
+    },
+    SetTileAnimationFlags {
+        animation: i32,
+        flags: i32,
     },
     SetTileAnimationFrame {
         animation: i32,

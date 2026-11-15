@@ -194,6 +194,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetSimulationFloor { .. } => {}
                 HostEvent::SetSimulationFrameRate { .. } => {}
                 HostEvent::SetTileAnimationFrameWait { .. } => {}
+                HostEvent::SetTileAnimationFlags { .. } => {}
                 HostEvent::SetTileAnimationFrame { .. } => {}
                 HostEvent::OpenPartyMenu { .. } => self.party_menu_open = true,
                 HostEvent::InitializeCharacter { .. } => {}
@@ -5152,6 +5153,42 @@ fn bsrate_sets_signed_simulation_frame_rate_with_extended_opcode() {
         }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn tile_animation_flags_decode_and_execute() {
+    let program = decode_program(&[99, 0, 2, 0x60, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileAnimationFlags {
+            animation: 2,
+            flags: 96,
+        }]
+    );
+    assert!(vm.traces().any(|trace| trace.opcode == Some(99)));
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![99, 3];
+    append_expression(&mut bytes, constant(1));
+    append_expression(&mut bytes, constant(0x20));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileAnimationFlags {
+            animation: 1,
+            flags: 32,
+        }]
+    );
+
+    let truncated = decode_program(&[99, 0, 2]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(99)"));
 }
 
 #[test]
