@@ -40,6 +40,7 @@ fn ruleset() -> CombatRuleset {
         experience: 50,
         gil: 20,
         items: vec![],
+        shares: None,
     };
     CombatRuleset::new(vec![attack()], vec![caster, enemy]).unwrap()
 }

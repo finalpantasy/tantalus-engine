@@ -639,6 +639,16 @@ impl FieldWorld {
         self.applied_resolutions.insert(resolution_id)
     }
 
+    /// Reference EXP-share eligibility for a party line (v2): the character
+    /// has stats and is alive. Status-based reward disabling
+    /// (Petrify/Virus/Zombie, `BattleStatus.DisableRewards`) and the
+    /// `member_flag` participation bit are not yet modeled in `FieldWorld`.
+    pub fn exp_eligible(&self, character: i32) -> bool {
+        self.character_stats
+            .get(&character)
+            .is_some_and(|stats| stats.current_hp > 0)
+    }
+
     /// Award experience to a character and recompute stats through the
     /// level-growth provider. On level-up the max HP/MP delta is added to
     /// current values (reference level-up behavior).

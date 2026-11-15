@@ -125,6 +125,27 @@ impl<'a> WorldGameServices<'a> {
     }
 }
 
+/// `BattleResultUI.AnalyzeArgument` EXP split (`BattleResultUI.cs:514`):
+/// each eligible party line receives `total / eligible_count`, integer
+/// division, remainder lost; no eligible line means no shares. Wrap the
+/// result in `Some` when building a [`RewardBundle`] so a battle that paid
+/// nobody does not fall back to the full-grant path.
+pub fn split_experience(
+    total: u64,
+    party: &[i32],
+    eligible: &dyn Fn(i32) -> bool,
+) -> std::collections::BTreeMap<i32, u64> {
+    let eligible_members: Vec<i32> = party.iter().copied().filter(|&m| eligible(m)).collect();
+    if eligible_members.is_empty() {
+        return std::collections::BTreeMap::new();
+    }
+    let share = total / eligible_members.len() as u64;
+    eligible_members
+        .into_iter()
+        .map(|member| (member, share))
+        .collect()
+}
+
 impl GameServices for WorldGameServices<'_> {
     fn random_below(&mut self, upper: u32) -> u32 {
         if upper <= 1 {
@@ -141,10 +162,19 @@ impl GameServices for WorldGameServices<'_> {
         self.world
             .add_gil(rewards.gil.min(u64::from(MAX_GIL)) as u32);
         self.apply_reward_items(rewards);
-        // Experience goes to every party member; split rules are a
-        // battle-engine concern (v1: full grant each).
-        for member in self.world.party.clone() {
-            self.world.apply_experience(member, rewards.experience);
+        match &rewards.shares {
+            // The battle engine distributed experience per character.
+            Some(shares) => {
+                for (member, experience) in shares {
+                    self.world.apply_experience(*member, *experience);
+                }
+            }
+            // v1 fallback: full grant to every party member.
+            None => {
+                for member in self.world.party.clone() {
+                    self.world.apply_experience(member, rewards.experience);
+                }
+            }
         }
         self.committed.push(rewards.clone());
         Ok(())

@@ -44,6 +44,12 @@ pub struct RewardBundle {
     pub experience: u64,
     pub gil: u64,
     pub items: Vec<ContentId>,
+    /// Per-character experience awards computed by the battle engine using
+    /// the reference split rule (`BattleResultUI`: total / eligible count,
+    /// remainder lost). When `Some`, only the listed characters receive
+    /// experience; when `None`, the committer's fallback applies (v1: full
+    /// grant to every party member).
+    pub shares: Option<std::collections::BTreeMap<i32, u64>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

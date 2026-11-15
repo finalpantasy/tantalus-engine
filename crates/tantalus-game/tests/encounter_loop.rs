@@ -1,6 +1,7 @@
 //! Encounter loop integration: a field ENCOUNT event drives the coordinator
 //! into a battle, victory commits rewards into field world state exactly once.
 
+use std::collections::BTreeMap;
 use tantalus_contracts::{ContentId, EntityId, Tick};
 use tantalus_game::battle::*;
 use tantalus_game::field::world::EncounterRequest;
@@ -41,6 +42,7 @@ fn ruleset() -> CombatRuleset {
         experience: 50,
         gil: 20,
         items: vec![],
+        shares: None,
     };
     CombatRuleset::new(vec![attack()], vec![caster, enemy]).unwrap()
 }
@@ -110,6 +112,7 @@ fn field_encounter_runs_a_battle_and_commits_rewards_exactly_once() {
         experience: 50,
         gil: 20,
         items: vec![],
+        shares: None,
     };
     {
         let mut services = WorldGameServices::new(&mut world);
@@ -141,6 +144,7 @@ fn reward_items_apply_through_the_legacy_id_mapping() {
             ContentId::parse("fixture:item/12").unwrap(),
             ContentId::parse("fixture:unknown/99").unwrap(),
         ],
+        shares: None,
     };
     let mut services = WorldGameServices::new(&mut world);
     services.commit_rewards(&bundle).unwrap();
@@ -182,6 +186,7 @@ fn reward_experience_levels_characters_through_the_growth_provider() {
         experience: 120,
         gil: 0,
         items: vec![],
+        shares: None,
     };
     let mut services = WorldGameServices::new(&mut world);
     services.commit_rewards(&bundle).unwrap();
@@ -225,9 +230,101 @@ fn default_item_id_map_resolves_vanilla_table_identities() {
         experience: 0,
         gil: 0,
         items: vec![ContentId::parse("ffix:item/12").unwrap()],
+        shares: None,
     };
     let mut services = WorldGameServices::new(&mut world);
     services.commit_rewards(&bundle).unwrap();
     assert_eq!(services.world.items[&12], 1);
     assert!(services.unmapped_items.is_empty());
+}
+
+#[test]
+fn reference_exp_split_divides_across_eligible_party_members() {
+    // BattleResultUI.AnalyzeArgument: total / eligible count, remainder lost.
+    let all_alive = split_experience(100, &[0, 1, 2], &|_| true);
+    assert_eq!(all_alive, BTreeMap::from([(0, 33), (1, 33), (2, 33)]));
+
+    // A dead line drops out and the others split the full total.
+    let one_dead = split_experience(100, &[0, 1, 2], &|member| member != 1);
+    assert_eq!(one_dead, BTreeMap::from([(0, 50), (2, 50)]));
+
+    // No eligible line: no shares, not a zero-per-line grant.
+    assert!(split_experience(100, &[0], &|_| false).is_empty());
+
+    // Shares on the bundle override the full-grant fallback: with shares
+    // present only the listed characters receive experience.
+    let mut world = tantalus_game::FieldWorld::new();
+    world.party = vec![0, 1];
+    world.character_stats.insert(
+        0,
+        tantalus_game::field::CharacterStats {
+            current_hp: 10,
+            max_hp: 10,
+            current_mp: 0,
+            max_mp: 0,
+        },
+    );
+    world.character_stats.insert(
+        1,
+        tantalus_game::field::CharacterStats {
+            current_hp: 10,
+            max_hp: 10,
+            current_mp: 0,
+            max_mp: 0,
+        },
+    );
+    let bundle = RewardBundle {
+        resolution_id: 10,
+        experience: 100,
+        gil: 0,
+        items: vec![],
+        shares: Some(split_experience(100, &world.party.clone(), &|member| {
+            world.exp_eligible(member)
+        })),
+    };
+    let mut services = WorldGameServices::new(&mut world);
+    services.commit_rewards(&bundle).unwrap();
+    drop(services);
+    assert_eq!(world.character_exp[&0], 50);
+    assert_eq!(world.character_exp[&1], 50);
+
+    // Eligibility through the world: a dead character is excluded, and an
+    // empty share set grants nothing even with a party present.
+    let mut world = tantalus_game::FieldWorld::new();
+    world.party = vec![0, 1];
+    world.character_stats.insert(
+        0,
+        tantalus_game::field::CharacterStats {
+            current_hp: 0,
+            max_hp: 10,
+            current_mp: 0,
+            max_mp: 0,
+        },
+    );
+    world.character_stats.insert(
+        1,
+        tantalus_game::field::CharacterStats {
+            current_hp: 10,
+            max_hp: 10,
+            current_mp: 0,
+            max_mp: 0,
+        },
+    );
+    assert!(!world.exp_eligible(0));
+    assert!(world.exp_eligible(1));
+    let shares = Some(split_experience(100, &world.party.clone(), &|member| {
+        world.exp_eligible(member)
+    }));
+    let bundle = RewardBundle {
+        resolution_id: 11,
+        experience: 100,
+        gil: 0,
+        items: vec![],
+        shares,
+    };
+    let mut services = WorldGameServices::new(&mut world);
+    services.commit_rewards(&bundle).unwrap();
+    drop(services);
+    assert_eq!(world.character_exp.get(&0), None);
+    assert_eq!(world.character_exp[&1], 100);
 }

@@ -51,6 +51,7 @@ fn ruleset() -> CombatRuleset {
         experience: 50,
         gil: 20,
         items: vec![id("my_mod:weapon/raptor_talon")],
+        shares: None,
     };
     CombatRuleset::new(vec![action()], vec![caster, enemy]).unwrap()
 }
