@@ -1125,6 +1125,11 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::RunBattleCode { code, value });
                 }
+                InstructionKind::SetBattleMusicContinuation(enabled) => {
+                    let enabled = self.evaluate(host, &enabled, instruction.offset, opcode)? != 0;
+                    self.pc = next;
+                    events.push(HostEvent::SetBattleMusicContinuation { enabled });
+                }
                 InstructionKind::RunModelCode { code, arguments } => {
                     let code = self.evaluate(host, &code, instruction.offset, opcode)?;
                     let [first, second, third] = arguments;
@@ -2430,6 +2435,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::InitializeCharacter { .. } => 0xfe,
         InstructionKind::StopTextureAnimation { .. } => 0xc2,
         InstructionKind::RunBattleCode { .. } => 0x4a,
+        InstructionKind::SetBattleMusicContinuation { .. } => 0x1b,
         InstructionKind::RunModelCode { .. } => 0x88,
         InstructionKind::ChangeElementalAffinity { .. } => 0x122,
         InstructionKind::SetRunEnabled { opcode, .. } => u32::from(*opcode),

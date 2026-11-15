@@ -189,7 +189,8 @@
     "B_MINUS_LET_A 58 subtracts from and writes every selected member, returning the last result or zero",
     "BGLSCROLLOFFSET 0xE4 emits tile scrolling enable, signed speed/offset, and raw axis operands",
     "pad0f 0x0F consumes its flag and yields once through the reference default path",
-    "WAITANIM 0x41 continues immediately when inactive and otherwise waits for host-owned animation completion"
+    "WAITANIM 0x41 continues immediately when inactive and otherwise waits for host-owned animation completion",
+    "SONGFLAG 0x1B emits SetBattleMusicContinuation using nonzero-as-true semantics"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -325,11 +326,11 @@
     "entry": 16,
     "function": 1,
     "function_tag": 1,
-    "instruction_offset": 432,
-    "offset": 679,
-    "opcode": 27,
+    "instruction_offset": 435,
+    "offset": 682,
+    "opcode": 10,
     "kind": "UnsupportedOpcode",
-    "instruction": "SONGFLAG event opcode 0x1B after animation-wait support"
+    "instruction": "pad0a event opcode 0x0A after battle-music continuation support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

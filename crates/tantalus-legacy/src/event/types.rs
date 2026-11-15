@@ -360,6 +360,7 @@ pub enum InstructionKind {
         code: Expression,
         value: Expression,
     },
+    SetBattleMusicContinuation(Expression),
     RunModelCode {
         code: Expression,
         arguments: [Expression; 3],
@@ -718,6 +719,9 @@ pub enum HostEvent {
     RunBattleCode {
         code: u32,
         value: i32,
+    },
+    SetBattleMusicContinuation {
+        enabled: bool,
     },
     RunModelCode {
         object: EntityId,
