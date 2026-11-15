@@ -115,7 +115,8 @@
     "B_GT_E 29 returns per-slot greater-than flags without writes, including zero for an empty mask",
     "PRINTQUAD 0x78 consumes its flag and continues through the reference's no-side-effect path",
     "B_XOR_LET_A 65 writes every selected member and returns the last value, or zero for an empty mask",
-    "B_MINUS_LET 51 subtracts, writes a variable/current-member target, and returns the normalized result"
+    "B_MINUS_LET 51 subtracts, writes a variable/current-member target, and returns the normalized result",
+    "B_KEYON2 90 consumes its operand and pushes zero through the reference compatibility path"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -140,11 +141,11 @@
     "entry": 6,
     "function": 1,
     "function_tag": 1,
-    "offset": 169,
+    "offset": 170,
     "expression_offset": 69,
-    "opcode": 90,
+    "opcode": 10,
     "kind": "UnsupportedOpcode",
-    "instruction": "B_KEYON2 after subtraction assignment"
+    "instruction": "B_PRE_PLUS_A after consume-and-zero support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

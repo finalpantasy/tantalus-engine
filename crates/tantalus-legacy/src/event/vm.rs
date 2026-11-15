@@ -904,6 +904,16 @@ impl EventVm {
                     });
                 }
                 ExpressionOp::NoOp => {}
+                ExpressionOp::ConsumeAndZero => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing consumed operand")
+                    })?;
+                    read_value(host, value, offset, opcode)?;
+                    stack.push(StackValue {
+                        value: 0,
+                        target: None,
+                    });
+                }
                 ExpressionOp::Sine => {
                     let value = stack
                         .pop()
@@ -1671,6 +1681,7 @@ fn operand_start(
         | ExpressionOp::Not
         | ExpressionOp::Complement
         | ExpressionOp::Sine
+        | ExpressionOp::ConsumeAndZero
         | ExpressionOp::PreIncrement
         | ExpressionOp::PreDecrement
         | ExpressionOp::PostIncrement

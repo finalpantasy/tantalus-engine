@@ -73,6 +73,7 @@ pub enum ExpressionOp {
     CastU16,
     CastList,
     NoOp,
+    ConsumeAndZero,
     ShiftRightAssignMembers,
     XorAssignMembers,
     XorAssignAllMembers,
