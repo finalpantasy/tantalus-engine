@@ -76,6 +76,7 @@ const OP_RUN_BATTLE_CODE: u32 = 0x4a;
 const OP_DASH_ON: u32 = 0xf0;
 const OP_FULL_MEMBER: u32 = 0xb4;
 const OP_MOVE_TILE: u32 = 0x5a;
+const OP_SET_CAMERA_BOUNDS: u32 = 0x1e;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -942,6 +943,33 @@ impl Decoder<'_> {
                     x: argument(2, true)?,
                     y: argument(4, true)?,
                     depth: argument(8, true)?,
+                }
+            }
+            OP_SET_CAMERA_BOUNDS => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetCameraBounds {
+                    camera: argument(1, false)?,
+                    bounds: [
+                        argument(2, true)?,
+                        argument(4, true)?,
+                        argument(8, true)?,
+                        argument(16, true)?,
+                    ],
                 }
             }
             OP_ATTACH_TILE => {

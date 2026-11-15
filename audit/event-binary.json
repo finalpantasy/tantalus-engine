@@ -144,7 +144,8 @@
     "GLOBALCLEAR 0xD1 and DEBUGSAVE/DEBUGLOAD 0xD2/0xD3 follow the corrected no-op mapping",
     "decode diagnostics include active opcode and a bounded instruction-byte preview",
     "FULLMEMBER 0xB4 remaps legacy party-reserve bits and emits SetPartyAvailability",
-    "BGLMOVE 0x5A emits MoveTile with signed X/Y/depth offsets"
+    "BGLMOVE 0x5A emits MoveTile with signed X/Y/depth offsets",
+    "BGVPORT 0x1E emits SetCameraBounds with signed min/max X/Y operands"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -185,14 +186,25 @@
     "kind": "Decode",
     "instruction": "flagged MESB expression does not complete before the function boundary"
   },
-  "next_decode_boundary": {
+  "truncated_wait_boundary": {
     "entry": 3,
     "function": 1,
     "function_tag": 1,
-    "offset": 797,
-    "opcode": 30,
+    "instruction_offset": 818,
+    "offset": 836,
+    "opcode": 34,
+    "kind": "Decode",
+    "instruction": "WAIT expression/operands do not complete before the function boundary"
+  },
+  "next_decode_boundary": {
+    "entry": 7,
+    "function": 0,
+    "function_tag": 0,
+    "offset": 31,
+    "expression_offset": 19,
+    "opcode": 28,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x1E after tile-movement support"
+    "instruction": "B_LT_E after classifying the truncated WAIT entry"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

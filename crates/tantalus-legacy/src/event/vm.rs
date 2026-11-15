@@ -876,6 +876,18 @@ impl EventVm {
                         offset: [x, y, depth],
                     });
                 }
+                InstructionKind::SetCameraBounds { camera, bounds } => {
+                    let camera = self.evaluate(host, &camera, instruction.offset, opcode)?;
+                    let [min_x, max_x, min_y, max_y] = bounds;
+                    let bounds = [
+                        self.evaluate(host, &min_x, instruction.offset, opcode)? as i16,
+                        self.evaluate(host, &max_x, instruction.offset, opcode)? as i16,
+                        self.evaluate(host, &min_y, instruction.offset, opcode)? as i16,
+                        self.evaluate(host, &max_y, instruction.offset, opcode)? as i16,
+                    ];
+                    self.pc = next;
+                    events.push(HostEvent::SetCameraBounds { camera, bounds });
+                }
                 InstructionKind::AttachTile {
                     overlay,
                     x,
@@ -1851,6 +1863,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetRunEnabled { opcode, .. } => u32::from(*opcode),
         InstructionKind::SetPartyAvailability { .. } => 0xb4,
         InstructionKind::MoveTile { .. } => 0x5a,
+        InstructionKind::SetCameraBounds { .. } => 0x1e,
         InstructionKind::AttachTile { .. } => 0x92,
     }
 }

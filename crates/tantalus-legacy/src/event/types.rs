@@ -304,6 +304,10 @@ pub enum InstructionKind {
         y: Expression,
         depth: Expression,
     },
+    SetCameraBounds {
+        camera: Expression,
+        bounds: [Expression; 4],
+    },
     AttachTile {
         overlay: Expression,
         x: Expression,
@@ -572,6 +576,10 @@ pub enum HostEvent {
     MoveTile {
         overlay: i32,
         offset: [i16; 3],
+    },
+    SetCameraBounds {
+        camera: i32,
+        bounds: [i16; 4],
     },
     AttachTile {
         overlay: i32,

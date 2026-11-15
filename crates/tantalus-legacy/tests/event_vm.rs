@@ -181,6 +181,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetRunEnabled { .. } => {}
                 HostEvent::SetPartyAvailability { .. } => {}
                 HostEvent::MoveTile { .. } => {}
+                HostEvent::SetCameraBounds { .. } => {}
                 HostEvent::AttachTile { .. } => {}
             }
         }
@@ -3307,6 +3308,39 @@ fn bglmove_emits_signed_tile_offsets() {
         [HostEvent::MoveTile {
             overlay: 1,
             offset: [2, 3, 4]
+        }]
+    );
+}
+
+#[test]
+fn bgvport_emits_camera_and_signed_bounds() {
+    let program = decode_program(&[30, 0, 2, 0xf6, 0xff, 20, 0, 0xe2, 0xff, 40, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 11);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetCameraBounds {
+            camera: 2,
+            bounds: [-10, 20, -30, 40]
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
+
+    let mut bytes = vec![30, 31];
+    for value in [1, 2, 3, 4, 5] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetCameraBounds {
+            camera: 1,
+            bounds: [2, 3, 4, 5]
         }]
     );
 }
