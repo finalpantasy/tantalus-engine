@@ -42,14 +42,16 @@
     "BGSMOVE 0x58 evaluates three signed 16-bit operands and continues without invented side effects",
     "padding 103 through 105 produces zero",
     "signed and unsigned 8-bit and 16-bit casts 70 through 73 preserve width and signedness",
-    "unsupported-expression diagnostics include the expression-start offset"
+    "unsupported-expression diagnostics include the expression-start offset",
+    "B_MEMBER 41 carries a lazy selected-object member target",
+    "B_XOR_LET_E 68 builds the selected truth mask, XORs the last selected member, and writes it through the host; empty masks retain the current target"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 287,
-    "opcode": "0x44",
-    "instruction": "B_OR_LET_E",
-    "expression_start": 281
+    "offset": 297,
+    "opcode": "0x09",
+    "instruction": "B_POST_MINUS_A",
+    "expression_start": 297
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

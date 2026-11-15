@@ -47,6 +47,28 @@ impl LegacyEventHost for Host {
         ))
     }
 
+    fn select_object_member_target(&mut self, _slot: Option<u8>) -> Result<EntityId, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            "field fixture has no object-member targets",
+            "fixture-host",
+            true,
+        ))
+    }
+
+    fn write_object_member(
+        &mut self,
+        _reference: tantalus_legacy::ObjectMemberRef,
+        _value: i32,
+    ) -> Result<(), EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            "field fixture has no object members",
+            "fixture-host",
+            true,
+        ))
+    }
+
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,

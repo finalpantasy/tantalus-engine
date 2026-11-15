@@ -68,6 +68,10 @@ fn movement(actor: i32, x: i32, z: i32) -> Vec<u8> {
 struct Host {
     windows: BTreeMap<u8, bool>,
     movements: Vec<(u64, i32, i32)>,
+    slots: BTreeMap<u8, EntityId>,
+    member_target: Option<EntityId>,
+    object_members: BTreeMap<ObjectMemberRef, i32>,
+    member_writes: Vec<(ObjectMemberRef, i32)>,
     fail: bool,
 }
 
@@ -76,8 +80,16 @@ impl Host {
         Self {
             windows: BTreeMap::new(),
             movements: Vec::new(),
+            slots: BTreeMap::new(),
+            member_target: None,
+            object_members: BTreeMap::new(),
+            member_writes: Vec::new(),
             fail: false,
         }
+    }
+
+    fn target_error(message: impl Into<String>) -> EngineError {
+        EngineError::new(ErrorCategory::UnknownContent, message, "fixture-host", true)
     }
 }
 
@@ -115,7 +127,38 @@ impl LegacyEventHost for Host {
     }
 
     fn read_object_member(&mut self, reference: ObjectMemberRef) -> Result<i32, EngineError> {
-        Ok(((reference.object.get() as i32) << 8) | reference.member as i32)
+        Ok(self
+            .object_members
+            .get(&reference)
+            .copied()
+            .unwrap_or(((reference.object.get() as i32) << 8) | reference.member as i32))
+    }
+
+    fn select_object_member_target(&mut self, slot: Option<u8>) -> Result<EntityId, EngineError> {
+        let object = match slot {
+            Some(slot) => self
+                .slots
+                .get(&slot)
+                .copied()
+                .ok_or_else(|| Self::target_error(format!("object slot {slot} is empty")))?,
+            None => self
+                .member_target
+                .ok_or_else(|| Self::target_error("no current object-member target"))?,
+        };
+        if slot.is_some() {
+            self.member_target = Some(object);
+        }
+        Ok(object)
+    }
+
+    fn write_object_member(
+        &mut self,
+        reference: ObjectMemberRef,
+        value: i32,
+    ) -> Result<(), EngineError> {
+        self.object_members.insert(reference, value);
+        self.member_writes.push((reference, value));
+        Ok(())
     }
 
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError> {
@@ -599,4 +642,60 @@ fn real_member_cast_sequence_decodes() {
     let program = decode_program(&bytes).unwrap();
     assert!(program.instructions.contains_key(&0));
     assert!(program.instructions.contains_key(&17));
+}
+
+#[test]
+fn member_xor_assignment_uses_the_last_selected_target() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 16);
+    let expression = assign(
+        result,
+        [vec![41, 2], constant(0b101), constant(-1), vec![68]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.slots.insert(0, EntityId::new(10));
+    host.slots.insert(2, EntityId::new(12));
+    let first = ObjectMemberRef {
+        object: EntityId::new(10),
+        member: 2,
+    };
+    let last = ObjectMemberRef {
+        object: EntityId::new(12),
+        member: 2,
+    };
+    host.object_members.insert(first, 3);
+    host.object_members.insert(last, 9);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 16), 12);
+    assert_eq!(host.object_members[&first], 3);
+    assert_eq!(host.object_members[&last], 12);
+    assert_eq!(host.member_target, Some(EntityId::new(12)));
+    assert_eq!(host.member_writes, [(last, 12)]);
+}
+
+#[test]
+fn empty_member_xor_mask_preserves_and_writes_the_current_target() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 17);
+    let expression = assign(
+        result,
+        [vec![41, 4], constant(0), constant(1), vec![68]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let current = ObjectMemberRef {
+        object: EntityId::new(42),
+        member: 4,
+    };
+    host.member_target = Some(current.object);
+    host.object_members.insert(current, 15);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 17), 15);
+    assert_eq!(host.member_target, Some(current.object));
+    assert_eq!(host.member_writes, [(current, 15)]);
 }

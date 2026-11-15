@@ -271,9 +271,32 @@ impl EventVm {
         opcode: u8,
     ) -> Result<i32, VmError> {
         #[derive(Clone, Copy)]
+        enum StackTarget {
+            Variable(VariableRef),
+            Member(u8),
+        }
+
+        #[derive(Clone, Copy)]
         struct StackValue {
             value: i32,
-            variable: Option<VariableRef>,
+            target: Option<StackTarget>,
+        }
+
+        fn read_value(
+            host: &mut dyn LegacyEventHost,
+            value: StackValue,
+            offset: u32,
+            opcode: u8,
+        ) -> Result<i32, VmError> {
+            if let Some(StackTarget::Member(member)) = value.target {
+                let object = host
+                    .select_object_member_target(None)
+                    .and_then(|object| host.read_object_member(ObjectMemberRef { object, member }))
+                    .map_err(|error| VmError::host(error, offset, opcode))?;
+                Ok(object)
+            } else {
+                Ok(value.value)
+            }
         }
 
         let mut stack: Vec<StackValue> = Vec::new();
@@ -281,59 +304,66 @@ impl EventVm {
         let mut index = 0;
         while index < expression.0.len() {
             if let Some(plan) = logical_plans.get(&index) {
-                let left = stack.last().ok_or_else(|| {
+                let left = *stack.last().ok_or_else(|| {
                     expression_error(offset, opcode, "missing short-circuit left operand")
                 })?;
-                let skip = if plan.is_and {
-                    left.value == 0
-                } else {
-                    left.value != 0
-                };
+                let left = read_value(host, left, offset, opcode)?;
+                let skip = if plan.is_and { left == 0 } else { left != 0 };
                 if skip {
                     stack.pop();
                     stack.push(StackValue {
                         value: i32::from(!plan.is_and),
-                        variable: None,
+                        target: None,
                     });
                     index = plan.operator_index + 1;
                     continue;
                 }
             }
             let operation = &expression.0[index];
-            let binary = |stack: &mut Vec<StackValue>, _operation: &ExpressionOp| {
+            let binary = |stack: &mut Vec<StackValue>,
+                          _operation: &ExpressionOp,
+                          host: &mut dyn LegacyEventHost| {
                 let right = stack
                     .pop()
                     .ok_or_else(|| expression_error(offset, opcode, "missing right operand"))?;
+                let right = read_value(host, right, offset, opcode)?;
                 let left = stack
                     .pop()
                     .ok_or_else(|| expression_error(offset, opcode, "missing left operand"))?;
+                let left = read_value(host, left, offset, opcode)?;
                 Ok::<_, VmError>((left, right))
             };
             match operation {
                 ExpressionOp::Constant(value) => stack.push(StackValue {
                     value: *value,
-                    variable: None,
+                    target: None,
                 }),
                 ExpressionOp::Variable(reference) => stack.push(StackValue {
                     value: self.variable(reference.scope, reference.index),
-                    variable: Some(*reference),
+                    target: Some(StackTarget::Variable(*reference)),
+                }),
+                ExpressionOp::Member(member) => stack.push(StackValue {
+                    value: 0,
+                    target: Some(StackTarget::Member(*member)),
                 }),
                 ExpressionOp::Negate => {
                     let value = stack
                         .pop()
                         .ok_or_else(|| expression_error(offset, opcode, "missing operand"))?;
+                    let value = read_value(host, value, offset, opcode)?;
                     stack.push(StackValue {
-                        value: value.value.wrapping_neg(),
-                        variable: None,
+                        value: value.wrapping_neg(),
+                        target: None,
                     });
                 }
                 ExpressionOp::Not => {
                     let value = stack
                         .pop()
                         .ok_or_else(|| expression_error(offset, opcode, "missing operand"))?;
+                    let value = read_value(host, value, offset, opcode)?;
                     stack.push(StackValue {
-                        value: i32::from(value.value <= 0),
-                        variable: None,
+                        value: i32::from(value <= 0),
+                        target: None,
                     });
                 }
                 ExpressionOp::Add
@@ -346,9 +376,7 @@ impl EventVm {
                 | ExpressionOp::GreaterOrEqual
                 | ExpressionOp::Equal
                 | ExpressionOp::NotEqual => {
-                    let (left, right) = binary(&mut stack, operation)?;
-                    let left = left.value;
-                    let right = right.value;
+                    let (left, right) = binary(&mut stack, operation, host)?;
                     let value = match operation {
                         ExpressionOp::Add => left.wrapping_add(right),
                         ExpressionOp::Subtract => left.wrapping_sub(right),
@@ -365,79 +393,97 @@ impl EventVm {
                     };
                     stack.push(StackValue {
                         value,
-                        variable: None,
+                        target: None,
                     });
                 }
                 ExpressionOp::LogicalAnd | ExpressionOp::LogicalOr => {
-                    let (left, right) = binary(&mut stack, operation)?;
+                    let (left, right) = binary(&mut stack, operation, host)?;
                     let value = match operation {
-                        ExpressionOp::LogicalAnd => left.value != 0 && right.value != 0,
-                        ExpressionOp::LogicalOr => left.value != 0 || right.value != 0,
+                        ExpressionOp::LogicalAnd => left != 0 && right != 0,
+                        ExpressionOp::LogicalOr => left != 0 || right != 0,
                         _ => unreachable!(),
                     };
                     stack.push(StackValue {
                         value: i32::from(value),
-                        variable: None,
+                        target: None,
                     });
                 }
                 ExpressionOp::Assign => {
                     let value = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing assignment value")
                     })?;
+                    let value = read_value(host, value, offset, opcode)?;
                     let target = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing assignment target")
                     })?;
-                    let Some(variable) = target.variable else {
-                        return Err(expression_error(
-                            offset,
-                            opcode,
-                            "assignment target is not a variable",
-                        ));
+                    let normalized = match target.target {
+                        Some(StackTarget::Variable(variable)) => {
+                            let normalized = normalize(value, variable.value_type);
+                            self.variables
+                                .insert((variable.scope, variable.index), normalized);
+                            normalized
+                        }
+                        Some(StackTarget::Member(member)) => {
+                            let object = host
+                                .select_object_member_target(None)
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            host.write_object_member(ObjectMemberRef { object, member }, value)
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            value
+                        }
+                        None => {
+                            return Err(expression_error(
+                                offset,
+                                opcode,
+                                "assignment target is not writable",
+                            ));
+                        }
                     };
-                    let normalized = normalize(value.value, variable.value_type);
-                    self.variables
-                        .insert((variable.scope, variable.index), normalized);
                     stack.push(StackValue {
                         value: normalized,
-                        variable: None,
+                        target: None,
                     });
                 }
-                ExpressionOp::PreDecrement => {
+                ExpressionOp::PreDecrement | ExpressionOp::PostDecrement => {
                     let target = stack.pop().ok_or_else(|| {
-                        expression_error(offset, opcode, "missing pre-decrement target")
+                        expression_error(offset, opcode, "missing decrement target")
                     })?;
-                    let Some(variable) = target.variable else {
-                        return Err(expression_error(
-                            offset,
-                            opcode,
-                            "pre-decrement target is not a variable",
-                        ));
+                    let current = read_value(host, target, offset, opcode)?;
+                    let decremented = match target.target {
+                        Some(StackTarget::Variable(variable)) => {
+                            let decremented =
+                                normalize(current.wrapping_sub(1), variable.value_type);
+                            self.variables
+                                .insert((variable.scope, variable.index), decremented);
+                            decremented
+                        }
+                        Some(StackTarget::Member(member)) => {
+                            let decremented = current.wrapping_sub(1);
+                            let object = host
+                                .select_object_member_target(None)
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            host.write_object_member(
+                                ObjectMemberRef { object, member },
+                                decremented,
+                            )
+                            .map_err(|error| VmError::host(error, offset, opcode))?;
+                            decremented
+                        }
+                        None => {
+                            return Err(expression_error(
+                                offset,
+                                opcode,
+                                "decrement target is not writable",
+                            ));
+                        }
                     };
-                    let decremented = normalize(target.value.wrapping_sub(1), variable.value_type);
-                    self.variables
-                        .insert((variable.scope, variable.index), decremented);
                     stack.push(StackValue {
-                        value: decremented,
-                        variable: None,
-                    });
-                }
-                ExpressionOp::PostDecrement => {
-                    let target = stack.pop().ok_or_else(|| {
-                        expression_error(offset, opcode, "missing post-decrement target")
-                    })?;
-                    let Some(variable) = target.variable else {
-                        return Err(expression_error(
-                            offset,
-                            opcode,
-                            "post-decrement target is not a variable",
-                        ));
-                    };
-                    let decremented = normalize(target.value.wrapping_sub(1), variable.value_type);
-                    self.variables
-                        .insert((variable.scope, variable.index), decremented);
-                    stack.push(StackValue {
-                        value: target.value,
-                        variable: None,
+                        value: if matches!(operation, ExpressionOp::PreDecrement) {
+                            decremented
+                        } else {
+                            current
+                        },
+                        target: None,
                     });
                 }
                 ExpressionOp::CustomVariable(variable) => {
@@ -446,7 +492,7 @@ impl EventVm {
                         .map_err(|error| VmError::host(error, offset, opcode))?;
                     stack.push(StackValue {
                         value,
-                        variable: None,
+                        target: None,
                     });
                 }
                 ExpressionOp::CastI8
@@ -456,16 +502,17 @@ impl EventVm {
                     let value = stack
                         .pop()
                         .ok_or_else(|| expression_error(offset, opcode, "missing cast operand"))?;
+                    let value = read_value(host, value, offset, opcode)?;
                     let value = match operation {
-                        ExpressionOp::CastI8 => (value.value as i8) as i32,
-                        ExpressionOp::CastU8 => (value.value as u8) as i32,
-                        ExpressionOp::CastI16 => (value.value as i16) as i32,
-                        ExpressionOp::CastU16 => (value.value as u16) as i32,
+                        ExpressionOp::CastI8 => (value as i8) as i32,
+                        ExpressionOp::CastU8 => (value as u8) as i32,
+                        ExpressionOp::CastI16 => (value as i16) as i32,
+                        ExpressionOp::CastU16 => (value as u16) as i32,
                         _ => unreachable!(),
                     };
                     stack.push(StackValue {
                         value,
-                        variable: None,
+                        target: None,
                     });
                 }
                 ExpressionOp::ShiftRightAssignMembers => {
@@ -476,7 +523,7 @@ impl EventVm {
                             "member shift assignment requires mask and value inputs",
                         ));
                     }
-                    let mask = stack[stack.len() - 3].value;
+                    let mask = read_value(host, stack[stack.len() - 3], offset, opcode)?;
                     if mask != 0 {
                         return Err(expression_error(
                             offset,
@@ -487,7 +534,49 @@ impl EventVm {
                     stack.truncate(stack.len() - 2);
                     stack.push(StackValue {
                         value: 0,
-                        variable: None,
+                        target: None,
+                    });
+                }
+                ExpressionOp::XorAssignMembers => {
+                    if stack.len() < 3 {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "member XOR assignment requires target, mask, and value inputs",
+                        ));
+                    }
+                    let Some(StackTarget::Member(member)) = stack[stack.len() - 3].target else {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "member XOR assignment target is not a selected member",
+                        ));
+                    };
+                    let mask = read_value(host, stack[stack.len() - 2], offset, opcode)?;
+                    let operand = read_value(host, stack[stack.len() - 1], offset, opcode)?;
+                    let mut selected_values = 0i32;
+                    for slot in 0..8 {
+                        selected_values >>= 1;
+                        if mask & (1 << slot) != 0 {
+                            host.select_object_member_target(Some(slot))
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            selected_values |= i32::from(operand != 0) << 7;
+                        }
+                    }
+                    let object = host
+                        .select_object_member_target(None)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    let reference = ObjectMemberRef { object, member };
+                    let value = host
+                        .read_object_member(reference)
+                        .map_err(|error| VmError::host(error, offset, opcode))?
+                        ^ selected_values;
+                    host.write_object_member(reference, value)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    stack.truncate(stack.len() - 3);
+                    stack.push(StackValue {
+                        value,
+                        target: None,
                     });
                 }
                 ExpressionOp::ReadObjectMember(reference) => {
@@ -496,12 +585,12 @@ impl EventVm {
                         .map_err(|error| VmError::host(error, offset, opcode))?;
                     stack.push(StackValue {
                         value,
-                        variable: None,
+                        target: None,
                     });
                 }
                 ExpressionOp::Pad => stack.push(StackValue {
                     value: 0,
-                    variable: None,
+                    target: None,
                 }),
                 ExpressionOp::PostIncrementMembers | ExpressionOp::PreDecrementMembers => {
                     if stack.len() < 2 {
@@ -511,7 +600,7 @@ impl EventVm {
                             "object-member operation requires selection inputs",
                         ));
                     }
-                    if stack[stack.len() - 2].value != 0 {
+                    if read_value(host, stack[stack.len() - 2], offset, opcode)? != 0 {
                         return Err(expression_error(
                             offset,
                             opcode,
@@ -521,14 +610,17 @@ impl EventVm {
                     stack.truncate(stack.len() - 2);
                     stack.push(StackValue {
                         value: 0,
-                        variable: None,
+                        target: None,
                     });
                 }
                 ExpressionOp::End => break,
             }
             index += 1;
         }
-        Ok(stack.last().map(|value| value.value).unwrap_or(0))
+        match stack.last().copied() {
+            Some(value) => read_value(host, value, offset, opcode),
+            None => Ok(0),
+        }
     }
 
     fn evaluate_u8(
@@ -691,6 +783,7 @@ fn operand_start(
         ExpressionOp::Constant(_)
         | ExpressionOp::Variable(_)
         | ExpressionOp::ReadObjectMember(_)
+        | ExpressionOp::Member(_)
         | ExpressionOp::CustomVariable(_)
         | ExpressionOp::Pad => Ok(index),
         ExpressionOp::Negate
@@ -718,6 +811,11 @@ fn operand_start(
         | ExpressionOp::LogicalOr => {
             let right = operand_start(operations, index, offset, opcode)?;
             operand_start(operations, right, offset, opcode)
+        }
+        ExpressionOp::XorAssignMembers => {
+            let value = operand_start(operations, index, offset, opcode)?;
+            let mask = operand_start(operations, value, offset, opcode)?;
+            operand_start(operations, mask, offset, opcode)
         }
         ExpressionOp::ShiftRightAssignMembers | ExpressionOp::End => Err(expression_error(
             offset,

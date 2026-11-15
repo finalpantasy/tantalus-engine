@@ -55,12 +55,14 @@ pub enum ExpressionOp {
     PreDecrement,
     PostDecrement,
     ReadObjectMember(ObjectMemberRef),
+    Member(u8),
     CustomVariable(u16),
     CastI8,
     CastU8,
     CastI16,
     CastU16,
     ShiftRightAssignMembers,
+    XorAssignMembers,
     LogicalAnd,
     LogicalOr,
     Pad,
@@ -251,5 +253,11 @@ pub trait LegacyEventHost {
     fn apply(&mut self, events: &[HostEvent]) -> Result<(), EngineError>;
     fn window_is_open(&self, window: u8) -> bool;
     fn read_object_member(&mut self, reference: ObjectMemberRef) -> Result<i32, EngineError>;
+    fn select_object_member_target(&mut self, slot: Option<u8>) -> Result<EntityId, EngineError>;
+    fn write_object_member(
+        &mut self,
+        reference: ObjectMemberRef,
+        value: i32,
+    ) -> Result<(), EngineError>;
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError>;
 }
