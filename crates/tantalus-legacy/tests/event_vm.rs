@@ -311,6 +311,11 @@ impl LegacyEventHost for Host {
                 HostEvent::CloseAllWindows => {}
                 HostEvent::AlignActorToCameraEye { .. } => {}
                 HostEvent::ProgressJump { .. } => {}
+                HostEvent::QueueEnemyAttack { .. } => {}
+                HostEvent::StartBattle { .. } => {}
+                HostEvent::ShowObjectWindow { .. } => {}
+                HostEvent::RunSpsCode { .. } => {}
+                HostEvent::ChangeWorldMap { .. } => {}
                 HostEvent::SetCameraBounds { .. } => {}
                 HostEvent::SetCharacterRow { .. } => {}
                 HostEvent::SetActorPitchRoll { .. } => {}
@@ -7704,4 +7709,123 @@ fn jump3_emits_progress_and_repeats_while_the_host_reports_an_active_jump() {
     let mut vm = without_entity;
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert!(error.message.contains("current actor context"));
+}
+
+#[test]
+fn btlcmd_decodes_the_enemy_attack_operand() {
+    // SV_Target reads and ATB/counter queueing are host-owned.
+    let program = decode_program(&[0x38, 0, 0x1d, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::QueueEnemyAttack { attack: 29 }]);
+
+    let mut bytes = vec![0x38, 1];
+    append_expression(&mut bytes, constant(7));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::QueueEnemyAttack { attack: 7 }]);
+}
+
+#[test]
+fn encount_decodes_rush_and_battle_identifiers() {
+    let program = decode_program(&[0x2a, 0, 1, 0x39, 0x30, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::StartBattle {
+            rush: 1,
+            battle: 0x3039,
+        }]
+    );
+
+    // The raw id keeps Steiner's state in the highest bit; the host splits it.
+    let mut bytes = vec![0x2a, 3];
+    append_expression(&mut bytes, constant(0));
+    append_expression(&mut bytes, constant(-32768));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::StartBattle {
+            rush: 0,
+            battle: -32768,
+        }]
+    );
+
+    let truncated = decode_program(&[0x2a, 0, 1]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(42)"));
+}
+
+#[test]
+fn mesa_waits_on_the_window_and_mesan_continues() {
+    let program = decode_program(&[0x95, 0, 5, 1, 4, 0x15, 0x00, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ShowObjectWindow {
+            object: EntityId::new(5),
+            window: 1,
+            flags: 4,
+            text: 21,
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Waiting);
+    assert_eq!(vm.pc(), 7);
+
+    let program = decode_program(&[0x96, 0, 5, 2, 7, 0x00, 0x01, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events.len(), 1);
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let negative = {
+        let mut bytes = vec![0x95, 1];
+        append_expression(&mut bytes, constant(-1));
+        bytes.extend_from_slice(&[1, 4, 0x15, 0x00, 4]);
+        decode_program(&bytes).unwrap()
+    };
+    let mut vm = EventVm::new(negative);
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("object identity cannot be negative"));
+}
+
+#[test]
+fn sps2_decodes_simple_special_effect_parameters() {
+    let program = decode_program(&[0xda, 0, 3, 9, 0x7f, 0x10, 0x27, 0x39, 0x30, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RunSpsCode {
+            object: 3,
+            code: 9,
+            argument: 0x7f,
+            value: [0x2710, 0x3039],
+        }]
+    );
+
+    let truncated = decode_program(&[0xda, 0, 3, 9, 0x7f]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(218)"));
+}
+
+#[test]
+fn wmapjump_emits_the_world_map_destination() {
+    let program = decode_program(&[0xb6, 0, 0x2c, 0x01, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ChangeWorldMap { destination: 300 }]
+    );
 }

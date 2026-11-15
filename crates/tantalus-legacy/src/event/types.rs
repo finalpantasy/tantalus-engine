@@ -703,6 +703,29 @@ pub enum InstructionKind {
     CloseAllWindows,
     AlignActorToCameraEye,
     ProgressJump,
+    QueueEnemyAttack {
+        attack: Expression,
+    },
+    StartBattle {
+        rush: Expression,
+        battle: Expression,
+    },
+    ShowObjectWindow {
+        object: Expression,
+        window: Expression,
+        flags: Expression,
+        text: Expression,
+        opcode: u8,
+    },
+    RunSpsCode {
+        object: Expression,
+        code: Expression,
+        argument: Expression,
+        value: [Expression; 2],
+    },
+    ChangeWorldMap {
+        destination: Expression,
+    },
     SetUserControl {
         enabled: bool,
         opcode: u8,
@@ -1471,6 +1494,28 @@ pub enum HostEvent {
     },
     ProgressJump {
         actor: EntityId,
+    },
+    QueueEnemyAttack {
+        attack: i32,
+    },
+    StartBattle {
+        rush: i32,
+        battle: i32,
+    },
+    ShowObjectWindow {
+        object: EntityId,
+        window: u8,
+        flags: u8,
+        text: u16,
+    },
+    RunSpsCode {
+        object: i32,
+        code: i32,
+        argument: i32,
+        value: [i16; 2],
+    },
+    ChangeWorldMap {
+        destination: i16,
     },
     SetUserControl {
         enabled: bool,

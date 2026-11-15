@@ -2100,6 +2100,76 @@ impl EventVm {
                     self.status = VmStatus::Running;
                     break;
                 }
+                InstructionKind::QueueEnemyAttack { attack } => {
+                    // SV_Target reads and ATB/counter queueing are host-owned.
+                    let attack = self.evaluate(host, &attack, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::QueueEnemyAttack { attack });
+                }
+                InstructionKind::StartBattle { rush, battle } => {
+                    let rush = self.evaluate(host, &rush, instruction.offset, opcode)?;
+                    let battle = self.evaluate(host, &battle, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::StartBattle { rush, battle });
+                }
+                InstructionKind::ShowObjectWindow {
+                    object,
+                    window,
+                    flags,
+                    text,
+                    opcode: window_opcode,
+                } => {
+                    let object = self.evaluate(host, &object, instruction.offset, opcode)?;
+                    if object < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let object = EntityId::new(object as u64);
+                    let window = self.evaluate_u8(host, &window, instruction.offset, opcode)?;
+                    let flags = self.evaluate_u8(host, &flags, instruction.offset, opcode)?;
+                    let text = self.evaluate_u16(host, &text, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::ShowObjectWindow {
+                        object,
+                        window,
+                        flags,
+                        text,
+                    });
+                    if window_opcode == 0x95 {
+                        self.wait = Some(WaitState::Window(window));
+                        self.status = VmStatus::Waiting;
+                    }
+                }
+                InstructionKind::RunSpsCode {
+                    object,
+                    code,
+                    argument,
+                    value,
+                } => {
+                    let object = self.evaluate(host, &object, instruction.offset, opcode)?;
+                    let code = self.evaluate(host, &code, instruction.offset, opcode)?;
+                    let argument = self.evaluate(host, &argument, instruction.offset, opcode)?;
+                    let value = [
+                        self.evaluate(host, &value[0], instruction.offset, opcode)? as i16,
+                        self.evaluate(host, &value[1], instruction.offset, opcode)? as i16,
+                    ];
+                    self.pc = next;
+                    events.push(HostEvent::RunSpsCode {
+                        object,
+                        code,
+                        argument,
+                        value,
+                    });
+                }
+                InstructionKind::ChangeWorldMap { destination } => {
+                    let destination =
+                        self.evaluate(host, &destination, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::ChangeWorldMap { destination });
+                }
                 InstructionKind::SetUserControl { enabled, .. } => {
                     self.pc = next;
                     events.push(HostEvent::SetUserControl { enabled });
@@ -4027,6 +4097,11 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::CloseAllWindows => 0xeb,
         InstructionKind::AlignActorToCameraEye => 0xb7,
         InstructionKind::ProgressJump => 0xdc,
+        InstructionKind::QueueEnemyAttack { .. } => 0x38,
+        InstructionKind::StartBattle { .. } => 0x2a,
+        InstructionKind::ShowObjectWindow { opcode, .. } => u32::from(*opcode),
+        InstructionKind::RunSpsCode { .. } => 0xda,
+        InstructionKind::ChangeWorldMap { .. } => 0xb6,
         InstructionKind::SetCameraBounds { .. } => 0x1e,
         InstructionKind::SetCharacterRow { .. } => 0x62,
         InstructionKind::ClearPartyStatus { .. } => 0xd9,
