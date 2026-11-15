@@ -1,5 +1,6 @@
 //! Original PC base-save container tests. All fixtures are project-owned synthetic data.
 
+use std::path::{Path, PathBuf};
 use tantalus_legacy::*;
 
 fn synthetic_metadata(data_size: i32) -> BaseSaveMetadata {
@@ -603,4 +604,149 @@ fn decoded_legacy_reports_round_trip_as_json() {
     let encoded = serde_json::to_string(&base).unwrap();
     let decoded: DecodedBaseSave = serde_json::from_str(&encoded).unwrap();
     assert_eq!(decoded, base);
+}
+
+struct TempDir(PathBuf);
+
+/// A zeroed preview reservation is corrupt ciphertext, so non-autosave
+/// synthetic containers must carry a real encrypted empty (`NONE`) preview.
+fn with_empty_preview(container: &mut [u8], slot_id: i32, save_id: i32) {
+    let mut plain = Vec::new();
+    plain.extend_from_slice(b"NONE");
+    plain.resize(BASE_SAVE_PREVIEW_PLAINTEXT_BYTES, 0);
+    let cipher = LegacyAesCodec::encrypt(&plain);
+    let offset = base_save_preview_offset(slot_id, save_id).unwrap();
+    container[offset..offset + cipher.len()].copy_from_slice(&cipher);
+}
+
+impl TempDir {
+    fn new(name: &str) -> Self {
+        let mut root = std::env::temp_dir();
+        root.push(format!(
+            "tantalus-base-save-{}-{}-{}",
+            name,
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        Self(root)
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[test]
+fn memoria_sidecar_path_matches_reference_naming() {
+    let base = Path::new("saves/SavedData_ww.dat");
+    let at = location(false, 2, 7);
+    assert_eq!(
+        LegacySaveImporter::memoria_sidecar_path(base, &at),
+        Some(Path::new("saves/SavedData_ww_Memoria_2_7.dat").to_path_buf())
+    );
+    assert_eq!(
+        LegacySaveImporter::memoria_sidecar_path(base, &location(true, 0, 0)),
+        Some(Path::new("saves/SavedData_ww_Memoria_Autosave.dat").to_path_buf())
+    );
+    assert_eq!(
+        LegacySaveImporter::memoria_sidecar_path(Path::new("saves/notes.txt"), &at),
+        None
+    );
+}
+
+#[test]
+fn inspect_slot_file_decodes_full_slot_with_sidecar() {
+    let at = location(false, 2, 7);
+    let metadata = synthetic_metadata(16);
+    let saved = block(BaseSaveBlockState::Saved, (0..16).collect());
+    let mut container = synthetic_container(&metadata, &at, &saved);
+    with_empty_preview(&mut container, 2, 7);
+    let sidecar = SimpleJsonDocument {
+        root: SimpleJsonNode::Class(vec![(
+            "Mod".to_owned(),
+            SimpleJsonNode::String("synthetic".to_owned()),
+        )]),
+        trailing_bytes: 0,
+    };
+    let sidecar_bytes = SimpleJsonDocument::encode(&sidecar.root).unwrap();
+
+    let dir = TempDir::new("slot-file-full");
+    let base_path = dir.path().join("SavedData_ww.dat");
+    std::fs::write(&base_path, &container).unwrap();
+    let sidecar_path = dir.path().join("SavedData_ww_Memoria_2_7.dat");
+    std::fs::write(&sidecar_path, &sidecar_bytes).unwrap();
+
+    let report = LegacySaveImporter::inspect_slot_file(&base_path, &at).unwrap();
+    assert_eq!(report.base_path, base_path);
+    assert_eq!(report.base.bytes, BASE_SAVE_CONTAINER_BYTES);
+    assert!(report.base.fixed_container_size_matches);
+    assert!(report.base.decoded);
+    assert!(report.sidecar_found);
+    assert_eq!(report.sidecar_path, Some(sidecar_path));
+    assert_eq!(report.pairing, PairingStatus::Matched);
+    assert_eq!(report.slot.metadata, metadata);
+    assert_eq!(report.slot.block.state, BaseSaveBlockState::Saved);
+    assert_eq!(report.slot.block.payload, saved.payload);
+    assert_eq!(report.slot.preview, None);
+    assert_eq!(report.slot.extra, Some(sidecar));
+
+    let encoded = serde_json::to_string(&report).unwrap();
+    let decoded: LegacySlotFileReport = serde_json::from_str(&encoded).unwrap();
+    assert_eq!(decoded, report);
+}
+
+#[test]
+fn inspect_slot_file_handles_missing_sidecar_and_missing_base() {
+    let at = location(false, 1, 3);
+    let metadata = synthetic_metadata(8);
+    let saved = block(BaseSaveBlockState::Saved, (0..8).collect());
+    let mut container = synthetic_container(&metadata, &at, &saved);
+    with_empty_preview(&mut container, 1, 3);
+
+    let dir = TempDir::new("slot-file-partial");
+    let base_path = dir.path().join("SavedData_ww.dat");
+    std::fs::write(&base_path, &container).unwrap();
+
+    let report = LegacySaveImporter::inspect_slot_file(&base_path, &at).unwrap();
+    assert!(!report.sidecar_found);
+    assert_eq!(report.sidecar_path, None);
+    assert_eq!(report.pairing, PairingStatus::NotChecked);
+    assert_eq!(report.slot.metadata, metadata);
+    assert_eq!(report.slot.extra, None);
+    assert_eq!(report.slot.preview, None);
+
+    let missing = dir.path().join("SavedData_jp.dat");
+    let error = LegacySaveImporter::inspect_slot_file(&missing, &at).unwrap_err();
+    assert!(error.context.contains("SavedData_jp.dat"));
+}
+
+#[test]
+fn inspect_slot_file_rejects_corrupt_sidecar_without_partial_commit() {
+    let at = location(false, 2, 7);
+    let metadata = synthetic_metadata(8);
+    let saved = block(BaseSaveBlockState::Saved, (0..8).collect());
+    let mut container = synthetic_container(&metadata, &at, &saved);
+    with_empty_preview(&mut container, 2, 7);
+
+    let dir = TempDir::new("slot-file-corrupt");
+    let base_path = dir.path().join("SavedData_ww.dat");
+    std::fs::write(&base_path, &container).unwrap();
+    std::fs::write(
+        dir.path().join("SavedData_ww_Memoria_2_7.dat"),
+        [9, 0, 0, 0],
+    )
+    .unwrap();
+
+    let error = LegacySaveImporter::inspect_slot_file(&base_path, &at).unwrap_err();
+    assert!(error.context.contains("unsupported SimpleJSON binary tag"));
 }

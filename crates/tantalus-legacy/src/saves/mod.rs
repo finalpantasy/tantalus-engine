@@ -3,6 +3,7 @@ mod importer;
 mod preview;
 mod schema;
 mod simple_json;
+mod slot_file;
 
 pub use base::{
     BASE_METADATA_PLAINTEXT_BYTES, BASE_METADATA_RESERVED_BYTES, BASE_PREVIEW_RESERVED_BYTES,
@@ -23,3 +24,4 @@ pub use schema::{
     BaseSaveDataNode, BaseSaveFieldType, BaseSavePayload, BaseSaveSchemaNode, BaseSaveValue,
 };
 pub use simple_json::{LegacySaveError, SimpleJsonDocument, SimpleJsonNode};
+pub use slot_file::LegacySlotFileReport;
