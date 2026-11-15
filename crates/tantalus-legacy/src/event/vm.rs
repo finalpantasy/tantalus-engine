@@ -196,6 +196,21 @@ impl EventVm {
                         self.evaluate(host, &expression, instruction.offset, opcode)?;
                     self.pc = next;
                 }
+                InstructionKind::SetActorFacing(angle) => {
+                    let angle = self
+                        .evaluate(host, &angle, instruction.offset, opcode)?
+                        .wrapping_shl(4) as i16;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "facing requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetActorFacing { actor, angle });
+                }
                 InstructionKind::SetActorPosition { x, z } => {
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
                     let z = self.evaluate(host, &z, instruction.offset, opcode)?;
@@ -1264,6 +1279,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::JumpSwitch { .. } => 0x0b,
         InstructionKind::DeleteObject(_) => 0x1c,
         InstructionKind::SetActorPosition { .. } => 0x1d,
+        InstructionKind::SetActorFacing { .. } => 0x36,
         InstructionKind::Return => 0x04,
         InstructionKind::Evaluate(_) => 0x05,
         InstructionKind::WindowSync { .. } => 0x1f,

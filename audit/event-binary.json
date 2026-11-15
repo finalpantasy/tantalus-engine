@@ -101,7 +101,8 @@
     "DELETE 0x1C emits typed object deletion and terminates the current entry for target 255",
     "BSFLOOR 0x104 decodes two unsigned IDs and emits SetSimulationFloor; real entries 4 and 5 truncate before its argument flag",
     "MODEL 0x2F emits actor-bound SetActorModel with a wide model ID and -4x eye-height operand",
-    "POS 0x1D emits current-actor X/Z positioning with default Y 32768"
+    "POS 0x1D emits current-actor X/Z positioning with default Y 32768",
+    "DIRE 0x36 emits actor-facing angles with wrapping shift-by-four fixed-point conversion"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -126,10 +127,10 @@
     "entry": 6,
     "function": 0,
     "function_tag": 0,
-    "offset": 47,
-    "opcode": 54,
+    "offset": 52,
+    "opcode": 51,
     "kind": "UnsupportedOpcode",
-    "instruction": "ROTXZ after actor positioning; entries 4 and 5 omit BSFLOOR's argument flag"
+    "instruction": "AWALK after actor-facing support; entries 4 and 5 omit BSFLOOR's argument flag"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

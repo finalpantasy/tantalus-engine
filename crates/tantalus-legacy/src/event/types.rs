@@ -112,6 +112,7 @@ pub enum InstructionKind {
         x: Expression,
         z: Expression,
     },
+    SetActorFacing(Expression),
     Return,
     Wait(Expression),
     WindowSync {
@@ -300,6 +301,10 @@ pub enum HostEvent {
     SetActorPosition {
         actor: EntityId,
         position: [i32; 3],
+    },
+    SetActorFacing {
+        actor: EntityId,
+        angle: i16,
     },
     AimAtCamera,
     DefinePlayerControl {

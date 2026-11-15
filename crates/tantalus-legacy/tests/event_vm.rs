@@ -118,6 +118,7 @@ impl LegacyEventHost for Host {
                 }
                 HostEvent::DeleteObject { .. } => {}
                 HostEvent::SetActorPosition { .. } => {}
+                HostEvent::SetActorFacing { .. } => {}
                 HostEvent::AimAtCamera => {}
                 HostEvent::DefinePlayerControl { .. } => {}
                 HostEvent::SetControlDirection { .. } => {}
@@ -432,6 +433,40 @@ fn jump_switch_selects_consecutive_cases_and_uses_default_outside_range() {
     }
 
     assert!(decode_program(&[11, 1, 0]).is_err());
+}
+
+#[test]
+fn dire_sets_actor_facing_with_shifted_fixed_point_angle() {
+    let program = decode_program(&[54, 0, 192, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetActorFacing {
+            actor: EntityId::new(42),
+            angle: 3072
+        }]
+    );
+
+    let mut bytes = vec![54, 1];
+    append_expression(&mut bytes, constant(-1));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetActorFacing {
+            actor: EntityId::new(42),
+            angle: -16
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[54, 0, 192, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
 }
 
 #[test]
