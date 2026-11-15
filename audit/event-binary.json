@@ -73,7 +73,7 @@
     "CHRSCALE 0x9F decodes object and ratio operands, preserves signed-byte times-64 renderer scale, and carries the vertical-scale byte",
     "VIBRATE 0xFA decodes a signed frame-rate operand and emits SetVibrationFrameRate",
     "REQ 0x10 decodes level, target, and immediate function tag and emits RequestScriptAsync",
-    "BGVDEFINE 0xC8 decodes viewport ID and signed rectangle operands and emits DefineTileViewport",
+    "BGVDEFINE 0xC9 decodes viewport ID and signed rectangle operands and emits DefineTileViewport; the previous 0xC8 mapping conflicted with FLDSND3",
     "B_POST_PLUS 4 stores the incremented target and returns its original value",
     "POPSHOW 0xD6 consumes its flag and emits RestoreAllVisibility",
     "TIMERCONTROL 0x7D decodes a boolean operand and emits SetTimerRunning",
@@ -203,7 +203,8 @@
     "BGVALPHA 0xE6 decodes a byte viewport and signed-wide X/Y factors and emits SetTileViewportAlpha",
     "B_SPS 108 consumes two expression operands and returns zero through the pinned no-effect path",
     "BGAWAIT 0x62 decodes animation, pause frame, and wait bytes and emits SetTileAnimationFrameWait",
-    "B_PARTYADD 109 delegates party insertion to the host and returns the reference failure flag"
+    "B_PARTYADD 109 delegates party insertion to the host and returns the reference failure flag",
+    "FLDSND0 through FLDSND3 (0xC5-0xC8) share signed code/ID and variant-specific argument decoding while retaining the actual opcode"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -340,11 +341,11 @@
       "entry": 13,
       "function": 1,
       "function_tag": 1,
-      "instruction_offset": 1162,
-      "offset": 1667,
-      "opcode": 199,
+      "instruction_offset": 1203,
+      "offset": 1708,
+      "opcode": 384,
       "kind": "UnsupportedOpcode",
-      "instruction": "FLDSND2 event opcode 0xC7 after B_PARTYADD support"
+      "instruction": "unknown extended event opcode 0x180; no matching pinned enum or dispatcher operation was found"
     },
     {
       "entry": 13,
@@ -402,11 +403,11 @@
     "entry": 13,
     "function": 1,
     "function_tag": 1,
-    "instruction_offset": 1162,
-    "offset": 1667,
-    "opcode": 199,
+    "instruction_offset": 1203,
+    "offset": 1708,
+    "opcode": 384,
     "kind": "UnsupportedOpcode",
-    "instruction": "FLDSND2 event opcode 0xC7 after B_PARTYADD support"
+    "instruction": "unknown extended event opcode 0x180; no matching pinned enum or dispatcher operation was found"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

@@ -252,6 +252,8 @@ pub enum InstructionKind {
     RunSound {
         code: Expression,
         sound: Expression,
+        arguments: [Expression; 3],
+        opcode: u8,
     },
     AttachObjectOffset {
         x: Expression,

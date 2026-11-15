@@ -754,14 +754,25 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetTriangleActive { triangle, active });
                 }
-                InstructionKind::RunSound { code, sound } => {
+                InstructionKind::RunSound {
+                    code,
+                    sound,
+                    arguments,
+                    ..
+                } => {
                     let code = self.evaluate(host, &code, instruction.offset, opcode)?;
                     let sound = self.evaluate(host, &sound, instruction.offset, opcode)?;
+                    let [first, second, third] = arguments;
+                    let arguments = [
+                        self.evaluate(host, &first, instruction.offset, opcode)?,
+                        self.evaluate(host, &second, instruction.offset, opcode)?,
+                        self.evaluate(host, &third, instruction.offset, opcode)?,
+                    ];
                     self.pc = next;
                     events.push(HostEvent::RunSound {
                         code,
                         sound,
-                        arguments: [0, 0, 0],
+                        arguments,
                     });
                 }
                 InstructionKind::AttachObjectOffset { x, y, z } => {
@@ -2541,7 +2552,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::InitializeRegion { .. } => 0x08,
         InstructionKind::InitializeCode { .. } => 0x07,
         InstructionKind::SetTriangleActive { .. } => 0x9a,
-        InstructionKind::RunSound { .. } => 0xc5,
+        InstructionKind::RunSound { opcode, .. } => u32::from(*opcode),
         InstructionKind::AttachObjectOffset { .. } => 0xd4,
         InstructionKind::ResetWalkState => 0x25,
         InstructionKind::SetMovementSpeed(_) => 0x26,
@@ -2557,7 +2568,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetRain { .. } => 0xd8,
         InstructionKind::RequestScriptAsync { .. } => 0x10,
         InstructionKind::RequestScriptWhenReady { .. } => 0x12,
-        InstructionKind::DefineTileViewport { .. } => 0xc8,
+        InstructionKind::DefineTileViewport { .. } => 0xc9,
         InstructionKind::PreserveAndHideAll => 0xd5,
         InstructionKind::RestoreAllVisibility => 0xd6,
         InstructionKind::SetTimerRunning(_) => 0x7d,

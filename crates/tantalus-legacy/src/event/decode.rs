@@ -53,6 +53,9 @@ const OP_INITIALIZE_REGION: u32 = 0x08;
 const OP_INITIALIZE_CODE: u32 = 0x07;
 const OP_SET_TRIANGLE_ACTIVE: u32 = 0x9a;
 const OP_RUN_SOUND: u32 = 0xc5;
+const OP_RUN_SOUND1: u32 = 0xc6;
+const OP_RUN_SOUND2: u32 = 0xc7;
+const OP_RUN_SOUND3: u32 = 0xc8;
 const OP_ATTACH_OBJECT_OFFSET: u32 = 0xd4;
 const OP_RESET_WALK_STATE: u32 = 0x25;
 const OP_SET_MOVEMENT_SPEED: u32 = 0x26;
@@ -70,7 +73,7 @@ const OP_PRELOAD_FIELD: u32 = 0xfd;
 const OP_SET_RAIN: u32 = 0xd8;
 const OP_REQUEST_SCRIPT_ASYNC: u32 = 0x10;
 const OP_REQUEST_SCRIPT_WHEN_READY: u32 = 0x12;
-const OP_DEFINE_TILE_VIEWPORT: u32 = 0xc8;
+const OP_DEFINE_TILE_VIEWPORT: u32 = 0xc9;
 const OP_SET_TILE_VIEWPORT_ALPHA: u32 = 0xe6;
 const OP_BATTLE_MESSAGE: u32 = 0xd0;
 const OP_GLOBAL_CLEAR: u32 = 0xd1;
@@ -681,25 +684,47 @@ impl Decoder<'_> {
                 };
                 InstructionKind::SetTriangleActive { triangle, active }
             }
-            OP_RUN_SOUND => {
+            OP_RUN_SOUND | OP_RUN_SOUND1 | OP_RUN_SOUND2 | OP_RUN_SOUND3 => {
                 let flags = self.byte()?;
-                let code = if flags & 1 != 0 {
-                    self.expression()?
-                } else {
-                    Expression(vec![
-                        ExpressionOp::Constant(i32::from(self.i16()?)),
-                        ExpressionOp::End,
-                    ])
+                let mut argument = |bit: u8, width: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = match width {
+                            1 => i32::from(self.byte()?),
+                            2 => i32::from(self.i16()?),
+                            3 => self.i24()?,
+                            _ => unreachable!(),
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
                 };
-                let sound = if flags & 2 != 0 {
-                    self.expression()?
-                } else {
-                    Expression(vec![
-                        ExpressionOp::Constant(i32::from(self.i16()?)),
-                        ExpressionOp::End,
-                    ])
-                };
-                InstructionKind::RunSound { code, sound }
+                let zero = || Expression(vec![ExpressionOp::Constant(0), ExpressionOp::End]);
+                InstructionKind::RunSound {
+                    code: argument(1, 2)?,
+                    sound: argument(2, 2)?,
+                    arguments: [
+                        if opcode == OP_RUN_SOUND {
+                            zero()
+                        } else {
+                            argument(4, 3)?
+                        },
+                        if opcode == OP_RUN_SOUND2 || opcode == OP_RUN_SOUND3 {
+                            argument(8, 1)?
+                        } else {
+                            zero()
+                        },
+                        if opcode == OP_RUN_SOUND3 {
+                            argument(16, 1)?
+                        } else {
+                            zero()
+                        },
+                    ],
+                    opcode: opcode as u8,
+                }
             }
             OP_ATTACH_OBJECT_OFFSET => {
                 let flags = self.byte()?;

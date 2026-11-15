@@ -3542,6 +3542,66 @@ fn fldsnd0_preserves_signed_ids_and_supplies_zero_audio_arguments() {
 }
 
 #[test]
+fn field_sound_variants_supply_only_their_declared_arguments() {
+    for (opcode, length, arguments) in [
+        (197, 6, [0, 0, 0]),
+        (198, 9, [-1000, 0, 0]),
+        (199, 10, [-1000, 250, 0]),
+        (200, 11, [-1000, 250, 130]),
+    ] {
+        let mut bytes = vec![opcode, 0, 0x00, 0xd0, 0xe3, 0x0a];
+        if opcode != 197 {
+            bytes.extend_from_slice(&(-1000_i32).to_le_bytes()[..3]);
+        }
+        if opcode == 199 || opcode == 200 {
+            bytes.push(250);
+        }
+        if opcode == 200 {
+            bytes.push(130);
+        }
+        bytes.push(4);
+        let program = decode_program(&bytes).unwrap();
+        assert_eq!(program.instructions[&0].length, length);
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(
+            report.events,
+            [HostEvent::RunSound {
+                code: -12288,
+                sound: 2787,
+                arguments,
+            }]
+        );
+        assert!(
+            vm.traces()
+                .any(|trace| trace.opcode == Some(u32::from(opcode)))
+        );
+    }
+
+    let mut bytes = vec![199, 15];
+    for value in [-2, 300, -1000, 128] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RunSound {
+            code: -2,
+            sound: 300,
+            arguments: [-1000, 128, 0],
+        }]
+    );
+
+    let truncated = decode_program(&[199, 0, 1, 0, 2]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(199)"));
+}
+
+#[test]
 fn attachoffset_emits_signed_coordinates_for_the_current_actor() {
     let bytes = [212, 0, 10, 0, 0xec, 0xff, 30, 0, 4];
     let program = decode_program(&bytes).unwrap();
@@ -4462,7 +4522,7 @@ fn reqsw_waits_for_target_acceptance_and_requests_once() {
 
 #[test]
 fn bgvdefine_emits_the_complete_viewport_rectangle() {
-    let bytes = [200, 0, 2, 10, 0, 0xec, 0xff, 30, 0, 40, 0, 4];
+    let bytes = [201, 0, 2, 10, 0, 0xec, 0xff, 30, 0, 40, 0, 4];
     let program = decode_program(&bytes).unwrap();
     let mut vm = EventVm::new(program);
     let mut host = Host::new();
