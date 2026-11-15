@@ -284,6 +284,10 @@ pub enum InstructionKind {
         category: Expression,
         menu_preset: Expression,
     },
+    StopTextureAnimation {
+        object: Expression,
+        animation: Expression,
+    },
     AttachTile {
         overlay: Expression,
         x: Expression,
@@ -531,6 +535,10 @@ pub enum HostEvent {
         equipment_set: i32,
         category: i32,
         menu_preset: i32,
+    },
+    StopTextureAnimation {
+        object: i32,
+        animation: i32,
     },
     AttachTile {
         overlay: i32,

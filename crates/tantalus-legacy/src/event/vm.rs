@@ -829,6 +829,12 @@ impl EventVm {
                         menu_preset,
                     });
                 }
+                InstructionKind::StopTextureAnimation { object, animation } => {
+                    let object = self.evaluate(host, &object, instruction.offset, opcode)?;
+                    let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::StopTextureAnimation { object, animation });
+                }
                 InstructionKind::AttachTile {
                     overlay,
                     x,
@@ -1798,6 +1804,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetTileAnimationFrame { .. } => 0xe7,
         InstructionKind::OpenPartyMenu { .. } => 0xb2,
         InstructionKind::InitializeCharacter { .. } => 0xfe,
+        InstructionKind::StopTextureAnimation { .. } => 0xc2,
         InstructionKind::AttachTile { .. } => 0x92,
     }
 }

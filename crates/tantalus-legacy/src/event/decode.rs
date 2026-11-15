@@ -68,6 +68,7 @@ const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
 const OP_SET_TILE_ANIMATION_FRAME: u32 = 0xe7;
 const OP_OPEN_PARTY_MENU: u32 = 0xb2;
 const OP_INITIALIZE_CHARACTER: u32 = 0xfe;
+const OP_STOP_TEXTURE_ANIMATION: u32 = 0xc2;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -822,6 +823,23 @@ impl Decoder<'_> {
                     equipment_set: argument(4)?,
                     category: argument(8)?,
                     menu_preset: argument(16)?,
+                }
+            }
+            OP_STOP_TEXTURE_ANIMATION => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::StopTextureAnimation {
+                    object: argument(1)?,
+                    animation: argument(2)?,
                 }
             }
             OP_ATTACH_TILE => {
