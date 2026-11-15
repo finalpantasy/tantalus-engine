@@ -411,6 +411,44 @@ pub enum InstructionKind {
         animation: Expression,
         show_first_frame: Expression,
     },
+    StartVibration {
+        frame: Expression,
+    },
+    SetVibrationActive {
+        active: Expression,
+    },
+    RunVibrationTrack {
+        track: Expression,
+        sample: Expression,
+        active: Expression,
+    },
+    ActivateVibrationTrack {
+        track: Expression,
+        sample: Expression,
+        active: Expression,
+    },
+    SetVibrationFlags {
+        flags: Expression,
+    },
+    SetVibrationRange {
+        start: Expression,
+        end: Expression,
+    },
+    SetShadowSize {
+        x: Expression,
+        z: Expression,
+    },
+    SetShadowOffset {
+        x: Expression,
+        z: Expression,
+    },
+    LockShadowRotation {
+        rotation: Expression,
+    },
+    UnlockShadowRotation,
+    SetShadowAmplifier {
+        factor: Expression,
+    },
     SetTileAnimationRate {
         animation: Expression,
         frame_rate: Expression,
@@ -884,6 +922,50 @@ pub enum HostEvent {
     ResetTileAnimation {
         animation: i32,
         show_first_frame: i32,
+    },
+    StartVibration {
+        frame: i16,
+    },
+    SetVibrationActive {
+        active: bool,
+    },
+    RunVibrationTrack {
+        track: i32,
+        sample: i32,
+        active: bool,
+    },
+    ActivateVibrationTrack {
+        track: u32,
+        sample: u32,
+        active: bool,
+    },
+    SetVibrationFlags {
+        flags: i16,
+    },
+    SetVibrationRange {
+        start: i16,
+        end: i16,
+    },
+    SetShadowSize {
+        actor: EntityId,
+        x: i32,
+        z: i32,
+    },
+    SetShadowOffset {
+        actor: EntityId,
+        x: i16,
+        z: i16,
+    },
+    LockShadowRotation {
+        actor: EntityId,
+        rotation: i32,
+    },
+    UnlockShadowRotation {
+        actor: EntityId,
+    },
+    SetShadowAmplifier {
+        actor: EntityId,
+        factor: i32,
     },
     SetTileAnimationRate {
         animation: i32,
