@@ -49,13 +49,14 @@
     "member operations have binary stack-shape metadata for short-circuit operand parsing",
     "B_NOT_E 15 returns a selected-member zero bitmask without writes; empty masks return zero without target selection",
     "B_PRE_PLUS 6 writes and returns the incremented variable or current member value",
-    "B_COMP 16 applies a wrapping 32-bit bitwise complement"
+    "B_COMP 16 applies a wrapping 32-bit bitwise complement",
+    "B_EQ_E 34 returns selected-member equality flags without writes; empty masks return zero without target selection"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 324,
-    "opcode": "0x22",
-    "instruction": "B_EQ_E",
+    "offset": 328,
+    "opcode": "0x7A",
+    "instruction": "B_SYSVAR",
     "expression_start": 297
   },
   "event_execution": "NOT_RUN",

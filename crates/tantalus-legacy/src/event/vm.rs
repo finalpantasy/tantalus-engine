@@ -606,6 +606,41 @@ impl EventVm {
                     value: 0,
                     target: None,
                 }),
+                ExpressionOp::EqualMembers => {
+                    if stack.len() < 3 {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "member equality requires mask, target, and comparison inputs",
+                        ));
+                    }
+                    let Some(StackTarget::Member(_)) = stack[stack.len() - 2].target else {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "member equality target is not a selected member",
+                        ));
+                    };
+                    let mask = read_value(host, stack[stack.len() - 3], offset, opcode)?;
+                    let target = stack[stack.len() - 2];
+                    let comparison = read_value(host, stack[stack.len() - 1], offset, opcode)?;
+                    let mut result = 0i32;
+                    for slot in 0..8 {
+                        result >>= 1;
+                        if mask & (1 << slot) != 0 {
+                            host.select_object_member_target(Some(slot))
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            result |=
+                                i32::from(read_value(host, target, offset, opcode)? == comparison)
+                                    << 7;
+                        }
+                    }
+                    stack.truncate(stack.len() - 3);
+                    stack.push(StackValue {
+                        value: result,
+                        target: None,
+                    });
+                }
                 ExpressionOp::NotMembers => {
                     if stack.len() < 2 {
                         return Err(expression_error(
@@ -900,7 +935,7 @@ fn operand_start(
             let right = operand_start(operations, index, offset, opcode)?;
             operand_start(operations, right, offset, opcode)
         }
-        ExpressionOp::XorAssignMembers => {
+        ExpressionOp::XorAssignMembers | ExpressionOp::EqualMembers => {
             let value = operand_start(operations, index, offset, opcode)?;
             let mask = operand_start(operations, value, offset, opcode)?;
             operand_start(operations, mask, offset, opcode)
