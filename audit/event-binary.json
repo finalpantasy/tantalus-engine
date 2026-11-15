@@ -71,14 +71,15 @@
     "VIBRATE 0xFA decodes a signed frame-rate operand and emits SetVibrationFrameRate",
     "REQ 0x10 decodes level, target, and immediate function tag and emits RequestScriptAsync",
     "BGVDEFINE 0xC8 decodes viewport ID and signed rectangle operands and emits DefineTileViewport",
-    "entry 0 decodes completely"
+    "entry 0 decodes completely",
+    "B_POST_PLUS 4 stores the incremented target and returns its original value"
   ],
   "next_decode_boundary": {
     "entry": 1,
-    "offset": 10,
-    "opcode": "0x04",
-    "instruction": "B_POST_PLUS",
-    "expression_start": 2
+    "offset": 25,
+    "opcode": "0xD6",
+    "kind": "event",
+    "instruction": "POPSHOW"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

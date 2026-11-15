@@ -1375,3 +1375,23 @@ fn bgvdefine_emits_the_complete_viewport_rectangle() {
     );
     assert_eq!(vm.status(), VmStatus::Completed);
 }
+
+#[test]
+fn direct_post_increment_stores_the_new_value_and_returns_the_old_value() {
+    let target = variable(VariableScope::Map, VariableType::Int16, 9);
+    let result = variable(VariableScope::Global, VariableType::Int16, 32);
+    let bytes = [
+        evaluate(assign(target.clone(), constant(4))),
+        evaluate(assign(result, [target, vec![4]].concat())),
+        vec![4],
+    ]
+    .concat();
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Map, 9), 5);
+    assert_eq!(vm.variable(VariableScope::Global, 32), 4);
+}

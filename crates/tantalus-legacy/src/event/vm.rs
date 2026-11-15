@@ -589,13 +589,17 @@ impl EventVm {
                     });
                 }
                 ExpressionOp::PreIncrement
+                | ExpressionOp::PostIncrement
                 | ExpressionOp::PreDecrement
                 | ExpressionOp::PostDecrement => {
                     let target = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing increment/decrement target")
                     })?;
                     let current = read_value(host, target, offset, opcode)?;
-                    let delta = if matches!(operation, ExpressionOp::PreIncrement) {
+                    let delta = if matches!(
+                        operation,
+                        ExpressionOp::PreIncrement | ExpressionOp::PostIncrement
+                    ) {
                         1
                     } else {
                         -1
@@ -626,7 +630,10 @@ impl EventVm {
                         }
                     };
                     stack.push(StackValue {
-                        value: if matches!(operation, ExpressionOp::PostDecrement) {
+                        value: if matches!(
+                            operation,
+                            ExpressionOp::PostIncrement | ExpressionOp::PostDecrement
+                        ) {
                             current
                         } else {
                             changed
@@ -1129,6 +1136,7 @@ fn operand_start(
         | ExpressionOp::Complement
         | ExpressionOp::PreIncrement
         | ExpressionOp::PreDecrement
+        | ExpressionOp::PostIncrement
         | ExpressionOp::PostDecrement
         | ExpressionOp::CastI8
         | ExpressionOp::CastU8

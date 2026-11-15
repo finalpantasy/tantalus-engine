@@ -58,6 +58,7 @@ pub enum ExpressionOp {
     PreDecrementMembers,
     PreIncrement,
     PreDecrement,
+    PostIncrement,
     PostDecrement,
     ReadObjectMember(ObjectMemberRef),
     Member(u8),
