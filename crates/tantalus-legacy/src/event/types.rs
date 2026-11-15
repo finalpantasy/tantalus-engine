@@ -51,6 +51,7 @@ pub enum ExpressionOp {
     NotEqual,
     Assign,
     PostIncrementMembers,
+    PostDecrementMembers,
     PreDecrementMembers,
     PreDecrement,
     PostDecrement,

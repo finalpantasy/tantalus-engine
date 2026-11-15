@@ -44,13 +44,15 @@
     "signed and unsigned 8-bit and 16-bit casts 70 through 73 preserve width and signedness",
     "unsupported-expression diagnostics include the expression-start offset",
     "B_MEMBER 41 carries a lazy selected-object member target",
-    "B_XOR_LET_E 68 builds the selected truth mask, XORs the last selected member, and writes it through the host; empty masks retain the current target"
+    "B_XOR_LET_E 68 builds the selected truth mask, XORs the last selected member, and writes it through the host; empty masks retain the current target",
+    "B_POST_MINUS_A 9 decrements every selected member and returns the last selected old value; empty masks return zero without writes",
+    "member operations have binary stack-shape metadata for short-circuit operand parsing"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 297,
-    "opcode": "0x09",
-    "instruction": "B_POST_MINUS_A",
+    "offset": 301,
+    "opcode": "0x0F",
+    "instruction": "B_NOT_E",
     "expression_start": 297
   },
   "event_execution": "NOT_RUN",

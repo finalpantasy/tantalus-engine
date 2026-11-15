@@ -592,6 +592,43 @@ impl EventVm {
                     value: 0,
                     target: None,
                 }),
+                ExpressionOp::PostDecrementMembers => {
+                    if stack.len() < 2 {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "member post-decrement requires mask and target inputs",
+                        ));
+                    }
+                    let Some(StackTarget::Member(member)) = stack[stack.len() - 1].target else {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "member post-decrement target is not a selected member",
+                        ));
+                    };
+                    let mask = read_value(host, stack[stack.len() - 2], offset, opcode)?;
+                    let mut result = 0;
+                    for slot in 0..8 {
+                        if mask & (1 << slot) != 0 {
+                            let object = host
+                                .select_object_member_target(Some(slot))
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            let reference = ObjectMemberRef { object, member };
+                            let current = host
+                                .read_object_member(reference)
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            host.write_object_member(reference, current.wrapping_sub(1))
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            result = current;
+                        }
+                    }
+                    stack.truncate(stack.len() - 2);
+                    stack.push(StackValue {
+                        value: result,
+                        target: None,
+                    });
+                }
                 ExpressionOp::PostIncrementMembers | ExpressionOp::PreDecrementMembers => {
                     if stack.len() < 2 {
                         return Err(expression_error(
@@ -790,8 +827,6 @@ fn operand_start(
         | ExpressionOp::Not
         | ExpressionOp::PreDecrement
         | ExpressionOp::PostDecrement
-        | ExpressionOp::PostIncrementMembers
-        | ExpressionOp::PreDecrementMembers
         | ExpressionOp::CastI8
         | ExpressionOp::CastU8
         | ExpressionOp::CastI16
@@ -807,6 +842,9 @@ fn operand_start(
         | ExpressionOp::Equal
         | ExpressionOp::NotEqual
         | ExpressionOp::Assign
+        | ExpressionOp::PostIncrementMembers
+        | ExpressionOp::PostDecrementMembers
+        | ExpressionOp::PreDecrementMembers
         | ExpressionOp::LogicalAnd
         | ExpressionOp::LogicalOr => {
             let right = operand_start(operations, index, offset, opcode)?;
