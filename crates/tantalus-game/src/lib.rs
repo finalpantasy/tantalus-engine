@@ -6,5 +6,5 @@ pub mod world;
 
 pub use field::{
     DirectorStep, EntrySnapshot, FIELD_SNAPSHOT_FORMAT, FieldDirector, FieldHost, FieldScene,
-    FieldSnapshot, FieldWorld, restore_scene, snapshot_scene,
+    FieldSnapshot, FieldWorld, RequestedScript, restore_scene, snapshot_scene,
 };

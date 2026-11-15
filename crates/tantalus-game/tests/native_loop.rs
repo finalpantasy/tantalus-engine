@@ -102,3 +102,30 @@ fn packaged_loop_events_battle_rewards_save_and_restore() {
     assert_eq!(restored.world().gil, 120);
     assert_eq!(restored.world().encounters.len(), 0);
 }
+
+#[test]
+fn director_step_surfaces_script_requests_for_orchestration() {
+    // Entry 0 requests level 1, target entry 2, function tag 5.
+    // REQ 0x10: flags 0, level byte, target byte, tag byte.
+    let program = [0x10, 0, 1, 2, 5, 4];
+    let mut director = FieldDirector::new(FieldWorld::new());
+    director.world_mut().add_actor(EntityId::new(0), [0.0; 3]);
+    director.add_entry(EntityId::new(0), &program).unwrap();
+
+    let step = director.step().unwrap();
+    assert_eq!(step.completed_entries, [EntityId::new(0)]);
+    assert_eq!(
+        step.requests,
+        [tantalus_game::RequestedScript {
+            level: 1,
+            target: EntityId::new(2),
+            tag: 5,
+            synchronous: false,
+        }]
+    );
+    // The host recorded the pending request under the target entity.
+    assert!(director.world().request_pending(EntityId::new(2)));
+    // Completing the request clears it for the waiting VM's next query.
+    director.world_mut().complete_request(EntityId::new(2));
+    assert!(!director.world().request_pending(EntityId::new(2)));
+}
