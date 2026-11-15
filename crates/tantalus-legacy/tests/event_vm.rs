@@ -3324,6 +3324,32 @@ fn angle_to_object_resolves_uid_and_truncates_position_deltas() {
 }
 
 #[test]
+fn distance_to_object_uses_fractional_positions_before_truncating() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 47);
+    let expression = assign(result, binary(constant(7), vec![], 97));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let source = EntityId::new(42);
+    let target = EntityId::new(77);
+    let mut vm = EventVm::new(program).with_entity(source);
+    let mut host = Host::new();
+    host.object_uids.insert(7, target);
+    host.object_positions.insert(source, [10.25, 0.0, 20.75]);
+    host.object_positions.insert(target, [11.0, 0.0, 21.5]);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 47), 1);
+
+    let result = variable(VariableScope::Global, VariableType::Int16, 47);
+    let expression = assign(result, binary(constant(7), vec![], 97));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::InvalidExpression);
+    assert!(error.message.contains("object context"));
+}
+
+#[test]
 fn object_pointer_returns_the_legacy_uid_or_zero_for_an_absent_object() {
     let result = variable(VariableScope::Global, VariableType::Int16, 44);
     let expression = assign(result, vec![95, 7]);

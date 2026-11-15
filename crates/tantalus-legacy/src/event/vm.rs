@@ -1340,6 +1340,32 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::DistanceToObject => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing distance-target operand")
+                    })?;
+                    let uid = read_value(host, value, offset, opcode)?;
+                    let source = self.entity.ok_or_else(|| {
+                        expression_error(offset, opcode, "distance target requires object context")
+                    })?;
+                    let target = host
+                        .resolve_object_uid(uid)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    let target_position = host
+                        .read_object_position(target)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    let source_position = host
+                        .read_object_position(source)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    let delta_x = target_position[0] - source_position[0];
+                    let delta_z = target_position[2] - source_position[2];
+                    let squared = f64::from(delta_x) * f64::from(delta_x)
+                        + f64::from(delta_z) * f64::from(delta_z);
+                    stack.push(StackValue {
+                        value: (squared as f32).sqrt() as i32,
+                        target: None,
+                    });
+                }
                 ExpressionOp::ObjectPointer(uid) => {
                     let value = host
                         .find_object_uid(*uid)
@@ -2346,6 +2372,7 @@ fn operand_start(
         | ExpressionOp::Complement
         | ExpressionOp::Sine
         | ExpressionOp::AngleToObject
+        | ExpressionOp::DistanceToObject
         | ExpressionOp::ItemCount
         | ExpressionOp::AnimationFrame
         | ExpressionOp::BgiAnimationFrame

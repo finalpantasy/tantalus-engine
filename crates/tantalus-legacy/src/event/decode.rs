@@ -1348,6 +1348,7 @@ impl Decoder<'_> {
                 93 => ExpressionOp::Angle,
                 95 => ExpressionOp::ObjectPointer(self.byte()?),
                 96 => ExpressionOp::AngleToObject,
+                97 => ExpressionOp::DistanceToObject,
                 98 => ExpressionOp::Sine,
                 100 => ExpressionOp::ItemCount,
                 101 => ExpressionOp::BgiAnimationFrame,

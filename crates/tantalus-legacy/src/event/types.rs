@@ -51,6 +51,7 @@ pub enum ExpressionOp {
     Angle,
     Angle2,
     AngleToObject,
+    DistanceToObject,
     ObjectPointer(u8),
     ItemCount,
     AnimationFrame,
