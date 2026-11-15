@@ -331,6 +331,98 @@ fn run_assets_import(args: Vec<OsString>) -> Result<(), String> {
     Ok(())
 }
 
+fn run_unity_objects(
+    bundle: &tantalus_assets::pc::unity_raw::UnityRawBundle,
+    path: &std::path::Path,
+    class_filter: Option<u16>,
+    json: bool,
+) -> Result<(), String> {
+    let source = path.to_string_lossy();
+    let bytes = bundle
+        .read_entry(0, 600 * 1024 * 1024)
+        .map_err(|error| error.to_string())?;
+    let serialized = tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &source)
+        .map_err(|error| error.to_string())?;
+    let report = tantalus_assets::pc::unity_object::inspect_unity_objects(
+        &serialized,
+        class_filter,
+        &source,
+    )
+    .map_err(|error| error.to_string())?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        return Ok(());
+    }
+    println!(
+        "Unity {} type trees: {}; {} objects: {} parsed, {} failed",
+        report.unity_version,
+        report.type_trees_embedded,
+        report.objects_selected,
+        report.parsed,
+        report.failed
+    );
+    for class in &report.classes {
+        println!(
+            "  class {:>3} {:<20} {:>6} objects {:>6} parsed {:>4} failed{}",
+            class.class_id,
+            class.type_name,
+            class.objects,
+            class.parsed,
+            class.failed,
+            if class.typed { " (typed)" } else { "" }
+        );
+        for failure in &class.failure_samples {
+            println!("      {}: {}", failure.path_id, failure.message);
+        }
+    }
+    if let Some(mesh) = &report.mesh {
+        println!(
+            "  meshes {}: {} vertices (max {}), {} indices, {} submeshes, {} skinned, {} bind poses (max {}), {} compressed, {} blend-shape",
+            mesh.meshes,
+            mesh.total_vertices,
+            mesh.max_vertices,
+            mesh.total_indices,
+            mesh.submeshes,
+            mesh.skinned_meshes,
+            mesh.total_bind_poses,
+            mesh.max_bind_poses,
+            mesh.compressed_meshes,
+            mesh.blend_shape_meshes
+        );
+    }
+    if let Some(clips) = &report.animation {
+        println!(
+            "  clips {}: {} legacy, {} curves (rot {} pos {} scale {} float {}), {} keys, max {:.3}s / {} frames",
+            clips.clips,
+            clips.legacy_clips,
+            clips.rotation_curves + clips.position_curves + clips.scale_curves + clips.float_curves,
+            clips.rotation_curves,
+            clips.position_curves,
+            clips.scale_curves,
+            clips.float_curves,
+            clips.total_keys,
+            clips.max_length_seconds,
+            clips.max_frames
+        );
+    }
+    if let Some(tree) = &report.hierarchy {
+        println!(
+            "  hierarchy: {} game objects, {} transforms ({} roots, depth {}), {} broken transform links, {} broken component links, {} renderers ({} mesh unresolved, {} bone unresolved, {} bone-count mismatch)",
+            tree.game_objects,
+            tree.transforms,
+            tree.root_transforms,
+            tree.max_depth,
+            tree.broken_transform_links,
+            tree.broken_component_links,
+            tree.skinned_renderers,
+            tree.renderer_mesh_unresolved,
+            tree.renderer_bone_unresolved,
+            tree.renderer_bone_count_mismatch
+        );
+    }
+    Ok(())
+}
+
 fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut path = None;
     let mut json = false;
@@ -348,6 +440,8 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut inventory = false;
     let mut mbg_all = false;
     let mut map_config_all = false;
+    let mut unity_objects = false;
+    let mut class_filter = None;
     let mut texture = None;
     let mut texture_id = None;
     let mut rgba_output = None;
@@ -527,6 +621,19 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             Some("--inventory") => inventory = true,
             Some("--mbg-all") => mbg_all = true,
             Some("--map-config-all") => map_config_all = true,
+            Some("--unity-objects") => unity_objects = true,
+            Some("--class") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--class` requires a class ID".to_owned())?
+                    .parse::<u16>()
+                    .map_err(|error| format!("invalid class ID: {error}"))?;
+                if class_filter.replace(value).is_some() {
+                    return Err("`--class` may only be supplied once".to_owned());
+                }
+            }
             _ => {
                 return Err(format!(
                     "unrecognized argument: {}",
@@ -975,6 +1082,12 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     }
     if mbg_all || map_config_all {
         return run_parse_all(&bundle, &path, mbg_all, map_config_all);
+    }
+    if unity_objects {
+        return run_unity_objects(&bundle, &path, class_filter, json);
+    }
+    if class_filter.is_some() {
+        return Err("`--class` requires `--unity-objects`".to_owned());
     }
     if inventory {
         let bytes = bundle
@@ -1472,11 +1585,12 @@ fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"}
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+}
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 

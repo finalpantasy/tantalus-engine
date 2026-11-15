@@ -36,6 +36,16 @@ pub struct SerializedFileReport {
 pub struct SerializedFile<'a> {
     bytes: &'a [u8],
     report: SerializedFileReport,
+    type_trees: Vec<(i32, Option<RawTypeTree<'a>>)>,
+}
+
+/// Raw embedded type-tree blob for one serialized type: `node_count` 24-byte
+/// nodes followed by the local string buffer (Unity 5.x format 15 layout).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RawTypeTree<'a> {
+    pub node_count: u32,
+    pub nodes: &'a [u8],
+    pub strings: &'a [u8],
 }
 
 impl<'a> SerializedFile<'a> {
@@ -85,6 +95,7 @@ impl<'a> SerializedFile<'a> {
         let type_trees_embedded = cursor.byte(source)? != 0;
         let type_count = cursor.count(source, 4_096, "type")?;
         let mut types = Vec::with_capacity(type_count);
+        let mut type_trees = Vec::with_capacity(type_count);
         for _ in 0..type_count {
             let class_id = cursor.i32(source)?;
             if class_id < 0 {
@@ -92,15 +103,23 @@ impl<'a> SerializedFile<'a> {
             }
             cursor.skip(16, source)?;
             let mut tree_nodes = 0;
+            let mut raw_tree = None;
             if type_trees_embedded {
                 tree_nodes = cursor.count(source, 100_000, "type-tree node")? as u32;
                 let string_bytes = cursor.count(source, 16 * 1024 * 1024, "type-tree string")?;
                 let node_bytes = (tree_nodes as usize)
                     .checked_mul(24)
                     .ok_or_else(|| invalid(source, "type-tree size overflow"))?;
+                let node_start = cursor.position;
                 cursor.skip(node_bytes, source)?;
                 cursor.skip(string_bytes, source)?;
+                raw_tree = Some(RawTypeTree {
+                    node_count: tree_nodes,
+                    nodes: &bytes[node_start..node_start + node_bytes],
+                    strings: &bytes[node_start + node_bytes..cursor.position],
+                });
             }
+            type_trees.push((class_id, raw_tree));
             types.push(SerializedTypeReport {
                 class_id,
                 tree_nodes,
@@ -170,6 +189,7 @@ impl<'a> SerializedFile<'a> {
         }
         Ok(Self {
             bytes,
+            type_trees,
             report: SerializedFileReport {
                 metadata_size,
                 file_size,
@@ -187,6 +207,14 @@ impl<'a> SerializedFile<'a> {
 
     pub fn report(&self) -> &SerializedFileReport {
         &self.report
+    }
+
+    /// Embedded type tree for a serialized type ID (the object's `type_id`).
+    pub fn type_tree(&self, type_id: i32) -> Option<RawTypeTree<'a>> {
+        self.type_trees
+            .iter()
+            .find(|(candidate, _)| *candidate == type_id)
+            .and_then(|(_, tree)| *tree)
     }
 
     pub fn object_data(&self, index: usize) -> Result<&'a [u8], ImportError> {
