@@ -236,6 +236,8 @@ impl LegacyEventHost for Host {
                 HostEvent::SetInactiveAnimation { .. } => {}
                 HostEvent::SetFollowFocusTurn { .. } => {}
                 HostEvent::SetAnimationLoopCount { .. } => {}
+                HostEvent::SetAnimationSpeed { .. } => {}
+                HostEvent::SetCharacterAttribute { .. } => {}
                 HostEvent::SetTurnSpeed { .. } => {}
                 HostEvent::SetRunSpeedLimit { .. } => {}
                 HostEvent::TurnToAngle { .. } => {}
@@ -6202,6 +6204,53 @@ fn menu_control_and_end_shared_script_are_operand_less_and_menuoff_yields() {
     let report = vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(report.events, [HostEvent::EndSharedScript { actor }]);
     let mut vm = EventVm::new(decode_program(&[0x45, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("actor context"));
+}
+
+#[test]
+fn animation_speed_and_character_attributes_decode_flag_bit_operands() {
+    let actor = EntityId::new(9);
+    let mut host = Host::new();
+
+    // ASPEED: byte immediate (flag bit clear) and expression (flag bit set).
+    let mut vm = EventVm::new(decode_program(&[0x3e, 0, 6, 4]).unwrap()).with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetAnimationSpeed { actor, speed: 6 }]
+    );
+    let mut bytes = vec![0x3e, 1];
+    append_expression(&mut bytes, constant(12));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap()).with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetAnimationSpeed { actor, speed: 12 }]
+    );
+
+    // CHRSET / CHRCLEAR read a signed 16-bit immediate through getv2.
+    let mut vm = EventVm::new(decode_program(&[0xcc, 0, 3, 0, 0xcd, 0, 5, 0, 4]).unwrap())
+        .with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [
+            HostEvent::SetCharacterAttribute {
+                actor,
+                set: true,
+                flags: 3
+            },
+            HostEvent::SetCharacterAttribute {
+                actor,
+                set: false,
+                flags: 5
+            },
+        ]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[0x3e, 0, 6, 4]).unwrap());
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert!(error.message.contains("actor context"));
 }

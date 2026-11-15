@@ -521,6 +521,13 @@ pub enum InstructionKind {
     SetAnimationLoopCount {
         count: Expression,
     },
+    SetAnimationSpeed {
+        speed: Expression,
+    },
+    SetCharacterAttribute {
+        set: bool,
+        flags: Expression,
+    },
     SetTurnSpeed {
         speed: Expression,
     },
@@ -1153,6 +1160,15 @@ pub enum HostEvent {
     SetAnimationLoopCount {
         actor: EntityId,
         count: u8,
+    },
+    SetAnimationSpeed {
+        actor: EntityId,
+        speed: u8,
+    },
+    SetCharacterAttribute {
+        actor: EntityId,
+        set: bool,
+        flags: i32,
     },
     SetTurnSpeed {
         actor: EntityId,

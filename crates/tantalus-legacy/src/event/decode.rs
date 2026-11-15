@@ -18,6 +18,9 @@ const OP_SET_WALK_ANIMATION: u32 = 0x34;
 const OP_SET_RUN_ANIMATION: u32 = 0x35;
 const OP_PLAY_ANIMATION: u32 = 0x40;
 const OP_SET_ANIMATION_RANGE: u32 = 0x3d;
+const OP_SET_ANIMATION_SPEED: u32 = 0x3e;
+const OP_ADD_CHARACTER_ATTRIBUTE: u32 = 0xcc;
+const OP_REMOVE_CHARACTER_ATTRIBUTE: u32 = 0xcd;
 const OP_PRINT_QUAD: u32 = 0x79;
 const OP_TRACK_ADD_VERTEX: u32 = 0x78;
 const OP_SET_LEFT_TURN_ANIMATION: u32 = 0x7a;
@@ -1960,6 +1963,19 @@ impl Decoder<'_> {
                 };
                 InstructionKind::SetObjectIndex {
                     index: argument(1, false)?,
+                }
+            }
+            OP_SET_ANIMATION_SPEED => {
+                let flags = self.byte()?;
+                InstructionKind::SetAnimationSpeed {
+                    speed: self.operand(flags, 1, false)?,
+                }
+            }
+            OP_ADD_CHARACTER_ATTRIBUTE | OP_REMOVE_CHARACTER_ATTRIBUTE => {
+                let flags = self.byte()?;
+                InstructionKind::SetCharacterAttribute {
+                    set: opcode == OP_ADD_CHARACTER_ATTRIBUTE,
+                    flags: self.operand(flags, 1, true)?,
                 }
             }
             OP_SET_ANIMATION_FLAGS => {

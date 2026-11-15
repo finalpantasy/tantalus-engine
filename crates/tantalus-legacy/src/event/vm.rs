@@ -1543,6 +1543,32 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetAnimationLoopCount { actor, count });
                 }
+                InstructionKind::SetAnimationSpeed { speed } => {
+                    let speed = self.evaluate(host, &speed, instruction.offset, opcode)? as u8;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetAnimationSpeed { actor, speed });
+                }
+                InstructionKind::SetCharacterAttribute { set, flags } => {
+                    let flags = self.evaluate(host, &flags, instruction.offset, opcode)?;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetCharacterAttribute { actor, set, flags });
+                }
                 InstructionKind::SetTurnSpeed { speed } => {
                     let speed = self.evaluate(host, &speed, instruction.offset, opcode)? as u8;
                     let Some(actor) = self.entity else {
@@ -3337,6 +3363,14 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetInactiveAnimation { .. } => 0x52,
         InstructionKind::SetFollowFocusTurn { .. } => 0x91,
         InstructionKind::SetAnimationLoopCount { .. } => 0x98,
+        InstructionKind::SetAnimationSpeed { .. } => 0x3e,
+        InstructionKind::SetCharacterAttribute { set, .. } => {
+            if *set {
+                0xcc
+            } else {
+                0xcd
+            }
+        }
         InstructionKind::SetTurnSpeed { .. } => 0x99,
         InstructionKind::SetRunSpeedLimit { .. } => 0xa6,
         InstructionKind::TurnToAngle { .. } => 0xa7,
