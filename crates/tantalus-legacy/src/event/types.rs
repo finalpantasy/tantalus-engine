@@ -467,6 +467,29 @@ pub enum InstructionKind {
     SetCameraFollowHeight {
         height: Expression,
     },
+    SetRandomBattles {
+        pattern: Expression,
+        scene_0: Expression,
+        scene_1: Expression,
+        scene_2: Expression,
+        scene_3: Expression,
+    },
+    SetRandomBattleFrequency {
+        frequency: Expression,
+    },
+    SetBackgroundColor {
+        red: Expression,
+        green: Expression,
+        blue: Expression,
+    },
+    AddControllerMask {
+        pad: Expression,
+        buttons: Expression,
+    },
+    RemoveControllerMask {
+        pad: Expression,
+        buttons: Expression,
+    },
     SetTileAnimationRate {
         animation: Expression,
         frame_rate: Expression,
@@ -1002,6 +1025,26 @@ pub enum HostEvent {
     },
     SetCameraFollowHeight {
         height: i16,
+    },
+    SetRandomBattles {
+        pattern: u8,
+        scenes: [u16; 4],
+    },
+    SetRandomBattleFrequency {
+        frequency: u8,
+    },
+    SetBackgroundColor {
+        red: i32,
+        green: i32,
+        blue: i32,
+    },
+    AddControllerMask {
+        pad: i32,
+        buttons: u32,
+    },
+    RemoveControllerMask {
+        pad: i32,
+        buttons: u32,
     },
     SetTileAnimationRate {
         animation: i32,

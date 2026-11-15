@@ -96,6 +96,11 @@ const OP_BATTLE_SCENE_START: u32 = 0x100;
 const OP_SET_SIMULATION_FLOOR: u32 = 0x104;
 const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
 const OP_SET_TILE_ANIMATION_RATE: u32 = 0x61;
+const OP_SET_RANDOM_BATTLES: u32 = 0x3c;
+const OP_SET_RANDOM_BATTLE_FREQUENCY: u32 = 0x57;
+const OP_SET_BACKGROUND_COLOR: u32 = 0x6b;
+const OP_ADD_CONTROLLER_MASK: u32 = 0xb9;
+const OP_REMOVE_CONTROLLER_MASK: u32 = 0xba;
 const OP_MOVE_CAMERA: u32 = 0x6f;
 const OP_RELEASE_CAMERA: u32 = 0x70;
 const OP_ENABLE_CAMERA_SERVICES: u32 = 0x71;
@@ -1754,6 +1759,119 @@ impl Decoder<'_> {
                 };
                 InstructionKind::SetCameraFollowHeight {
                     height: argument(1, true)?,
+                }
+            }
+            OP_SET_RANDOM_BATTLES => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetRandomBattles {
+                    pattern: argument(1, false)?,
+                    scene_0: argument(2, true)?,
+                    scene_1: argument(4, true)?,
+                    scene_2: argument(8, true)?,
+                    scene_3: argument(16, true)?,
+                }
+            }
+            OP_SET_RANDOM_BATTLE_FREQUENCY => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetRandomBattleFrequency {
+                    frequency: argument(1, false)?,
+                }
+            }
+            OP_SET_BACKGROUND_COLOR => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetBackgroundColor {
+                    red: argument(1, false)?,
+                    green: argument(2, false)?,
+                    blue: argument(4, false)?,
+                }
+            }
+            OP_ADD_CONTROLLER_MASK => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::AddControllerMask {
+                    pad: argument(1, false)?,
+                    buttons: argument(2, true)?,
+                }
+            }
+            OP_REMOVE_CONTROLLER_MASK => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::RemoveControllerMask {
+                    pad: argument(1, false)?,
+                    buttons: argument(2, true)?,
                 }
             }
             OP_SET_TILE_ANIMATION_FLAGS => {

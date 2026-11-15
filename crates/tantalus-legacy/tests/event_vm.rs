@@ -223,6 +223,11 @@ impl LegacyEventHost for Host {
                 HostEvent::ReleaseCamera { .. } => {}
                 HostEvent::EnableCameraServices { .. } => {}
                 HostEvent::SetCameraFollowHeight { .. } => {}
+                HostEvent::SetRandomBattles { .. } => {}
+                HostEvent::SetRandomBattleFrequency { .. } => {}
+                HostEvent::SetBackgroundColor { .. } => {}
+                HostEvent::AddControllerMask { .. } => {}
+                HostEvent::RemoveControllerMask { .. } => {}
                 HostEvent::SetTileAnimationRate { .. } => {}
                 HostEvent::SetTileAnimationFrameWait { .. } => {}
                 HostEvent::SetTileAnimationFlags { .. } => {}
@@ -5816,6 +5821,103 @@ fn camera_commands_decode_signed_words_and_cast_unsigned_operands() {
     let truncated = decode_program(&[111, 0, 1, 0, 2]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(111)"));
+}
+
+#[test]
+fn encounter_commands_decode_pattern_scenes_and_frequency() {
+    let mut host = Host::new();
+
+    let mut bytes = vec![60, 0, 2];
+    for scene in [100i16, 200, 300, -1] {
+        bytes.extend_from_slice(&scene.to_le_bytes());
+    }
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    assert_eq!(program.instructions[&0].length, 11);
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetRandomBattles {
+            pattern: 2,
+            scenes: [100, 200, 300, 65535],
+        }]
+    );
+    assert!(vm.traces().any(|trace| trace.opcode == Some(60)));
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut vm = EventVm::new(decode_program(&[87, 0, 255, 4]).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetRandomBattleFrequency { frequency: 255 }]
+    );
+
+    let mut bytes = vec![87, 1];
+    append_expression(&mut bytes, constant(0x1_02));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetRandomBattleFrequency { frequency: 2 }]
+    );
+
+    let truncated = decode_program(&[60, 0, 2, 1, 0]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(60)"));
+}
+
+#[test]
+fn background_color_and_controller_masks_emit_raw_operands() {
+    let mut host = Host::new();
+
+    let mut vm = EventVm::new(decode_program(&[107, 0, 255, 128, 0, 4]).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetBackgroundColor {
+            red: 255,
+            green: 128,
+            blue: 0,
+        }]
+    );
+    assert!(vm.traces().any(|trace| trace.opcode == Some(107)));
+
+    let mut bytes = vec![185, 0, 1];
+    bytes.extend_from_slice(&0x0204i16.to_le_bytes());
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    assert_eq!(program.instructions[&0].length, 5);
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::AddControllerMask {
+            pad: 1,
+            buttons: 0x0204,
+        }]
+    );
+
+    let mut bytes = vec![186, 0b10, 0];
+    append_expression(&mut bytes, constant(0x7fff));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RemoveControllerMask {
+            pad: 0,
+            buttons: 0x7fff,
+        }]
+    );
+
+    let mut bytes = vec![185, 0, 0];
+    bytes.extend_from_slice(&(-1i16).to_le_bytes());
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("cannot be negative"));
 }
 
 #[test]
