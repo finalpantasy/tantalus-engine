@@ -183,6 +183,7 @@ pub enum InstructionKind {
         width: Expression,
         height: Expression,
     },
+    PreserveAndHideAll,
     RestoreAllVisibility,
     SetTimerRunning(Expression),
     RequestCallerAsync {
@@ -339,6 +340,7 @@ pub enum HostEvent {
         width: i16,
         height: i16,
     },
+    PreserveAndHideAll,
     RestoreAllVisibility,
     SetTimerRunning {
         running: bool,

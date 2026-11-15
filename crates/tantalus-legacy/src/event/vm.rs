@@ -386,6 +386,10 @@ impl EventVm {
                         height,
                     });
                 }
+                InstructionKind::PreserveAndHideAll => {
+                    self.pc = next;
+                    events.push(HostEvent::PreserveAndHideAll);
+                }
                 InstructionKind::RestoreAllVisibility => {
                     self.pc = next;
                     events.push(HostEvent::RestoreAllVisibility);
@@ -1176,6 +1180,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetVibrationFrameRate(_) => 0xfa,
         InstructionKind::RequestScriptAsync { .. } => 0x10,
         InstructionKind::DefineTileViewport { .. } => 0xc8,
+        InstructionKind::PreserveAndHideAll => 0xd5,
         InstructionKind::RestoreAllVisibility => 0xd6,
         InstructionKind::SetTimerRunning(_) => 0x7d,
         InstructionKind::RequestCallerAsync { .. } => 0x16,

@@ -36,6 +36,7 @@ const OP_SET_OBJECT_SCALE: u32 = 0x9f;
 const OP_SET_VIBRATION_FRAME_RATE: u32 = 0xfa;
 const OP_REQUEST_SCRIPT_ASYNC: u32 = 0x10;
 const OP_DEFINE_TILE_VIEWPORT: u32 = 0xc8;
+const OP_PRESERVE_AND_HIDE_ALL: u32 = 0xd5;
 const OP_RESTORE_ALL_VISIBILITY: u32 = 0xd6;
 const OP_SET_TIMER_RUNNING: u32 = 0x7d;
 const OP_REQUEST_CALLER_ASYNC: u32 = 0x16;
@@ -402,6 +403,10 @@ impl Decoder<'_> {
                     width: argument(8)?,
                     height: argument(16)?,
                 }
+            }
+            OP_PRESERVE_AND_HIDE_ALL => {
+                self.byte()?;
+                InstructionKind::PreserveAndHideAll
             }
             OP_RESTORE_ALL_VISIBILITY => {
                 self.byte()?;

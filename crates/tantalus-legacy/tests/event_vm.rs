@@ -132,6 +132,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetVibrationFrameRate { .. } => {}
                 HostEvent::RequestScriptAsync { .. } => {}
                 HostEvent::DefineTileViewport { .. } => {}
+                HostEvent::PreserveAndHideAll => {}
                 HostEvent::RestoreAllVisibility => {}
                 HostEvent::SetTimerRunning { .. } => {}
                 HostEvent::RequestCallerAsync { .. } => {}
@@ -1688,6 +1689,20 @@ fn sps_decodes_byte_ids_and_signed_wide_arguments() {
             arguments: [-100, 200, -300]
         }]
     );
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn pushhide_emits_visibility_preservation_command() {
+    let program = decode_program(&[213, 0, 4]).unwrap();
+    assert_eq!(
+        program.instructions[&0].kind,
+        InstructionKind::PreserveAndHideAll
+    );
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::PreserveAndHideAll]);
     assert_eq!(vm.status(), VmStatus::Completed);
 }
 
