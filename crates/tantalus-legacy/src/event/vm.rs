@@ -592,6 +592,39 @@ impl EventVm {
                     value: 0,
                     target: None,
                 }),
+                ExpressionOp::NotMembers => {
+                    if stack.len() < 2 {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "member logical NOT requires mask and target inputs",
+                        ));
+                    }
+                    let Some(StackTarget::Member(_)) = stack[stack.len() - 1].target else {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "member logical NOT target is not a selected member",
+                        ));
+                    };
+                    let mask = read_value(host, stack[stack.len() - 2], offset, opcode)?;
+                    let target = stack[stack.len() - 1];
+                    let mut result = 0i32;
+                    for slot in 0..8 {
+                        result >>= 1;
+                        if mask & (1 << slot) != 0 {
+                            host.select_object_member_target(Some(slot))
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            result |=
+                                i32::from(read_value(host, target, offset, opcode)? == 0) << 7;
+                        }
+                    }
+                    stack.truncate(stack.len() - 2);
+                    stack.push(StackValue {
+                        value: result,
+                        target: None,
+                    });
+                }
                 ExpressionOp::PostDecrementMembers => {
                     if stack.len() < 2 {
                         return Err(expression_error(
@@ -845,6 +878,7 @@ fn operand_start(
         | ExpressionOp::PostIncrementMembers
         | ExpressionOp::PostDecrementMembers
         | ExpressionOp::PreDecrementMembers
+        | ExpressionOp::NotMembers
         | ExpressionOp::LogicalAnd
         | ExpressionOp::LogicalOr => {
             let right = operand_start(operations, index, offset, opcode)?;
