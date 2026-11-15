@@ -337,6 +337,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut text_asset = None;
     let mut event = None;
     let mut field_execute = None;
+    let mut all_functions = false;
     let mut atan_table = None;
     let mut ticks = 64u64;
     let mut probe = false;
@@ -380,6 +381,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     return Err("`--field-execute` may only be supplied once".to_owned());
                 }
             }
+            Some("--all-functions") => all_functions = true,
             Some("--atan-table") => {
                 index += 1;
                 let value = args
@@ -697,9 +699,11 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         let script = found.ok_or_else(|| format!("event asset `{name}` was not found"))?;
         let binary =
             tantalus_legacy::EventBinary::parse(&script).map_err(|error| error.to_string())?;
-        // Each entry's first function runs as one scene entry. Multi-function
-        // orchestration (function tags beyond the first) is host-owned and
-        // not part of this probe.
+        // By default each entry's first function runs as one scene entry;
+        // --all-functions registers every decoded function as its own VM for
+        // coverage. The reference's function-call orchestration (which
+        // function an entry runs first, how REQ targets tags) is host-owned
+        // and not modeled by either mode.
         let mut director = tantalus_game::FieldDirector::new(tantalus_game::FieldWorld::new());
         if let Some(table_path) = atan_table {
             let table = std::fs::read(&table_path)
@@ -712,16 +716,27 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             let decoded = binary
                 .decode_entry_with_diagnostics(entry.index)
                 .map_err(|error| error.to_string())?;
-            let Some(function) = decoded.functions.first() else {
+            let functions: Vec<_> = if all_functions {
+                decoded.functions.iter().collect()
+            } else {
+                decoded.functions.first().into_iter().collect()
+            };
+            if functions.is_empty() {
                 skipped.push(entry.index);
                 continue;
-            };
-            let entity = tantalus_contracts::EntityId::new(entry.index as u64);
-            director
-                .add_entry_program(entity, function.program.clone())
-                .map_err(|error| error.to_string())?;
-            director.world_mut().add_actor(entity, [0.0; 3]);
-            entry_tags.push((entry.index, function.tag));
+            }
+            for (ordinal, function) in functions.iter().enumerate() {
+                if function.program.instructions.is_empty() {
+                    continue;
+                }
+                let entity =
+                    tantalus_contracts::EntityId::new(entry.index as u64 * 256 + ordinal as u64);
+                director
+                    .add_entry_program(entity, function.program.clone())
+                    .map_err(|error| error.to_string())?;
+                director.world_mut().add_actor(entity, [0.0; 3]);
+                entry_tags.push((entry.index, function.tag));
+            }
         }
         let mut operations = 0u64;
         let mut error = None;
