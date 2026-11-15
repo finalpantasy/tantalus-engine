@@ -321,6 +321,20 @@ impl LegacyEventHost for FieldHost<'_> {
                     self.world
                         .map_uid(i32::from(*unique_id), EntityId::new(u64::from(*unique_id)));
                 }
+                HostEvent::DefineRegion { region, vertices } => {
+                    self.world.regions.insert(
+                        *region,
+                        super::region::Region {
+                            vertices: vertices.clone(),
+                        },
+                    );
+                }
+                HostEvent::DefinePlayerControl { actor } => {
+                    self.world.control_actor = Some(*actor);
+                }
+                HostEvent::SetUserControl { enabled } => {
+                    self.world.user_control = *enabled;
+                }
                 // Presentation-only or engine-owned effects this world does
                 // not observe back.
                 _ => {}
@@ -409,6 +423,8 @@ impl LegacyEventHost for FieldHost<'_> {
         // 14 GetCinematicFrame and 15 SyncCinematic come from the movie
         // service (`GetSysvar.cs`, `fldfmv.FF9FieldFMVDispatch` 4 and 3).
         match variable {
+            // 2 IsMovementEnabled: `EventContext.usercontrol`.
+            2 => return Ok(i32::from(self.world.user_control)),
             14 => return Ok(self.world.fmv.frame),
             15 => return Ok(self.world.fmv.sync()),
             _ => {}

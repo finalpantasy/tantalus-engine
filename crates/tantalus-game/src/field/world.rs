@@ -112,6 +112,13 @@ pub struct FieldWorld {
     /// Reference `EventContext.mapvar`: Map-scope event variables (80 bytes),
     /// shared by every entry and zeroed when a field loads.
     pub map_memory: tantalus_legacy::VariableMemory,
+    /// Region polygons by region object (`SetRegion`).
+    pub regions: BTreeMap<EntityId, super::region::Region>,
+    /// Reference `controlUID` owner: the actor that ran `DefinePlayerControl`.
+    pub control_actor: Option<EntityId>,
+    /// Reference user control flag (`SetUserControl`); region and talk checks
+    /// only run while it is on.
+    pub user_control: bool,
     pending_requests: BTreeSet<EntityId>,
     pending_callers: BTreeSet<i32>,
     shared_scripts: BTreeSet<EntityId>,
@@ -171,6 +178,9 @@ impl FieldWorld {
             field_map_no: 0,
             global_memory: tantalus_legacy::VariableMemory::global(),
             map_memory: tantalus_legacy::VariableMemory::map(),
+            regions: BTreeMap::new(),
+            control_actor: None,
+            user_control: false,
             pending_requests: BTreeSet::new(),
             pending_callers: BTreeSet::new(),
             shared_scripts: BTreeSet::new(),

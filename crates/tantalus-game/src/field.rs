@@ -1,6 +1,7 @@
 pub mod director;
 pub mod fmv;
 pub mod host;
+pub mod region;
 pub mod snapshot;
 pub mod world;
 
@@ -61,6 +62,11 @@ impl FieldScene {
         self.entries
             .insert(entity, EventVm::new(program).with_entity(entity));
         Ok(())
+    }
+
+    /// Drop an entry's VM (for re-running a finished function from its start).
+    pub fn remove_entry(&mut self, entity: EntityId) -> Option<EventVm> {
+        self.entries.remove(&entity)
     }
 
     pub fn step(

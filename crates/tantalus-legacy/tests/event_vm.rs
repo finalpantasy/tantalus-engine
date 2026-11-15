@@ -4879,7 +4879,7 @@ fn path_floor_activation_and_pretend_to_be_decode_flag_bit_operands() {
 }
 
 #[test]
-fn scripted_battles_and_world_map_jumps_complete_the_event_with_decoded_operands() {
+fn scripted_battles_yield_and_world_map_jumps_complete_with_decoded_operands() {
     let mut host = Host::new();
 
     // ENCOUNT: rush byte, then a 16-bit word whose top bit is Steiner's state.
@@ -4896,7 +4896,12 @@ fn scripted_battles_and_world_map_jumps_complete_the_event_with_decoded_operands
             steiner_state: true,
         }]
     );
+    // FLOW_STATE_JUMP_BATTLE halts the loop past the opcode; the script
+    // resumes on the next field frame and reaches its RETURN.
+    assert_eq!(report.status, VmStatus::Waiting);
+    let report = vm.step(Tick::new(1), &mut host).unwrap();
     assert_eq!(report.status, VmStatus::Completed);
+    assert!(report.events.is_empty());
 
     // ENCOUNT2 adds a group byte between the rush byte and the battle word.
     let program = decode_program(&[0x8c, 0, 1, 2, 0x10, 0, 4]).unwrap();
@@ -4911,7 +4916,7 @@ fn scripted_battles_and_world_map_jumps_complete_the_event_with_decoded_operands
             steiner_state: false,
         }]
     );
-    assert_eq!(report.status, VmStatus::Completed);
+    assert_eq!(report.status, VmStatus::Waiting);
 
     let program = decode_program(&[0xb6, 0, 0x2c, 0x01, 4]).unwrap();
     let mut vm = EventVm::new(program);

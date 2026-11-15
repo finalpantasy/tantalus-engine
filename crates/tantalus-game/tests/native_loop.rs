@@ -50,8 +50,8 @@ fn packaged_loop_events_battle_rewards_save_and_restore() {
     director.world_mut().add_actor(EntityId::new(1), [0.0; 3]);
 
     // Gil grant, an async window open, then ENCOUNT 0x2A (battle 0x55).
-    // ENCOUNT completes the entry (the reference jumps to battle), so it must
-    // come last.
+    // ENCOUNT halts the entry past the opcode (the reference jumps to battle
+    // and resumes there afterwards), so the trailing RETURN runs after it.
     let program = [
         0xce, 0, 100, 0, 0, // AddGil 100
         0x20, 0, 3, 0, 7, 0, // WindowAsync window 3
@@ -62,7 +62,7 @@ fn packaged_loop_events_battle_rewards_save_and_restore() {
 
     let step = director.step().unwrap();
     assert_eq!(step.tick, Tick::new(0));
-    assert!(step.completed_entries.contains(&EntityId::new(1)));
+    assert!(!step.completed_entries.contains(&EntityId::new(1)));
     assert_eq!(step.encounters.len(), 1);
     assert_eq!(step.encounters[0].battle, 0x55);
     assert_eq!(director.world().gil, 100);
@@ -95,8 +95,9 @@ fn packaged_loop_events_battle_rewards_save_and_restore() {
     assert_eq!(restored.world(), director.world());
     assert!(!restored.coordinator().is_active());
 
-    // The restored field resumes recorded positions: the completed entry does
-    // not re-run, so neither the gil grant nor a second encounter re-appears.
+    // The restored field resumes recorded positions: the entry continues past
+    // ENCOUNT to its RETURN, so neither the gil grant nor a second encounter
+    // re-appears.
     let step = restored.step().unwrap();
     assert!(step.completed_entries.contains(&EntityId::new(1)));
     assert_eq!(restored.world().gil, 120);
