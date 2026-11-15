@@ -143,7 +143,8 @@
     "MESB 0xD0 emits ShowBattleMessage with a signed-wide text ID",
     "GLOBALCLEAR 0xD1 and DEBUGSAVE/DEBUGLOAD 0xD2/0xD3 follow the corrected no-op mapping",
     "decode diagnostics include active opcode and a bounded instruction-byte preview",
-    "FULLMEMBER 0xB4 remaps legacy party-reserve bits and emits SetPartyAvailability"
+    "FULLMEMBER 0xB4 remaps legacy party-reserve bits and emits SetPartyAvailability",
+    "BGLMOVE 0x5A emits MoveTile with signed X/Y/depth offsets"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -188,10 +189,10 @@
     "entry": 3,
     "function": 1,
     "function_tag": 1,
-    "offset": 737,
-    "opcode": 90,
+    "offset": 797,
+    "opcode": 30,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x5A after party-availability remapping"
+    "instruction": "event opcode 0x1E after tile-movement support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

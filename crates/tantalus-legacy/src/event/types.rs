@@ -298,6 +298,12 @@ pub enum InstructionKind {
         opcode: u8,
     },
     SetPartyAvailability(Expression),
+    MoveTile {
+        overlay: Expression,
+        x: Expression,
+        y: Expression,
+        depth: Expression,
+    },
     AttachTile {
         overlay: Expression,
         x: Expression,
@@ -562,6 +568,10 @@ pub enum HostEvent {
     },
     SetPartyAvailability {
         mask: i32,
+    },
+    MoveTile {
+        overlay: i32,
+        offset: [i16; 3],
     },
     AttachTile {
         overlay: i32,

@@ -180,6 +180,7 @@ impl LegacyEventHost for Host {
                 HostEvent::RunBattleCode { .. } => {}
                 HostEvent::SetRunEnabled { .. } => {}
                 HostEvent::SetPartyAvailability { .. } => {}
+                HostEvent::MoveTile { .. } => {}
                 HostEvent::AttachTile { .. } => {}
             }
         }
@@ -3275,6 +3276,39 @@ fn fullmember_remaps_legacy_party_availability_bits() {
     let mut vm = EventVm::new(program);
     let report = vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(report.events, [HostEvent::SetPartyAvailability { mask: 2 }]);
+}
+
+#[test]
+fn bglmove_emits_signed_tile_offsets() {
+    let program = decode_program(&[90, 0, 2, 0xf6, 0xff, 20, 0, 0xe2, 0xff, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 9);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::MoveTile {
+            overlay: 2,
+            offset: [-10, 20, -30]
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
+
+    let mut bytes = vec![90, 15];
+    for value in [1, 2, 3, 4] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::MoveTile {
+            overlay: 1,
+            offset: [2, 3, 4]
+        }]
+    );
 }
 
 #[test]

@@ -860,6 +860,22 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetPartyAvailability { mask: available });
                 }
+                InstructionKind::MoveTile {
+                    overlay,
+                    x,
+                    y,
+                    depth,
+                } => {
+                    let overlay = self.evaluate(host, &overlay, instruction.offset, opcode)?;
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
+                    let y = self.evaluate(host, &y, instruction.offset, opcode)? as i16;
+                    let depth = self.evaluate(host, &depth, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::MoveTile {
+                        overlay,
+                        offset: [x, y, depth],
+                    });
+                }
                 InstructionKind::AttachTile {
                     overlay,
                     x,
@@ -1834,6 +1850,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::RunBattleCode { .. } => 0x4a,
         InstructionKind::SetRunEnabled { opcode, .. } => u32::from(*opcode),
         InstructionKind::SetPartyAvailability { .. } => 0xb4,
+        InstructionKind::MoveTile { .. } => 0x5a,
         InstructionKind::AttachTile { .. } => 0x92,
     }
 }

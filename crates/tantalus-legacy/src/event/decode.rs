@@ -75,6 +75,7 @@ const OP_STOP_TEXTURE_ANIMATION: u32 = 0xc2;
 const OP_RUN_BATTLE_CODE: u32 = 0x4a;
 const OP_DASH_ON: u32 = 0xf0;
 const OP_FULL_MEMBER: u32 = 0xb4;
+const OP_MOVE_TILE: u32 = 0x5a;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -917,6 +918,30 @@ impl Decoder<'_> {
                 InstructionKind::SetRunEnabled {
                     enabled: true,
                     opcode: opcode as u8,
+                }
+            }
+            OP_MOVE_TILE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::MoveTile {
+                    overlay: argument(1, false)?,
+                    x: argument(2, true)?,
+                    y: argument(4, true)?,
+                    depth: argument(8, true)?,
                 }
             }
             OP_ATTACH_TILE => {
