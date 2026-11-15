@@ -1,0 +1,4663 @@
+{
+  "blocks_loaded": 480,
+  "continued_until_blocked": {
+    "first_blocked_step": 321,
+    "last_step": {
+      "block": [
+        4,
+        9
+      ],
+      "blocked": true,
+      "cell": 873,
+      "cell_xz": [
+        9,
+        18
+      ],
+      "deflection_degrees": null,
+      "map_id": 10828,
+      "position": [
+        299.8966369628906,
+        4.53125,
+        -606.3947143554688
+      ],
+      "step": 321,
+      "topograph": 19,
+      "triangle": 89,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    "steps_taken": 321
+  },
+  "disc": 1,
+  "heading": "north (-z)",
+  "mesh_failures": [],
+  "path_is_straight_land_crossing": true,
+  "source": "Memoria c716e1fa (WM/WMBlock, WM/WMPhysics, ff9/ff9.cs w_movement*)",
+  "start": [
+    304.0,
+    0.0,
+    -472.0
+  ],
+  "steps": [
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.578087568283081,
+        -472.4356689453125
+      ],
+      "step": 1,
+      "topograph": 19,
+      "triangle": 172,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.537985324859619,
+        -472.871337890625
+      ],
+      "step": 2,
+      "topograph": 19,
+      "triangle": 172,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.4978830814361572,
+        -473.3070068359375
+      ],
+      "step": 3,
+      "topograph": 19,
+      "triangle": 172,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.4577808380126953,
+        -473.74267578125
+      ],
+      "step": 4,
+      "topograph": 19,
+      "triangle": 172,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.4176788330078125,
+        -474.1783447265625
+      ],
+      "step": 5,
+      "topograph": 19,
+      "triangle": 172,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.3775765895843506,
+        -474.614013671875
+      ],
+      "step": 6,
+      "topograph": 19,
+      "triangle": 172,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.3374743461608887,
+        -475.0496826171875
+      ],
+      "step": 7,
+      "topograph": 19,
+      "triangle": 172,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.2973721027374268,
+        -475.4853515625
+      ],
+      "step": 8,
+      "topograph": 19,
+      "triangle": 172,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.257269859313965,
+        -475.9210205078125
+      ],
+      "step": 9,
+      "topograph": 19,
+      "triangle": 172,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.2742910385131836,
+        -476.3581848144531
+      ],
+      "step": 10,
+      "topograph": 19,
+      "triangle": 210,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.3038928508758545,
+        -476.794677734375
+      ],
+      "step": 11,
+      "topograph": 19,
+      "triangle": 210,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.3334949016571045,
+        -477.2311706542969
+      ],
+      "step": 12,
+      "topograph": 19,
+      "triangle": 210,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.3630964756011963,
+        -477.66766357421875
+      ],
+      "step": 13,
+      "topograph": 19,
+      "triangle": 210,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.392698287963867,
+        -478.1041564941406
+      ],
+      "step": 14,
+      "topograph": 19,
+      "triangle": 210,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.422300100326538,
+        -478.5406494140625
+      ],
+      "step": 15,
+      "topograph": 19,
+      "triangle": 210,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.451902151107788,
+        -478.9771423339844
+      ],
+      "step": 16,
+      "topograph": 19,
+      "triangle": 210,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.48150372505188,
+        -479.41363525390625
+      ],
+      "step": 17,
+      "topograph": 19,
+      "triangle": 210,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 681,
+      "cell_xz": [
+        9,
+        14
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.4896740913391113,
+        -479.85107421875
+      ],
+      "step": 18,
+      "topograph": 19,
+      "triangle": 170,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.489511489868164,
+        -480.28857421875
+      ],
+      "step": 19,
+      "topograph": 19,
+      "triangle": 610,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.4696383476257324,
+        -480.7256164550781
+      ],
+      "step": 20,
+      "topograph": 19,
+      "triangle": 611,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.43414568901062,
+        -481.16168212890625
+      ],
+      "step": 21,
+      "topograph": 19,
+      "triangle": 611,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.3986527919769287,
+        -481.5977478027344
+      ],
+      "step": 22,
+      "topograph": 19,
+      "triangle": 611,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.3631598949432373,
+        -482.0338134765625
+      ],
+      "step": 23,
+      "topograph": 19,
+      "triangle": 611,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.327666759490967,
+        -482.4698791503906
+      ],
+      "step": 24,
+      "topograph": 19,
+      "triangle": 611,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.2921738624572754,
+        -482.90594482421875
+      ],
+      "step": 25,
+      "topograph": 19,
+      "triangle": 611,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.256680965423584,
+        -483.3420104980469
+      ],
+      "step": 26,
+      "topograph": 19,
+      "triangle": 611,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.2211880683898926,
+        -483.778076171875
+      ],
+      "step": 27,
+      "topograph": 19,
+      "triangle": 611,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.2405238151550293,
+        -484.21514892578125
+      ],
+      "step": 28,
+      "topograph": 19,
+      "triangle": 607,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.3154492378234863,
+        -484.64617919921875
+      ],
+      "step": 29,
+      "topograph": 19,
+      "triangle": 612,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.390374183654785,
+        -485.07720947265625
+      ],
+      "step": 30,
+      "topograph": 19,
+      "triangle": 607,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.465299606323242,
+        -485.50823974609375
+      ],
+      "step": 31,
+      "topograph": 19,
+      "triangle": 612,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.540224552154541,
+        -485.93927001953125
+      ],
+      "step": 32,
+      "topograph": 19,
+      "triangle": 612,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.615149974822998,
+        -486.37030029296875
+      ],
+      "step": 33,
+      "topograph": 19,
+      "triangle": 612,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.690074920654297,
+        -486.80133056640625
+      ],
+      "step": 34,
+      "topograph": 19,
+      "triangle": 607,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.765000343322754,
+        -487.23236083984375
+      ],
+      "step": 35,
+      "topograph": 19,
+      "triangle": 612,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.8399252891540527,
+        -487.66339111328125
+      ],
+      "step": 36,
+      "topograph": 19,
+      "triangle": 612,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        3.9119739532470703,
+        -488.0949401855469
+      ],
+      "step": 37,
+      "topograph": 5,
+      "triangle": 563,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        3.9737253189086914,
+        -488.5280456542969
+      ],
+      "step": 38,
+      "topograph": 5,
+      "triangle": 563,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.0354766845703125,
+        -488.9611511230469
+      ],
+      "step": 39,
+      "topograph": 5,
+      "triangle": 563,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.097228050231934,
+        -489.3942565917969
+      ],
+      "step": 40,
+      "topograph": 5,
+      "triangle": 563,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.158979415893555,
+        -489.8273620605469
+      ],
+      "step": 41,
+      "topograph": 5,
+      "triangle": 563,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.220730781555176,
+        -490.2604675292969
+      ],
+      "step": 42,
+      "topograph": 5,
+      "triangle": 563,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.282482147216797,
+        -490.6935729980469
+      ],
+      "step": 43,
+      "topograph": 5,
+      "triangle": 563,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.344233512878418,
+        -491.1266784667969
+      ],
+      "step": 44,
+      "topograph": 5,
+      "triangle": 563,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.405984878540039,
+        -491.5597839355469
+      ],
+      "step": 45,
+      "topograph": 5,
+      "triangle": 563,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.46773624420166,
+        -491.9928894042969
+      ],
+      "step": 46,
+      "topograph": 5,
+      "triangle": 563,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.495594024658203,
+        -492.42950439453125
+      ],
+      "step": 47,
+      "topograph": 5,
+      "triangle": 561,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.522884368896484,
+        -492.86614990234375
+      ],
+      "step": 48,
+      "topograph": 5,
+      "triangle": 561,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.550174713134766,
+        -493.30279541015625
+      ],
+      "step": 49,
+      "topograph": 5,
+      "triangle": 561,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.577465057373047,
+        -493.73944091796875
+      ],
+      "step": 50,
+      "topograph": 5,
+      "triangle": 561,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.604755401611328,
+        -494.17608642578125
+      ],
+      "step": 51,
+      "topograph": 5,
+      "triangle": 561,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.632045745849609,
+        -494.61273193359375
+      ],
+      "step": 52,
+      "topograph": 5,
+      "triangle": 561,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.659336090087891,
+        -495.04937744140625
+      ],
+      "step": 53,
+      "topograph": 5,
+      "triangle": 561,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.686626434326172,
+        -495.48602294921875
+      ],
+      "step": 54,
+      "topograph": 5,
+      "triangle": 561,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.713916778564453,
+        -495.92266845703125
+      ],
+      "step": 55,
+      "topograph": 5,
+      "triangle": 561,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.68367862701416,
+        -496.359130859375
+      ],
+      "step": 56,
+      "topograph": 19,
+      "triangle": 598,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.6411566734313965,
+        -496.7945556640625
+      ],
+      "step": 57,
+      "topograph": 19,
+      "triangle": 598,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.598634719848633,
+        -497.22998046875
+      ],
+      "step": 58,
+      "topograph": 19,
+      "triangle": 598,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.556112766265869,
+        -497.6654052734375
+      ],
+      "step": 59,
+      "topograph": 19,
+      "triangle": 598,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.5135908126831055,
+        -498.100830078125
+      ],
+      "step": 60,
+      "topograph": 19,
+      "triangle": 598,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.471068859100342,
+        -498.5362548828125
+      ],
+      "step": 61,
+      "topograph": 19,
+      "triangle": 598,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.428546905517578,
+        -498.9716796875
+      ],
+      "step": 62,
+      "topograph": 19,
+      "triangle": 598,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.3860249519348145,
+        -499.4071044921875
+      ],
+      "step": 63,
+      "topograph": 19,
+      "triangle": 598,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.343502998352051,
+        -499.842529296875
+      ],
+      "step": 64,
+      "topograph": 19,
+      "triangle": 598,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.337968826293945,
+        -500.2799987792969
+      ],
+      "step": 65,
+      "topograph": 19,
+      "triangle": 597,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.353340148925781,
+        -500.71722412109375
+      ],
+      "step": 66,
+      "topograph": 19,
+      "triangle": 597,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.368710994720459,
+        -501.1544494628906
+      ],
+      "step": 67,
+      "topograph": 19,
+      "triangle": 597,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.384082317352295,
+        -501.5916748046875
+      ],
+      "step": 68,
+      "topograph": 19,
+      "triangle": 597,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.399453639984131,
+        -502.0289001464844
+      ],
+      "step": 69,
+      "topograph": 19,
+      "triangle": 597,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.414824485778809,
+        -502.46612548828125
+      ],
+      "step": 70,
+      "topograph": 19,
+      "triangle": 597,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.4301958084106445,
+        -502.9033508300781
+      ],
+      "step": 71,
+      "topograph": 19,
+      "triangle": 597,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.4455671310424805,
+        -503.340576171875
+      ],
+      "step": 72,
+      "topograph": 19,
+      "triangle": 597,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        4.460938453674316,
+        -503.7778015136719
+      ],
+      "step": 73,
+      "topograph": 19,
+      "triangle": 597,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.438139915466309,
+        -504.2146911621094
+      ],
+      "step": 74,
+      "topograph": 5,
+      "triangle": 558,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.3763885498046875,
+        -504.6477966308594
+      ],
+      "step": 75,
+      "topograph": 5,
+      "triangle": 558,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.314637184143066,
+        -505.0809020996094
+      ],
+      "step": 76,
+      "topograph": 5,
+      "triangle": 558,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.252885818481445,
+        -505.5140075683594
+      ],
+      "step": 77,
+      "topograph": 5,
+      "triangle": 558,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.191134452819824,
+        -505.9471130371094
+      ],
+      "step": 78,
+      "topograph": 5,
+      "triangle": 558,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.129383087158203,
+        -506.3802185058594
+      ],
+      "step": 79,
+      "topograph": 5,
+      "triangle": 558,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.067631721496582,
+        -506.8133239746094
+      ],
+      "step": 80,
+      "topograph": 5,
+      "triangle": 558,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        4.005880355834961,
+        -507.2464294433594
+      ],
+      "step": 81,
+      "topograph": 5,
+      "triangle": 558,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10772,
+      "position": [
+        304.0,
+        3.9441287517547607,
+        -507.6795349121094
+      ],
+      "step": 82,
+      "topograph": 5,
+      "triangle": 558,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.8746085166931152,
+        -508.1114196777344
+      ],
+      "step": 83,
+      "topograph": 19,
+      "triangle": 573,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.7831106185913086,
+        -508.53924560546875
+      ],
+      "step": 84,
+      "topograph": 19,
+      "triangle": 573,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.691612720489502,
+        -508.9670715332031
+      ],
+      "step": 85,
+      "topograph": 19,
+      "triangle": 682,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.6001148223876953,
+        -509.3948974609375
+      ],
+      "step": 86,
+      "topograph": 19,
+      "triangle": 682,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.5086166858673096,
+        -509.8227233886719
+      ],
+      "step": 87,
+      "topograph": 19,
+      "triangle": 682,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.417118787765503,
+        -510.25054931640625
+      ],
+      "step": 88,
+      "topograph": 19,
+      "triangle": 573,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.3256208896636963,
+        -510.6783752441406
+      ],
+      "step": 89,
+      "topograph": 19,
+      "triangle": 573,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.2341229915618896,
+        -511.106201171875
+      ],
+      "step": 90,
+      "topograph": 19,
+      "triangle": 573,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.142625093460083,
+        -511.5340270996094
+      ],
+      "step": 91,
+      "topograph": 19,
+      "triangle": 682,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        7
+      ],
+      "blocked": false,
+      "cell": 729,
+      "cell_xz": [
+        9,
+        15
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.0511271953582764,
+        -511.96185302734375
+      ],
+      "step": 92,
+      "topograph": 19,
+      "triangle": 682,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.0379271507263184,
+        -512.399169921875
+      ],
+      "step": 93,
+      "topograph": 19,
+      "triangle": 160,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.032402276992798,
+        -512.8366088867188
+      ],
+      "step": 94,
+      "topograph": 19,
+      "triangle": 160,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.0268774032592773,
+        -513.2740478515625
+      ],
+      "step": 95,
+      "topograph": 19,
+      "triangle": 160,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.0213522911071777,
+        -513.7114868164062
+      ],
+      "step": 96,
+      "topograph": 19,
+      "triangle": 160,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.0158276557922363,
+        -514.14892578125
+      ],
+      "step": 97,
+      "topograph": 19,
+      "triangle": 160,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.0103025436401367,
+        -514.5863647460938
+      ],
+      "step": 98,
+      "topograph": 19,
+      "triangle": 160,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.004777669906616,
+        -515.0238037109375
+      ],
+      "step": 99,
+      "topograph": 19,
+      "triangle": 160,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.9992527961730957,
+        -515.4612426757812
+      ],
+      "step": 100,
+      "topograph": 19,
+      "triangle": 160,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.993727922439575,
+        -515.898681640625
+      ],
+      "step": 101,
+      "topograph": 19,
+      "triangle": 160,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.9882028102874756,
+        -516.3361206054688
+      ],
+      "step": 102,
+      "topograph": 19,
+      "triangle": 160,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.982677936553955,
+        -516.7735595703125
+      ],
+      "step": 103,
+      "topograph": 19,
+      "triangle": 160,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.9771530628204346,
+        -517.2109985351562
+      ],
+      "step": 104,
+      "topograph": 19,
+      "triangle": 160,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.971628189086914,
+        -517.6484375
+      ],
+      "step": 105,
+      "topograph": 19,
+      "triangle": 160,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -518.0859375
+      ],
+      "step": 106,
+      "topograph": 19,
+      "triangle": 158,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -518.5234375
+      ],
+      "step": 107,
+      "topograph": 19,
+      "triangle": 158,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -518.9609375
+      ],
+      "step": 108,
+      "topograph": 19,
+      "triangle": 158,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -519.3984375
+      ],
+      "step": 109,
+      "topograph": 19,
+      "triangle": 158,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -519.8359375
+      ],
+      "step": 110,
+      "topograph": 19,
+      "triangle": 158,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -520.2734375
+      ],
+      "step": 111,
+      "topograph": 19,
+      "triangle": 192,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -520.7109375
+      ],
+      "step": 112,
+      "topograph": 19,
+      "triangle": 192,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -521.1484375
+      ],
+      "step": 113,
+      "topograph": 19,
+      "triangle": 192,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -521.5859375
+      ],
+      "step": 114,
+      "topograph": 19,
+      "triangle": 192,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -522.0234375
+      ],
+      "step": 115,
+      "topograph": 19,
+      "triangle": 192,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -522.4609375
+      ],
+      "step": 116,
+      "topograph": 19,
+      "triangle": 192,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -522.8984375
+      ],
+      "step": 117,
+      "topograph": 19,
+      "triangle": 192,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -523.3359375
+      ],
+      "step": 118,
+      "topograph": 19,
+      "triangle": 192,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -523.7734375
+      ],
+      "step": 119,
+      "topograph": 19,
+      "triangle": 192,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -524.2109375
+      ],
+      "step": 120,
+      "topograph": 19,
+      "triangle": 233,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -524.6484375
+      ],
+      "step": 121,
+      "topograph": 19,
+      "triangle": 233,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -525.0859375
+      ],
+      "step": 122,
+      "topograph": 19,
+      "triangle": 233,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -525.5234375
+      ],
+      "step": 123,
+      "topograph": 19,
+      "triangle": 233,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -525.9609375
+      ],
+      "step": 124,
+      "topograph": 19,
+      "triangle": 233,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -526.3984375
+      ],
+      "step": 125,
+      "topograph": 19,
+      "triangle": 233,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -526.8359375
+      ],
+      "step": 126,
+      "topograph": 19,
+      "triangle": 233,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -527.2734375
+      ],
+      "step": 127,
+      "topograph": 19,
+      "triangle": 233,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -527.7109375
+      ],
+      "step": 128,
+      "topograph": 19,
+      "triangle": 233,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.9804770946502686,
+        -528.1482543945312
+      ],
+      "step": 129,
+      "topograph": 19,
+      "triangle": 183,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.0149779319763184,
+        -528.5844116210938
+      ],
+      "step": 130,
+      "topograph": 19,
+      "triangle": 183,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.049478530883789,
+        -529.0205688476562
+      ],
+      "step": 131,
+      "topograph": 19,
+      "triangle": 183,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.083979368209839,
+        -529.4567260742188
+      ],
+      "step": 132,
+      "topograph": 19,
+      "triangle": 183,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.1184799671173096,
+        -529.8928833007812
+      ],
+      "step": 133,
+      "topograph": 19,
+      "triangle": 183,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.126953125,
+        -530.330322265625
+      ],
+      "step": 134,
+      "topograph": 19,
+      "triangle": 154,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.126953125,
+        -530.767822265625
+      ],
+      "step": 135,
+      "topograph": 19,
+      "triangle": 154,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.126953125,
+        -531.205322265625
+      ],
+      "step": 136,
+      "topograph": 19,
+      "triangle": 154,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.126953125,
+        -531.642822265625
+      ],
+      "step": 137,
+      "topograph": 19,
+      "triangle": 154,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.126953125,
+        -532.080322265625
+      ],
+      "step": 138,
+      "topograph": 19,
+      "triangle": 154,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.126953125,
+        -532.517822265625
+      ],
+      "step": 139,
+      "topograph": 19,
+      "triangle": 154,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.126953125,
+        -532.955322265625
+      ],
+      "step": 140,
+      "topograph": 19,
+      "triangle": 154,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.126953125,
+        -533.392822265625
+      ],
+      "step": 141,
+      "topograph": 19,
+      "triangle": 154,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.126953125,
+        -533.830322265625
+      ],
+      "step": 142,
+      "topograph": 19,
+      "triangle": 154,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.1439342498779297,
+        -534.2675170898438
+      ],
+      "step": 143,
+      "topograph": 19,
+      "triangle": 152,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.1716508865356445,
+        -534.7041625976562
+      ],
+      "step": 144,
+      "topograph": 19,
+      "triangle": 152,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.1993677616119385,
+        -535.1408081054688
+      ],
+      "step": 145,
+      "topograph": 19,
+      "triangle": 152,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.2270843982696533,
+        -535.5774536132812
+      ],
+      "step": 146,
+      "topograph": 19,
+      "triangle": 152,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.2545948028564453,
+        -536.0140991210938
+      ],
+      "step": 147,
+      "topograph": 19,
+      "triangle": 161,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.275930166244507,
+        -536.4510498046875
+      ],
+      "step": 148,
+      "topograph": 19,
+      "triangle": 161,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.2972655296325684,
+        -536.8880004882812
+      ],
+      "step": 149,
+      "topograph": 19,
+      "triangle": 161,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.318601131439209,
+        -537.324951171875
+      ],
+      "step": 150,
+      "topograph": 19,
+      "triangle": 161,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.3399367332458496,
+        -537.7619018554688
+      ],
+      "step": 151,
+      "topograph": 19,
+      "triangle": 161,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.3388402462005615,
+        -538.1994018554688
+      ],
+      "step": 152,
+      "topograph": 19,
+      "triangle": 153,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.3109853267669678,
+        -538.635986328125
+      ],
+      "step": 153,
+      "topograph": 19,
+      "triangle": 153,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.283130407333374,
+        -539.0725708007812
+      ],
+      "step": 154,
+      "topograph": 19,
+      "triangle": 153,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.255275249481201,
+        -539.5091552734375
+      ],
+      "step": 155,
+      "topograph": 19,
+      "triangle": 153,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.2274203300476074,
+        -539.9457397460938
+      ],
+      "step": 156,
+      "topograph": 19,
+      "triangle": 153,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.1995651721954346,
+        -540.38232421875
+      ],
+      "step": 157,
+      "topograph": 19,
+      "triangle": 153,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.171710252761841,
+        -540.8189086914062
+      ],
+      "step": 158,
+      "topograph": 19,
+      "triangle": 153,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.143855333328247,
+        -541.2554931640625
+      ],
+      "step": 159,
+      "topograph": 19,
+      "triangle": 153,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.116000175476074,
+        -541.6920776367188
+      ],
+      "step": 160,
+      "topograph": 19,
+      "triangle": 153,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.0881452560424805,
+        -542.128662109375
+      ],
+      "step": 161,
+      "topograph": 19,
+      "triangle": 153,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.0602903366088867,
+        -542.5652465820312
+      ],
+      "step": 162,
+      "topograph": 19,
+      "triangle": 153,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.032435178756714,
+        -543.0018310546875
+      ],
+      "step": 163,
+      "topograph": 19,
+      "triangle": 153,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.00458025932312,
+        -543.4384155273438
+      ],
+      "step": 164,
+      "topograph": 19,
+      "triangle": 153,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 777,
+      "cell_xz": [
+        9,
+        16
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.9767253398895264,
+        -543.875
+      ],
+      "step": 165,
+      "topograph": 19,
+      "triangle": 153,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -544.3124389648438
+      ],
+      "step": 166,
+      "topograph": 19,
+      "triangle": 423,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -544.7499389648438
+      ],
+      "step": 167,
+      "topograph": 19,
+      "triangle": 423,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -545.1874389648438
+      ],
+      "step": 168,
+      "topograph": 19,
+      "triangle": 423,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -545.6249389648438
+      ],
+      "step": 169,
+      "topograph": 19,
+      "triangle": 423,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -546.0624389648438
+      ],
+      "step": 170,
+      "topograph": 19,
+      "triangle": 423,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -546.4999389648438
+      ],
+      "step": 171,
+      "topograph": 19,
+      "triangle": 423,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -546.9374389648438
+      ],
+      "step": 172,
+      "topograph": 19,
+      "triangle": 423,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -547.3749389648438
+      ],
+      "step": 173,
+      "topograph": 19,
+      "triangle": 423,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.96875,
+        -547.8124389648438
+      ],
+      "step": 174,
+      "topograph": 19,
+      "triangle": 423,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.977534770965576,
+        -548.2498779296875
+      ],
+      "step": 175,
+      "topograph": 19,
+      "triangle": 379,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        2.9929070472717285,
+        -548.6871337890625
+      ],
+      "step": 176,
+      "topograph": 19,
+      "triangle": 379,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.008279323577881,
+        -549.1243896484375
+      ],
+      "step": 177,
+      "topograph": 19,
+      "triangle": 379,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.023651599884033,
+        -549.5616455078125
+      ],
+      "step": 178,
+      "topograph": 19,
+      "triangle": 379,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.0390238761901855,
+        -549.9989013671875
+      ],
+      "step": 179,
+      "topograph": 19,
+      "triangle": 379,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.054396152496338,
+        -550.4361572265625
+      ],
+      "step": 180,
+      "topograph": 19,
+      "triangle": 379,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.0697684288024902,
+        -550.8734130859375
+      ],
+      "step": 181,
+      "topograph": 19,
+      "triangle": 379,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.0851407051086426,
+        -551.3106689453125
+      ],
+      "step": 182,
+      "topograph": 19,
+      "triangle": 379,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.100512981414795,
+        -551.7479248046875
+      ],
+      "step": 183,
+      "topograph": 19,
+      "triangle": 379,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.1252522468566895,
+        -552.1847534179688
+      ],
+      "step": 184,
+      "topograph": 19,
+      "triangle": 412,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.1627135276794434,
+        -552.6206665039062
+      ],
+      "step": 185,
+      "topograph": 19,
+      "triangle": 412,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.2001748085021973,
+        -553.0565795898438
+      ],
+      "step": 186,
+      "topograph": 19,
+      "triangle": 388,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.237636089324951,
+        -553.4924926757812
+      ],
+      "step": 187,
+      "topograph": 19,
+      "triangle": 412,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.275097370147705,
+        -553.9284057617188
+      ],
+      "step": 188,
+      "topograph": 19,
+      "triangle": 412,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.312558650970459,
+        -554.3643188476562
+      ],
+      "step": 189,
+      "topograph": 19,
+      "triangle": 412,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.350019931793213,
+        -554.8002319335938
+      ],
+      "step": 190,
+      "topograph": 19,
+      "triangle": 412,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.387481212615967,
+        -555.2361450195312
+      ],
+      "step": 191,
+      "topograph": 19,
+      "triangle": 412,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.4249424934387207,
+        -555.6720581054688
+      ],
+      "step": 192,
+      "topograph": 19,
+      "triangle": 412,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.46260929107666,
+        -556.10791015625
+      ],
+      "step": 193,
+      "topograph": 19,
+      "triangle": 407,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.500911235809326,
+        -556.543701171875
+      ],
+      "step": 194,
+      "topograph": 19,
+      "triangle": 407,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.539213180541992,
+        -556.9794921875
+      ],
+      "step": 195,
+      "topograph": 19,
+      "triangle": 407,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.577515125274658,
+        -557.415283203125
+      ],
+      "step": 196,
+      "topograph": 19,
+      "triangle": 407,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.615817070007324,
+        -557.85107421875
+      ],
+      "step": 197,
+      "topograph": 19,
+      "triangle": 407,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.6541190147399902,
+        -558.286865234375
+      ],
+      "step": 198,
+      "topograph": 19,
+      "triangle": 407,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.6924209594726562,
+        -558.72265625
+      ],
+      "step": 199,
+      "topograph": 19,
+      "triangle": 407,
+      "walk_mesh_slot": "TerrainForm1"
+    },
+    {
+      "block": [
+        4,
+        8
+      ],
+      "blocked": false,
+      "cell": 825,
+      "cell_xz": [
+        9,
+        17
+      ],
+      "deflection_degrees": 0.0,
+      "map_id": 10828,
+      "position": [
+        304.0,
+        3.7307229042053223,
+        -559.158447265625
+      ],
+      "step": 200,
+      "topograph": 19,
+      "triangle": 408,
+      "walk_mesh_slot": "TerrainForm1"
+    }
+  ],
+  "stick": [
+    0,
+    -128
+  ],
+  "summary": {
+    "block_crossings": 1,
+    "blocked_steps": 0,
+    "deflected_steps": 0,
+    "distinct_blocks": 2,
+    "distinct_cells": 4,
+    "steps": 200,
+    "steps_per_topograph": {
+      "19": 172,
+      "5": 28
+    },
+    "topographs": [
+      5,
+      19
+    ]
+  },
+  "walk_meshes_registered": 2537
+}
