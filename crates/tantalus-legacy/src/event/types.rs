@@ -54,6 +54,7 @@ pub enum ExpressionOp {
     AnimationFrame,
     BgiAnimationFrame,
     PartyContains,
+    KeyOn,
     Less,
     Greater,
     GreaterOrEqual,
@@ -708,6 +709,7 @@ pub trait LegacyEventHost {
     fn read_bgi_animation_frame(&mut self, animation: u32) -> Result<i32, EngineError>;
     fn party_contains(&mut self, character: i32) -> Result<bool, EngineError>;
     fn party_menu_is_open(&self) -> bool;
+    fn read_key_on(&mut self) -> Result<i32, EngineError>;
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError>;
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError>;
 }

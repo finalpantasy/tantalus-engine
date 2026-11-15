@@ -1181,6 +1181,19 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::KeyOn => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing key-on operand")
+                    })?;
+                    let mask = read_value(host, value, offset, opcode)?;
+                    let pressed = host
+                        .read_key_on()
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    stack.push(StackValue {
+                        value: i32::from(mask & pressed != 0),
+                        target: None,
+                    });
+                }
                 ExpressionOp::Add
                 | ExpressionOp::Subtract
                 | ExpressionOp::Multiply
@@ -2010,6 +2023,7 @@ fn operand_start(
         | ExpressionOp::AnimationFrame
         | ExpressionOp::BgiAnimationFrame
         | ExpressionOp::PartyContains
+        | ExpressionOp::KeyOn
         | ExpressionOp::ConsumeAndZero
         | ExpressionOp::PreIncrement
         | ExpressionOp::PreDecrement

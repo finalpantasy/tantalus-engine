@@ -149,6 +149,15 @@ impl LegacyEventHost for Host {
         false
     }
 
+    fn read_key_on(&mut self) -> Result<i32, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            "field fixture has no key-on state",
+            "fixture-host",
+            true,
+        ))
+    }
+
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,

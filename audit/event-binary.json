@@ -148,7 +148,8 @@
     "BGVPORT 0x1E emits SetCameraBounds with signed min/max X/Y operands",
     "B_LT_E 28 returns strict selected-member less-than flags without writes; empty masks return zero",
     "SETROW 0x61 emits SetCharacterRow with character identity and a wrapped byte row",
-    "ROTXZ 0x37 emits actor-bound pitch/roll after wrapping shift-by-four fixed-point conversion"
+    "ROTXZ 0x37 emits actor-bound pitch/roll after wrapping shift-by-four fixed-point conversion",
+    "B_KEYON 79 returns whether the host key-down bitmap intersects the operand mask"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -213,11 +214,11 @@
     "entry": 8,
     "function": 1,
     "function_tag": 1,
-    "offset": 129,
-    "expression_offset": 22,
-    "opcode": 79,
+    "offset": 153,
+    "expression_offset": 13,
+    "opcode": 45,
     "kind": "UnsupportedOpcode",
-    "instruction": "B_KEYON after actor pitch/roll support"
+    "instruction": "B_LET_A after key-down input query support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

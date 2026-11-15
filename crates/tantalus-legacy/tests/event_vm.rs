@@ -80,6 +80,7 @@ struct Host {
     bgi_animation_frames: BTreeMap<u32, i32>,
     party_members: Vec<i32>,
     party_menu_open: bool,
+    key_on: i32,
     fail: bool,
 }
 
@@ -100,6 +101,7 @@ impl Host {
             bgi_animation_frames: BTreeMap::new(),
             party_members: Vec::new(),
             party_menu_open: false,
+            key_on: 0,
             fail: false,
         }
     }
@@ -291,6 +293,10 @@ impl LegacyEventHost for Host {
 
     fn party_menu_is_open(&self) -> bool {
         self.party_menu_open
+    }
+
+    fn read_key_on(&mut self) -> Result<i32, EngineError> {
+        Ok(self.key_on)
     }
 
     fn script_request_is_complete(&mut self, _entity: EntityId) -> Result<bool, EngineError> {
@@ -2410,6 +2416,22 @@ fn keyon2_consumes_its_operand_and_returns_zero() {
 
     assert_eq!(vm.variable(VariableScope::Global, 39), 0);
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn keyon_returns_mask_intersection_with_host_input() {
+    let mut host = Host::new();
+    for (mask, pressed, expected) in [(2, 2, 1), (1, 2, 0), (i32::MIN, i32::MIN, 1)] {
+        host.key_on = pressed;
+        let result = variable(VariableScope::Global, VariableType::Int16, 53);
+        let expression = assign(result, binary(constant(mask), vec![], 79));
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+
+        vm.step(Tick::new(0), &mut host).unwrap();
+
+        assert_eq!(vm.variable(VariableScope::Global, 53), expected);
+    }
 }
 
 #[test]
