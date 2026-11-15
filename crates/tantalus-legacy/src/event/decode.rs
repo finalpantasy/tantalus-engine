@@ -196,6 +196,14 @@ const OP_REMOVE_PARTY: u32 = 0xdd;
 const OP_SET_PLAYER_NAME: u32 = 0xde;
 const OP_SET_DIALOG_SIGNAL: u32 = 0xe3;
 const OP_APPLY_FADE_FILTER: u32 = 0xec;
+const OP_OPEN_MENU: u32 = 0x75;
+const OP_SET_ACTIVE_TIME_EVENT_ICON: u32 = 0xd7;
+const OP_SET_OBJECT_OVAL_RATIO: u32 = 0xdf;
+const OP_TERMINATE_BATTLE: u32 = 0xe1;
+const OP_RESET_IDLE_TIMER: u32 = 0xee;
+const OP_CLOSE_ALL_WINDOWS: u32 = 0xeb;
+const OP_ALIGN_ACTOR_TO_CAMERA_EYE: u32 = 0xb7;
+const OP_PROGRESS_JUMP: u32 = 0xdc;
 const OP_SETUP_JUMP: u32 = 0xe2;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
@@ -287,6 +295,11 @@ impl Decoder<'_> {
             OP_NOP => InstructionKind::Nop,
             OP_UNUSED_PRINT => InstructionKind::NoOp(opcode),
             OP_TRACK_ADD => InstructionKind::TrackAdd,
+            OP_TERMINATE_BATTLE => InstructionKind::TerminateBattle,
+            OP_RESET_IDLE_TIMER => InstructionKind::ResetIdleTimer,
+            OP_CLOSE_ALL_WINDOWS => InstructionKind::CloseAllWindows,
+            OP_ALIGN_ACTOR_TO_CAMERA_EYE => InstructionKind::AlignActorToCameraEye,
+            OP_PROGRESS_JUMP => InstructionKind::ProgressJump,
             OP_PRINT_QUAD => InstructionKind::NoOp(opcode),
             OP_JUMP => InstructionKind::Jump(self.i16()?),
             OP_JUMP_IF_NOT => InstructionKind::JumpIfNot {
@@ -2454,6 +2467,25 @@ impl Decoder<'_> {
                     cyan: argument(8)?,
                     magenta: argument(16)?,
                     yellow: argument(32)?,
+                }
+            }
+            OP_OPEN_MENU => {
+                let flags = self.byte()?;
+                InstructionKind::OpenMenu {
+                    menu: self.operand(flags, 1, false)?,
+                    subject: self.operand(flags, 2, false)?,
+                }
+            }
+            OP_SET_ACTIVE_TIME_EVENT_ICON => {
+                let flags = self.byte()?;
+                InstructionKind::SetActiveTimeEventIcon {
+                    mode: self.operand(flags, 1, false)?,
+                }
+            }
+            OP_SET_OBJECT_OVAL_RATIO => {
+                let flags = self.byte()?;
+                InstructionKind::SetObjectOvalRatio {
+                    ratio: self.operand(flags, 1, false)?,
                 }
             }
             OP_DISABLE_USER_CONTROL | OP_ENABLE_USER_CONTROL => InstructionKind::SetUserControl {

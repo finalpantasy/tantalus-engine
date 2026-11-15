@@ -87,6 +87,7 @@ struct Host {
     actor_animation_active: bool,
     actor_movement_active: bool,
     exit_movement_active: bool,
+    jump_active: bool,
     random_u8: u8,
     key_on: i32,
     fail: bool,
@@ -116,6 +117,7 @@ impl Host {
             actor_animation_active: false,
             actor_movement_active: false,
             exit_movement_active: false,
+            jump_active: false,
             random_u8: 0,
             key_on: 0,
             fail: false,
@@ -289,6 +291,14 @@ impl LegacyEventHost for Host {
                 HostEvent::SetupJump { .. } => {}
                 HostEvent::SetDialogSignal { .. } => {}
                 HostEvent::ApplyFadeFilter { .. } => {}
+                HostEvent::OpenMenu { .. } => {}
+                HostEvent::SetActiveTimeEventIcon { .. } => {}
+                HostEvent::SetObjectOvalRatio { .. } => {}
+                HostEvent::TerminateBattle => {}
+                HostEvent::ResetIdleTimer => {}
+                HostEvent::CloseAllWindows => {}
+                HostEvent::AlignActorToCameraEye { .. } => {}
+                HostEvent::ProgressJump { .. } => {}
                 HostEvent::SetCameraBounds { .. } => {}
                 HostEvent::SetCharacterRow { .. } => {}
                 HostEvent::SetActorPitchRoll { .. } => {}
@@ -483,6 +493,10 @@ impl LegacyEventHost for Host {
 
     fn field_exit_movement_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
         Ok(self.exit_movement_active)
+    }
+
+    fn actor_jump_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
+        Ok(self.jump_active)
     }
 
     fn read_random_u8(&mut self) -> Result<u8, EngineError> {
@@ -7372,4 +7386,132 @@ fn wipe_rgb_emits_fade_filter_operands() {
     let truncated = decode_program(&[0xec, 0, 2, 60, 0, 130]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(236)"));
+}
+
+#[test]
+fn menu_decodes_two_byte_operands() {
+    let program = decode_program(&[0x75, 0, 1, 2, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::OpenMenu {
+            menu: 1,
+            subject: 2,
+        }]
+    );
+
+    let mut bytes = vec![0x75, 3];
+    for value in [4, 9] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::OpenMenu {
+            menu: 4,
+            subject: 9,
+        }]
+    );
+}
+
+#[test]
+fn aicon_emits_the_active_time_event_icon_mode() {
+    let program = decode_program(&[0xd7, 0, 3, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetActiveTimeEventIcon { mode: 3 }]
+    );
+}
+
+#[test]
+fn oval_binds_the_collision_stretch_ratio_to_the_current_object() {
+    let program = decode_program(&[0xdf, 0, 48, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetObjectOvalRatio {
+            actor: EntityId::new(42),
+            ratio: 48,
+        }]
+    );
+
+    let without_entity = EventVm::new(decode_program(&[0xdf, 0, 48, 4]).unwrap());
+    let mut vm = without_entity;
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("current actor context"));
+}
+
+#[test]
+fn bend_sleep_on_and_close_all_are_operand_less_host_commands() {
+    for (byte, expected) in [
+        (0xe1_u8, HostEvent::TerminateBattle),
+        (0xee_u8, HostEvent::ResetIdleTimer),
+        (0xeb_u8, HostEvent::CloseAllWindows),
+    ] {
+        let program = decode_program(&[byte, 4]).unwrap();
+        assert_eq!(program.instructions[&0].length, 1);
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(report.events, [expected]);
+        assert_eq!(report.status, VmStatus::Completed);
+    }
+}
+
+#[test]
+fn eye_aligns_the_current_actor_to_the_world_camera_eye() {
+    let program = decode_program(&[0xb7, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 1);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::AlignActorToCameraEye {
+            actor: EntityId::new(42),
+        }]
+    );
+
+    let without_entity = EventVm::new(decode_program(&[0xb7, 4]).unwrap());
+    let mut vm = without_entity;
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("current actor context"));
+}
+
+#[test]
+fn jump3_emits_progress_and_repeats_while_the_host_reports_an_active_jump() {
+    let program = decode_program(&[0xdc, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 1);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    host.jump_active = true;
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ProgressJump {
+            actor: EntityId::new(42),
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Running);
+
+    host.jump_active = false;
+    let report = vm.step(Tick::new(1), &mut host).unwrap();
+    assert_eq!(report.events.len(), 1);
+    assert_eq!(report.status, VmStatus::Running);
+    assert!(vm.step(Tick::new(2), &mut host).unwrap().events.is_empty());
+    assert_eq!(vm.status(), VmStatus::Completed);
+
+    let without_entity = EventVm::new(decode_program(&[0xdc, 4]).unwrap());
+    let mut vm = without_entity;
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("current actor context"));
 }

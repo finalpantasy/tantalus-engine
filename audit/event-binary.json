@@ -242,7 +242,13 @@
     "SETVY3 0xE2 decodes signed 16-bit X/Z/Y destination operands plus a byte step count for the current object (each an immediate or expression), negates the height like the reference, substitutes 8 for a zero step count, and emits SetupJump; the jump animation/arc stays host-owned",
     "SETSIGNAL 0xE3 decodes a byte dialog-progression value (immediate or expression) and emits SetDialogSignal; dialog progression stays host-owned",
     "BGVALPHA is corrected to 0xED (viewport plus two signed 16-bit alpha factors) matching the pinned dispatcher enum; the earlier 0xE6 mapping moves to BGLLOOPTYPE 0xE6, which decodes a byte overlay plus a byte screen-anchored flag and emits SetTileLoopType",
-    "WIPERGB 0xEC decodes six byte operands (filter mode, frame, a discarded unknown, cyan, magenta, yellow; each an immediate or expression, the third consumed and dropped like the reference) and emits ApplyFadeFilter with raw operands; fade-mode mapping, timing, color presentation, and the map-1819 color patch stay host-owned"
+    "WIPERGB 0xEC decodes six byte operands (filter mode, frame, a discarded unknown, cyan, magenta, yellow; each an immediate or expression, the third consumed and dropped like the reference) and emits ApplyFadeFilter with raw operands; fade-mode mapping, timing, color presentation, and the map-1819 color patch stay host-owned",
+    "MENU 0x75 (enum-corrected; two byte operands: menu type and subject) emits OpenMenu; name-choice shortcut and menu presentation stay host-owned",
+    "AICON 0xD7 decodes a byte mode operand (immediate or expression) and emits SetActiveTimeEventIcon; ATE icon presentation stays host-owned",
+    "OVAL 0xDF decodes a byte collision-stretch ratio (immediate or expression), binds to the current object, and emits SetObjectOvalRatio; world-map collision shaping stays host-owned",
+    "BEND 0xE1, SLEEPON 0xEE, and CLOSEALL 0xEB are operand-less per the real-bytecode convention and emit TerminateBattle, ResetIdleTimer, and CloseAllWindows; battle shutdown, idle timing, and window management stay host-owned",
+    "EYE 0xB7 is operand-less, binds to the current actor, and emits AlignActorToCameraEye; world-mode camera reads stay host-owned",
+    "JUMP3 0xDC is operand-less, binds to the current actor, emits ProgressJump once per tick, and repeats while the host reports an active jump (MOVJ-style wait; new host query actor_jump_is_active); jump frame interpolation stays host-owned"
   ],
   "malformed_entry_boundary": {
     "entry": 1,

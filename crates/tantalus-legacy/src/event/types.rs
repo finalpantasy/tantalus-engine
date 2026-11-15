@@ -637,6 +637,21 @@ pub enum InstructionKind {
         magenta: Expression,
         yellow: Expression,
     },
+    OpenMenu {
+        menu: Expression,
+        subject: Expression,
+    },
+    SetActiveTimeEventIcon {
+        mode: Expression,
+    },
+    SetObjectOvalRatio {
+        ratio: Expression,
+    },
+    TerminateBattle,
+    ResetIdleTimer,
+    CloseAllWindows,
+    AlignActorToCameraEye,
+    ProgressJump,
     SetUserControl {
         enabled: bool,
         opcode: u8,
@@ -1350,6 +1365,26 @@ pub enum HostEvent {
         magenta: i32,
         yellow: i32,
     },
+    OpenMenu {
+        menu: i32,
+        subject: i32,
+    },
+    SetActiveTimeEventIcon {
+        mode: i32,
+    },
+    SetObjectOvalRatio {
+        actor: EntityId,
+        ratio: i32,
+    },
+    TerminateBattle,
+    ResetIdleTimer,
+    CloseAllWindows,
+    AlignActorToCameraEye {
+        actor: EntityId,
+    },
+    ProgressJump {
+        actor: EntityId,
+    },
     SetUserControl {
         enabled: bool,
     },
@@ -1605,6 +1640,7 @@ pub trait LegacyEventHost {
     fn actor_animation_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn field_actor_movement_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn field_exit_movement_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
+    fn actor_jump_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn read_random_u8(&mut self) -> Result<u8, EngineError>;
     fn read_key_on(&mut self) -> Result<i32, EngineError>;
     fn caller_request_acceptable(&mut self, level: i32) -> Result<bool, EngineError>;

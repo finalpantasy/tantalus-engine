@@ -1841,6 +1841,71 @@ impl EventVm {
                         yellow,
                     });
                 }
+                InstructionKind::OpenMenu { menu, subject } => {
+                    let menu = self.evaluate(host, &menu, instruction.offset, opcode)?;
+                    let subject = self.evaluate(host, &subject, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::OpenMenu { menu, subject });
+                }
+                InstructionKind::SetActiveTimeEventIcon { mode } => {
+                    let mode = self.evaluate(host, &mode, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetActiveTimeEventIcon { mode });
+                }
+                InstructionKind::SetObjectOvalRatio { ratio } => {
+                    let ratio = self.evaluate(host, &ratio, instruction.offset, opcode)?;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetObjectOvalRatio { actor, ratio });
+                }
+                InstructionKind::TerminateBattle => {
+                    self.pc = next;
+                    events.push(HostEvent::TerminateBattle);
+                }
+                InstructionKind::ResetIdleTimer => {
+                    self.pc = next;
+                    events.push(HostEvent::ResetIdleTimer);
+                }
+                InstructionKind::CloseAllWindows => {
+                    self.pc = next;
+                    events.push(HostEvent::CloseAllWindows);
+                }
+                InstructionKind::AlignActorToCameraEye => {
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::AlignActorToCameraEye { actor });
+                }
+                InstructionKind::ProgressJump => {
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    let active = host
+                        .actor_jump_is_active(actor)
+                        .map_err(|error| VmError::host(error, instruction.offset, opcode))?;
+                    self.pc = if active { instruction.offset } else { next };
+                    events.push(HostEvent::ProgressJump { actor });
+                    self.status = VmStatus::Running;
+                    break;
+                }
                 InstructionKind::SetUserControl { enabled, .. } => {
                     self.pc = next;
                     events.push(HostEvent::SetUserControl { enabled });
@@ -3747,6 +3812,14 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetupJump { .. } => 0xe2,
         InstructionKind::SetDialogSignal { .. } => 0xe3,
         InstructionKind::ApplyFadeFilter { .. } => 0xec,
+        InstructionKind::OpenMenu { .. } => 0x75,
+        InstructionKind::SetActiveTimeEventIcon { .. } => 0xd7,
+        InstructionKind::SetObjectOvalRatio { .. } => 0xdf,
+        InstructionKind::TerminateBattle => 0xe1,
+        InstructionKind::ResetIdleTimer => 0xee,
+        InstructionKind::CloseAllWindows => 0xeb,
+        InstructionKind::AlignActorToCameraEye => 0xb7,
+        InstructionKind::ProgressJump => 0xdc,
         InstructionKind::SetCameraBounds { .. } => 0x1e,
         InstructionKind::SetCharacterRow { .. } => 0x62,
         InstructionKind::ClearPartyStatus { .. } => 0xd9,

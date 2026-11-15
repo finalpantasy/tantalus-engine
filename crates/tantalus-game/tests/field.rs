@@ -223,6 +223,10 @@ impl LegacyEventHost for Host {
         Ok(false)
     }
 
+    fn actor_jump_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
+        Ok(false)
+    }
+
     fn read_random_u8(&mut self) -> Result<u8, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,
