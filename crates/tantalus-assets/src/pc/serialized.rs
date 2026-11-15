@@ -79,6 +79,9 @@ impl<'a> SerializedFile<'a> {
         let mut types = Vec::with_capacity(type_count);
         for _ in 0..type_count {
             let class_id = cursor.i32(source)?;
+            if class_id < 0 {
+                cursor.skip(16, source)?;
+            }
             cursor.skip(16, source)?;
             let mut tree_nodes = 0;
             if type_trees_embedded {
@@ -141,7 +144,11 @@ impl<'a> SerializedFile<'a> {
             });
         }
         let script_count = cursor.count(source, 100_000, "script")?;
-        cursor.skip(script_count * 8, source)?;
+        for _ in 0..script_count {
+            cursor.i32(source)?;
+            cursor.align(4, source)?;
+            cursor.i64(source)?;
+        }
         let external_count = cursor.count(source, 4_096, "external reference")?;
         let mut external_paths = Vec::with_capacity(external_count);
         for _ in 0..external_count {

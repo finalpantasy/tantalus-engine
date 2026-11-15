@@ -9,6 +9,10 @@ fn le(bytes: &mut Vec<u8>, value: i32) {
 }
 
 fn fixture(type_tree: bool) -> Vec<u8> {
+    fixture_class(type_tree, 49)
+}
+
+fn fixture_class(type_tree: bool, class_id: i32) -> Vec<u8> {
     let mut bytes = Vec::new();
     be(&mut bytes, 0);
     be(&mut bytes, 0);
@@ -19,7 +23,10 @@ fn fixture(type_tree: bool) -> Vec<u8> {
     le(&mut bytes, 5);
     bytes.push(u8::from(type_tree));
     le(&mut bytes, 1);
-    le(&mut bytes, 49);
+    le(&mut bytes, class_id);
+    if class_id < 0 {
+        bytes.extend_from_slice(&[0; 16]);
+    }
     bytes.extend_from_slice(&[0; 16]);
     if type_tree {
         le(&mut bytes, 1);
@@ -33,7 +40,7 @@ fn fixture(type_tree: bool) -> Vec<u8> {
     bytes.extend_from_slice(&7_i64.to_le_bytes());
     le(&mut bytes, 0);
     le(&mut bytes, 4);
-    le(&mut bytes, 49);
+    le(&mut bytes, class_id);
     bytes.extend_from_slice(&49_u16.to_le_bytes());
     bytes.extend_from_slice(&0_i16.to_le_bytes());
     bytes.push(0);
@@ -85,4 +92,13 @@ fn unsupported_version_truncation_and_unknown_types_fail() {
         .unwrap();
     bytes[position..position + 4].copy_from_slice(&50_i32.to_le_bytes());
     assert!(SerializedFile::parse(&bytes, "unknown type").is_err());
+}
+
+#[test]
+fn negative_class_ids_include_the_script_hash_before_the_old_type_hash() {
+    let bytes = fixture_class(false, -2);
+    let file = SerializedFile::parse(&bytes, "negative-class").unwrap();
+    assert_eq!(file.report().types[0].class_id, -2);
+    assert_eq!(file.report().objects.len(), 1);
+    assert_eq!(file.object_data(0).unwrap(), b"test");
 }

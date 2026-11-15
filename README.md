@@ -51,6 +51,7 @@ The current source includes:
 - A pinned Memoria reference baseline with 22 initial capability groups and 204 configuration bindings.
 - A Bevy 0.19.1 client driven by renderer-independent scene snapshots.
 - A source-backed original-event VM subset and deterministic field scheduler.
+- Real `.eb` event archive parsing with localized candidate reporting, independent hash verification, and explicit VM decode coverage.
 - Optional per-tick diagnostics with verification-on-request instead of mandatory normal-play hashing.
 - A synthetic battle engine with multi-hit actions, semantic effects/audio, interruption, and exactly-once rewards.
 - Classic, current-scene, and prepared-arena encounter lifecycle contracts with readiness, cancellation, and outcome ownership.

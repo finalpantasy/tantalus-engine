@@ -152,6 +152,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut json = false;
     let mut objects = false;
     let mut text_asset = None;
+    let mut event = None;
     let mut texture = None;
     let mut texture_id = None;
     let mut rgba_output = None;
@@ -179,6 +180,16 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     .ok_or_else(|| "`--text-asset` requires a UTF-8 asset name".to_owned())?;
                 if text_asset.replace(value.to_owned()).is_some() {
                     return Err("`--text-asset` may only be supplied once".to_owned());
+                }
+            }
+            Some("--event") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--event` requires a UTF-8 asset name".to_owned())?;
+                if event.replace(value.to_owned()).is_some() {
+                    return Err("`--event` may only be supplied once".to_owned());
                 }
             }
             Some("--texture-id") => {
@@ -266,6 +277,78 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let path = path.ok_or_else(|| "missing required `--path <path>`".to_owned())?;
     let bundle = tantalus_assets::pc::unity_raw::UnityRawBundle::open(&path)
         .map_err(|error| error.to_string())?;
+    if let Some(name) = event {
+        let bytes = bundle
+            .read_entry(0, 300 * 1024 * 1024)
+            .map_err(|error| error.to_string())?;
+        let serialized =
+            tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
+                .map_err(|error| error.to_string())?;
+        let mut candidates = Vec::new();
+        for (index, object) in serialized.report().objects.iter().enumerate() {
+            if object.class_id != 49 {
+                continue;
+            }
+            let asset = tantalus_assets::pc::text_asset::TextAsset::parse(
+                serialized
+                    .object_data(index)
+                    .map_err(|error| error.to_string())?,
+                &name,
+            )
+            .map_err(|error| error.to_string())?;
+            if asset.name != name {
+                continue;
+            }
+            let binary = tantalus_legacy::EventBinary::parse(&asset.script)
+                .map_err(|error| format!("{}: {error}", object.path_id))?;
+            let mut digest = Sha256::new();
+            let mut script_bytes = 0_usize;
+            for entry in &binary.entries {
+                let script = binary
+                    .entry_bytes(entry.index)
+                    .expect("validated event entry");
+                script_bytes += script.len();
+                digest.update(script);
+            }
+            let mut decoded_entries = 0_usize;
+            let mut first_decode_error = None;
+            for entry in &binary.entries {
+                match binary.decode_entry(entry.index) {
+                    Ok(_) => decoded_entries += 1,
+                    Err(error) if first_decode_error.is_none() => {
+                        first_decode_error = Some(serde_json::json!({
+                            "entry": entry.index,
+                            "kind": format!("{:?}", error.kind),
+                            "offset": error.offset,
+                            "opcode": error.opcode,
+                            "message": error.message,
+                        }));
+                    }
+                    Err(_) => {}
+                }
+            }
+            candidates.push(serde_json::json!({
+                "path_id": object.path_id,
+                "asset_bytes": asset.script.len(),
+                "version": binary.version,
+                "entries": binary.entries.len(),
+                "decoded_entries": decoded_entries,
+                "first_decode_error": first_decode_error,
+                "script_bytes": script_bytes,
+                "script_sha256": format!("{:x}", digest.finalize()),
+            }));
+        }
+        if candidates.is_empty() {
+            return Err(format!("event asset `{name}` was not found"));
+        }
+        let report = serde_json::json!({"name": name, "candidates": candidates});
+        if json {
+            println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        } else {
+            println!("{name}: {} event binaries", candidates.len());
+        }
+        return Ok(());
+    }
     if let Some(field) = atlas_for {
         let bytes = bundle
             .read_entry(0, 300 * 1024 * 1024)
@@ -710,11 +793,11 @@ fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--event <name>] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--event <name>] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }

@@ -1,0 +1,34 @@
+{
+  "field": "FBG_N00_TSHP_MAP001_TH_CGR_0",
+  "event_id": 51,
+  "event_name": "EVT_ALEX1_TS_CARGO_3",
+  "asset_name": "EVT_ALEX1_TS_CARGO_3.eb",
+  "source_bundle": "StreamingAssets/p0data7.bin",
+  "source_bundle_sha256": "1404f0244bf069acb0cab059684c9603589ba9ae070222447b644f9150ca9690",
+  "serialized_format": 15,
+  "serialized_types": 11,
+  "serialized_objects": 11556,
+  "layout_corrections": [
+    "negative class IDs include an additional 16-byte script hash",
+    "script references align to four bytes before their 64-bit identifier"
+  ],
+  "format": "EV version 2; 128-byte header; eight-byte entries with offsets relative to byte 128",
+  "candidate_count": 7,
+  "selected_candidate": {
+    "path_id": -6802362953403846455,
+    "asset_bytes": 10924,
+    "entries": 22,
+    "script_bytes": 10620,
+    "script_sha256": "c6033b9d6da5043468ae416074644cf64002e86d1c40be8f80cc16891579f16e",
+    "reference_match": "UnityPy 1.25.0 independently reproduces the entry count, byte count, and concatenated script SHA-256"
+  },
+  "decoded_entries_per_candidate": 4,
+  "next_decode_boundary": {
+    "entry": 0,
+    "offset": 39,
+    "opcode": "0x08",
+    "kind": "unsupported expression operation"
+  },
+  "event_execution": "NOT_RUN",
+  "payload_redistributed": false
+}

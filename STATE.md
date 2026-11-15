@@ -18,7 +18,7 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 - `T03` — Verified for deterministic simulation, replay, readiness barriers, clocks, and traces. Evidence: `tasks/T03.md`.
 - `T04` — Importer/cache plus bounded real UnityRaw objects, TextAssets, DXT5 textures, AssetBundle atlas associations, BGI, and BGS verified; full dependency closure and real field presentation remain Building. Evidence: `tasks/T04.md` and `audit/real-field-route.md`.
 - `T05` — Synthetic 2D/3D and coherent real selected-camera field capture verified; original-reference comparison remains open. Evidence: `tasks/T05.md`.
-- `T06` — Event VM, field scheduling, and BGI navigation foundation verified; real field event execution remains pending. Evidence: `tasks/T06.md`.
+- `T06` — Event VM, field scheduling, BGI navigation, and real `.eb` archive parsing verified; real event execution and full opcode coverage remain pending. Evidence: `tasks/T06.md` and `audit/event-binary.json`.
 - `T07` — Verified for additive packages, world actors, encounter ownership, persistence, and respawn. Evidence: `tasks/T07.md`.
 - `T08` — Synthetic battle/action/effect/reward foundation verified; real original ability compatibility remains pending. Evidence: `tasks/T08.md`.
 - `T09` — Synthetic encounter lifecycle, mapping, cancellation, and presentation-command foundation verified; real visual/camera integration remains pending. Evidence: `tasks/T09.md`.
@@ -32,4 +32,4 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 
 ## Next dependencies
 
-Decode and execute the real field's event archive, connect interactions and encounters, then integrate the original battle route, rewards, and native save/reload into T12. Compare the coherent field render against an original reference. Real gameplay and visual parity remain unverified. T11 component bindings and multi-provider/migration orchestration remain later maturity work. T10 base-save AES/schema decoding and real-save round trips remain open.
+Expand the real event VM beyond expression opcode `0x08`, execute the selected field's actual entries, and connect interactions and encounters; then integrate the original battle route, rewards, and native save/reload into T12. Compare the coherent field render against an original reference. Real gameplay and visual parity remain unverified. T11 component bindings and multi-provider/migration orchestration remain later maturity work. T10 base-save AES/schema decoding and real-save round trips remain open.
