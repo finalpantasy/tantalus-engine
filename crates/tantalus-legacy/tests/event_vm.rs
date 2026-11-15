@@ -119,6 +119,7 @@ impl LegacyEventHost for Host {
                 HostEvent::DeleteObject { .. } => {}
                 HostEvent::SetActorPosition { .. } => {}
                 HostEvent::SetIdleAnimation { .. } => {}
+                HostEvent::SetWalkAnimation { .. } => {}
                 HostEvent::SetActorFacing { .. } => {}
                 HostEvent::AimAtCamera => {}
                 HostEvent::DefinePlayerControl { .. } => {}
@@ -465,6 +466,40 @@ fn aidle_sets_actor_idle_animation_from_wide_operand() {
     );
 
     let mut vm = EventVm::new(decode_program(&[51, 0, 1, 0, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
+}
+
+#[test]
+fn awalk_sets_actor_walk_animation_from_wide_operand() {
+    let program = decode_program(&[52, 0, 0x34, 0x12, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetWalkAnimation {
+            actor: EntityId::new(42),
+            animation: 0x1234
+        }]
+    );
+
+    let mut bytes = vec![52, 1];
+    append_expression(&mut bytes, constant(300));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetWalkAnimation {
+            actor: EntityId::new(42),
+            animation: 300
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[52, 0, 1, 0, 4]).unwrap());
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));

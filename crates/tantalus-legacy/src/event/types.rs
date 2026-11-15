@@ -113,6 +113,7 @@ pub enum InstructionKind {
         z: Expression,
     },
     SetIdleAnimation(Expression),
+    SetWalkAnimation(Expression),
     SetActorFacing(Expression),
     Return,
     Wait(Expression),
@@ -304,6 +305,10 @@ pub enum HostEvent {
         position: [i32; 3],
     },
     SetIdleAnimation {
+        actor: EntityId,
+        animation: u16,
+    },
+    SetWalkAnimation {
         actor: EntityId,
         animation: u16,
     },

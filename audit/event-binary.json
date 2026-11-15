@@ -103,7 +103,8 @@
     "MODEL 0x2F emits actor-bound SetActorModel with a wide model ID and -4x eye-height operand",
     "POS 0x1D emits current-actor X/Z positioning with default Y 32768",
     "DIRE 0x36 emits actor-facing angles with wrapping shift-by-four fixed-point conversion",
-    "AIDLE 0x33 emits actor-bound SetIdleAnimation with wide immediate/expression IDs"
+    "AIDLE 0x33 emits actor-bound SetIdleAnimation with wide immediate/expression IDs",
+    "AWALK 0x34 emits actor-bound SetWalkAnimation with wide immediate/expression IDs"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -128,10 +129,10 @@
     "entry": 6,
     "function": 0,
     "function_tag": 0,
-    "offset": 56,
-    "opcode": 52,
+    "offset": 60,
+    "opcode": 53,
     "kind": "UnsupportedOpcode",
-    "instruction": "AWALK after idle-animation support; entries 4 and 5 omit BSFLOOR's argument flag"
+    "instruction": "ARUN after walk-animation support; entries 4 and 5 omit BSFLOOR's argument flag"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

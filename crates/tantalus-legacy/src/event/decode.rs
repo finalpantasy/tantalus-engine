@@ -12,6 +12,7 @@ const OP_JUMP_SWITCH: u32 = 0x0b;
 const OP_DELETE_OBJECT: u32 = 0x1c;
 const OP_SET_ACTOR_POSITION: u32 = 0x1d;
 const OP_SET_IDLE_ANIMATION: u32 = 0x33;
+const OP_SET_WALK_ANIMATION: u32 = 0x34;
 const OP_SET_ACTOR_FACING: u32 = 0x36;
 const OP_EVALUATE: u32 = 0x05;
 const OP_WINDOW_SYNC: u32 = 0x1f;
@@ -145,6 +146,18 @@ impl Decoder<'_> {
                     x: argument(1)?,
                     z: argument(2)?,
                 }
+            }
+            OP_SET_WALK_ANIMATION => {
+                let flags = self.byte()?;
+                let animation = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.i16()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::SetWalkAnimation(animation)
             }
             OP_SET_IDLE_ANIMATION => {
                 let flags = self.byte()?;
