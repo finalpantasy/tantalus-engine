@@ -1388,6 +1388,43 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::PreIncrementMembers => {
+                    if stack.len() < 2 {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "member pre-increment requires mask and target inputs",
+                        ));
+                    }
+                    let Some(StackTarget::Member(member)) = stack[stack.len() - 1].target else {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "member pre-increment target is not a selected member",
+                        ));
+                    };
+                    let mask = read_value(host, stack[stack.len() - 2], offset, opcode)?;
+                    let mut result = 0;
+                    for slot in 0..8 {
+                        if mask & (1 << slot) != 0 {
+                            let object = host
+                                .select_object_member_target(Some(slot))
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            let reference = ObjectMemberRef { object, member };
+                            let current = host
+                                .read_object_member(reference)
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            result = current.wrapping_add(1);
+                            host.write_object_member(reference, result)
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                        }
+                    }
+                    stack.truncate(stack.len() - 2);
+                    stack.push(StackValue {
+                        value: result,
+                        target: None,
+                    });
+                }
                 ExpressionOp::PostDecrementMembers => {
                     if stack.len() < 2 {
                         return Err(expression_error(
@@ -1707,6 +1744,7 @@ fn operand_start(
         | ExpressionOp::SubtractAssign
         | ExpressionOp::PostIncrementMembers
         | ExpressionOp::PostDecrementMembers
+        | ExpressionOp::PreIncrementMembers
         | ExpressionOp::PreDecrementMembers
         | ExpressionOp::AssignMembers
         | ExpressionOp::NotMembers

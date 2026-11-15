@@ -116,7 +116,8 @@
     "PRINTQUAD 0x78 consumes its flag and continues through the reference's no-side-effect path",
     "B_XOR_LET_A 65 writes every selected member and returns the last value, or zero for an empty mask",
     "B_MINUS_LET 51 subtracts, writes a variable/current-member target, and returns the normalized result",
-    "B_KEYON2 90 consumes its operand and pushes zero through the reference compatibility path"
+    "B_KEYON2 90 consumes its operand and pushes zero through the reference compatibility path",
+    "B_PRE_PLUS_A 10 increments and writes every selected member and returns the last new value; empty masks return zero without host access"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -141,11 +142,11 @@
     "entry": 6,
     "function": 1,
     "function_tag": 1,
-    "offset": 170,
-    "expression_offset": 69,
-    "opcode": 10,
+    "offset": 182,
+    "expression_offset": 100,
+    "opcode": 31,
     "kind": "UnsupportedOpcode",
-    "instruction": "B_PRE_PLUS_A after consume-and-zero support"
+    "instruction": "unsupported expression operation after all-selected-member pre-increment support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

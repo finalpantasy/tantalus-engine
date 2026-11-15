@@ -764,6 +764,7 @@ impl Decoder<'_> {
                 6 => ExpressionOp::PreIncrement,
                 7 => ExpressionOp::PreDecrement,
                 9 => ExpressionOp::PostDecrementMembers,
+                10 => ExpressionOp::PreIncrementMembers,
                 11 => ExpressionOp::PreDecrementMembers,
                 15 => ExpressionOp::NotMembers,
                 16 => ExpressionOp::Complement,

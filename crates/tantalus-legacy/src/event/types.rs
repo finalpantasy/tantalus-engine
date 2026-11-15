@@ -58,6 +58,7 @@ pub enum ExpressionOp {
     SubtractAssign,
     PostIncrementMembers,
     PostDecrementMembers,
+    PreIncrementMembers,
     PreDecrementMembers,
     PreIncrement,
     PreDecrement,
