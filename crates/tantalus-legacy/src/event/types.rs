@@ -49,6 +49,9 @@ pub enum ExpressionOp {
     Equal,
     NotEqual,
     Assign,
+    PostIncrementMembers,
+    PostDecrement,
+    Pad,
     End,
 }
 
@@ -88,6 +91,8 @@ pub enum InstructionKind {
         x: Expression,
         z: Expression,
     },
+    AimAtCamera,
+    DefinePlayerControl,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -136,6 +141,7 @@ pub enum HostEvent {
     ShowWindow { window: u8, flags: u8, text: u16 },
     CloseWindow { window: u8 },
     MoveActor { actor: EntityId, x: i32, z: i32 },
+    AimAtCamera,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

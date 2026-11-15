@@ -199,6 +199,18 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::CloseWindow { window });
                 }
+                InstructionKind::DefinePlayerControl => {
+                    return Err(VmError::new(
+                        VmErrorKind::Host,
+                        instruction.offset,
+                        Some(opcode),
+                        "player control requires current actor context",
+                    ));
+                }
+                InstructionKind::AimAtCamera => {
+                    self.pc = next;
+                    events.push(HostEvent::AimAtCamera);
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(&actor, instruction.offset, opcode)?;
                     let x = self.evaluate(&x, instruction.offset, opcode)?;
@@ -330,6 +342,36 @@ impl EventVm {
                         variable: None,
                     });
                 }
+                ExpressionOp::PostDecrement => {
+                    let target = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing post-decrement target")
+                    })?;
+                    let Some(variable) = target.variable else {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "post-decrement target is not a variable",
+                        ));
+                    };
+                    let decremented = normalize(target.value.wrapping_sub(1), variable.value_type);
+                    self.variables
+                        .insert((variable.scope, variable.index), decremented);
+                    stack.push(StackValue {
+                        value: target.value,
+                        variable: None,
+                    });
+                }
+                ExpressionOp::Pad => stack.push(StackValue {
+                    value: 0,
+                    variable: None,
+                }),
+                ExpressionOp::PostIncrementMembers => {
+                    return Err(expression_error(
+                        offset,
+                        opcode,
+                        "object-member post-increment requires the object-member host",
+                    ));
+                }
                 ExpressionOp::End => break,
             }
         }
@@ -412,6 +454,8 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::Wait(_) => 0x22,
         InstructionKind::WaitWindow(_) => 0x54,
         InstructionKind::MoveActor { .. } => 0xbf,
+        InstructionKind::AimAtCamera => 0xb8,
+        InstructionKind::DefinePlayerControl => 0x2c,
     }
 }
 

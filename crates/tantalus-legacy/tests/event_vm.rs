@@ -102,6 +102,7 @@ impl LegacyEventHost for Host {
                 HostEvent::MoveActor { actor, x, z } => {
                     self.movements.push((actor.get(), *x, *z));
                 }
+                HostEvent::AimAtCamera => {}
             }
         }
         Ok(())
@@ -301,4 +302,67 @@ fn nop_yields_before_the_remaining_program() {
         vm.step(Tick::new(1), &mut host).unwrap().status,
         VmStatus::Completed
     );
+}
+
+#[test]
+fn member_post_increment_decodes_but_requires_an_object_member_host() {
+    let program = decode_program(&evaluate(vec![8])).unwrap();
+    let InstructionKind::Evaluate(expression) = &program.instructions[&0].kind else {
+        panic!("expected expression");
+    };
+    assert!(matches!(
+        expression.0.as_slice(),
+        [ExpressionOp::PostIncrementMembers, ExpressionOp::End]
+    ));
+
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::InvalidExpression);
+    assert!(error.message.contains("object-member host"));
+}
+
+#[test]
+fn expression_padding_produces_zero() {
+    for opcode in 0..=3 {
+        let program = decode_program(&[evaluate(vec![opcode]), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+        vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(vm.status(), VmStatus::Completed);
+    }
+}
+
+#[test]
+fn direct_post_decrement_writes_back_the_normalized_value() {
+    let target = variable(VariableScope::Map, VariableType::Int16, 7);
+    let program =
+        decode_program(&[evaluate([target, vec![5]].concat()), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.status(), VmStatus::Completed);
+    assert_eq!(vm.variable(VariableScope::Map, 7), -1);
+}
+
+#[test]
+fn aim_instruction_consumes_its_flag_and_defers_to_the_host() {
+    let program = decode_program(&[0xb8, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 2);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::AimAtCamera]);
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn player_control_instruction_requires_actor_context() {
+    let program = decode_program(&[0x2c, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 2);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
 }

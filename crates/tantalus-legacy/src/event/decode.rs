@@ -13,7 +13,10 @@ const OP_CLOSE_WINDOW: u8 = 0x21;
 const OP_WAIT: u8 = 0x22;
 const OP_WAIT_WINDOW: u8 = 0x54;
 const OP_MOVE_ACTOR: u8 = 0xbf;
+const OP_AIM_AT_CAMERA: u8 = 0xb8;
+const OP_DEFINE_PLAYER_CONTROL: u8 = 0x2c;
 
+const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
 const EXPR_NOT: u8 = 14;
 const EXPR_MULTIPLY: u8 = 17;
@@ -104,6 +107,14 @@ impl Decoder<'_> {
                     z: self.expression()?,
                 }
             }
+            OP_AIM_AT_CAMERA => {
+                self.byte()?;
+                InstructionKind::AimAtCamera
+            }
+            OP_DEFINE_PLAYER_CONTROL => {
+                self.byte()?;
+                InstructionKind::DefinePlayerControl
+            }
             _ => {
                 return Err(VmError::new(
                     VmErrorKind::UnsupportedOpcode,
@@ -127,8 +138,11 @@ impl Decoder<'_> {
             let opcode_position = self.position as u32;
             let opcode = self.byte()?;
             let operation = match opcode {
+                0..=3 => ExpressionOp::Pad,
+                5 => ExpressionOp::PostDecrement,
                 EXPR_CONST_I16 => ExpressionOp::Constant(i32::from(self.i16()?)),
                 EXPR_CONST_I32 => ExpressionOp::Constant(self.i32()?),
+                EXPR_POST_INCREMENT_MEMBERS => ExpressionOp::PostIncrementMembers,
                 EXPR_NEGATE => ExpressionOp::Negate,
                 EXPR_NOT => ExpressionOp::Not,
                 EXPR_ADD => ExpressionOp::Add,

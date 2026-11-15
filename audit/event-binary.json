@@ -23,11 +23,18 @@
     "reference_match": "UnityPy 1.25.0 independently reproduces the entry count, byte count, and concatenated script SHA-256"
   },
   "decoded_entries_per_candidate": 4,
+  "supported_followup": [
+    "member post-increment 0x08 decoded; execution requires object-member host",
+    "padding 0x00 through 0x03 produce zero",
+    "direct post-decrement 0x05 writes the normalized value back",
+    "AIM 0xB8 emits a host event",
+    "CC 0x2C decoded; execution requires actor context"
+  ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 39,
-    "opcode": "0x08",
-    "kind": "unsupported expression operation"
+    "offset": 77,
+    "opcode": "0x3B",
+    "kind": "member shift-right assignment requires object-member host support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
