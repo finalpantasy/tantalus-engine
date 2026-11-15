@@ -148,6 +148,8 @@ impl LegacyEventHost for Host {
                 }
                 HostEvent::AddItem { .. } => {}
                 HostEvent::RemoveItem { .. } => {}
+                HostEvent::AddGil { .. } => {}
+                HostEvent::RemoveGil { .. } => {}
                 HostEvent::WalkActor { .. } => {}
                 HostEvent::MoveActorToExit { .. } => {}
                 HostEvent::DeleteObject { .. } => {}
@@ -4834,6 +4836,44 @@ fn itemdelete_decodes_item_and_count_operands() {
     let truncated = decode_program(&[73, 0, 1, 0]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(73)"));
+}
+
+#[test]
+fn gil_commands_decode_unsigned_amounts_and_leave_clamping_to_the_host() {
+    // `getv3u`: bit 1 clear reads an unsigned 24-bit immediate (no sign extension).
+    let mut host = Host::new();
+    for (opcode, expected) in [
+        (0xce_u8, HostEvent::AddGil { amount: 1_000_000 }),
+        (0xcf_u8, HostEvent::RemoveGil { amount: 1_000_000 }),
+    ] {
+        let program = decode_program(&[opcode, 0, 0x40, 0x42, 0x0f, 4]).unwrap();
+        assert_eq!(program.instructions[&0].length, 5);
+        let mut vm = EventVm::new(program);
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(report.events, [expected]);
+        assert!(
+            vm.traces()
+                .any(|trace| trace.opcode == Some(u32::from(opcode)))
+        );
+        assert_eq!(report.status, VmStatus::Completed);
+    }
+    let mut vm = EventVm::new(decode_program(&[0xce, 0, 0xff, 0xff, 0xff, 4]).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::AddGil { amount: 0xff_ffff }]);
+
+    // Expression operand: the value is reinterpreted as unsigned like `(UInt32)getv()`.
+    let mut bytes = vec![0xcf, 1];
+    append_expression(&mut bytes, constant(-1));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::RemoveGil { amount: u32::MAX }]);
+
+    for truncated in [&[0xce_u8, 0, 1, 2][..], &[0xcf, 1, 0xff][..]] {
+        let error = decode_program(truncated).unwrap_err();
+        assert_eq!(error.kind, VmErrorKind::Decode);
+        assert!(error.message.contains("opcode Some(20"));
+    }
 }
 
 #[test]

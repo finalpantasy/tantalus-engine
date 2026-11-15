@@ -219,6 +219,8 @@ pub enum InstructionKind {
         item: Expression,
         count: Expression,
     },
+    AddGil(Expression),
+    RemoveGil(Expression),
     WalkActor {
         x: Expression,
         z: Expression,
@@ -545,6 +547,14 @@ pub enum HostEvent {
     RemoveItem {
         item: i32,
         count: i32,
+    },
+    /// Raw unsigned amount; the host clamps to 9,999,999 gil.
+    AddGil {
+        amount: u32,
+    },
+    /// Raw unsigned amount; the host clamps underflow to zero and owns achievement side effects.
+    RemoveGil {
+        amount: u32,
     },
     WalkActor {
         actor: EntityId,

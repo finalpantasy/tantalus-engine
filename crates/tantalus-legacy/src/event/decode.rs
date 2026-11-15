@@ -98,6 +98,8 @@ const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
 const OP_SET_TILE_ANIMATION_FRAME_WAIT: u32 = 0x62;
 const OP_ADD_ITEM: u32 = 0x48;
 const OP_REMOVE_ITEM: u32 = 0x49;
+const OP_ADD_GIL: u32 = 0xce;
+const OP_REMOVE_GIL: u32 = 0xcf;
 const OP_INCREMENT_FROG_COUNT: u32 = 0xe0;
 const OP_SET_TILE_ANIMATION_FLAGS: u32 = 0x63;
 const OP_SET_TILE_ANIMATION_RANGE: u32 = 0x64;
@@ -941,6 +943,21 @@ impl Decoder<'_> {
                 InstructionKind::RemoveItem {
                     item: argument(1, true)?,
                     count: argument(2, false)?,
+                }
+            }
+            OP_ADD_GIL | OP_REMOVE_GIL => {
+                // `getv3u`: one flag byte; bit 1 selects an expression, else an unsigned 24-bit constant.
+                let flags = self.byte()?;
+                let amount = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    let value = i32::from_le_bytes([self.byte()?, self.byte()?, self.byte()?, 0]);
+                    Expression(vec![ExpressionOp::Constant(value), ExpressionOp::End])
+                };
+                if opcode == OP_ADD_GIL {
+                    InstructionKind::AddGil(amount)
+                } else {
+                    InstructionKind::RemoveGil(amount)
                 }
             }
             OP_SET_RAIN => {
