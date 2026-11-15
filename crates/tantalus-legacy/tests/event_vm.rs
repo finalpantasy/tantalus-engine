@@ -161,6 +161,16 @@ impl LegacyEventHost for Host {
         Ok(())
     }
 
+    fn read_system_variable(&mut self, variable: u8) -> Result<i32, EngineError> {
+        if variable == 5 {
+            Ok(77)
+        } else {
+            Err(Self::target_error(format!(
+                "unknown system variable {variable}"
+            )))
+        }
+    }
+
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError> {
         if variable == 0 {
             Ok(17)
@@ -895,4 +905,21 @@ fn empty_member_equality_returns_zero_without_selecting_a_target() {
     assert_eq!(vm.variable(VariableScope::Global, 26), 0);
     assert_eq!(host.member_target, None);
     assert!(host.member_writes.is_empty());
+}
+
+#[test]
+fn system_variables_read_by_serialized_id_and_reject_unknown_ids() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 27);
+    let program =
+        decode_program(&[evaluate(assign(result, vec![122, 5])), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 27), 77);
+
+    let program = decode_program(&evaluate(vec![122, 6])).unwrap();
+    let mut vm = EventVm::new(program);
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("unknown system variable 6"));
 }

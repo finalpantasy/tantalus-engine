@@ -69,6 +69,15 @@ impl LegacyEventHost for Host {
         ))
     }
 
+    fn read_system_variable(&mut self, variable: u8) -> Result<i32, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            format!("field fixture has no system variable {variable}"),
+            "fixture-host",
+            true,
+        ))
+    }
+
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,

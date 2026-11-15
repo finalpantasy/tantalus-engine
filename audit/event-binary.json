@@ -50,14 +50,15 @@
     "B_NOT_E 15 returns a selected-member zero bitmask without writes; empty masks return zero without target selection",
     "B_PRE_PLUS 6 writes and returns the incremented variable or current member value",
     "B_COMP 16 applies a wrapping 32-bit bitwise complement",
-    "B_EQ_E 34 returns selected-member equality flags without writes; empty masks return zero without target selection"
+    "B_EQ_E 34 returns selected-member equality flags without writes; empty masks return zero without target selection",
+    "B_SYSVAR 122 reads the serialized system-variable ID through the host and reports unknown IDs"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 328,
-    "opcode": "0x7A",
-    "instruction": "B_SYSVAR",
-    "expression_start": 297
+    "offset": 357,
+    "opcode": "0x09",
+    "kind": "event",
+    "instruction": "NEW3"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

@@ -194,6 +194,7 @@ impl Decoder<'_> {
                     object: EntityId::new(self.byte()? as u64),
                     member: self.byte()?,
                 }),
+                122 => ExpressionOp::SystemVariable(self.byte()?),
                 EXPR_END => {
                     operations.push(ExpressionOp::End);
                     break;

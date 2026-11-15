@@ -59,6 +59,7 @@ pub enum ExpressionOp {
     PostDecrement,
     ReadObjectMember(ObjectMemberRef),
     Member(u8),
+    SystemVariable(u8),
     CustomVariable(u16),
     CastI8,
     CastU8,
@@ -264,5 +265,6 @@ pub trait LegacyEventHost {
         reference: ObjectMemberRef,
         value: i32,
     ) -> Result<(), EngineError>;
+    fn read_system_variable(&mut self, variable: u8) -> Result<i32, EngineError>;
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError>;
 }

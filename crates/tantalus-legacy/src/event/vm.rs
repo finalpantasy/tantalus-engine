@@ -500,6 +500,15 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::SystemVariable(variable) => {
+                    let value = host
+                        .read_system_variable(*variable)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    stack.push(StackValue {
+                        value,
+                        target: None,
+                    });
+                }
                 ExpressionOp::CustomVariable(variable) => {
                     let value = host
                         .read_custom_variable(*variable)
@@ -903,6 +912,7 @@ fn operand_start(
         | ExpressionOp::Variable(_)
         | ExpressionOp::ReadObjectMember(_)
         | ExpressionOp::Member(_)
+        | ExpressionOp::SystemVariable(_)
         | ExpressionOp::CustomVariable(_)
         | ExpressionOp::Pad => Ok(index),
         ExpressionOp::Negate
