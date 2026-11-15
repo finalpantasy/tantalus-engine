@@ -33,13 +33,15 @@
     "0x3B executes empty member selections with reference stack cleanup; nonzero masks remain explicit errors",
     "expression evaluation returns the top value and permits reference-compatible leftover stack values",
     "logical AND 0x27 and OR 0x28 use postfix ranges to skip right-side effects correctly",
-    "member post-increment 0x08 and pre-decrement 0x0B execute empty selections with two-input stack cleanup"
+    "member post-increment 0x08 and pre-decrement 0x0B execute empty selections with two-input stack cleanup",
+    "TWIST 0x67 emits signed digital and analog control angles",
+    "direct pre-decrement 0x07 returns and stores the new normalized value"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 219,
-    "opcode": "0x67",
-    "instruction": "TWIST"
+    "offset": 232,
+    "opcode": "0xE3",
+    "kind": "null/custom variable source requires an explicit variable mapping"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

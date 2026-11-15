@@ -206,6 +206,12 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::CloseWindow { window });
                 }
+                InstructionKind::SetControlDirection { arrow, analog } => {
+                    let arrow = self.evaluate(host, &arrow, instruction.offset, opcode)? as i16;
+                    let analog = self.evaluate(host, &analog, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::SetControlDirection { arrow, analog });
+                }
                 InstructionKind::DefinePlayerControl => {
                     let Some(entity) = self.entity else {
                         return Err(VmError::new(
@@ -388,6 +394,25 @@ impl EventVm {
                         variable: None,
                     });
                 }
+                ExpressionOp::PreDecrement => {
+                    let target = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing pre-decrement target")
+                    })?;
+                    let Some(variable) = target.variable else {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "pre-decrement target is not a variable",
+                        ));
+                    };
+                    let decremented = normalize(target.value.wrapping_sub(1), variable.value_type);
+                    self.variables
+                        .insert((variable.scope, variable.index), decremented);
+                    stack.push(StackValue {
+                        value: decremented,
+                        variable: None,
+                    });
+                }
                 ExpressionOp::PostDecrement => {
                     let target = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing post-decrement target")
@@ -543,6 +568,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::MoveActor { .. } => 0xbf,
         InstructionKind::AimAtCamera => 0xb8,
         InstructionKind::DefinePlayerControl => 0x2c,
+        InstructionKind::SetControlDirection { .. } => 0x67,
     }
 }
 
@@ -634,6 +660,7 @@ fn operand_start(
         | ExpressionOp::Pad => Ok(index),
         ExpressionOp::Negate
         | ExpressionOp::Not
+        | ExpressionOp::PreDecrement
         | ExpressionOp::PostDecrement
         | ExpressionOp::PostIncrementMembers
         | ExpressionOp::PreDecrementMembers => operand_start(operations, index, offset, opcode),

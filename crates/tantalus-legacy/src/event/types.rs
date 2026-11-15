@@ -51,6 +51,7 @@ pub enum ExpressionOp {
     Assign,
     PostIncrementMembers,
     PreDecrementMembers,
+    PreDecrement,
     PostDecrement,
     ReadObjectMember(ObjectMemberRef),
     ShiftRightAssignMembers,
@@ -98,6 +99,10 @@ pub enum InstructionKind {
     },
     AimAtCamera,
     DefinePlayerControl,
+    SetControlDirection {
+        arrow: Expression,
+        analog: Expression,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -148,6 +153,7 @@ pub enum HostEvent {
     MoveActor { actor: EntityId, x: i32, z: i32 },
     AimAtCamera,
     DefinePlayerControl { actor: EntityId },
+    SetControlDirection { arrow: i16, analog: i16 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

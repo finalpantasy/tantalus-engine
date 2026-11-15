@@ -32,4 +32,4 @@ Tantalus Engine is an independent Rust-native PC FFIX runtime and creation platf
 
 ## Next dependencies
 
-Implement `TWIST` event opcode `0x67` and continue executing the selected field's actual entries, and connect interactions and encounters; then integrate the original battle route, rewards, and native save/reload into T12. Compare the coherent field render against an original reference. Real gameplay and visual parity remain unverified. T11 component bindings and multi-provider/migration orchestration remain later maturity work. T10 base-save AES/schema decoding and real-save round trips remain open.
+Map the null/custom variable encoding used by opcode `0xE3` and continue executing the selected field's actual entries, and connect interactions and encounters; then integrate the original battle route, rewards, and native save/reload into T12. Compare the coherent field render against an original reference. Real gameplay and visual parity remain unverified. T11 component bindings and multi-provider/migration orchestration remain later maturity work. T10 base-save AES/schema decoding and real-save round trips remain open.

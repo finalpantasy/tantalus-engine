@@ -16,6 +16,7 @@ const OP_WAIT_WINDOW: u8 = 0x54;
 const OP_MOVE_ACTOR: u8 = 0xbf;
 const OP_AIM_AT_CAMERA: u8 = 0xb8;
 const OP_DEFINE_PLAYER_CONTROL: u8 = 0x2c;
+const OP_SET_CONTROL_DIRECTION: u8 = 0x67;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -116,6 +117,13 @@ impl Decoder<'_> {
                 self.byte()?;
                 InstructionKind::DefinePlayerControl
             }
+            OP_SET_CONTROL_DIRECTION => {
+                self.byte()?;
+                InstructionKind::SetControlDirection {
+                    arrow: self.expression()?,
+                    analog: self.expression()?,
+                }
+            }
             _ => {
                 return Err(VmError::new(
                     VmErrorKind::UnsupportedOpcode,
@@ -141,6 +149,7 @@ impl Decoder<'_> {
             let operation = match opcode {
                 0..=3 => ExpressionOp::Pad,
                 5 => ExpressionOp::PostDecrement,
+                7 => ExpressionOp::PreDecrement,
                 11 => ExpressionOp::PreDecrementMembers,
                 59 => ExpressionOp::ShiftRightAssignMembers,
                 EXPR_CONST_I16 => ExpressionOp::Constant(i32::from(self.i16()?)),

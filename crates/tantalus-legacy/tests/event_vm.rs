@@ -104,6 +104,7 @@ impl LegacyEventHost for Host {
                 }
                 HostEvent::AimAtCamera => {}
                 HostEvent::DefinePlayerControl { .. } => {}
+                HostEvent::SetControlDirection { .. } => {}
             }
         }
         Ok(())
@@ -471,4 +472,37 @@ fn empty_member_increment_and_decrement_follow_the_reference_stack_path() {
         let error = vm.step(Tick::new(0), &mut host).unwrap_err();
         assert!(error.message.contains("object-member host"));
     }
+}
+
+#[test]
+fn twist_sets_both_control_directions() {
+    let mut bytes = vec![0x67, 0];
+    append_expression(&mut bytes, constant(90));
+    append_expression(&mut bytes, constant(-90));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetControlDirection {
+            arrow: 90,
+            analog: -90
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn direct_pre_decrement_returns_the_new_value() {
+    let target = variable(VariableScope::Map, VariableType::Int16, 8);
+    let result = variable(VariableScope::Global, VariableType::Int16, 11);
+    let expression = assign(result, [target, vec![7]].concat());
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Map, 8), -1);
+    assert_eq!(vm.variable(VariableScope::Global, 11), -1);
 }
