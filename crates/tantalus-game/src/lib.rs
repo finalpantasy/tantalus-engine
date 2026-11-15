@@ -5,6 +5,6 @@ pub mod navigation;
 pub mod world;
 
 pub use field::{
-    EntrySnapshot, FIELD_SNAPSHOT_FORMAT, FieldHost, FieldScene, FieldSnapshot, FieldWorld,
-    restore_scene, snapshot_scene,
+    DirectorStep, EntrySnapshot, FIELD_SNAPSHOT_FORMAT, FieldDirector, FieldHost, FieldScene,
+    FieldSnapshot, FieldWorld, restore_scene, snapshot_scene,
 };
