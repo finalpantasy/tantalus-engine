@@ -32,13 +32,14 @@
     "B_OBJSPECA 0x78 reads a host value by explicit object UID and member ID",
     "0x3B executes empty member selections with reference stack cleanup; nonzero masks remain explicit errors",
     "expression evaluation returns the top value and permits reference-compatible leftover stack values",
-    "logical AND 0x27 and OR 0x28 use postfix ranges to skip right-side effects correctly"
+    "logical AND 0x27 and OR 0x28 use postfix ranges to skip right-side effects correctly",
+    "member post-increment 0x08 and pre-decrement 0x0B execute empty selections with two-input stack cleanup"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 117,
-    "opcode": "0x0B",
-    "kind": "member pre-decrement requires member-selection stack support"
+    "offset": 219,
+    "opcode": "0x67",
+    "instruction": "TWIST"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

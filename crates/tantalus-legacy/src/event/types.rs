@@ -50,6 +50,7 @@ pub enum ExpressionOp {
     NotEqual,
     Assign,
     PostIncrementMembers,
+    PreDecrementMembers,
     PostDecrement,
     ReadObjectMember(ObjectMemberRef),
     ShiftRightAssignMembers,

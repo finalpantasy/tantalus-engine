@@ -442,12 +442,26 @@ impl EventVm {
                     value: 0,
                     variable: None,
                 }),
-                ExpressionOp::PostIncrementMembers => {
-                    return Err(expression_error(
-                        offset,
-                        opcode,
-                        "object-member post-increment requires the object-member host",
-                    ));
+                ExpressionOp::PostIncrementMembers | ExpressionOp::PreDecrementMembers => {
+                    if stack.len() < 2 {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "object-member operation requires selection inputs",
+                        ));
+                    }
+                    if stack[stack.len() - 2].value != 0 {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "nonzero member selections require the object-member host",
+                        ));
+                    }
+                    stack.truncate(stack.len() - 2);
+                    stack.push(StackValue {
+                        value: 0,
+                        variable: None,
+                    });
                 }
                 ExpressionOp::End => break,
             }
@@ -621,7 +635,8 @@ fn operand_start(
         ExpressionOp::Negate
         | ExpressionOp::Not
         | ExpressionOp::PostDecrement
-        | ExpressionOp::PostIncrementMembers => operand_start(operations, index, offset, opcode),
+        | ExpressionOp::PostIncrementMembers
+        | ExpressionOp::PreDecrementMembers => operand_start(operations, index, offset, opcode),
         ExpressionOp::Add
         | ExpressionOp::Subtract
         | ExpressionOp::Multiply

@@ -310,7 +310,7 @@ fn nop_yields_before_the_remaining_program() {
 }
 
 #[test]
-fn member_post_increment_decodes_but_requires_an_object_member_host() {
+fn member_post_increment_rejects_missing_selection_inputs() {
     let program = decode_program(&evaluate(vec![8])).unwrap();
     let InstructionKind::Evaluate(expression) = &program.instructions[&0].kind else {
         panic!("expected expression");
@@ -324,7 +324,7 @@ fn member_post_increment_decodes_but_requires_an_object_member_host() {
     let mut host = Host::new();
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::InvalidExpression);
-    assert!(error.message.contains("object-member host"));
+    assert!(error.message.contains("selection inputs"));
 }
 
 #[test]
@@ -453,5 +453,22 @@ fn logical_operators_skip_or_execute_right_side_effects_correctly() {
             expected_side_effect,
             "side effect for left={left} opcode={opcode}"
         );
+    }
+}
+
+#[test]
+fn empty_member_increment_and_decrement_follow_the_reference_stack_path() {
+    for opcode in [8, 11] {
+        let program = decode_program(&[evaluate(vec![0, 0, opcode, 0]), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+        vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(vm.status(), VmStatus::Completed);
+
+        let expression = [constant(1), constant(0), vec![opcode]].concat();
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+        assert!(error.message.contains("object-member host"));
     }
 }
