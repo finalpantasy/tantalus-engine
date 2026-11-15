@@ -129,6 +129,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetObjectScale { .. } => {}
                 HostEvent::SetVibrationFrameRate { .. } => {}
                 HostEvent::RequestScriptAsync { .. } => {}
+                HostEvent::DefineTileViewport { .. } => {}
             }
         }
         Ok(())
@@ -1348,6 +1349,28 @@ fn req_emits_an_async_script_request_with_level_target_and_tag() {
             level: 2,
             target: EntityId::new(7),
             tag: 11
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn bgvdefine_emits_the_complete_viewport_rectangle() {
+    let bytes = [200, 0, 2, 10, 0, 0xec, 0xff, 30, 0, 40, 0, 4];
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(
+        report.events,
+        [HostEvent::DefineTileViewport {
+            viewport: 2,
+            x: 10,
+            y: -20,
+            width: 30,
+            height: 40
         }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);

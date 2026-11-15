@@ -170,6 +170,13 @@ pub enum InstructionKind {
         target: Expression,
         tag: u8,
     },
+    DefineTileViewport {
+        viewport: Expression,
+        x: Expression,
+        y: Expression,
+        width: Expression,
+        height: Expression,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -286,6 +293,13 @@ pub enum HostEvent {
         level: i32,
         target: EntityId,
         tag: u8,
+    },
+    DefineTileViewport {
+        viewport: i32,
+        x: i16,
+        y: i16,
+        width: i16,
+        height: i16,
     },
 }
 

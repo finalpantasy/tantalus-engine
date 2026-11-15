@@ -343,6 +343,27 @@ impl EventVm {
                         tag,
                     });
                 }
+                InstructionKind::DefineTileViewport {
+                    viewport,
+                    x,
+                    y,
+                    width,
+                    height,
+                } => {
+                    let viewport = self.evaluate(host, &viewport, instruction.offset, opcode)?;
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
+                    let y = self.evaluate(host, &y, instruction.offset, opcode)? as i16;
+                    let width = self.evaluate(host, &width, instruction.offset, opcode)? as i16;
+                    let height = self.evaluate(host, &height, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::DefineTileViewport {
+                        viewport,
+                        x,
+                        y,
+                        width,
+                        height,
+                    });
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -1009,6 +1030,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::SetObjectScale { .. } => 0x9f,
         InstructionKind::SetVibrationFrameRate(_) => 0xfa,
         InstructionKind::RequestScriptAsync { .. } => 0x10,
+        InstructionKind::DefineTileViewport { .. } => 0xc8,
     }
 }
 

@@ -22,7 +22,7 @@
     "script_sha256": "c6033b9d6da5043468ae416074644cf64002e86d1c40be8f80cc16891579f16e",
     "reference_match": "UnityPy 1.25.0 independently reproduces the entry count, byte count, and concatenated script SHA-256"
   },
-  "decoded_entries_per_candidate": 4,
+  "decoded_entries_per_candidate": 5,
   "supported_followup": [
     "member post-increment 0x08 decoded; execution requires object-member host",
     "padding 0x00 through 0x03 produce zero",
@@ -69,14 +69,16 @@
     "B_LET_E 46 computes selected-member truth masks and writes the lower assignment target, including the empty-stack global-bit fallback",
     "CHRSCALE 0x9F decodes object and ratio operands, preserves signed-byte times-64 renderer scale, and carries the vertical-scale byte",
     "VIBRATE 0xFA decodes a signed frame-rate operand and emits SetVibrationFrameRate",
-    "REQ 0x10 decodes level, target, and immediate function tag and emits RequestScriptAsync"
+    "REQ 0x10 decodes level, target, and immediate function tag and emits RequestScriptAsync",
+    "BGVDEFINE 0xC8 decodes viewport ID and signed rectangle operands and emits DefineTileViewport",
+    "entry 0 decodes completely"
   ],
   "next_decode_boundary": {
-    "entry": 0,
-    "offset": 1110,
-    "opcode": "0xC8",
-    "kind": "event",
-    "instruction": "BGVDEFINE"
+    "entry": 1,
+    "offset": 10,
+    "opcode": "0x04",
+    "instruction": "B_POST_PLUS",
+    "expression_start": 2
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
