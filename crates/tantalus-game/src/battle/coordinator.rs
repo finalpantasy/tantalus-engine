@@ -4,7 +4,7 @@
 
 use super::{BattleOutcome, CombatInput, CombatRuleset, GameServices, RewardBundle};
 use crate::field::world::{EncounterRequest, FieldWorld, MAX_GIL};
-use tantalus_contracts::{EngineError, ErrorCategory};
+use tantalus_contracts::{ContentId, EngineError, ErrorCategory};
 
 #[derive(Debug, Clone)]
 pub struct ActiveEncounter {
@@ -82,10 +82,16 @@ impl EncounterCoordinator {
 /// are exactly-once per nonzero `resolution_id`: the first commit applies gil
 /// (clamped like the reference) and records the bundle; a duplicate commit is
 /// accepted and ignored so retries cannot double-apply.
+/// Maps a reward item's content identity to the legacy inventory item id
+/// used by field scripts. Runtime behavior, not world state.
+pub type ItemIdMap = std::sync::Arc<dyn Fn(&ContentId) -> Option<i32> + Send + Sync>;
+
 #[derive(Debug)]
 pub struct WorldGameServices<'a> {
     pub world: &'a mut FieldWorld,
     pub committed: Vec<RewardBundle>,
+    /// Items granted but not applied because no id mapping was available.
+    pub unmapped_items: Vec<ContentId>,
 }
 
 impl<'a> WorldGameServices<'a> {
@@ -93,7 +99,29 @@ impl<'a> WorldGameServices<'a> {
         Self {
             world,
             committed: Vec::new(),
+            unmapped_items: Vec::new(),
         }
+    }
+
+    /// Apply a reward's items to the world inventory through the legacy id
+    /// mapping. Returns the number of items applied; unmapped items are
+    /// recorded on `unmapped_items` for diagnostics.
+    pub fn apply_reward_items(&mut self, bundle: &RewardBundle) -> usize {
+        let Some(map) = self.world.item_id_map.clone() else {
+            self.unmapped_items.extend(bundle.items.iter().cloned());
+            return 0;
+        };
+        let mut applied = 0;
+        for item in &bundle.items {
+            match map(item) {
+                Some(legacy_id) => {
+                    self.world.add_item_amount(legacy_id, 1);
+                    applied += 1;
+                }
+                None => self.unmapped_items.push(item.clone()),
+            }
+        }
+        applied
     }
 }
 
@@ -112,6 +140,7 @@ impl GameServices for WorldGameServices<'_> {
         }
         self.world
             .add_gil(rewards.gil.min(u64::from(MAX_GIL)) as u32);
+        self.apply_reward_items(rewards);
         self.committed.push(rewards.clone());
         Ok(())
     }

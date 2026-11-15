@@ -93,6 +93,10 @@ pub(crate) const MAX_GIL: u32 = 9_999_999;
 /// `(disc, number)`. Behavior, not state: snapshots do not carry it.
 pub type FmvFrameCounts = std::sync::Arc<dyn Fn(i32, i32) -> Option<u32> + Send + Sync>;
 
+/// Maps a content item identity to the legacy inventory item id.
+pub type ItemIdMap =
+    std::sync::Arc<dyn Fn(&tantalus_contracts::ContentId) -> Option<i32> + Send + Sync>;
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct FieldWorld {
     pub actors: BTreeMap<EntityId, ActorState>,
@@ -182,6 +186,9 @@ pub struct FieldWorld {
     /// `(disc, number)`. Runtime-only; snapshots do not carry it.
     #[serde(skip)]
     pub fmv_frame_counts: Option<FmvFrameCounts>,
+    /// Reward-item identity to legacy inventory id mapping (runtime-only).
+    #[serde(skip)]
+    pub item_id_map: Option<ItemIdMap>,
 }
 
 impl std::fmt::Debug for FieldWorld {
@@ -297,6 +304,7 @@ impl FieldWorld {
             walk_bits: None,
             player_facing_polls: 0,
             fmv_frame_counts: None,
+            item_id_map: None,
         }
     }
 
@@ -601,6 +609,11 @@ impl FieldWorld {
     /// Record a reward resolution as applied; returns false on a duplicate.
     pub(crate) fn apply_resolution(&mut self, resolution_id: u64) -> bool {
         self.applied_resolutions.insert(resolution_id)
+    }
+
+    pub fn add_item_amount(&mut self, item: i32, amount: i32) {
+        let entry = self.items.entry(item).or_insert(0);
+        *entry = entry.saturating_add(amount).min(99);
     }
 
     pub fn add_gil(&mut self, amount: u32) {

@@ -123,3 +123,35 @@ fn field_encounter_runs_a_battle_and_commits_rewards_exactly_once() {
     assert_eq!(finished.map(|request| request.battle), Some(0x55));
     assert!(!coordinator.is_active());
 }
+
+#[test]
+fn reward_items_apply_through_the_legacy_id_mapping() {
+    let mut world = tantalus_game::FieldWorld::new();
+    world.item_id_map = Some(std::sync::Arc::new(|content: &ContentId| {
+        content
+            .to_string()
+            .strip_prefix("fixture:item/")
+            .and_then(|tail| tail.parse::<i32>().ok())
+    }));
+    let bundle = RewardBundle {
+        resolution_id: 7,
+        experience: 50,
+        gil: 20,
+        items: vec![
+            ContentId::parse("fixture:item/12").unwrap(),
+            ContentId::parse("fixture:unknown/99").unwrap(),
+        ],
+    };
+    let mut services = WorldGameServices::new(&mut world);
+    services.commit_rewards(&bundle).unwrap();
+    assert_eq!(services.world.items[&12], 1);
+    assert_eq!(services.unmapped_items.len(), 1);
+    assert_eq!(services.world.gil, 20);
+
+    // Without a mapping, items are recorded but not applied.
+    let mut bare = tantalus_game::FieldWorld::new();
+    let mut services = WorldGameServices::new(&mut bare);
+    services.commit_rewards(&bundle).unwrap();
+    assert!(services.world.items.is_empty());
+    assert_eq!(services.unmapped_items.len(), 2);
+}
