@@ -1216,11 +1216,17 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             .entry_states()
             .into_iter()
             .map(|(entity, pc, status, wait)| {
+                let position = director
+                    .world()
+                    .actors
+                    .get(&entity)
+                    .map(|state| state.position);
                 serde_json::json!({
                     "entry": entity.get(),
                     "pc": pc,
                     "status": format!("{status:?}"),
                     "wait": wait.map(|wait| format!("{wait:?}")),
+                    "position": position,
                 })
             })
             .collect::<Vec<_>>();
