@@ -1340,6 +1340,16 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::ObjectPointer(uid) => {
+                    let value = host
+                        .find_object_uid(*uid)
+                        .map_err(|error| VmError::host(error, offset, opcode))?
+                        .unwrap_or(0);
+                    stack.push(StackValue {
+                        value,
+                        target: None,
+                    });
+                }
                 ExpressionOp::ItemCount => {
                     let value = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing item-count operand")
@@ -2302,6 +2312,7 @@ fn operand_start(
         | ExpressionOp::Member(_)
         | ExpressionOp::SystemVariable(_)
         | ExpressionOp::CustomVariable(_)
+        | ExpressionOp::ObjectPointer(_)
         | ExpressionOp::CastList
         | ExpressionOp::Pad => Ok(index),
         ExpressionOp::Negate

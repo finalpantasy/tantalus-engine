@@ -96,6 +96,10 @@ impl LegacyEventHost for Host {
         ))
     }
 
+    fn find_object_uid(&mut self, _uid: u8) -> Result<Option<i32>, EngineError> {
+        Ok(None)
+    }
+
     fn read_object_position(&mut self, entity: EntityId) -> Result<[f32; 3], EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,

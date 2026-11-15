@@ -273,6 +273,11 @@ impl LegacyEventHost for Host {
             .ok_or_else(|| Self::target_error(format!("unknown object UID {uid}")))
     }
 
+    fn find_object_uid(&mut self, uid: u8) -> Result<Option<i32>, EngineError> {
+        let uid = i32::from(uid);
+        Ok(self.object_uids.contains_key(&uid).then_some(uid))
+    }
+
     fn read_object_position(&mut self, object: EntityId) -> Result<[f32; 3], EngineError> {
         self.object_positions
             .get(&object)
@@ -3298,6 +3303,28 @@ fn angle_to_object_resolves_uid_and_truncates_position_deltas() {
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::InvalidExpression);
     assert!(error.message.contains("object context"));
+}
+
+#[test]
+fn object_pointer_returns_the_legacy_uid_or_zero_for_an_absent_object() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 44);
+    let expression = assign(result, vec![95, 7]);
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.object_uids.insert(7, EntityId::new(77));
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 44), 7);
+
+    let result = variable(VariableScope::Global, VariableType::Int16, 44);
+    let expression = assign(result, vec![95, 8]);
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 44), 0);
+    assert!(decode_program(&[5, 95]).is_err());
 }
 
 #[test]

@@ -51,6 +51,7 @@ pub enum ExpressionOp {
     Angle,
     Angle2,
     AngleToObject,
+    ObjectPointer(u8),
     ItemCount,
     AnimationFrame,
     BgiAnimationFrame,
@@ -815,6 +816,7 @@ pub trait LegacyEventHost {
     fn read_system_variable(&mut self, variable: u8) -> Result<i32, EngineError>;
     fn read_atan_entry(&mut self, offset: i32) -> Result<u16, EngineError>;
     fn resolve_object_uid(&mut self, uid: i32) -> Result<EntityId, EngineError>;
+    fn find_object_uid(&mut self, uid: u8) -> Result<Option<i32>, EngineError>;
     fn read_object_position(&mut self, object: EntityId) -> Result<[f32; 3], EngineError>;
     fn read_item_count(&mut self, item: i32) -> Result<i32, EngineError>;
     fn read_animation_frame(&mut self, actor: EntityId, animation: i32)

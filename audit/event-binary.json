@@ -20,7 +20,7 @@
     "entries": 22,
     "functions": 36,
     "decoded_functions": 0,
-    "decode_error_count": 17,
+    "decode_error_count": 18,
     "script_bytes": 10620,
     "script_sha256": "c6033b9d6da5043468ae416074644cf64002e86d1c40be8f80cc16891579f16e",
     "reference_match": "UnityPy 1.25.0 independently reproduces the entry count, byte count, and concatenated script SHA-256"
@@ -170,7 +170,8 @@
     "B_OR 38 evaluates ordinary bitwise union through the shared binary expression path",
     "B_NAND_E 85 returns selected-member negated-intersection flags with no writes and zero for an empty selection",
     "NECKFLAG 0x47 emits SetHeadFocusFlags with the current actor and operand masked to 0x07; missing actor context is explicit",
-    "MROT 0x55 emits SetWalkTurnSpeed with exact zero mapped to 255 before byte conversion; missing actor context is explicit"
+    "MROT 0x55 emits SetWalkTurnSpeed with exact zero mapped to 255 before byte conversion; missing actor context is explicit",
+    "B_PTR 95 consumes a raw byte UID and returns the host-resolved legacy UID or zero for an absent object"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -277,10 +278,21 @@
     "function_tag": 0,
     "instruction_offset": 103,
     "expression_offset": 104,
-    "offset": 131,
-    "opcode": 95,
+    "offset": 209,
+    "opcode": 112,
     "kind": "UnsupportedOpcode",
-    "instruction": "conditional jump contains unsupported expression opcode 0x5F after walk-turn speed support"
+    "instruction": "conditional jump contains unsupported B_BGIID expression opcode 0x70 after object-pointer support"
+  },
+  "unsupported_bgiid_entry_18": {
+    "entry": 18,
+    "function": 1,
+    "function_tag": 1,
+    "instruction_offset": 32,
+    "expression_offset": 34,
+    "offset": 126,
+    "opcode": 112,
+    "kind": "UnsupportedOpcode",
+    "instruction": "WAIT contains unsupported B_BGIID expression opcode 0x70"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
