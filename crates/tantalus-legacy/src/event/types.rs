@@ -380,6 +380,13 @@ pub enum InstructionKind {
         y: Expression,
         depth: Expression,
     },
+    SetTileScrollWithOffset {
+        overlay: Expression,
+        enabled: Expression,
+        speed: Expression,
+        offset: Expression,
+        is_x_offset: Expression,
+    },
     SetCameraBounds {
         camera: Expression,
         bounds: [Expression; 4],
@@ -730,6 +737,13 @@ pub enum HostEvent {
     MoveTile {
         overlay: i32,
         offset: [i16; 3],
+    },
+    SetTileScrollWithOffset {
+        overlay: i32,
+        enabled: i32,
+        speed: i16,
+        offset: i16,
+        is_x_offset: i32,
     },
     SetCameraBounds {
         camera: i32,

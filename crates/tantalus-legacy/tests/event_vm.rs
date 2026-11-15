@@ -192,6 +192,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetRunEnabled { .. } => {}
                 HostEvent::SetPartyAvailability { .. } => {}
                 HostEvent::MoveTile { .. } => {}
+                HostEvent::SetTileScrollWithOffset { .. } => {}
                 HostEvent::SetCameraBounds { .. } => {}
                 HostEvent::SetCharacterRow { .. } => {}
                 HostEvent::SetActorPitchRoll { .. } => {}
@@ -4775,6 +4776,45 @@ fn bglmove_emits_signed_tile_offsets() {
             offset: [2, 3, 4]
         }]
     );
+}
+
+#[test]
+fn bglscrolloffset_emits_tile_scroll_speed_offset_and_axis() {
+    let program = decode_program(&[228, 0, 2, 1, 0xf6, 0xff, 20, 0, 1, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 9);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileScrollWithOffset {
+            overlay: 2,
+            enabled: 1,
+            speed: -10,
+            offset: 20,
+            is_x_offset: 1
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![228, 31];
+    for value in [3, 2, 300, -20, 4] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileScrollWithOffset {
+            overlay: 3,
+            enabled: 2,
+            speed: 300,
+            offset: -20,
+            is_x_offset: 4
+        }]
+    );
+    assert!(decode_program(&[228, 0, 2, 1, 0xf6]).is_err());
 }
 
 #[test]

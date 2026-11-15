@@ -1158,6 +1158,28 @@ impl EventVm {
                         offset: [x, y, depth],
                     });
                 }
+                InstructionKind::SetTileScrollWithOffset {
+                    overlay,
+                    enabled,
+                    speed,
+                    offset,
+                    is_x_offset,
+                } => {
+                    let overlay = self.evaluate(host, &overlay, instruction.offset, opcode)?;
+                    let enabled = self.evaluate(host, &enabled, instruction.offset, opcode)?;
+                    let speed = self.evaluate(host, &speed, instruction.offset, opcode)? as i16;
+                    let offset = self.evaluate(host, &offset, instruction.offset, opcode)? as i16;
+                    let is_x_offset =
+                        self.evaluate(host, &is_x_offset, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetTileScrollWithOffset {
+                        overlay,
+                        enabled,
+                        speed,
+                        offset,
+                        is_x_offset,
+                    });
+                }
                 InstructionKind::SetCameraBounds { camera, bounds } => {
                     let camera = self.evaluate(host, &camera, instruction.offset, opcode)?;
                     let [min_x, max_x, min_y, max_y] = bounds;
@@ -2374,6 +2396,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetRunEnabled { opcode, .. } => u32::from(*opcode),
         InstructionKind::SetPartyAvailability { .. } => 0xb4,
         InstructionKind::MoveTile { .. } => 0x5a,
+        InstructionKind::SetTileScrollWithOffset { .. } => 0xe4,
         InstructionKind::SetCameraBounds { .. } => 0x1e,
         InstructionKind::SetCharacterRow { .. } => 0x61,
         InstructionKind::ClearPartyStatus { .. } => 0xd9,

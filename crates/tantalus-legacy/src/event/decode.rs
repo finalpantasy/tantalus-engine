@@ -95,6 +95,7 @@ const OP_CHANGE_ELEMENTAL_AFFINITY: u32 = 0x122;
 const OP_DASH_ON: u32 = 0xf0;
 const OP_FULL_MEMBER: u32 = 0xb4;
 const OP_MOVE_TILE: u32 = 0x5a;
+const OP_SET_TILE_SCROLL_WITH_OFFSET: u32 = 0xe4;
 const OP_SET_CAMERA_BOUNDS: u32 = 0x1e;
 const OP_SET_CHARACTER_ROW: u32 = 0x61;
 const OP_CLEAR_PARTY_STATUS: u32 = 0xd9;
@@ -1264,6 +1265,31 @@ impl Decoder<'_> {
                     x: argument(2, true)?,
                     y: argument(4, true)?,
                     depth: argument(8, true)?,
+                }
+            }
+            OP_SET_TILE_SCROLL_WITH_OFFSET => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetTileScrollWithOffset {
+                    overlay: argument(1, false)?,
+                    enabled: argument(2, false)?,
+                    speed: argument(4, true)?,
+                    offset: argument(8, true)?,
+                    is_x_offset: argument(16, false)?,
                 }
             }
             OP_SET_CAMERA_BOUNDS => {
