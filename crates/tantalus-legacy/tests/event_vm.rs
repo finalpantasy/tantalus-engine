@@ -5211,6 +5211,66 @@ fn all_member_or_assignment_ors_the_operand_into_each_selection_and_returns_the_
 }
 
 #[test]
+fn resume_restores_a_recorded_position_and_rejects_inconsistent_state() {
+    // Wait(3 frames) then End: pc 0 is the wait, pc 2 would be inside it.
+    let program = decode_program(&[0x22, 0, 3, 4]).unwrap();
+    let actor = EntityId::new(1);
+    let boundaries: Vec<u32> = program.instructions.keys().copied().collect();
+    assert!(boundaries.len() >= 2);
+
+    let mut vm = EventVm::resume(
+        program.clone(),
+        actor,
+        boundaries[0],
+        VmStatus::Waiting,
+        Some(WaitState::Frames(2)),
+    )
+    .unwrap();
+    assert_eq!(vm.pc(), boundaries[0]);
+    assert_eq!(vm.status(), VmStatus::Waiting);
+    assert_eq!(vm.wait_state(), Some(WaitState::Frames(2)));
+    let mut host = Host::new();
+    for tick in 0..8 {
+        vm.step(Tick::new(tick), &mut host).unwrap();
+    }
+    assert_eq!(vm.status(), VmStatus::Completed);
+
+    let running = EventVm::resume(
+        program.clone(),
+        actor,
+        boundaries[1],
+        VmStatus::Running,
+        None,
+    )
+    .unwrap();
+    assert_eq!(running.pc(), boundaries[1]);
+
+    for (pc, status, wait) in [
+        (boundaries[0], VmStatus::Waiting, None),
+        (boundaries[0], VmStatus::Running, Some(WaitState::Frames(1))),
+        (
+            boundaries[0],
+            VmStatus::Completed,
+            Some(WaitState::Frames(1)),
+        ),
+        (1, VmStatus::Running, None),
+        (
+            boundaries[0],
+            VmStatus::Waiting,
+            Some(WaitState::ActorMovement { next: 1 }),
+        ),
+    ] {
+        let error = EventVm::resume(program.clone(), actor, pc, status, wait).unwrap_err();
+        assert_eq!(
+            error.kind,
+            VmErrorKind::InvalidJump,
+            "{pc} {status:?} {wait:?}"
+        );
+    }
+    assert!(EventVm::resume(program, actor, 99, VmStatus::Completed, None).is_ok());
+}
+
+#[test]
 fn pad0e_consumes_its_flag_and_yields_before_continuing() {
     let program = decode_program(&[14, 4]).unwrap();
     assert_eq!(program.instructions[&0].kind, InstructionKind::Yield(14));

@@ -33,6 +33,49 @@ impl EventVm {
         }
     }
 
+    /// Rebuilds a VM at a recorded position. `pc` must land on an instruction
+    /// boundary, `status` and `wait` must agree (only `Waiting` carries a wait
+    /// state), and a movement wait's `next` must also be a boundary. Variables
+    /// and the instruction budget start fresh, as in [`EventVm::new`].
+    pub fn resume(
+        program: EventProgram,
+        entity: EntityId,
+        pc: u32,
+        status: VmStatus,
+        wait: Option<WaitState>,
+    ) -> Result<Self, VmError> {
+        let invalid = |offset: u32, message: &str| {
+            Err(VmError::new(
+                VmErrorKind::InvalidJump,
+                offset,
+                None,
+                message,
+            ))
+        };
+        match (status, wait) {
+            (VmStatus::Waiting, None) => {
+                return invalid(pc, "a waiting VM needs a wait state to resume");
+            }
+            (VmStatus::Running | VmStatus::Completed, Some(_)) => {
+                return invalid(pc, "only a waiting VM can carry a wait state");
+            }
+            _ => {}
+        }
+        if status != VmStatus::Completed && !program.instructions.contains_key(&pc) {
+            return invalid(pc, "resume position is not an instruction boundary");
+        }
+        if let Some(WaitState::ActorMovement { next }) = wait
+            && !program.instructions.contains_key(&next)
+        {
+            return invalid(next, "movement wait target is not an instruction boundary");
+        }
+        let mut vm = Self::new(program).with_entity(entity);
+        vm.pc = pc;
+        vm.status = status;
+        vm.wait = wait;
+        Ok(vm)
+    }
+
     pub fn with_entity(mut self, entity: EntityId) -> Self {
         self.entity = Some(entity);
         self
