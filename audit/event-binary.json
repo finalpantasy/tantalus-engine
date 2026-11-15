@@ -95,7 +95,8 @@
     "PPRINT 0x6C consumes only its opcode and continues without yielding or side effects",
     "PUSHHIDE 0xD5 emits PreserveAndHideAll for host-owned flag preservation and visibility changes",
     "GLOBALCLEAR 0xD0 consumes its flag and continues through the reference's no-side-effect path",
-    "JMP_SWITCH 0x0B decodes consecutive case offsets and consumes the retained prior EXPR result"
+    "JMP_SWITCH 0x0B decodes consecutive case offsets and consumes the retained prior EXPR result",
+    "MSPEED 0x26 emits actor-bound SetMovementSpeed with immediate/expression byte operands"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -119,10 +120,10 @@
     "entry": 4,
     "function": 0,
     "function_tag": 0,
-    "offset": 6,
-    "opcode": 38,
+    "offset": 9,
+    "opcode": 37,
     "kind": "UnsupportedOpcode",
-    "instruction": "next non-malformed entry after real entry 0 decoded completely"
+    "instruction": "CLRDIST after actor-bound MSPEED support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

@@ -125,6 +125,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetTriangleActive { .. } => {}
                 HostEvent::RunSound { .. } => {}
                 HostEvent::AttachObjectOffset { .. } => {}
+                HostEvent::SetMovementSpeed { .. } => {}
                 HostEvent::SetNavigationAttributeMask { .. } => {}
                 HostEvent::SetShadowEnabled { .. } => {}
                 HostEvent::SetTextVariable { .. } => {}
@@ -1250,6 +1251,40 @@ fn bgimask_emits_the_wrapped_attribute_byte() {
         report.events,
         [HostEvent::SetNavigationAttributeMask { mask: 0xff }]
     );
+}
+
+#[test]
+fn mspeed_sets_the_current_actor_speed_and_requires_actor_context() {
+    let program = decode_program(&[38, 0, 30, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetMovementSpeed {
+            actor: EntityId::new(42),
+            speed: 30
+        }]
+    );
+
+    let mut bytes = vec![38, 1];
+    append_expression(&mut bytes, constant(-1));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetMovementSpeed {
+            actor: EntityId::new(42),
+            speed: 255
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[38, 0, 30, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
 }
 
 #[test]

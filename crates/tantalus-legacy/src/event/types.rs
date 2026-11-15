@@ -162,6 +162,7 @@ pub enum InstructionKind {
         y: Expression,
         z: Expression,
     },
+    SetMovementSpeed(Expression),
     SetNavigationAttributeMask(Expression),
     Yield(u8),
     SetShadowEnabled(bool),
@@ -313,6 +314,10 @@ pub enum HostEvent {
         x: i32,
         y: i32,
         z: i32,
+    },
+    SetMovementSpeed {
+        actor: EntityId,
+        speed: u8,
     },
     SetNavigationAttributeMask {
         mask: u8,
