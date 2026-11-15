@@ -963,6 +963,44 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::SubtractAssign => {
+                    let operand = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing subtraction operand")
+                    })?;
+                    let operand = read_value(host, operand, offset, opcode)?;
+                    let target = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing subtraction target")
+                    })?;
+                    let current = read_value(host, target, offset, opcode)?;
+                    let value = current.wrapping_sub(operand);
+                    let value = match target.target {
+                        Some(StackTarget::Variable(variable)) => {
+                            let value = normalize(value, variable.value_type);
+                            self.variables
+                                .insert((variable.scope, variable.index), value);
+                            value
+                        }
+                        Some(StackTarget::Member(member)) => {
+                            let object = host
+                                .select_object_member_target(None)
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            host.write_object_member(ObjectMemberRef { object, member }, value)
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            value
+                        }
+                        None => {
+                            return Err(expression_error(
+                                offset,
+                                opcode,
+                                "subtraction target is not writable",
+                            ));
+                        }
+                    };
+                    stack.push(StackValue {
+                        value,
+                        target: None,
+                    });
+                }
                 ExpressionOp::Assign => {
                     let value = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing assignment value")
@@ -1655,6 +1693,7 @@ fn operand_start(
         | ExpressionOp::Equal
         | ExpressionOp::NotEqual
         | ExpressionOp::Assign
+        | ExpressionOp::SubtractAssign
         | ExpressionOp::PostIncrementMembers
         | ExpressionOp::PostDecrementMembers
         | ExpressionOp::PreDecrementMembers

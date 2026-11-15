@@ -872,6 +872,37 @@ fn delete_terminates_self_and_emits_typed_target_for_other_objects() {
 }
 
 #[test]
+fn subtract_assign_writes_variable_or_member_and_returns_the_result() {
+    let target = variable(VariableScope::Global, VariableType::Int16, 37);
+    let result = variable(VariableScope::Global, VariableType::Int16, 38);
+    let bytes = [
+        evaluate(assign(target.clone(), constant(20))),
+        evaluate(assign(result, binary(target, constant(8), 51))),
+        vec![4],
+    ]
+    .concat();
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 37), 12);
+    assert_eq!(vm.variable(VariableScope::Global, 38), 12);
+
+    let reference = ObjectMemberRef {
+        object: EntityId::new(42),
+        member: 4,
+    };
+    let mut host = Host::new();
+    host.member_target = Some(reference.object);
+    host.object_members.insert(reference, 20);
+    let bytes = [vec![41, 4], constant(8), vec![51]].concat();
+    let program = decode_program(&[evaluate(bytes), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(host.object_members[&reference], 12);
+    assert_eq!(host.member_writes, [(reference, 12)]);
+}
+
+#[test]
 fn instruction_budget_stops_an_infinite_relative_jump() {
     let bytes = [1, 0xfd, 0xff];
     let program = decode_program(&bytes).unwrap();
