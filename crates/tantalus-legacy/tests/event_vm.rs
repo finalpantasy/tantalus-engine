@@ -3850,6 +3850,25 @@ fn pad0e_consumes_its_flag_and_yields_before_continuing() {
 }
 
 #[test]
+fn pad10_consumes_its_flag_and_yields_through_the_default_path() {
+    let program = decode_program(&[10, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].kind, InstructionKind::Yield(10));
+    assert_eq!(program.instructions[&0].length, 2);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Running);
+    assert_eq!(vm.pc(), 2);
+    assert!(report.events.is_empty());
+    assert_eq!(
+        vm.step(Tick::new(1), &mut host).unwrap().status,
+        VmStatus::Completed
+    );
+    assert!(decode_program(&[10]).is_err());
+}
+
+#[test]
 fn pad15_consumes_its_flag_and_yields_through_the_default_path() {
     let program = decode_program(&[15, 0, 4]).unwrap();
     assert_eq!(program.instructions[&0].kind, InstructionKind::Yield(15));

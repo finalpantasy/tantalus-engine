@@ -26,6 +26,7 @@ const OP_SET_ACTOR_RADII: u32 = 0x4b;
 const OP_SET_IDLE_ANIMATION_SPEEDS: u32 = 0x86;
 const OP_SET_HEAD_FOCUS_MASKS: u32 = 0x8b;
 const OP_SET_HEAD_FOCUS_FLAGS: u32 = 0x47;
+const OP_PADDING10: u32 = 0x0a;
 const OP_SET_WALK_TURN_SPEED: u32 = 0x55;
 const OP_SET_OBJECT_FLAGS: u32 = 0x93;
 const OP_SET_ACTOR_FACING: u32 = 0x36;
@@ -762,7 +763,7 @@ impl Decoder<'_> {
                 };
                 InstructionKind::SetNavigationAttributeMask(mask)
             }
-            OP_YIELD | OP_PADDING15 | OP_PADDING17 => {
+            OP_YIELD | OP_PADDING10 | OP_PADDING15 | OP_PADDING17 => {
                 self.byte()?;
                 InstructionKind::Yield(opcode as u8)
             }

@@ -190,7 +190,8 @@
     "BGLSCROLLOFFSET 0xE4 emits tile scrolling enable, signed speed/offset, and raw axis operands",
     "pad0f 0x0F consumes its flag and yields once through the reference default path",
     "WAITANIM 0x41 continues immediately when inactive and otherwise waits for host-owned animation completion",
-    "SONGFLAG 0x1B emits SetBattleMusicContinuation using nonzero-as-true semantics"
+    "SONGFLAG 0x1B emits SetBattleMusicContinuation using nonzero-as-true semantics",
+    "pad0a 0x0A consumes its flag and yields once through the reference default path"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -326,11 +327,11 @@
     "entry": 16,
     "function": 1,
     "function_tag": 1,
-    "instruction_offset": 435,
-    "offset": 682,
-    "opcode": 10,
+    "instruction_offset": 439,
+    "offset": 686,
+    "opcode": 456,
     "kind": "UnsupportedOpcode",
-    "instruction": "pad0a event opcode 0x0A after battle-music continuation support"
+    "instruction": "unknown extended event opcode 0x1C8; no matching pinned enum or dispatcher operation was found"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
