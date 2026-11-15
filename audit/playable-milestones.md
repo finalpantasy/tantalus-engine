@@ -4,15 +4,17 @@ Goal: a playable game in Rust from new game to ending, using only data from the 
 
 Each milestone lists what it delivers, the source it follows, the data it reads, one check that proves it, and what exists today. Paths under Memoria are relative to `.reference/Memoria/Assembly-CSharp/`. IDs: B = battle, W = world, models and fields, A = audio, text, UI and tables, G = game flow and saves.
 
-## Status on 2026-11-16
+## Status on 2026-11-16 (update: merged)
 
 | Slice | State |
 |---|---|
 | Event VM | 42,581 of 42,582 real functions decode; 42,307 dry-run; 1 decode gap (expression op 12), 2 WATCH refusals |
-| B1 battle scene, info, sequence-header parsers | parsers written on `agent/battle`; not yet merged |
-| A2 `.mes` text and A1 non-bundle inventory | parsers written on `agent/text`; not yet merged |
-| A4 `mbgdata` and `mapconfigdata` | parsers written on `agent/mbg`; not yet merged |
-| W3 Unity Mesh and AnimationClip objects | in progress on `agent/unity` |
+| B1 battle scene, info, sequence-header parsers | merged; all 562 scenes parse; each has an unread tail |
+| A1 inventory and A2 `.mes` text | merged; 59 files inventoried, 4,537 `.mes` files parse |
+| A4 `mbgdata` and `mapconfigdata` | merged |
+| W3 Unity objects, W4 model assembly, W5 clip binding (data side) | merged; 522 of 525 model directories assemble; CPU sampling and skinning exist; no GPU rendering yet |
+| W7 world-map data | merged; all entries classified; raw packs fully accounted; block meshes decode |
+| A5 movie measurement, A6 audio container | merged; 60 Theora files with no audio stream; 4,029 AKB2 Vorbis assets; no decoders |
 | Everything else below | not started |
 
 ## Rules for every milestone
@@ -45,11 +47,11 @@ The Unity bundles have no parser beyond the object table, so W3 gates everything
 |---|---|---|---|---|---|
 | W1 | All 674 fields composed in correct layer and camera order, offscreen | `BGSCENE_DEF.cs`, `BGOVERLAY_DEF.cs`, `BGCAM_DEF.cs`, `Field/Map/FieldMap.cs` | `p0data11`-`p0data19` | Every field renders non-empty with no out-of-range sprite; 10 sampled against reference math | `bgs.rs`, `bgi.rs`, `field.rs`, `texture.rs` and one proven field. No batch driver |
 | W2 | Animated tiles, scrolling layers, walkmesh toggles | `BGANIM_DEF.cs`, `BGI_ANM_DEF.cs`, `BGI.cs`, `BG_*` opcodes | Field bundles | Frame-hash sequence on 3 animated fields; every animation in all 674 fields consumed with no unknown op | Structs and opcode decode only. No runtime |
-| W3 | Unity GameObject, Transform, Mesh, SkinnedMeshRenderer, Material and AnimationClip parsing | Unity format; names from `FF9Char.cs`, `GEOTEX*.cs` | `p0data4` (805 model directories), `p0data5` | All meshes parse with in-range indices and exact byte consumption | In progress on `agent/unity` |
-| W4 | Static models with textures and bind-pose skeleton | `GEOTEX.cs`, `ff9/FF9DBModelParameters.cs` | `p0data4` | Gallery of at least 20 models; bounds match the bone hierarchy | Not started |
-| W5 | Clip sampling on the skeleton; walk, run, idle and event animation mapping | `AnimationFactory.cs`, `ff9/FF9DBAll.Animation.cs`, `Anim.cs` | `p0data5` plus EventAnimation text in `p0data7` | Every clip samples at start and end inside a bounds threshold | Not started |
+| W3 | Unity GameObject, Transform, Mesh, SkinnedMeshRenderer, Material and AnimationClip parsing | Unity format; names from `FF9Char.cs`, `GEOTEX*.cs` | `p0data4` (525 model directories), `p0data5` | All meshes parse with in-range indices and exact byte consumption | Done: all objects in both bundles parse and consume exact bytes |
+| W4 | Static models with textures and bind-pose skeleton | `GEOTEX.cs`, `ff9/FF9DBModelParameters.cs` | `p0data4` | Gallery of at least 20 models; bounds match the bone hierarchy | Data side done: 522 models assemble with zero bone or reference failures. No renderer or gallery capture |
+| W5 | Clip sampling on the skeleton; walk, run, idle and event animation mapping | `AnimationFactory.cs`, `ff9/FF9DBAll.Animation.cs`, `Anim.cs` | `p0data5` plus EventAnimation text in `p0data7` | Every clip samples at start and end inside a bounds threshold | Sampling and CPU skinning exist; 4,016 of 7,930 clips pass the 0.25 t=0 bounds check, which is a weak test. Animation ID to name table not embedded; 1,339 clips sit in folders with no model in `p0data4` |
 | W6 | Player and NPCs in fields, on the walkmesh, behind foreground layers | `Field/Map/Actor/*`, `Event/Engine/EventEngine.cs` | W1 to W5 plus `eventbinary` | Zero actors off the walkmesh across 818 field scripts; capture of one populated field | Actor host exists. No model binding or depth sorting |
-| W7 | World map blocks, terrain, textures, sky, water | `WM/WMWorld/*`, `WM/WMBlock/*`, `WM/WMCell.cs` | `p0data3` (3,439 assets); raw versus Unity split unknown | Full block grid renders with no seams; triangle counts match the parse | Not started |
+| W7 | World map blocks, terrain, textures, sky, water | `WM/WMWorld/*`, `WM/WMBlock/*`, `WM/WMCell.cs` | `p0data3` (3,439 assets) | Full block grid renders with no seams; triangle counts match the parse | Data side done: 2,178 block meshes and 481 prefabs of 24 by 20 cells decode. Not rendered; `.hed`/`.nwp` tables and `map.bin` values unknown |
 | W8 | World movement, camera, collision, vehicles, field transitions | `WM/WMActor/*`, `WM/WMScriptDirector.cs`, `ff9/FF9StateWorldSystem.cs` | 15 world scripts, `p0data3` | Scripted multi-block walk matches the Memoria logic; Lindblum round trip works | Scripts decode; 2 stop at WATCH. No runtime |
 | W9 | One command that prints pass and fail counts per asset class | none | all of the above | CI runs it | Not started |
 
@@ -61,8 +63,8 @@ The Unity bundles have no parser beyond the object table, so W3 gates everything
 | A2 | `.mes` entry splitter and text-tag decoder | `Memoria/Assets/Text/*`, `FF9TextTool.cs` | 4,537 `.mes` TextAssets | Every file parses; unknown tags listed | Done on `agent/text`: 244,758 entries; 37 unknown tag spans in two files, kept raw |
 | A3 | Typed data tables: items, abilities, shops, characters, levels | `Memoria/Data/*`, `Global/ff9/FF9ITEM_DATA.cs` | Installed managed assembly resources | Counts and a known row match the source | Waits on Kimi's `managed.rs` embedded-resource extraction |
 | A4 | `mapconfigdata` and `mbgdata` | `Global/MBGDataReader.cs`, `MBG*.cs` | `p0data7` | Every byte consumed | Done on `agent/mbg`: 818 map configs, 56 movie backgrounds. Unread bytes kept raw: 817 map configs have trailing bytes; three movie backgrounds hold fewer frames than their header declares |
-| A5 | Movie demux and decode (Ogg Theora) | `Graphics/Movie/MovieMaterial.cs`, `Field/FF9FieldFMVServiceStatus.cs` | 60 files in `StreamingAssets/ma`, 2.7 GB | `FMV000` frame count equals the Ogg granule position; frame 0 matches a reference decode | Not started. Audio codec unverified: no Vorbis string in the first 4 KB |
-| A6 | Audio container extraction, decode to PCM with loop points | `Global/Sound/Loader/SoundLoaderResources.cs`, `Memoria.Prime/OggFile/AKB2/AKB2Header.cs` | `p0data61`-`p0data63` (4,029 assets) | All assets classify; sample count and rate match the header; loops match metadata | Not started. Payload codec is the open question |
+| A5 | Movie demux and decode (Ogg Theora) | `Graphics/Movie/MovieMaterial.cs`, `Field/FF9FieldFMVServiceStatus.cs` | 60 files in `StreamingAssets/ma`, 2.7 GB | `FMV000` frame count equals the Ogg granule position; frame 0 matches a reference decode | Container measured: single Theora stream per file, 1280x960 at 15 fps, 2,880.7 s total, CRCs pass. The files carry no audio; Memoria plays movie audio through `SoundLib.PlayMovieMusic`, source not located. No video decoder |
+| A6 | Audio container extraction, decode to PCM with loop points | `Global/Sound/Loader/SoundLoaderResources.cs`, `Memoria.Prime/OggFile/AKB2/AKB2Header.cs` | `p0data61`-`p0data63` (4,029 assets) | All assets classify; sample count and rate match the header; loops match metadata | Containers and headers done: all AKB2 with Vorbis at 44.1 kHz; loop points parse. Header sample count is a placeholder on looped assets. No decoder |
 | A7 | Mixer, channels, state graph, script sound opcodes | `Global/Sound/*`, `Global/ff9/Snd/FF9Snd.cs` | A6 output, sound metadata from the managed assembly | Sound-play call sequence for one field matches the dry-run expectation | Opcodes decode. No sink or device backend. Library choice still open |
 | A8 | Atlases, fonts, dialog box, menus, battle HUD | `Memoria/Assets/Text/GraphicResources.cs`, `Global/Dialog/*`, `Global/battle/BattleHUD/*` | UIAtlas and font objects in the A1 inventory | One atlas sprite and one dialog box match a reference capture | Not started. Font format unknown |
 
@@ -94,9 +96,8 @@ Saves (G7, G8) and the sound and movie chains (A5 to A7) run in parallel with th
 
 ## Open unknowns
 
-- Whether the model, animation and world bundles carry a Unity type tree (W3 measures it).
+- Where the movie audio lives, and where the 85 weapon and other geo IDs with clips but no model sit.
 - Where the vanilla battle and item tables live in the install (A3, B3).
-- The audio payload codec and the movie audio track codec (A5, A6).
 - The 2048-byte tails after battle scene records and the trailing bytes in map configs and movie backgrounds.
 - Where the first real field sits after field 70.
 - Opcodes recorded as unknown: entry 13 function 1 `0x180`, entry 16 function 1 `0x1C8`, `STOP` `0x4F`, and expression op 12.
