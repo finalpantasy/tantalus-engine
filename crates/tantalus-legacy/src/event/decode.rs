@@ -9,6 +9,7 @@ const OP_JUMP_IF_NOT: u32 = 0x02;
 const OP_JUMP_IF: u32 = 0x03;
 const OP_RETURN: u32 = 0x04;
 const OP_JUMP_SWITCH: u32 = 0x0b;
+const OP_DELETE_OBJECT: u32 = 0x1c;
 const OP_EVALUATE: u32 = 0x05;
 const OP_WINDOW_SYNC: u32 = 0x1f;
 const OP_WINDOW_ASYNC: u32 = 0x20;
@@ -122,6 +123,7 @@ impl Decoder<'_> {
                     case_relative,
                 }
             }
+            OP_DELETE_OBJECT => InstructionKind::DeleteObject(self.byte()?),
             OP_RETURN => InstructionKind::Return,
             OP_EVALUATE => InstructionKind::Evaluate(self.expression()?),
             OP_WAIT => {

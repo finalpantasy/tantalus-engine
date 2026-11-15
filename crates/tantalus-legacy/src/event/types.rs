@@ -107,6 +107,7 @@ pub enum InstructionKind {
         case_relative: Vec<u16>,
     },
     Evaluate(Expression),
+    DeleteObject(u8),
     Return,
     Wait(Expression),
     WindowSync {
@@ -280,6 +281,9 @@ pub enum HostEvent {
         actor: EntityId,
         x: i32,
         z: i32,
+    },
+    DeleteObject {
+        target: EntityId,
     },
     AimAtCamera,
     DefinePlayerControl {

@@ -196,6 +196,30 @@ impl EventVm {
                         self.evaluate(host, &expression, instruction.offset, opcode)?;
                     self.pc = next;
                 }
+                InstructionKind::DeleteObject(target) => {
+                    let (target, terminates) = if target == u8::MAX {
+                        let Some(actor) = self.entity else {
+                            return Err(VmError::new(
+                                VmErrorKind::Host,
+                                instruction.offset,
+                                Some(opcode),
+                                "self-deletion requires current object context",
+                            ));
+                        };
+                        (actor, true)
+                    } else {
+                        (
+                            EntityId::new(u64::from(target)),
+                            self.entity == Some(EntityId::new(u64::from(target))),
+                        )
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::DeleteObject { target });
+                    if terminates {
+                        self.status = VmStatus::Completed;
+                        break;
+                    }
+                }
                 InstructionKind::Return => {
                     self.status = VmStatus::Completed;
                 }
@@ -1194,6 +1218,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::JumpIfNot { .. } => 0x02,
         InstructionKind::JumpIf { .. } => 0x03,
         InstructionKind::JumpSwitch { .. } => 0x0b,
+        InstructionKind::DeleteObject(_) => 0x1c,
         InstructionKind::Return => 0x04,
         InstructionKind::Evaluate(_) => 0x05,
         InstructionKind::WindowSync { .. } => 0x1f,

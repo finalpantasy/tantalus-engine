@@ -97,7 +97,8 @@
     "GLOBALCLEAR 0xD0 consumes its flag and continues through the reference's no-side-effect path",
     "JMP_SWITCH 0x0B decodes consecutive case offsets and consumes the retained prior EXPR result",
     "MSPEED 0x26 emits actor-bound SetMovementSpeed with immediate/expression byte operands",
-    "CLRDIST 0x25 emits actor-bound ResetWalkState and rejects missing actor context"
+    "CLRDIST 0x25 emits actor-bound ResetWalkState and rejects missing actor context",
+    "DELETE 0x1C emits typed object deletion and terminates the current entry for target 255"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -121,10 +122,10 @@
     "entry": 4,
     "function": 0,
     "function_tag": 0,
-    "offset": 16,
-    "opcode": 28,
+    "offset": 18,
+    "opcode": 260,
     "kind": "UnsupportedOpcode",
-    "instruction": "DELETE after actor-bound walk-state reset"
+    "instruction": "extended opcode 0x104 after DELETE"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

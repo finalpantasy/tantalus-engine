@@ -116,6 +116,7 @@ impl LegacyEventHost for Host {
                 HostEvent::MoveActor { actor, x, z } => {
                     self.movements.push((actor.get(), *x, *z));
                 }
+                HostEvent::DeleteObject { .. } => {}
                 HostEvent::AimAtCamera => {}
                 HostEvent::DefinePlayerControl { .. } => {}
                 HostEvent::SetControlDirection { .. } => {}
@@ -428,6 +429,47 @@ fn jump_switch_selects_consecutive_cases_and_uses_default_outside_range() {
     }
 
     assert!(decode_program(&[11, 1, 0]).is_err());
+}
+
+#[test]
+fn delete_terminates_self_and_emits_typed_target_for_other_objects() {
+    let program = decode_program(&[28, 255, 4]).unwrap();
+    assert_eq!(
+        program.instructions[&0].kind,
+        InstructionKind::DeleteObject(255)
+    );
+    assert_eq!(program.instructions[&0].length, 2);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.operations, 1);
+    assert_eq!(report.status, VmStatus::Completed);
+    assert_eq!(
+        report.events,
+        [HostEvent::DeleteObject {
+            target: EntityId::new(42)
+        }]
+    );
+
+    let program = decode_program(&[28, 7, 0, 0, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Running);
+    assert_eq!(
+        report.events,
+        [HostEvent::DeleteObject {
+            target: EntityId::new(7)
+        }]
+    );
+    assert_eq!(
+        vm.step(Tick::new(1), &mut host).unwrap().status,
+        VmStatus::Completed
+    );
+
+    let mut vm = EventVm::new(decode_program(&[28, 255, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("object context"));
 }
 
 #[test]
