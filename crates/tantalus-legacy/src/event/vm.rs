@@ -888,6 +888,12 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetCameraBounds { camera, bounds });
                 }
+                InstructionKind::SetCharacterRow { character, row } => {
+                    let character = self.evaluate(host, &character, instruction.offset, opcode)?;
+                    let row = self.evaluate(host, &row, instruction.offset, opcode)? as u8;
+                    self.pc = next;
+                    events.push(HostEvent::SetCharacterRow { character, row });
+                }
                 InstructionKind::AttachTile {
                     overlay,
                     x,
@@ -1866,6 +1872,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetPartyAvailability { .. } => 0xb4,
         InstructionKind::MoveTile { .. } => 0x5a,
         InstructionKind::SetCameraBounds { .. } => 0x1e,
+        InstructionKind::SetCharacterRow { .. } => 0x61,
         InstructionKind::AttachTile { .. } => 0x92,
     }
 }

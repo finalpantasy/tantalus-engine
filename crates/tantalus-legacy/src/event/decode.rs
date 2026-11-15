@@ -77,6 +77,7 @@ const OP_DASH_ON: u32 = 0xf0;
 const OP_FULL_MEMBER: u32 = 0xb4;
 const OP_MOVE_TILE: u32 = 0x5a;
 const OP_SET_CAMERA_BOUNDS: u32 = 0x1e;
+const OP_SET_CHARACTER_ROW: u32 = 0x61;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -970,6 +971,23 @@ impl Decoder<'_> {
                         argument(8, true)?,
                         argument(16, true)?,
                     ],
+                }
+            }
+            OP_SET_CHARACTER_ROW => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetCharacterRow {
+                    character: argument(1)?,
+                    row: argument(2)?,
                 }
             }
             OP_ATTACH_TILE => {

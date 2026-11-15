@@ -146,7 +146,8 @@
     "FULLMEMBER 0xB4 remaps legacy party-reserve bits and emits SetPartyAvailability",
     "BGLMOVE 0x5A emits MoveTile with signed X/Y/depth offsets",
     "BGVPORT 0x1E emits SetCameraBounds with signed min/max X/Y operands",
-    "B_LT_E 28 returns strict selected-member less-than flags without writes; empty masks return zero"
+    "B_LT_E 28 returns strict selected-member less-than flags without writes; empty masks return zero",
+    "SETROW 0x61 emits SetCharacterRow with character identity and a wrapped byte row"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -211,10 +212,10 @@
     "entry": 8,
     "function": 1,
     "function_tag": 1,
-    "offset": 55,
-    "opcode": 97,
+    "offset": 97,
+    "opcode": 55,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x61 after selected-member less-than support"
+    "instruction": "event opcode 0x37 after character-row support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

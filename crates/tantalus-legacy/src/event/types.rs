@@ -309,6 +309,10 @@ pub enum InstructionKind {
         camera: Expression,
         bounds: [Expression; 4],
     },
+    SetCharacterRow {
+        character: Expression,
+        row: Expression,
+    },
     AttachTile {
         overlay: Expression,
         x: Expression,
@@ -581,6 +585,10 @@ pub enum HostEvent {
     SetCameraBounds {
         camera: i32,
         bounds: [i16; 4],
+    },
+    SetCharacterRow {
+        character: i32,
+        row: u8,
     },
     AttachTile {
         overlay: i32,
