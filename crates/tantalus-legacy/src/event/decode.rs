@@ -1317,6 +1317,7 @@ impl Decoder<'_> {
                 74 => ExpressionOp::CastList,
                 79 => ExpressionOp::KeyOn,
                 84 => ExpressionOp::AndMembers,
+                85 => ExpressionOp::NandMembers,
                 90 | 92 => ExpressionOp::ConsumeAndZero,
                 93 => ExpressionOp::Angle,
                 96 => ExpressionOp::AngleToObject,

@@ -1841,6 +1841,7 @@ impl EventVm {
                 }),
                 ExpressionOp::EqualMembers
                 | ExpressionOp::AndMembers
+                | ExpressionOp::NandMembers
                 | ExpressionOp::LessMembers
                 | ExpressionOp::LessOrEqualMembers
                 | ExpressionOp::GreaterOrEqualMembers
@@ -1872,6 +1873,7 @@ impl EventVm {
                             let matches = match operation {
                                 ExpressionOp::EqualMembers => value == comparison,
                                 ExpressionOp::AndMembers => value & comparison != 0,
+                                ExpressionOp::NandMembers => value & comparison == 0,
                                 ExpressionOp::LessMembers => value < comparison,
                                 ExpressionOp::LessOrEqualMembers => value <= comparison,
                                 ExpressionOp::GreaterOrEqualMembers => value >= comparison,
@@ -2330,6 +2332,7 @@ fn operand_start(
         | ExpressionOp::AssignAllMembers
         | ExpressionOp::EqualMembers
         | ExpressionOp::AndMembers
+        | ExpressionOp::NandMembers
         | ExpressionOp::LessMembers
         | ExpressionOp::LessOrEqualMembers
         | ExpressionOp::GreaterOrEqualMembers

@@ -167,7 +167,8 @@
     "REPLYSW 0x18 waits for caller acceptance and emits one RequestCallerAsync before continuing",
     "REQSW 0x12 waits for target-specific acceptance and emits one RequestScriptAsync before continuing",
     "AFRAME 0x3D emits SetAnimationRange with current-actor start/end bytes",
-    "B_OR 38 evaluates ordinary bitwise union through the shared binary expression path"
+    "B_OR 38 evaluates ordinary bitwise union through the shared binary expression path",
+    "B_NAND_E 85 returns selected-member negated-intersection flags with no writes and zero for an empty selection"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -258,14 +259,24 @@
     "kind": "Decode",
     "instruction": "the final NOP does not contain its argument-flag byte before the function boundary"
   },
-  "next_decode_boundary": {
+  "truncated_conditional_entry_13": {
     "entry": 13,
     "function": 0,
     "function_tag": 0,
-    "offset": 485,
-    "opcode": 85,
+    "instruction_offset": 445,
+    "offset": 505,
+    "opcode": 2,
+    "kind": "Decode",
+    "instruction": "JMP_IFNOT expression/relative operand do not complete before the function boundary after selected-member NAND support"
+  },
+  "next_decode_boundary": {
+    "entry": 15,
+    "function": 0,
+    "function_tag": 0,
+    "offset": 99,
+    "opcode": 71,
     "kind": "UnsupportedOpcode",
-    "instruction": "B_NAND_E expression opcode 0x55 after animation-range and ordinary bitwise-OR support"
+    "instruction": "event opcode 0x47 after selected-member NAND support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

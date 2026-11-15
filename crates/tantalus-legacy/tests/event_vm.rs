@@ -2669,6 +2669,51 @@ fn member_and_returns_bit_intersection_flags_without_writes() {
 }
 
 #[test]
+fn member_nand_returns_negated_intersection_flags_without_writes() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 63);
+    let expression = assign(
+        result,
+        [constant(0b101), vec![41, 2], constant(2), vec![85]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.slots.insert(0, EntityId::new(10));
+    host.slots.insert(2, EntityId::new(12));
+    host.object_members.insert(
+        ObjectMemberRef {
+            object: EntityId::new(10),
+            member: 2,
+        },
+        3,
+    );
+    host.object_members.insert(
+        ObjectMemberRef {
+            object: EntityId::new(12),
+            member: 2,
+        },
+        8,
+    );
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 63), 0b100);
+    assert_eq!(host.member_target, Some(EntityId::new(12)));
+    assert!(host.member_writes.is_empty());
+
+    let result = variable(VariableScope::Global, VariableType::Int16, 63);
+    let expression = assign(
+        result,
+        [constant(0), vec![41, 4], constant(1), vec![85]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 63), 0);
+    assert_eq!(host.member_target, None);
+}
+
+#[test]
 fn system_variables_read_by_serialized_id_and_reject_unknown_ids() {
     let result = variable(VariableScope::Global, VariableType::Int16, 27);
     let program =
