@@ -155,3 +155,53 @@ fn reward_items_apply_through_the_legacy_id_mapping() {
     assert!(services.world.items.is_empty());
     assert_eq!(services.unmapped_items.len(), 2);
 }
+
+#[test]
+fn reward_experience_levels_characters_through_the_growth_provider() {
+    let mut world = tantalus_game::FieldWorld::new();
+    world.party = vec![0];
+    world.character_stats.insert(
+        0,
+        tantalus_game::field::CharacterStats {
+            current_hp: 50,
+            max_hp: 100,
+            current_mp: 20,
+            max_mp: 36,
+        },
+    );
+    world.level_growth = Some(std::sync::Arc::new(|_, total_exp| {
+        (total_exp >= 100).then_some(tantalus_game::field::CharacterStats {
+            current_hp: 160,
+            max_hp: 160,
+            current_mp: 50,
+            max_mp: 50,
+        })
+    }));
+    let bundle = RewardBundle {
+        resolution_id: 8,
+        experience: 120,
+        gil: 0,
+        items: vec![],
+    };
+    let mut services = WorldGameServices::new(&mut world);
+    services.commit_rewards(&bundle).unwrap();
+    drop(services);
+
+    assert_eq!(world.character_exp[&0], 120);
+    // Level-up: the max HP/MP delta is added to current values
+    // (50 + 60 = 110, 20 + 14 = 34) and then the new stats are stored.
+    let stats = world.character_stats[&0];
+    assert_eq!(stats.max_hp, 160);
+    assert_eq!(stats.current_hp, 110);
+    assert_eq!(stats.max_mp, 50);
+    assert_eq!(stats.current_mp, 34);
+
+    // Without a provider the experience still accumulates.
+    let mut bare = tantalus_game::FieldWorld::new();
+    bare.party = vec![0];
+    let mut services = WorldGameServices::new(&mut bare);
+    services.commit_rewards(&bundle).unwrap();
+    drop(services);
+    assert_eq!(bare.character_exp[&0], 120);
+    assert!(bare.character_stats.is_empty());
+}

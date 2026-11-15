@@ -97,6 +97,10 @@ pub type FmvFrameCounts = std::sync::Arc<dyn Fn(i32, i32) -> Option<u32> + Send 
 pub type ItemIdMap =
     std::sync::Arc<dyn Fn(&tantalus_contracts::ContentId) -> Option<i32> + Send + Sync>;
 
+/// Computes a character's stats for a total experience amount; the
+/// provider owns the level tables. Runtime-only.
+pub type LevelGrowth = std::sync::Arc<dyn Fn(i32, u64) -> Option<CharacterStats> + Send + Sync>;
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct FieldWorld {
     pub actors: BTreeMap<EntityId, ActorState>,
@@ -189,6 +193,11 @@ pub struct FieldWorld {
     /// Reward-item identity to legacy inventory id mapping (runtime-only).
     #[serde(skip)]
     pub item_id_map: Option<ItemIdMap>,
+    /// Total experience per character id.
+    pub character_exp: BTreeMap<i32, u64>,
+    /// Experience-to-stats provider (runtime-only).
+    #[serde(skip)]
+    pub level_growth: Option<LevelGrowth>,
 }
 
 impl std::fmt::Debug for FieldWorld {
@@ -246,6 +255,7 @@ impl PartialEq for FieldWorld {
             && self.player == other.player
             && self.confirm_mask == other.confirm_mask
             && self.walk_bits == other.walk_bits
+            && self.character_exp == other.character_exp
     }
 }
 
@@ -305,6 +315,8 @@ impl FieldWorld {
             player_facing_polls: 0,
             fmv_frame_counts: None,
             item_id_map: None,
+            character_exp: BTreeMap::new(),
+            level_growth: None,
         }
     }
 
@@ -609,6 +621,31 @@ impl FieldWorld {
     /// Record a reward resolution as applied; returns false on a duplicate.
     pub(crate) fn apply_resolution(&mut self, resolution_id: u64) -> bool {
         self.applied_resolutions.insert(resolution_id)
+    }
+
+    /// Award experience to a character and recompute stats through the
+    /// level-growth provider. On level-up the max HP/MP delta is added to
+    /// current values (reference level-up behavior).
+    pub fn apply_experience(&mut self, character: i32, experience: u64) {
+        let total = self.character_exp.entry(character).or_insert(0);
+        *total = total.saturating_add(experience);
+        let Some(growth) = self.level_growth.clone() else {
+            return;
+        };
+        let Some(next) = growth(character, *self.character_exp.get(&character).unwrap()) else {
+            return;
+        };
+        let merged = match self.character_stats.get(&character) {
+            Some(current) => CharacterStats {
+                current_hp: (current.current_hp + (next.max_hp - current.max_hp))
+                    .clamp(0, next.max_hp),
+                current_mp: (current.current_mp + (next.max_mp - current.max_mp))
+                    .clamp(0, next.max_mp),
+                ..next
+            },
+            None => next,
+        };
+        self.character_stats.insert(character, merged);
     }
 
     pub fn add_item_amount(&mut self, item: i32, amount: i32) {

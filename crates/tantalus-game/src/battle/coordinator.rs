@@ -141,6 +141,11 @@ impl GameServices for WorldGameServices<'_> {
         self.world
             .add_gil(rewards.gil.min(u64::from(MAX_GIL)) as u32);
         self.apply_reward_items(rewards);
+        // Experience goes to every party member; split rules are a
+        // battle-engine concern (v1: full grant each).
+        for member in self.world.party.clone() {
+            self.world.apply_experience(member, rewards.experience);
+        }
         self.committed.push(rewards.clone());
         Ok(())
     }

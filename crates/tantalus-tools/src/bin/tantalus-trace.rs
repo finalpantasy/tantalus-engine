@@ -106,6 +106,10 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 ),
                 None => None,
             };
+            let mut growth_tables: Option<(
+                BTreeMap<i32, tantalus_game::new_game::BaseStats>,
+                Vec<tantalus_game::new_game::LevelRow>,
+            )> = None;
             let stats = match character_data {
                 Some(dir) => {
                     let read = |name: &str| {
@@ -115,6 +119,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     };
                     let base = tantalus_game::new_game::parse_base_stats(&read("BaseStats.csv")?)?;
                     let levels = tantalus_game::new_game::parse_leveling(&read("Leveling.csv")?)?;
+                    growth_tables = Some((base.clone(), levels.clone()));
                     tantalus_game::new_game::new_game_character_stats(&base, &levels)
                 }
                 None => BTreeMap::new(),
@@ -147,6 +152,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     text,
                     choices,
                     game_data,
+                    growth_tables,
                 },
             )
         }
@@ -355,6 +361,11 @@ struct ChainOptions {
     choices: BTreeMap<(i32, u16), i32>,
     /// `FF9_Data` directory for the FMV movie inventory (`StreamingAssets/ma`).
     game_data: Option<PathBuf>,
+    /// Level tables for experience growth (base stats and leveling rows).
+    growth_tables: Option<(
+        BTreeMap<i32, tantalus_game::new_game::BaseStats>,
+        Vec<tantalus_game::new_game::LevelRow>,
+    )>,
 }
 
 /// Per-field text facts the scripted player needs.
@@ -518,6 +529,7 @@ fn chain(
         text,
         choices,
         game_data,
+        growth_tables,
     } = options;
     let mut world = tantalus_game::FieldWorld::new();
     // Movie frame counts for the FMV service: scan the Ogg container of
@@ -567,6 +579,20 @@ fn chain(
     }
     // FF9Play_Init: every character has a player record from new game on.
     world.character_stats = stats;
+    if let Some((base, levels)) = growth_tables {
+        world.level_growth = Some(std::sync::Arc::new(move |character, total_exp| {
+            let base = base.get(&character)?;
+            let level = levels
+                .iter()
+                .enumerate()
+                .filter(|(_, row)| u64::from(row.experience) <= total_exp)
+                .map(|(index, _)| index + 1)
+                .max()
+                .unwrap_or(1)
+                .min(levels.len());
+            tantalus_game::new_game::build_stats(*base, &levels, level)
+        }));
+    }
     if let Some(table) = atan {
         world.provide_atan_table(table);
     }
