@@ -197,7 +197,8 @@
     "MOVJ 0xA0 emits MoveActorToExit and yields, repeating while host-owned exit movement is active",
     "B_MULT_LET_A 54 multiplies and writes every selected member, returning the last result or zero",
     "B_SELECT 77 chooses an ordered active bit using one host random byte and returns zero for an empty mask",
-    "B_COS 99 shifts its operand left by four before fixed-point cosine"
+    "B_COS 99 shifts its operand left by four before fixed-point cosine",
+    "B_OBJSPEC 78 matches the pinned extended-expression default zero without consuming an operand or accessing object members"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -334,12 +335,11 @@
       "entry": 13,
       "function": 1,
       "function_tag": 1,
-      "instruction_offset": 577,
-      "expression_offset": 578,
-      "offset": 1083,
-      "opcode": 78,
+      "instruction_offset": 648,
+      "offset": 1153,
+      "opcode": 289,
       "kind": "UnsupportedOpcode",
-      "instruction": "JMP_IFNOT contains unsupported B_OBJSPEC expression opcode 0x4E after shifted cosine support"
+      "instruction": "Memoria MCF_MODEL extended event opcode 0x121 after B_OBJSPEC support"
     },
     {
       "entry": 13,

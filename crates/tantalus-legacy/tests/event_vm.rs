@@ -2028,6 +2028,22 @@ fn player_control_uses_the_current_entity_when_available() {
 }
 
 #[test]
+fn objspec_matches_the_current_zero_result_without_member_access() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 74);
+    let expression = assign(result, vec![78]);
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 74), 0);
+    assert_eq!(host.member_target, None);
+    assert!(host.member_writes.is_empty());
+    assert!(decode_program(&[5, 78]).is_err());
+}
+
+#[test]
 fn direct_object_member_reads_use_object_and_member_identity() {
     let target = variable(VariableScope::Global, VariableType::Int16, 9);
     let read = vec![120, 42, 7];

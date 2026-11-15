@@ -2155,6 +2155,10 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::ObjectSpecial => stack.push(StackValue {
+                    value: 0,
+                    target: None,
+                }),
                 ExpressionOp::ReadObjectMember(reference) => {
                     let value = host
                         .read_object_member(*reference)
@@ -2617,6 +2621,7 @@ fn operand_start(
         | ExpressionOp::SystemVariable(_)
         | ExpressionOp::CustomVariable(_)
         | ExpressionOp::ObjectPointer(_)
+        | ExpressionOp::ObjectSpecial
         | ExpressionOp::CastList
         | ExpressionOp::Pad => Ok(index),
         ExpressionOp::Negate

@@ -85,6 +85,7 @@ pub enum ExpressionOp {
     PostIncrement,
     PostDecrement,
     ReadObjectMember(ObjectMemberRef),
+    ObjectSpecial,
     Member(u8),
     SystemVariable(u8),
     CustomVariable(u16),
