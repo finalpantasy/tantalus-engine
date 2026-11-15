@@ -196,6 +196,19 @@ impl EventVm {
                         self.evaluate(host, &expression, instruction.offset, opcode)?;
                     self.pc = next;
                 }
+                InstructionKind::SetObjectFlags(flags) => {
+                    let flags = self.evaluate(host, &flags, instruction.offset, opcode)? as u8;
+                    let Some(object) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "object flags require current object context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetObjectFlags { object, flags });
+                }
                 InstructionKind::SetHeadFocusMasks {
                     self_mask,
                     target_mask,
@@ -1426,6 +1439,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetActorRadii { .. } => 0x4b,
         InstructionKind::SetIdleAnimationSpeeds { .. } => 0x86,
         InstructionKind::SetHeadFocusMasks { .. } => 0x8b,
+        InstructionKind::SetObjectFlags { .. } => 0x93,
         InstructionKind::SetActorFacing { .. } => 0x36,
         InstructionKind::Return => 0x04,
         InstructionKind::Evaluate(_) => 0x05,

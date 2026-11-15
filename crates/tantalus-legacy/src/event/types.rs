@@ -127,6 +127,7 @@ pub enum InstructionKind {
         self_mask: Expression,
         target_mask: Expression,
     },
+    SetObjectFlags(Expression),
     SetActorFacing(Expression),
     Return,
     Wait(Expression),
@@ -351,6 +352,10 @@ pub enum HostEvent {
         actor: EntityId,
         self_mask: u8,
         target_mask: u8,
+    },
+    SetObjectFlags {
+        object: EntityId,
+        flags: u8,
     },
     SetActorFacing {
         actor: EntityId,

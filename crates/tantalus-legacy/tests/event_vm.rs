@@ -126,6 +126,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetActorRadii { .. } => {}
                 HostEvent::SetIdleAnimationSpeeds { .. } => {}
                 HostEvent::SetHeadFocusMasks { .. } => {}
+                HostEvent::SetObjectFlags { .. } => {}
                 HostEvent::SetActorFacing { .. } => {}
                 HostEvent::AimAtCamera => {}
                 HostEvent::DefinePlayerControl { .. } => {}
@@ -724,6 +725,40 @@ fn neckid_sets_actor_head_focus_masks() {
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));
+}
+
+#[test]
+fn cflag_sets_current_object_mutable_flags() {
+    let program = decode_program(&[147, 0, 14, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetObjectFlags {
+            object: EntityId::new(42),
+            flags: 14
+        }]
+    );
+
+    let mut bytes = vec![147, 1];
+    append_expression(&mut bytes, constant(-1));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetObjectFlags {
+            object: EntityId::new(42),
+            flags: 255
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[147, 0, 14, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("object context"));
 }
 
 #[test]
