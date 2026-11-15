@@ -408,6 +408,20 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::PlayAnimation { actor, animation });
                 }
+                InstructionKind::SetAnimationRange { start, end } => {
+                    let start = self.evaluate(host, &start, instruction.offset, opcode)? as u8;
+                    let end = self.evaluate(host, &end, instruction.offset, opcode)? as u8;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "animation range requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetAnimationRange { actor, start, end });
+                }
                 InstructionKind::SetWalkAnimation(animation) => {
                     let animation =
                         self.evaluate(host, &animation, instruction.offset, opcode)? as u16;
@@ -1381,7 +1395,8 @@ impl EventVm {
                 | ExpressionOp::GreaterOrEqual
                 | ExpressionOp::Equal
                 | ExpressionOp::NotEqual
-                | ExpressionOp::BitwiseAnd => {
+                | ExpressionOp::BitwiseAnd
+                | ExpressionOp::BitwiseOr => {
                     let (left, right) = binary(&mut stack, operation, host)?;
                     let value = match operation {
                         ExpressionOp::Add => left.wrapping_add(right),
@@ -1418,6 +1433,7 @@ impl EventVm {
                         ExpressionOp::Equal => i32::from(left == right),
                         ExpressionOp::NotEqual => i32::from(left != right),
                         ExpressionOp::BitwiseAnd => left & right,
+                        ExpressionOp::BitwiseOr => left | right,
                         _ => unreachable!(),
                     };
                     stack.push(StackValue {
@@ -2079,6 +2095,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetWalkAnimation { .. } => 0x34,
         InstructionKind::SetRunAnimation { .. } => 0x35,
         InstructionKind::PlayAnimation { .. } => 0x40,
+        InstructionKind::SetAnimationRange { .. } => 0x3d,
         InstructionKind::SetLeftTurnAnimation { .. } => 0x7a,
         InstructionKind::SetRightTurnAnimation { .. } => 0x7b,
         InstructionKind::SetJumpAnimation { .. } => 0x94,
@@ -2290,6 +2307,7 @@ fn operand_start(
         | ExpressionOp::Equal
         | ExpressionOp::NotEqual
         | ExpressionOp::BitwiseAnd
+        | ExpressionOp::BitwiseOr
         | ExpressionOp::Assign
         | ExpressionOp::AddAssign
         | ExpressionOp::SubtractAssign

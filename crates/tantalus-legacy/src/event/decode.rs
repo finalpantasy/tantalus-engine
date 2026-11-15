@@ -17,6 +17,7 @@ const OP_SET_IDLE_ANIMATION: u32 = 0x33;
 const OP_SET_WALK_ANIMATION: u32 = 0x34;
 const OP_SET_RUN_ANIMATION: u32 = 0x35;
 const OP_PLAY_ANIMATION: u32 = 0x40;
+const OP_SET_ANIMATION_RANGE: u32 = 0x3d;
 const OP_PRINT_QUAD: u32 = 0x78;
 const OP_SET_LEFT_TURN_ANIMATION: u32 = 0x7a;
 const OP_SET_RIGHT_TURN_ANIMATION: u32 = 0x7b;
@@ -369,6 +370,23 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::PlayAnimation(animation)
+            }
+            OP_SET_ANIMATION_RANGE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetAnimationRange {
+                    start: argument(1)?,
+                    end: argument(2)?,
+                }
             }
             OP_SET_WALK_ANIMATION => {
                 let flags = self.byte()?;
@@ -1327,6 +1345,7 @@ impl Decoder<'_> {
                 EXPR_EQUAL => ExpressionOp::Equal,
                 EXPR_NOT_EQUAL => ExpressionOp::NotEqual,
                 36 => ExpressionOp::BitwiseAnd,
+                38 => ExpressionOp::BitwiseOr,
                 28 => ExpressionOp::LessMembers,
                 29 => ExpressionOp::GreaterMembers,
                 30 => ExpressionOp::LessOrEqualMembers,

@@ -62,6 +62,7 @@ pub enum ExpressionOp {
     Equal,
     NotEqual,
     BitwiseAnd,
+    BitwiseOr,
     Assign,
     AddAssign,
     SubtractAssign,
@@ -146,6 +147,10 @@ pub enum InstructionKind {
     SetWalkAnimation(Expression),
     SetRunAnimation(Expression),
     PlayAnimation(Expression),
+    SetAnimationRange {
+        start: Expression,
+        end: Expression,
+    },
     SetLeftTurnAnimation(Expression),
     SetRightTurnAnimation(Expression),
     SetJumpAnimation {
@@ -467,6 +472,11 @@ pub enum HostEvent {
     PlayAnimation {
         actor: EntityId,
         animation: u16,
+    },
+    SetAnimationRange {
+        actor: EntityId,
+        start: u8,
+        end: u8,
     },
     SetLeftTurnAnimation {
         actor: EntityId,

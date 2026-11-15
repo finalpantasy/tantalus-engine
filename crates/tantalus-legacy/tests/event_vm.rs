@@ -195,6 +195,7 @@ impl LegacyEventHost for Host {
                 HostEvent::DefineRegion { .. } => {}
                 HostEvent::ClearPartyStatus { .. } => {}
                 HostEvent::PlayAnimation { .. } => {}
+                HostEvent::SetAnimationRange { .. } => {}
                 HostEvent::PreloadField { .. } => {}
                 HostEvent::ChangeElementalAffinity { .. } => {}
                 HostEvent::SetRain { .. } => {}
@@ -832,6 +833,31 @@ fn bitwise_and_evaluates_the_shared_binary_expression_path() {
 }
 
 #[test]
+fn bitwise_or_evaluates_the_shared_binary_expression_path() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 62);
+    let expression = assign(result, binary(constant(90), constant(60), 38));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 62), 126);
+
+    let mut bytes = vec![61, 1];
+    append_expression(&mut bytes, binary(constant(16), constant(3), 38));
+    bytes.extend_from_slice(&[42, 4]);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap()).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetAnimationRange {
+            actor: EntityId::new(42),
+            start: 19,
+            end: 42
+        }]
+    );
+}
+
+#[test]
 fn play_animation_uses_the_current_actor_and_unsigned_animation_id() {
     let program = decode_program(&[64, 0, 0x34, 0x12, 4]).unwrap();
     assert_eq!(program.instructions[&0].length, 4);
@@ -865,6 +891,45 @@ fn play_animation_uses_the_current_actor_and_unsigned_animation_id() {
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));
     assert!(decode_program(&[64, 0, 1]).is_err());
+}
+
+#[test]
+fn animation_range_sets_start_and_end_for_the_current_actor() {
+    let program = decode_program(&[61, 0, 18, 42, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetAnimationRange {
+            actor: EntityId::new(42),
+            start: 18,
+            end: 42
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![61, 3];
+    append_expression(&mut bytes, constant(300));
+    append_expression(&mut bytes, constant(-1));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap()).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetAnimationRange {
+            actor: EntityId::new(42),
+            start: 44,
+            end: 255
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[61, 0, 1, 2, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
+    assert!(decode_program(&[61, 0, 1]).is_err());
 }
 
 #[test]
