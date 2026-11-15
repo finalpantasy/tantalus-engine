@@ -202,6 +202,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetBattleMusicContinuation { .. } => {}
                 HostEvent::RunModelCode { .. } => {}
                 HostEvent::SetRunEnabled { .. } => {}
+                HostEvent::SetHereIcon { .. } => {}
                 HostEvent::SetPartyAvailability { .. } => {}
                 HostEvent::MoveTile { .. } => {}
                 HostEvent::SetTileScrollWithOffset { .. } => {}
@@ -5454,6 +5455,29 @@ fn dashon_enables_running() {
     let report = vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(report.events, [HostEvent::SetRunEnabled { enabled: true }]);
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn hereon_sets_the_raw_icon_display_mode() {
+    let program = decode_program(&[239, 0, 3, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 3);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::SetHereIcon { mode: 3 }]);
+    assert!(vm.traces().any(|trace| trace.opcode == Some(239)));
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![239, 1];
+    append_expression(&mut bytes, constant(0));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::SetHereIcon { mode: 0 }]);
+
+    let truncated = decode_program(&[239]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(239)"));
 }
 
 #[test]

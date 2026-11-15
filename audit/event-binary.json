@@ -207,7 +207,8 @@
     "FLDSND0 through FLDSND3 (0xC5-0xC8) share signed code/ID and variant-specific argument decoding while retaining the actual opcode",
     "B_OR_LET_E 69 ORs the selected-value mask with its operand and writes the last selected target",
     "ADD_STATUS 0x11D decodes target, status, permanent flag, and three signed 24-bit script arguments and emits AddBattleStatus",
-    "MOVE 0x23 decodes signed X/Z destinations and emits WalkActor with a repeatable host-owned movement wait"
+    "MOVE 0x23 decodes signed X/Z destinations and emits WalkActor with a repeatable host-owned movement wait",
+    "HEREON 0xEF decodes a byte display mode and emits SetHereIcon"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -354,11 +355,11 @@
       "entry": 13,
       "function": 4,
       "function_tag": 13,
-      "instruction_offset": 48,
-      "offset": 2492,
-      "opcode": 239,
+      "instruction_offset": 145,
+      "offset": 2589,
+      "opcode": 99,
       "kind": "UnsupportedOpcode",
-      "instruction": "HEREON event opcode 0xEF after MOVE support"
+      "instruction": "BGAFLAG event opcode 0x63 after HEREON support"
     },
     {
       "entry": 13,

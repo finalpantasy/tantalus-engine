@@ -407,6 +407,7 @@ pub enum InstructionKind {
         enabled: bool,
         opcode: u8,
     },
+    SetHereIcon(Expression),
     SetPartyAvailability(Expression),
     MoveTile {
         overlay: Expression,
@@ -799,6 +800,9 @@ pub enum HostEvent {
     },
     SetRunEnabled {
         enabled: bool,
+    },
+    SetHereIcon {
+        mode: i32,
     },
     SetPartyAvailability {
         mask: i32,

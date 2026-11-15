@@ -72,6 +72,7 @@ const OP_SET_OBJECT_SCALE: u32 = 0x9f;
 const OP_SET_VIBRATION_FRAME_RATE: u32 = 0xfa;
 const OP_PRELOAD_FIELD: u32 = 0xfd;
 const OP_SET_RAIN: u32 = 0xd8;
+const OP_SET_HERE_ICON: u32 = 0xef;
 const OP_REQUEST_SCRIPT_ASYNC: u32 = 0x10;
 const OP_REQUEST_SCRIPT_WHEN_READY: u32 = 0x12;
 const OP_DEFINE_TILE_VIEWPORT: u32 = 0xc9;
@@ -1370,6 +1371,18 @@ impl Decoder<'_> {
                     element: argument(4)?,
                     add: argument(8)?,
                 }
+            }
+            OP_SET_HERE_ICON => {
+                let flags = self.byte()?;
+                let mode = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::SetHereIcon(mode)
             }
             OP_FULL_MEMBER => {
                 let flags = self.byte()?;

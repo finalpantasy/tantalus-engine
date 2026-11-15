@@ -1283,6 +1283,11 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetRunEnabled { enabled });
                 }
+                InstructionKind::SetHereIcon(mode) => {
+                    let mode = self.evaluate(host, &mode, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetHereIcon { mode });
+                }
                 InstructionKind::SetPartyAvailability(mask) => {
                     let mask = self.evaluate(host, &mask, instruction.offset, opcode)?;
                     let mut available = mask & !0xf00;
@@ -2659,6 +2664,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetModelLight { .. } => 0x121,
         InstructionKind::ChangeElementalAffinity { .. } => 0x122,
         InstructionKind::SetRunEnabled { opcode, .. } => u32::from(*opcode),
+        InstructionKind::SetHereIcon { .. } => 0xef,
         InstructionKind::SetPartyAvailability { .. } => 0xb4,
         InstructionKind::MoveTile { .. } => 0x5a,
         InstructionKind::SetTileScrollWithOffset { .. } => 0xe4,
