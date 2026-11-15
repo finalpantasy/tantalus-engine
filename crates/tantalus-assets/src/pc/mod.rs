@@ -13,6 +13,7 @@ pub mod mbg;
 pub mod mes;
 pub mod model_assembly;
 pub mod ogg;
+pub mod resource_container;
 pub mod serialized;
 pub mod serialized_inventory;
 pub mod text_asset;
