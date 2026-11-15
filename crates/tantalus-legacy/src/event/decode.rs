@@ -1383,6 +1383,7 @@ impl Decoder<'_> {
                 30 => ExpressionOp::LessOrEqualMembers,
                 31 => ExpressionOp::GreaterOrEqualMembers,
                 34 => ExpressionOp::EqualMembers,
+                35 => ExpressionOp::NotEqualMembers,
                 41 => ExpressionOp::Member(self.byte()?),
                 39 => ExpressionOp::LogicalAnd,
                 40 => ExpressionOp::LogicalOr,

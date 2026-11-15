@@ -1931,6 +1931,7 @@ impl EventVm {
                     target: None,
                 }),
                 ExpressionOp::EqualMembers
+                | ExpressionOp::NotEqualMembers
                 | ExpressionOp::AndMembers
                 | ExpressionOp::NandMembers
                 | ExpressionOp::LessMembers
@@ -1963,6 +1964,7 @@ impl EventVm {
                             let value = read_value(host, target, offset, opcode)?;
                             let matches = match operation {
                                 ExpressionOp::EqualMembers => value == comparison,
+                                ExpressionOp::NotEqualMembers => value != comparison,
                                 ExpressionOp::AndMembers => value & comparison != 0,
                                 ExpressionOp::NandMembers => value & comparison == 0,
                                 ExpressionOp::LessMembers => value < comparison,
@@ -2429,6 +2431,7 @@ fn operand_start(
         | ExpressionOp::AndAssignAllMembers
         | ExpressionOp::AssignAllMembers
         | ExpressionOp::EqualMembers
+        | ExpressionOp::NotEqualMembers
         | ExpressionOp::AndMembers
         | ExpressionOp::NandMembers
         | ExpressionOp::LessMembers

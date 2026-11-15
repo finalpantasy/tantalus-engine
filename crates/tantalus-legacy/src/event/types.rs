@@ -99,6 +99,7 @@ pub enum ExpressionOp {
     AssignAllMembers,
     AssignMembers,
     EqualMembers,
+    NotEqualMembers,
     AndMembers,
     NandMembers,
     LessMembers,
