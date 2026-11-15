@@ -23,6 +23,7 @@ pub mod cost;
 pub mod flee;
 pub mod machine;
 pub mod queue;
+pub mod rewards;
 pub mod rng;
 pub mod scripts;
 pub mod status;

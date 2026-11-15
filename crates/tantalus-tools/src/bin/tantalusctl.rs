@@ -537,6 +537,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut field = None;
     let mut atlas_for = None;
     let mut battle_scenes = false;
+    let mut battle_scripts_probe: Option<PathBuf> = None;
     let mut battle_scene = None;
     let mut world_map = false;
     let mut world_map_audit = None;
@@ -728,6 +729,15 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 }
             }
             Some("--battle-scenes") => battle_scenes = true,
+            Some("--battle-scripts-probe") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| "`--battle-scripts-probe` requires an output path".to_owned())?;
+                if battle_scripts_probe.replace(PathBuf::from(value)).is_some() {
+                    return Err("`--battle-scripts-probe` may only be supplied once".to_owned());
+                }
+            }
             Some("--battle-scene") => {
                 index += 1;
                 let value = args
@@ -855,6 +865,9 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         .map_err(|error| error.to_string())?;
     if world_map {
         return run_world_map(&bundle, &path, json, world_map_audit.as_deref());
+    }
+    if let Some(out) = battle_scripts_probe.as_deref() {
+        return run_battle_scripts_probe(&bundle, &path, out, json);
     }
     if let Some(name) = event {
         let bytes = bundle
@@ -2097,16 +2110,244 @@ fn run_field_composition(
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--decode-frames <name> <n|all> [--png <dir>]] [--out <path>] [--json]`, `assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--decode-frames <name> <n|all> [--png <dir>]] [--out <path>] [--json]\n    tantalusctl assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 
 /// `--battle-scenes` (whole bundle) or `--battle-scene <name>` (one scene), always JSON.
+fn run_battle_scripts_probe(
+    bundle: &tantalus_assets::pc::unity_raw::UnityRawBundle,
+    path: &std::path::Path,
+    out: &std::path::Path,
+    json: bool,
+) -> Result<(), String> {
+    use std::collections::BTreeMap;
+    type Histogram = BTreeMap<String, (usize, String)>;
+    fn bump(map: &mut Histogram, key: String, example: &str) {
+        map.entry(key).or_insert_with(|| (0, example.to_owned())).0 += 1;
+    }
+    fn render(map: &Histogram) -> Vec<serde_json::Value> {
+        map.iter()
+            .map(|(key, (count, example))| {
+                serde_json::json!({"key": key, "count": count, "first_at": example})
+            })
+            .collect()
+    }
+    let bytes = bundle
+        .read_entry(0, 300 * 1024 * 1024)
+        .map_err(|error| error.to_string())?;
+    let serialized =
+        tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
+            .map_err(|error| error.to_string())?;
+    let mut scripts = 0_usize;
+    let mut parse_failures = Vec::new();
+    let (mut decoded, mut decode_errors, mut empty) = (0_usize, 0_usize, 0_usize);
+    let (mut probed, mut completed, mut waiting, mut budget, mut refusals) =
+        (0_usize, 0_usize, 0_usize, 0_usize, 0_usize);
+    let mut unsupported: Histogram = BTreeMap::new();
+    let mut runtime_kinds: Histogram = BTreeMap::new();
+    let mut decode_kinds: Histogram = BTreeMap::new();
+    let mut events: BTreeMap<String, usize> = BTreeMap::new();
+    let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
+    let mut waits: Histogram = BTreeMap::new();
+    let mut sysvars: Histogram = BTreeMap::new();
+    let mut syslist: Histogram = BTreeMap::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for (index, object) in serialized.report().objects.iter().enumerate() {
+        if object.class_id != 49 {
+            continue;
+        }
+        let asset = tantalus_assets::pc::text_asset::TextAsset::parse(
+            serialized
+                .object_data(index)
+                .map_err(|error| error.to_string())?,
+            "battle-script",
+        )
+        .map_err(|error| error.to_string())?;
+        if !asset.name.starts_with("EVT_BATTLE_") || !seen.insert(asset.name.clone()) {
+            continue;
+        }
+        scripts += 1;
+        let binary = match tantalus_legacy::EventBinary::parse(&asset.script) {
+            Ok(binary) => binary,
+            Err(error) => {
+                parse_failures.push(format!("{}: {error}", asset.name));
+                continue;
+            }
+        };
+        for entry in &binary.entries {
+            let decoded_entry = match binary.decode_entry_with_diagnostics(entry.index) {
+                Ok(value) => value,
+                Err(error) => {
+                    decode_errors += 1;
+                    let at = format!("{} entry {}", asset.name, entry.index);
+                    bump(
+                        &mut decode_kinds,
+                        format!("{:?} opcode {:?}", error.kind, error.opcode),
+                        &at,
+                    );
+                    continue;
+                }
+            };
+            for failure in &decoded_entry.errors {
+                decode_errors += 1;
+                let at = format!(
+                    "{} entry {} fn {}",
+                    asset.name, entry.index, failure.function
+                );
+                bump(
+                    &mut decode_kinds,
+                    format!("{:?} opcode {:?}", failure.error.kind, failure.error.opcode),
+                    &at,
+                );
+            }
+            for function in &decoded_entry.functions {
+                decoded += 1;
+                if function.program.instructions.is_empty() {
+                    empty += 1;
+                    continue;
+                }
+                probed += 1;
+                let at = format!("{} entry {} tag {}", asset.name, entry.index, function.tag);
+                if let Ok(tree) = serde_json::to_value(&function.program.instructions) {
+                    tally_program(&tree, &at, &mut kinds, &mut sysvars, &mut syslist);
+                }
+                let outcome = tantalus_legacy::probe_program(
+                    &function.program,
+                    tantalus_contracts::EntityId::new(entry.index as u64),
+                    64,
+                );
+                for (name, count) in outcome.events {
+                    *events.entry(name).or_insert(0) += count;
+                }
+                match outcome.error {
+                    Some(failure) => match failure.kind {
+                        tantalus_legacy::VmErrorKind::UnsupportedOpcode => {
+                            refusals += 1;
+                            bump(
+                                &mut unsupported,
+                                format!("opcode {:?}: {}", failure.opcode, failure.message),
+                                &at,
+                            );
+                        }
+                        tantalus_legacy::VmErrorKind::InstructionLimit => budget += 1,
+                        kind => bump(
+                            &mut runtime_kinds,
+                            format!("{kind:?} opcode {:?}: {}", failure.opcode, failure.message),
+                            &at,
+                        ),
+                    },
+                    None if outcome.status == tantalus_legacy::VmStatus::Completed => {
+                        completed += 1;
+                    }
+                    None => {
+                        waiting += 1;
+                        let wait = outcome
+                            .wait
+                            .map(|wait| format!("{wait:?}"))
+                            .and_then(|text| text.split(['(', ' ']).next().map(str::to_owned))
+                            .unwrap_or_else(|| "none".to_owned());
+                        bump(&mut waits, wait, &at);
+                    }
+                }
+            }
+        }
+    }
+    let report = serde_json::json!({
+        "scope": "zero-state dry run of every function of every EVT_BATTLE_* script; permissive host, reads return zero, waits finish; not a gameplay claim",
+        "max_ticks": 64,
+        "scripts": scripts,
+        "script_parse_failures": parse_failures,
+        "functions_decoded": decoded,
+        "decode_errors": decode_errors,
+        "decode_error_kinds": render(&decode_kinds),
+        "empty_functions": empty,
+        "functions_probed": probed,
+        "completed": completed,
+        "still_waiting": waiting,
+        "instruction_budget_stops": budget,
+        "unsupported_opcode_refusals": refusals,
+        "unsupported_opcodes": render(&unsupported),
+        "other_runtime_error_kinds": render(&runtime_kinds),
+        "events": events,
+        "wait_states": render(&waits),
+        "instruction_kinds": kinds,
+        "system_variables_read": render(&sysvars),
+        "system_list_elements": render(&syslist),
+    });
+    let text = serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?;
+    std::fs::write(out, format!("{text}\n")).map_err(|error| error.to_string())?;
+    if json {
+        println!("{text}");
+    } else {
+        println!(
+            "{scripts} battle scripts probed; report written to {}",
+            out.display()
+        );
+    }
+    Ok(())
+}
+
+/// Counts instruction kinds and the system-variable and system-list ids that decoded
+/// programs reference, by walking the serialized instruction tree.
+fn tally_program(
+    tree: &serde_json::Value,
+    at: &str,
+    kinds: &mut std::collections::BTreeMap<String, usize>,
+    sysvars: &mut std::collections::BTreeMap<String, (usize, String)>,
+    syslist: &mut std::collections::BTreeMap<String, (usize, String)>,
+) {
+    fn walk(
+        value: &serde_json::Value,
+        at: &str,
+        sysvars: &mut std::collections::BTreeMap<String, (usize, String)>,
+        syslist: &mut std::collections::BTreeMap<String, (usize, String)>,
+    ) {
+        match value {
+            serde_json::Value::Object(map) => {
+                for (key, inner) in map {
+                    let target = match key.as_str() {
+                        "system_variable" => Some(&mut *sysvars),
+                        "system_list" => Some(&mut *syslist),
+                        _ => None,
+                    };
+                    if let (Some(target), Some(id)) = (target, inner.as_u64()) {
+                        target
+                            .entry(id.to_string())
+                            .or_insert_with(|| (0, at.to_owned()))
+                            .0 += 1;
+                    }
+                    walk(inner, at, sysvars, syslist);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    walk(item, at, sysvars, syslist);
+                }
+            }
+            _ => {}
+        }
+    }
+    if let serde_json::Value::Object(instructions) = tree {
+        for instruction in instructions.values() {
+            let kind = match instruction.get("kind") {
+                Some(serde_json::Value::String(name)) => Some(name.clone()),
+                Some(serde_json::Value::Object(map)) => map.keys().next().cloned(),
+                _ => None,
+            };
+            if let Some(kind) = kind {
+                *kinds.entry(kind).or_insert(0) += 1;
+            }
+        }
+    }
+    walk(tree, at, sysvars, syslist);
+}
+
 fn run_battle_scene_report(path: &std::path::Path, one: Option<&str>) -> Result<(), String> {
     use tantalus_assets::pc::battle_scene::BattleBundleData;
     let data = BattleBundleData::load(path).map_err(|error| error.to_string())?;
@@ -3124,6 +3365,131 @@ fn run_world_map(
     Ok(())
 }
 
+/// `assets inspect-movie --dir <dir> --decode-frames <name> <n|all> [--png <dir>] [--out <json>]`.
+/// Decodes Theora frames, checks the decoded packet count against the Ogg
+/// granule position, hashes every frame and writes `audit/movie-decode.json`
+/// (or `--out`). PNG output is for local inspection and is never committed.
+fn run_movie_decode(
+    dir: &std::path::Path,
+    name: &str,
+    limit: Option<u64>,
+    out: Option<PathBuf>,
+    png_dir: Option<&std::path::Path>,
+    json: bool,
+) -> Result<(), String> {
+    use tantalus_assets::install::ImportError;
+    use tantalus_assets::pc::theora::decode_movie;
+    use tantalus_assets::pc::ui_atlas::encode_png_rgba;
+    let stem = name.strip_suffix(".bytes").unwrap_or(name);
+    let path = dir.join(format!("{stem}.bytes"));
+    let file = std::fs::File::open(&path)
+        .map_err(|e| format!("could not open {}: {e}", path.display()))?;
+    let file_size = file.metadata().map_err(|e| e.to_string())?.len();
+    if let Some(png_dir) = png_dir {
+        std::fs::create_dir_all(png_dir)
+            .map_err(|e| format!("could not create {}: {e}", png_dir.display()))?;
+    }
+    let mut frame_hashes: Vec<String> = Vec::new();
+    let mut frame0 = serde_json::Value::Null;
+    let mut last_png: Option<(u64, u32, u32, Vec<u8>)> = None;
+    let started = std::time::Instant::now();
+    let summary = decode_movie(std::io::BufReader::new(file), limit, |index, frame| {
+        let mut hasher = Sha256::new();
+        hasher.update(&frame.y);
+        hasher.update(&frame.cb);
+        hasher.update(&frame.cr);
+        frame_hashes.push(format!("{:x}", hasher.finalize()));
+        if index == 0 {
+            frame0 = serde_json::json!({
+                "width": frame.width,
+                "height": frame.height,
+                "y_sha256": format!("{:x}", Sha256::digest(&frame.y)),
+                "cb_sha256": format!("{:x}", Sha256::digest(&frame.cb)),
+                "cr_sha256": format!("{:x}", Sha256::digest(&frame.cr)),
+            });
+        }
+        if let Some(png_dir) = png_dir {
+            let rgba = frame.to_rgba();
+            if index == 0 {
+                let target = png_dir.join(format!("{stem}_f{index:05}.png"));
+                std::fs::write(&target, encode_png_rgba(frame.width, frame.height, &rgba))
+                    .map_err(|e| ImportError::invalid(target.display(), e))?;
+            }
+            last_png = Some((index, frame.width, frame.height, rgba));
+        }
+        Ok(())
+    })
+    .map_err(|e| format!("{}: {e}", path.display()))?;
+    let elapsed = started.elapsed().as_secs_f64();
+    if let (Some(png_dir), Some((index, w, h, rgba))) = (png_dir, last_png) {
+        let target = png_dir.join(format!("{stem}_f{index:05}.png"));
+        std::fs::write(&target, encode_png_rgba(w, h, &rgba))
+            .map_err(|e| format!("could not write {}: {e}", target.display()))?;
+    }
+    let count_check = match (summary.complete, summary.granule_frame_count) {
+        (true, Some(declared)) => serde_json::json!({
+            "checked": true,
+            "granule_declared_frames": declared,
+            "decoded_packets": summary.packets_decoded,
+            "equal": declared == summary.packets_decoded,
+        }),
+        _ => serde_json::json!({
+            "checked": false,
+            "reason": "decode stopped before the end of the stream or no data page granule was seen",
+        }),
+    };
+    let chain = {
+        let mut hasher = Sha256::new();
+        for hash in &frame_hashes {
+            hasher.update(hash.as_bytes());
+        }
+        format!("{:x}", hasher.finalize())
+    };
+    let fps = if elapsed > 0.0 {
+        (summary.packets_decoded as f64 / elapsed * 10.0).round() / 10.0
+    } else {
+        0.0
+    };
+    let document = serde_json::json!({
+        "file": format!("{stem}.bytes"),
+        "file_size": file_size,
+        "decoder": "oxideav-theora 0.0.12 (pure Rust, MIT) via tantalus_assets::pc::theora",
+        "picture": format!("{}x{}", summary.params.picture_width, summary.params.picture_height),
+        "pixel_format": summary.params.pixel_format,
+        "fps": format!("{}/{}", summary.params.fps_numerator, summary.params.fps_denominator),
+        "keyframe_granule_shift": summary.params.keyframe_granule_shift,
+        "requested_frames": limit,
+        "decoded_packets": summary.packets_decoded,
+        "empty_duplicate_packets": summary.empty_packets,
+        "complete": summary.complete,
+        "last_granule": summary.last_granule,
+        "count_check": count_check,
+        "decode_seconds": (elapsed * 1000.0).round() / 1000.0,
+        "decode_frames_per_second": fps,
+        "frame0": frame0,
+        "frame_hash_algorithm": "sha256 over the cropped top-down Y, Cb, Cr planes concatenated",
+        "frame_hash_chain_sha256": chain,
+        "frame_hashes": frame_hashes,
+    });
+    let text = serde_json::to_string_pretty(&document)
+        .map_err(|e| format!("could not serialize movie decode report: {e}"))?;
+    let out = out.unwrap_or_else(|| PathBuf::from("audit/movie-decode.json"));
+    std::fs::write(&out, format!("{text}\n"))
+        .map_err(|e| format!("could not write {}: {e}", out.display()))?;
+    if json {
+        println!("{text}");
+    } else {
+        println!(
+            "{stem}: decoded {} packets ({} empty) in {elapsed:.2}s, count check {}, wrote {}",
+            summary.packets_decoded,
+            summary.empty_packets,
+            document["count_check"]["equal"],
+            out.display()
+        );
+    }
+    Ok(())
+}
+
 fn run_assets_inspect_movie(args: Vec<OsString>) -> Result<(), String> {
     use std::collections::BTreeMap;
     use tantalus_assets::pc::ogg::{StreamCodec, scan_ogg_file};
@@ -3131,6 +3497,8 @@ fn run_assets_inspect_movie(args: Vec<OsString>) -> Result<(), String> {
     let mut out = None;
     let mut json = false;
     let mut verify_crc = false;
+    let mut decode_frames: Option<(String, Option<u64>)> = None;
+    let mut png_dir: Option<PathBuf> = None;
     let mut index = 2;
     while index < args.len() {
         match args[index].to_str() {
@@ -3148,6 +3516,30 @@ fn run_assets_inspect_movie(args: Vec<OsString>) -> Result<(), String> {
             }
             Some("--json") => json = true,
             Some("--verify-crc") => verify_crc = true,
+            Some("--decode-frames") => {
+                let name = args
+                    .get(index + 1)
+                    .ok_or("`--decode-frames` requires a name")?;
+                let count = args
+                    .get(index + 2)
+                    .and_then(|v| v.to_str())
+                    .ok_or("`--decode-frames` requires a frame count or `all`")?;
+                let limit = if count == "all" {
+                    None
+                } else {
+                    Some(count.parse::<u64>().map_err(|_| {
+                        format!("bad frame count `{count}`: expected a number or `all`")
+                    })?)
+                };
+                decode_frames = Some((name.to_string_lossy().into_owned(), limit));
+                index += 2;
+            }
+            Some("--png") => {
+                index += 1;
+                png_dir = Some(PathBuf::from(
+                    args.get(index).ok_or("`--png` requires a directory")?,
+                ));
+            }
             _ => {
                 return Err(format!(
                     "unrecognized argument: {}",
@@ -3158,6 +3550,12 @@ fn run_assets_inspect_movie(args: Vec<OsString>) -> Result<(), String> {
         index += 1;
     }
     let dir = dir.ok_or_else(|| "missing required `--dir <ma dir>`".to_owned())?;
+    if let Some((name, limit)) = decode_frames {
+        return run_movie_decode(&dir, &name, limit, out, png_dir.as_deref(), json);
+    }
+    if png_dir.is_some() {
+        return Err("`--png` needs `--decode-frames <name> <n>`".to_owned());
+    }
     let mut paths: Vec<PathBuf> = std::fs::read_dir(&dir)
         .map_err(|e| format!("could not read {}: {e}", dir.display()))?
         .filter_map(|entry| entry.ok().map(|e| e.path()))
