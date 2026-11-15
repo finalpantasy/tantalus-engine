@@ -81,6 +81,7 @@ const OP_SET_TIMER_RUNNING: u32 = 0x7d;
 const OP_REQUEST_CALLER_ASYNC: u32 = 0x16;
 const OP_REQUEST_CALLER_WHEN_READY: u32 = 0x18;
 const OP_CALCULATE_EXIT_POSITION: u32 = 0xa4;
+const OP_WALK_TO_EXIT: u32 = 0xa0;
 const OP_CALCULATE_SCREEN_POSITION: u32 = 0xa9;
 const OP_CHANGE_FIELD: u32 = 0x2b;
 const OP_REQUEST_CALLER_SYNC: u32 = 0x14;
@@ -996,6 +997,7 @@ impl Decoder<'_> {
                 self.byte()?;
                 InstructionKind::CalculateExitPosition
             }
+            OP_WALK_TO_EXIT => InstructionKind::WalkToExit,
             OP_CALCULATE_SCREEN_POSITION => {
                 let flags = self.byte()?;
                 let object = if flags & 1 != 0 {

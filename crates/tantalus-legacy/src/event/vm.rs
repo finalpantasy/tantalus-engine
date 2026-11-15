@@ -984,6 +984,23 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::CalculateExitPosition);
                 }
+                InstructionKind::WalkToExit => {
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "exit walk requires current actor context",
+                        ));
+                    };
+                    let moving = host
+                        .field_exit_movement_is_active(actor)
+                        .map_err(|error| VmError::host(error, instruction.offset, opcode))?;
+                    self.pc = if moving { instruction.offset } else { next };
+                    events.push(HostEvent::MoveActorToExit { actor });
+                    self.status = VmStatus::Running;
+                    break;
+                }
                 InstructionKind::CalculateScreenPosition(object) => {
                     let object = self.evaluate(host, &object, instruction.offset, opcode)?;
                     self.pc = next;
@@ -2433,6 +2450,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::RequestCallerAsync { .. } => 0x16,
         InstructionKind::RequestCallerWhenReady { .. } => 0x18,
         InstructionKind::CalculateExitPosition => 0xa4,
+        InstructionKind::WalkToExit => 0xa0,
         InstructionKind::CalculateScreenPosition { .. } => 0xa9,
         InstructionKind::ChangeField { .. } => 0x2b,
         InstructionKind::RequestCallerSync { .. } => 0x14,

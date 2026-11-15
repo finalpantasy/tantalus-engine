@@ -313,6 +313,7 @@ pub enum InstructionKind {
         tag: u8,
     },
     CalculateExitPosition,
+    WalkToExit,
     CalculateScreenPosition(Expression),
     ChangeField(Expression),
     RequestCallerSync {
@@ -485,6 +486,9 @@ pub enum HostEvent {
         actor: EntityId,
         x: i32,
         z: i32,
+    },
+    MoveActorToExit {
+        actor: EntityId,
     },
     DeleteObject {
         target: EntityId,
@@ -883,6 +887,7 @@ pub trait LegacyEventHost {
     fn party_menu_is_open(&self) -> bool;
     fn actor_turn_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn actor_animation_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
+    fn field_exit_movement_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn read_key_on(&mut self) -> Result<i32, EngineError>;
     fn caller_request_acceptable(&mut self, level: i32) -> Result<bool, EngineError>;
     fn script_request_acceptable(

@@ -84,6 +84,7 @@ struct Host {
     party_menu_open: bool,
     actor_turn_active: bool,
     actor_animation_active: bool,
+    exit_movement_active: bool,
     key_on: i32,
     fail: bool,
 }
@@ -109,6 +110,7 @@ impl Host {
             party_menu_open: false,
             actor_turn_active: false,
             actor_animation_active: false,
+            exit_movement_active: false,
             key_on: 0,
             fail: false,
         }
@@ -140,6 +142,7 @@ impl LegacyEventHost for Host {
                 HostEvent::MoveActor { actor, x, z } => {
                     self.movements.push((actor.get(), *x, *z));
                 }
+                HostEvent::MoveActorToExit { .. } => {}
                 HostEvent::DeleteObject { .. } => {}
                 HostEvent::SetActorPosition { .. } => {}
                 HostEvent::SetIdleAnimation { .. } => {}
@@ -348,6 +351,10 @@ impl LegacyEventHost for Host {
 
     fn actor_animation_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
         Ok(self.actor_animation_active)
+    }
+
+    fn field_exit_movement_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
+        Ok(self.exit_movement_active)
     }
 
     fn read_key_on(&mut self) -> Result<i32, EngineError> {
@@ -4322,6 +4329,45 @@ fn mjpos_requests_exit_position_calculation() {
 
     assert_eq!(report.events, [HostEvent::CalculateExitPosition]);
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn movj_yields_and_repeats_until_exit_movement_finishes() {
+    let program = decode_program(&[160, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 1);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    host.exit_movement_active = true;
+
+    for tick in 0..2 {
+        let report = vm.step(Tick::new(tick), &mut host).unwrap();
+        assert_eq!(report.status, VmStatus::Running);
+        assert_eq!(vm.pc(), 0);
+        assert_eq!(
+            report.events,
+            [HostEvent::MoveActorToExit {
+                actor: EntityId::new(42)
+            }]
+        );
+    }
+
+    host.exit_movement_active = false;
+    let report = vm.step(Tick::new(2), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Running);
+    assert_eq!(vm.pc(), 1);
+    assert_eq!(
+        report.events,
+        [HostEvent::MoveActorToExit {
+            actor: EntityId::new(42)
+        }]
+    );
+    assert!(vm.step(Tick::new(3), &mut host).unwrap().events.is_empty());
+    assert_eq!(vm.status(), VmStatus::Completed);
+
+    let mut vm = EventVm::new(decode_program(&[160, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
 }
 
 #[test]
