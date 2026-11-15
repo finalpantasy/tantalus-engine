@@ -30,6 +30,7 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
         (Some("assets"), Some("inspect-bundle")) => run_assets_inspect_bundle(args),
         (Some("assets"), Some("extract-resource")) => run_assets_extract_resource(args),
         (Some("assets"), Some("extract-text")) => run_assets_extract_text(args),
+        (Some("assets"), Some("battle-tables")) => run_assets_battle_tables(args),
         (Some("assets"), Some("inspect-serialized")) => run_assets_inspect_serialized(args),
         (Some("assets"), Some("inspect-movie")) => run_assets_inspect_movie(args),
         (Some("scenario"), Some("run")) => run_scenario(args),
@@ -109,6 +110,80 @@ fn run_assets_extract_resource(args: Vec<OsString>) -> Result<(), String> {
         println!("{}", serde_json::to_string_pretty(&report).unwrap());
     } else {
         println!("{name}: {} bytes", data.len());
+    }
+    Ok(())
+}
+
+/// `assets battle-tables`: evaluate the installed managed assembly's static
+/// initializers and parse the vanilla battle, item, ability, shop and level tables.
+fn run_assets_battle_tables(args: Vec<OsString>) -> Result<(), String> {
+    use tantalus_assets::pc::battle_tables::{extract_battle_tables, summarize, verify_known_rows};
+    use tantalus_assets::pc::managed_il::Assembly;
+    let mut dll = None;
+    let mut out = None;
+    let mut tables_out = None;
+    let mut json = false;
+    let mut index = 2;
+    while index < args.len() {
+        match args[index].to_str() {
+            Some("--json") => json = true,
+            Some(flag @ ("--dll" | "--out" | "--tables-out")) => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| format!("`{flag}` requires a path"))?;
+                let slot_taken = match flag {
+                    "--dll" => dll.replace(PathBuf::from(value)).is_some(),
+                    "--out" => out.replace(PathBuf::from(value)).is_some(),
+                    _ => tables_out.replace(PathBuf::from(value)).is_some(),
+                };
+                if slot_taken {
+                    return Err(format!("`{flag}` may only be supplied once"));
+                }
+            }
+            _ => {
+                return Err(format!(
+                    "unrecognized argument: {}",
+                    args[index].to_string_lossy()
+                ));
+            }
+        }
+        index += 1;
+    }
+    let dll = dll.ok_or_else(|| "missing required `--dll <path>`".to_owned())?;
+    let bytes =
+        std::fs::read(&dll).map_err(|error| format!("cannot read {}: {error}", dll.display()))?;
+    let assembly = Assembly::parse(&bytes).map_err(|error| error.to_string())?;
+    let tables = extract_battle_tables(&assembly).map_err(|error| error.to_string())?;
+    let checks = verify_known_rows(&tables);
+    let report = summarize(&tables, &checks, &format!("{:x}", Sha256::digest(&bytes)));
+    let text = serde_json::to_string_pretty(&report).unwrap();
+    if let Some(target) = &out {
+        std::fs::write(
+            target,
+            format!(
+                "{text}
+"
+            ),
+        )
+        .map_err(|error| format!("cannot write {}: {error}", target.display()))?;
+    }
+    if let Some(target) = &tables_out {
+        let full = serde_json::to_string(&tables).unwrap();
+        std::fs::write(target, full)
+            .map_err(|error| format!("cannot write {}: {error}", target.display()))?;
+    }
+    if json {
+        println!("{text}");
+    } else {
+        for table in report["tables"].as_array().into_iter().flatten() {
+            println!("{}: {} rows", table["name"], table["count"]);
+        }
+        let failed = checks.iter().filter(|check| !check.passed).count();
+        println!("known-row checks: {} run, {failed} failed", checks.len());
+    }
+    if checks.iter().any(|check| !check.passed) {
+        return Err("known-row checks failed".to_owned());
     }
     Ok(())
 }
@@ -1981,12 +2056,12 @@ fn run_field_composition(
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 
