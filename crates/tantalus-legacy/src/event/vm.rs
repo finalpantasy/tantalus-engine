@@ -1392,6 +1392,19 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::BgiCharacterTriangle => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing BGI character operand")
+                    })?;
+                    let character = read_value(host, value, offset, opcode)?;
+                    let triangle = host
+                        .read_bgi_character_triangle(character)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    stack.push(StackValue {
+                        value: triangle,
+                        target: None,
+                    });
+                }
                 ExpressionOp::PartyContains => {
                     let value = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing party-check operand")
@@ -2323,6 +2336,7 @@ fn operand_start(
         | ExpressionOp::ItemCount
         | ExpressionOp::AnimationFrame
         | ExpressionOp::BgiAnimationFrame
+        | ExpressionOp::BgiCharacterTriangle
         | ExpressionOp::PartyContains
         | ExpressionOp::KeyOn
         | ExpressionOp::ConsumeAndZero

@@ -307,6 +307,15 @@ impl LegacyEventHost for Host {
             .ok_or_else(|| Self::target_error(format!("unknown BGI animation {animation}")))
     }
 
+    fn read_bgi_character_triangle(&mut self, character: i32) -> Result<i32, EngineError> {
+        match character {
+            7 => Ok(23),
+            _ => Err(Self::target_error(format!(
+                "unknown BGI character {character}"
+            ))),
+        }
+    }
+
     fn party_contains(&mut self, character: i32) -> Result<bool, EngineError> {
         Ok(self.party_members.contains(&character))
     }
@@ -3325,6 +3334,26 @@ fn object_pointer_returns_the_legacy_uid_or_zero_for_an_absent_object() {
     vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(vm.variable(VariableScope::Global, 44), 0);
     assert!(decode_program(&[5, 95]).is_err());
+}
+
+#[test]
+fn bgiid_reads_the_characters_navigation_triangle() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 45);
+    let expression = assign(result, binary(constant(7), vec![], 112));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 45), 23);
+
+    let program = decode_program(&[5, 112, 127, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::InvalidExpression);
+    assert!(error.message.contains("BGI character operand"));
+    assert!(decode_program(&[5, 112]).is_err());
 }
 
 #[test]
