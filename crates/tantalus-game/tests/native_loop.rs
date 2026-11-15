@@ -304,6 +304,14 @@ fn walk_input_moves_the_player_by_the_configured_direction_bits() {
     );
 
     director.set_walk_bits(Some((0x01, 0x02, 0x04, 0x08)));
+    // Input without user control never moves the character.
+    director.set_input_mask(0x08);
+    director.step().unwrap();
+    assert_eq!(
+        director.world().actors[&EntityId::new(1)].position,
+        [0.0; 3]
+    );
+    director.world_mut().user_control = true;
     // Right at the default walk speed (16) per tick.
     director.set_input_mask(0x08);
     director.step().unwrap();

@@ -30,7 +30,7 @@ fn main() -> ExitCode {
 }
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--character-data <Data/Characters dir>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N,...]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N,...]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -45,6 +45,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut ticks = 4000u64;
     let mut confirm_after = 0u64;
     let mut explore = false;
+    let mut walk_demo = false;
     let mut character_data: Option<PathBuf> = None;
     let mut game_data: Option<PathBuf> = None;
     let mut mes_map: Option<PathBuf> = None;
@@ -66,6 +67,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
             "--ticks" => ticks = parse_number(&value()?, "--ticks")?,
             "--character-data" => character_data = Some(PathBuf::from(value()?)),
             "--explore" => explore = true,
+            "--walk-demo" => walk_demo = true,
             "--game-data" => game_data = Some(PathBuf::from(value()?)),
             "--mes-map" => mes_map = Some(PathBuf::from(value()?)),
             "--language" => language = value()?,
@@ -140,6 +142,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     ticks,
                     confirm_after,
                     explore,
+                    walk_demo,
                     stats,
                     text,
                     choices,
@@ -342,6 +345,9 @@ struct ChainOptions {
     ticks: u64,
     confirm_after: u64,
     explore: bool,
+    /// Cycle synthetic direction bits so the controlled actor walks and
+    /// faces; scenes that gate on player facing (map 100) then advance.
+    walk_demo: bool,
     stats: BTreeMap<i32, tantalus_game::field::CharacterStats>,
     text: Option<FieldText>,
     /// Scripted answers for choice windows by (field map, text id); 0 when
@@ -507,6 +513,7 @@ fn chain(
         ticks,
         confirm_after,
         explore,
+        walk_demo,
         stats,
         text,
         choices,
@@ -640,6 +647,11 @@ fn chain(
         // `EventCollision.CollisionRequest`), and press Confirm every
         // CONFIRM_PERIOD ticks. Placing the actor at the region centroid
         // stands in for walking there.
+        if walk_demo {
+            // Synthetic demo mapping (not the pad layout): 0x01 up, 0x02
+            // down, 0x04 left, 0x08 right. 64 ticks per leg, like the probe.
+            director.set_walk_bits(Some((0x01, 0x02, 0x04, 0x08)));
+        }
         let mut triggered: BTreeSet<usize> = BTreeSet::new();
         let mut region_triggers = 0usize;
         let mut dwell_ticks: BTreeMap<usize, u64> = BTreeMap::new();
@@ -654,6 +666,11 @@ fn chain(
         let mut encounters = 0usize;
         let mut battles: Vec<i32> = Vec::new();
         while ticks_run < ticks {
+            if walk_demo {
+                let phase = (ticks_run / 64) % 4;
+                let direction = [0x04u8, 0x01, 0x08, 0x02][phase as usize];
+                director.world_mut().set_input(i32::from(direction));
+            }
             match director.step() {
                 Ok(step) => {
                     ticks_run += 1;

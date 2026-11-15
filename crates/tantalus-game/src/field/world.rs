@@ -331,6 +331,11 @@ impl FieldWorld {
     /// Move the player actor by the configured direction bits (straight XZ
     /// at walk speed; walkmesh clamping is future work).
     pub(crate) fn apply_walk_input(&mut self) {
+        // Input only moves the character while the engine has granted user
+        // control (scenes disable it while they drive the actor).
+        if !self.user_control {
+            return;
+        }
         let (Some(player), Some((up, down, left, right))) = (self.player, self.walk_bits) else {
             return;
         };
