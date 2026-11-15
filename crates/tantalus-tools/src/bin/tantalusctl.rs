@@ -2110,12 +2110,12 @@ fn run_field_composition(
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--decode-frames <name> <n|all> [--png <dir>]] [--out <path>] [--json]`, `assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--decode-frames <name> <n|all> [--png <dir>]] [--out <path>] [--json]\n    tantalusctl assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 
@@ -3365,6 +3365,131 @@ fn run_world_map(
     Ok(())
 }
 
+/// `assets inspect-movie --dir <dir> --decode-frames <name> <n|all> [--png <dir>] [--out <json>]`.
+/// Decodes Theora frames, checks the decoded packet count against the Ogg
+/// granule position, hashes every frame and writes `audit/movie-decode.json`
+/// (or `--out`). PNG output is for local inspection and is never committed.
+fn run_movie_decode(
+    dir: &std::path::Path,
+    name: &str,
+    limit: Option<u64>,
+    out: Option<PathBuf>,
+    png_dir: Option<&std::path::Path>,
+    json: bool,
+) -> Result<(), String> {
+    use tantalus_assets::install::ImportError;
+    use tantalus_assets::pc::theora::decode_movie;
+    use tantalus_assets::pc::ui_atlas::encode_png_rgba;
+    let stem = name.strip_suffix(".bytes").unwrap_or(name);
+    let path = dir.join(format!("{stem}.bytes"));
+    let file = std::fs::File::open(&path)
+        .map_err(|e| format!("could not open {}: {e}", path.display()))?;
+    let file_size = file.metadata().map_err(|e| e.to_string())?.len();
+    if let Some(png_dir) = png_dir {
+        std::fs::create_dir_all(png_dir)
+            .map_err(|e| format!("could not create {}: {e}", png_dir.display()))?;
+    }
+    let mut frame_hashes: Vec<String> = Vec::new();
+    let mut frame0 = serde_json::Value::Null;
+    let mut last_png: Option<(u64, u32, u32, Vec<u8>)> = None;
+    let started = std::time::Instant::now();
+    let summary = decode_movie(std::io::BufReader::new(file), limit, |index, frame| {
+        let mut hasher = Sha256::new();
+        hasher.update(&frame.y);
+        hasher.update(&frame.cb);
+        hasher.update(&frame.cr);
+        frame_hashes.push(format!("{:x}", hasher.finalize()));
+        if index == 0 {
+            frame0 = serde_json::json!({
+                "width": frame.width,
+                "height": frame.height,
+                "y_sha256": format!("{:x}", Sha256::digest(&frame.y)),
+                "cb_sha256": format!("{:x}", Sha256::digest(&frame.cb)),
+                "cr_sha256": format!("{:x}", Sha256::digest(&frame.cr)),
+            });
+        }
+        if let Some(png_dir) = png_dir {
+            let rgba = frame.to_rgba();
+            if index == 0 {
+                let target = png_dir.join(format!("{stem}_f{index:05}.png"));
+                std::fs::write(&target, encode_png_rgba(frame.width, frame.height, &rgba))
+                    .map_err(|e| ImportError::invalid(target.display(), e))?;
+            }
+            last_png = Some((index, frame.width, frame.height, rgba));
+        }
+        Ok(())
+    })
+    .map_err(|e| format!("{}: {e}", path.display()))?;
+    let elapsed = started.elapsed().as_secs_f64();
+    if let (Some(png_dir), Some((index, w, h, rgba))) = (png_dir, last_png) {
+        let target = png_dir.join(format!("{stem}_f{index:05}.png"));
+        std::fs::write(&target, encode_png_rgba(w, h, &rgba))
+            .map_err(|e| format!("could not write {}: {e}", target.display()))?;
+    }
+    let count_check = match (summary.complete, summary.granule_frame_count) {
+        (true, Some(declared)) => serde_json::json!({
+            "checked": true,
+            "granule_declared_frames": declared,
+            "decoded_packets": summary.packets_decoded,
+            "equal": declared == summary.packets_decoded,
+        }),
+        _ => serde_json::json!({
+            "checked": false,
+            "reason": "decode stopped before the end of the stream or no data page granule was seen",
+        }),
+    };
+    let chain = {
+        let mut hasher = Sha256::new();
+        for hash in &frame_hashes {
+            hasher.update(hash.as_bytes());
+        }
+        format!("{:x}", hasher.finalize())
+    };
+    let fps = if elapsed > 0.0 {
+        (summary.packets_decoded as f64 / elapsed * 10.0).round() / 10.0
+    } else {
+        0.0
+    };
+    let document = serde_json::json!({
+        "file": format!("{stem}.bytes"),
+        "file_size": file_size,
+        "decoder": "oxideav-theora 0.0.12 (pure Rust, MIT) via tantalus_assets::pc::theora",
+        "picture": format!("{}x{}", summary.params.picture_width, summary.params.picture_height),
+        "pixel_format": summary.params.pixel_format,
+        "fps": format!("{}/{}", summary.params.fps_numerator, summary.params.fps_denominator),
+        "keyframe_granule_shift": summary.params.keyframe_granule_shift,
+        "requested_frames": limit,
+        "decoded_packets": summary.packets_decoded,
+        "empty_duplicate_packets": summary.empty_packets,
+        "complete": summary.complete,
+        "last_granule": summary.last_granule,
+        "count_check": count_check,
+        "decode_seconds": (elapsed * 1000.0).round() / 1000.0,
+        "decode_frames_per_second": fps,
+        "frame0": frame0,
+        "frame_hash_algorithm": "sha256 over the cropped top-down Y, Cb, Cr planes concatenated",
+        "frame_hash_chain_sha256": chain,
+        "frame_hashes": frame_hashes,
+    });
+    let text = serde_json::to_string_pretty(&document)
+        .map_err(|e| format!("could not serialize movie decode report: {e}"))?;
+    let out = out.unwrap_or_else(|| PathBuf::from("audit/movie-decode.json"));
+    std::fs::write(&out, format!("{text}\n"))
+        .map_err(|e| format!("could not write {}: {e}", out.display()))?;
+    if json {
+        println!("{text}");
+    } else {
+        println!(
+            "{stem}: decoded {} packets ({} empty) in {elapsed:.2}s, count check {}, wrote {}",
+            summary.packets_decoded,
+            summary.empty_packets,
+            document["count_check"]["equal"],
+            out.display()
+        );
+    }
+    Ok(())
+}
+
 fn run_assets_inspect_movie(args: Vec<OsString>) -> Result<(), String> {
     use std::collections::BTreeMap;
     use tantalus_assets::pc::ogg::{StreamCodec, scan_ogg_file};
@@ -3372,6 +3497,8 @@ fn run_assets_inspect_movie(args: Vec<OsString>) -> Result<(), String> {
     let mut out = None;
     let mut json = false;
     let mut verify_crc = false;
+    let mut decode_frames: Option<(String, Option<u64>)> = None;
+    let mut png_dir: Option<PathBuf> = None;
     let mut index = 2;
     while index < args.len() {
         match args[index].to_str() {
@@ -3389,6 +3516,30 @@ fn run_assets_inspect_movie(args: Vec<OsString>) -> Result<(), String> {
             }
             Some("--json") => json = true,
             Some("--verify-crc") => verify_crc = true,
+            Some("--decode-frames") => {
+                let name = args
+                    .get(index + 1)
+                    .ok_or("`--decode-frames` requires a name")?;
+                let count = args
+                    .get(index + 2)
+                    .and_then(|v| v.to_str())
+                    .ok_or("`--decode-frames` requires a frame count or `all`")?;
+                let limit = if count == "all" {
+                    None
+                } else {
+                    Some(count.parse::<u64>().map_err(|_| {
+                        format!("bad frame count `{count}`: expected a number or `all`")
+                    })?)
+                };
+                decode_frames = Some((name.to_string_lossy().into_owned(), limit));
+                index += 2;
+            }
+            Some("--png") => {
+                index += 1;
+                png_dir = Some(PathBuf::from(
+                    args.get(index).ok_or("`--png` requires a directory")?,
+                ));
+            }
             _ => {
                 return Err(format!(
                     "unrecognized argument: {}",
@@ -3399,6 +3550,12 @@ fn run_assets_inspect_movie(args: Vec<OsString>) -> Result<(), String> {
         index += 1;
     }
     let dir = dir.ok_or_else(|| "missing required `--dir <ma dir>`".to_owned())?;
+    if let Some((name, limit)) = decode_frames {
+        return run_movie_decode(&dir, &name, limit, out, png_dir.as_deref(), json);
+    }
+    if png_dir.is_some() {
+        return Err("`--png` needs `--decode-frames <name> <n>`".to_owned());
+    }
     let mut paths: Vec<PathBuf> = std::fs::read_dir(&dir)
         .map_err(|e| format!("could not read {}: {e}", dir.display()))?
         .filter_map(|entry| entry.ok().map(|e| e.path()))

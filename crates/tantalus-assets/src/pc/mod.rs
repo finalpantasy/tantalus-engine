@@ -21,6 +21,7 @@ pub mod serialized;
 pub mod serialized_inventory;
 pub mod text_asset;
 pub mod texture;
+pub mod theora;
 pub mod ui_atlas;
 pub mod unity_object;
 pub mod unity_raw;

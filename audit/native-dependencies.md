@@ -12,6 +12,7 @@ The independent runtime must not use these original or reference-specific compon
 | FMV and audio codecs | Unknown | Inventory actual files and decoder dependencies before selecting a runtime stack |
 | Memoria release binaries | Not acquired or hashed | Never infer source/binary equivalence from an upload date |
 
+| `oxideav-theora` 0.0.12 (MIT) | Pure Rust Theora decoder; depends on `oxideav-core` 0.1.43 (MIT: `bytemuck`, `serde_json`, `thiserror`); no C or system library | Used by `tantalus-assets` `pc/theora.rs` for A5 movie decode; output checked bit-for-bit against ffmpeg for 764 frames (locally, verification only) |
 | Wasmtime 49.0.5 / Cranelift 0.136.5 | Pinned in Cargo; real local WASM execution tests | Native JIT compiler/runtime dependency; reduced crate features, portable WASM input only, no original-game code or precompiled mod artifacts accepted |
 
 Third-party Rust crate native/transitive dependencies are recorded when introduced. A Rust wrapper around a native library is not a Rust reimplementation of that library. Wasmtime/Cranelift supplies the sandbox and compiler; Tantalus game/module behavior remains engine-owned.
