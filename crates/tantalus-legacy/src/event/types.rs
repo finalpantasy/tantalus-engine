@@ -130,6 +130,10 @@ pub enum InstructionKind {
         default_relative: u16,
         case_relative: Vec<u16>,
     },
+    JumpSwitchEx {
+        default_relative: u16,
+        cases: Vec<[u16; 2]>,
+    },
     Evaluate(Expression),
     DeleteObject(u8),
     SetActorPosition {

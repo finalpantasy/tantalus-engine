@@ -8,6 +8,7 @@ const OP_JUMP: u32 = 0x01;
 const OP_JUMP_IF_NOT: u32 = 0x02;
 const OP_JUMP_IF: u32 = 0x03;
 const OP_RETURN: u32 = 0x04;
+const OP_JUMP_SWITCH_EX: u32 = 0x06;
 const OP_JUMP_SWITCH: u32 = 0x0b;
 const OP_JUMP_SWITCH_WIDE: u32 = 0x0d;
 const OP_DELETE_OBJECT: u32 = 0x1c;
@@ -175,6 +176,18 @@ impl Decoder<'_> {
                 condition: self.expression()?,
                 relative: self.i16()?,
             },
+            OP_JUMP_SWITCH_EX => {
+                let case_count = self.byte()? as usize;
+                let default_relative = self.i16()? as u16;
+                let mut cases = Vec::with_capacity(case_count);
+                for _ in 0..case_count {
+                    cases.push([self.i16()? as u16, self.i16()? as u16]);
+                }
+                InstructionKind::JumpSwitchEx {
+                    default_relative,
+                    cases,
+                }
+            }
             OP_JUMP_SWITCH | OP_JUMP_SWITCH_WIDE => {
                 let case_count = if opcode == OP_JUMP_SWITCH_WIDE {
                     self.i16()? as u16 as usize

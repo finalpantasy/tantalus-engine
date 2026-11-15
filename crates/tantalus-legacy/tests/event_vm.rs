@@ -533,6 +533,60 @@ fn jump_switch_selects_consecutive_cases_and_uses_default_outside_range() {
 }
 
 #[test]
+fn jump_switch_ex_matches_explicit_values_and_masks_the_expression() {
+    fn switch_program(value: i32) -> Vec<u8> {
+        const CASES: [[u16; 2]; 2] = [[100, 8], [u16::MAX, 10]];
+        const DEFAULT: u16 = 12;
+
+        let mut bytes = vec![5];
+        append_expression(&mut bytes, constant(value));
+        bytes.extend_from_slice(&[6, CASES.len() as u8]);
+        bytes.extend_from_slice(&DEFAULT.to_le_bytes());
+        for [case, relative] in CASES {
+            bytes.extend_from_slice(&case.to_le_bytes());
+            bytes.extend_from_slice(&relative.to_le_bytes());
+        }
+        bytes.extend_from_slice(&[0, 0, 0, 0, 4]);
+        bytes
+    }
+
+    let program = decode_program(&switch_program(100)).unwrap();
+    let instruction = &program.instructions[&7];
+    assert_eq!(instruction.length, 12);
+    let InstructionKind::JumpSwitchEx {
+        default_relative,
+        cases,
+    } = &instruction.kind
+    else {
+        panic!("expected extended switch");
+    };
+    assert_eq!(*default_relative, 12);
+    assert_eq!(cases, &[[100, 8], [u16::MAX, 10]]);
+
+    for (value, expected_pc) in [(100, 21), (u16::MAX.into(), 23), (-1, 23)] {
+        let mut vm = EventVm::new(decode_program(&switch_program(value)).unwrap());
+        let mut host = Host::new();
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(report.status, VmStatus::Running);
+        assert_eq!(vm.pc(), expected_pc);
+        assert!(vm.traces().any(|trace| trace.opcode == Some(6)));
+    }
+
+    for value in [50, 0x10000] {
+        let mut vm = EventVm::new(decode_program(&switch_program(value)).unwrap());
+        let mut host = Host::new();
+        assert_eq!(
+            vm.step(Tick::new(0), &mut host).unwrap().status,
+            VmStatus::Completed
+        );
+    }
+
+    let truncated = decode_program(&[6, 1, 0]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(6)"));
+}
+
+#[test]
 fn wide_jump_switch_supports_more_than_255_cases_and_uses_default() {
     fn switch_program(value: i32) -> Vec<u8> {
         const CASES: usize = 300;

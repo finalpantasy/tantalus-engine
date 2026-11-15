@@ -205,6 +205,18 @@ impl EventVm {
                     let anchor = if opcode == 0x0d { 2 } else { 1 };
                     self.pc = switch_target(&instruction, relative, anchor)?;
                 }
+                InstructionKind::JumpSwitchEx {
+                    default_relative,
+                    ref cases,
+                } => {
+                    let selected = (self.expression_value & 0xffff) as u16;
+                    let relative = cases
+                        .iter()
+                        .find(|case| case[0] == selected)
+                        .map(|case| case[1])
+                        .unwrap_or(default_relative);
+                    self.pc = switch_target(&instruction, relative, 4)?;
+                }
                 InstructionKind::Evaluate(expression) => {
                     self.expression_value =
                         self.evaluate(host, &expression, instruction.offset, opcode)?;
@@ -1980,6 +1992,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::Jump(_) => 0x01,
         InstructionKind::JumpIfNot { .. } => 0x02,
         InstructionKind::JumpIf { .. } => 0x03,
+        InstructionKind::JumpSwitchEx { .. } => 0x06,
         InstructionKind::JumpSwitch { .. } => 0x0b,
         InstructionKind::JumpSwitchWide { .. } => 0x0d,
         InstructionKind::DeleteObject(_) => 0x1c,
