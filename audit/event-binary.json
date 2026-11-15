@@ -152,7 +152,8 @@
     "B_KEYON 79 returns whether the host key-down bitmap intersects the operand mask",
     "B_LET_A 45 writes every selected member without reading old values and returns the last assigned value",
     "wide JMP_SWITCH 0x0D decodes a 16-bit case count and shares consecutive-case/default execution with its shifted branch anchor while retaining its opcode",
-    "FMV 0x28 decodes two byte operands and emits DispatchCinematic with the operation, argument, and a repeated first-operand evaluation"
+    "FMV 0x28 decodes two byte operands and emits DispatchCinematic with the operation, argument, and a repeated first-operand evaluation",
+    "QUAD 0x29 decodes an 8-bit count and up to eight signed 16-bit X/Z pairs, then emits DefineRegion for the current object"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -234,13 +235,13 @@
     "instruction": "JMP_IFNOT expression/relative operand do not complete before the function boundary after cinematic dispatch support"
   },
   "next_decode_boundary": {
-    "entry": 11,
-    "function": 0,
-    "function_tag": 0,
-    "offset": 10,
-    "opcode": 41,
+    "entries": [11, 12],
+    "function": 1,
+    "function_tag": 2,
+    "offset": 48,
+    "opcode": 217,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x29 after cinematic dispatch support"
+    "instruction": "event opcode 0xD9 after region definition support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

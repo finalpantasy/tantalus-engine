@@ -519,6 +519,27 @@ impl EventVm {
                         auxiliary,
                     });
                 }
+                InstructionKind::DefineRegion { vertices } => {
+                    let Some(region) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "region definition requires current object context",
+                        ));
+                    };
+                    let mut evaluated = Vec::with_capacity(vertices.len());
+                    for [x, z] in vertices {
+                        let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
+                        let z = self.evaluate(host, &z, instruction.offset, opcode)? as i16;
+                        evaluated.push([x, z]);
+                    }
+                    self.pc = next;
+                    events.push(HostEvent::DefineRegion {
+                        region,
+                        vertices: evaluated,
+                    });
+                }
                 InstructionKind::DefinePlayerControl => {
                     let Some(entity) = self.entity else {
                         return Err(VmError::new(
@@ -1922,6 +1943,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::DefinePlayerControl => 0x2c,
         InstructionKind::SetControlDirection { .. } => 0x67,
         InstructionKind::Cinematic { .. } => 0x28,
+        InstructionKind::DefineRegion { .. } => 0x29,
         InstructionKind::BackgroundMove { .. } => 0x58,
         InstructionKind::SetTileShadeColor { .. } => 0x59,
         InstructionKind::SetSpsParameters { .. } => 0xb3,

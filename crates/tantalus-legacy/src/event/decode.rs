@@ -35,6 +35,7 @@ const OP_AIM_AT_CAMERA: u32 = 0xb8;
 const OP_DEFINE_PLAYER_CONTROL: u32 = 0x2c;
 const OP_SET_CONTROL_DIRECTION: u32 = 0x67;
 const OP_CINEMATIC: u32 = 0x28;
+const OP_DEFINE_REGION: u32 = 0x29;
 const OP_BACKGROUND_MOVE: u32 = 0x58;
 const OP_SET_TILE_SHADE_COLOR: u32 = 0x59;
 const OP_SET_SPS_PARAMETERS: u32 = 0xb3;
@@ -444,6 +445,42 @@ impl Decoder<'_> {
                     operation: argument(1)?,
                     argument: argument(2)?,
                 }
+            }
+            OP_DEFINE_REGION => {
+                let flags = u16::from(self.byte()?);
+                if flags & 1 != 0 {
+                    return Err(VmError::new(
+                        VmErrorKind::UnsupportedOpcode,
+                        offset,
+                        Some(opcode),
+                        "expression region vertex counts require runtime-length decoding",
+                    ));
+                }
+                let vertex_count = self.byte()? as usize;
+                if vertex_count > 8 {
+                    return Err(VmError::new(
+                        VmErrorKind::Decode,
+                        offset,
+                        Some(opcode),
+                        "region exceeds the eight-vertex Quad capacity",
+                    ));
+                }
+                let mut vertices = Vec::with_capacity(vertex_count);
+                for index in 0..vertex_count {
+                    let mut argument = |bit: u16| {
+                        if flags & bit != 0 {
+                            self.expression()
+                        } else {
+                            Ok(Expression(vec![
+                                ExpressionOp::Constant(i32::from(self.i16()?)),
+                                ExpressionOp::End,
+                            ]))
+                        }
+                    };
+                    let x_bit = 1 << (1 + index * 2);
+                    vertices.push([argument(x_bit)?, argument(x_bit << 1)?]);
+                }
+                InstructionKind::DefineRegion { vertices }
             }
             OP_BACKGROUND_MOVE => {
                 self.byte()?;

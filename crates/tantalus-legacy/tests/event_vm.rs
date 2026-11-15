@@ -188,6 +188,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetActorPitchRoll { .. } => {}
                 HostEvent::AttachTile { .. } => {}
                 HostEvent::DispatchCinematic { .. } => {}
+                HostEvent::DefineRegion { .. } => {}
             }
         }
         Ok(())
@@ -630,6 +631,59 @@ fn cinematic_dispatches_operation_argument_and_repeated_first_operand() {
     let truncated = decode_program(&[40, 0, 1]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(40)"));
+}
+
+#[test]
+fn region_definition_decodes_bounded_signed_vertices_and_expression_operands() {
+    let points: [[i16; 2]; 4] = [[-10, 20], [30, -40], [50, 60], [-70, -80]];
+    let mut bytes = vec![41, 0, points.len() as u8];
+    for [x, z] in points {
+        bytes.extend_from_slice(&x.to_le_bytes());
+        bytes.extend_from_slice(&z.to_le_bytes());
+    }
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    assert_eq!(program.instructions[&0].length, 19);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::DefineRegion {
+            region: EntityId::new(42),
+            vertices: points.to_vec()
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![41, 0b0001_0010, 2];
+    append_expression(&mut bytes, constant(-300));
+    bytes.extend_from_slice(&100_i16.to_le_bytes());
+    bytes.extend_from_slice(&200_i16.to_le_bytes());
+    append_expression(&mut bytes, constant(300));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap()).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::DefineRegion {
+            region: EntityId::new(42),
+            vertices: vec![[-300, 100], [200, 300]]
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[41, 0, 0, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("object context"));
+
+    let oversized = decode_program(&[41, 0, 9]).unwrap_err();
+    assert_eq!(oversized.kind, VmErrorKind::Decode);
+    assert!(oversized.message.contains("eight-vertex"));
+    let dynamic = decode_program(&[41, 1]).unwrap_err();
+    assert_eq!(dynamic.kind, VmErrorKind::UnsupportedOpcode);
+    assert!(dynamic.message.contains("vertex counts"));
+    assert!(decode_program(&[41, 0]).is_err());
 }
 
 #[test]

@@ -185,6 +185,9 @@ pub enum InstructionKind {
         operation: Expression,
         argument: Expression,
     },
+    DefineRegion {
+        vertices: Vec<[Expression; 2]>,
+    },
     BackgroundMove {
         x: Expression,
         y: Expression,
@@ -464,6 +467,10 @@ pub enum HostEvent {
         operation: i32,
         argument: i32,
         auxiliary: i32,
+    },
+    DefineRegion {
+        region: EntityId,
+        vertices: Vec<[i16; 2]>,
     },
     InitializeObject {
         source: u8,
