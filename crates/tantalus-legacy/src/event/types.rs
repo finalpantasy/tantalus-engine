@@ -52,6 +52,7 @@ pub enum ExpressionOp {
     AngleToObject,
     ItemCount,
     AnimationFrame,
+    BgiAnimationFrame,
     Less,
     Greater,
     GreaterOrEqual,
@@ -595,6 +596,7 @@ pub trait LegacyEventHost {
     fn read_item_count(&mut self, item: i32) -> Result<i32, EngineError>;
     fn read_animation_frame(&mut self, actor: EntityId, animation: i32)
     -> Result<i32, EngineError>;
+    fn read_bgi_animation_frame(&mut self, animation: u32) -> Result<i32, EngineError>;
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError>;
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError>;
 }

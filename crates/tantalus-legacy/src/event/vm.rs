@@ -992,6 +992,19 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::BgiAnimationFrame => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing BGI animation-frame operand")
+                    })?;
+                    let animation = read_value(host, value, offset, opcode)? as u32;
+                    let frame = host
+                        .read_bgi_animation_frame(animation)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    stack.push(StackValue {
+                        value: frame,
+                        target: None,
+                    });
+                }
                 ExpressionOp::Add
                 | ExpressionOp::Subtract
                 | ExpressionOp::Multiply
@@ -1801,6 +1814,7 @@ fn operand_start(
         | ExpressionOp::AngleToObject
         | ExpressionOp::ItemCount
         | ExpressionOp::AnimationFrame
+        | ExpressionOp::BgiAnimationFrame
         | ExpressionOp::ConsumeAndZero
         | ExpressionOp::PreIncrement
         | ExpressionOp::PreDecrement

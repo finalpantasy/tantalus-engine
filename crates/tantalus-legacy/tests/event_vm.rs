@@ -77,6 +77,7 @@ struct Host {
     object_positions: BTreeMap<EntityId, [f32; 3]>,
     item_counts: BTreeMap<i32, i32>,
     animation_frames: BTreeMap<(EntityId, i32), i32>,
+    bgi_animation_frames: BTreeMap<u32, i32>,
     fail: bool,
 }
 
@@ -94,6 +95,7 @@ impl Host {
             object_positions: BTreeMap::new(),
             item_counts: BTreeMap::new(),
             animation_frames: BTreeMap::new(),
+            bgi_animation_frames: BTreeMap::new(),
             fail: false,
         }
     }
@@ -257,6 +259,13 @@ impl LegacyEventHost for Host {
             .get(&(actor, animation))
             .copied()
             .ok_or_else(|| Self::target_error(format!("unknown animation {animation} for {actor}")))
+    }
+
+    fn read_bgi_animation_frame(&mut self, animation: u32) -> Result<i32, EngineError> {
+        self.bgi_animation_frames
+            .get(&animation)
+            .copied()
+            .ok_or_else(|| Self::target_error(format!("unknown BGI animation {animation}")))
     }
 
     fn script_request_is_complete(&mut self, _entity: EntityId) -> Result<bool, EngineError> {
@@ -2301,6 +2310,23 @@ fn frame_reads_the_current_object_animation_frame() {
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::InvalidExpression);
     assert!(error.message.contains("object context"));
+}
+
+#[test]
+fn baframe_reads_unsigned_bgi_animation_frame() {
+    let mut host = Host::new();
+    host.bgi_animation_frames.insert(7, 23);
+    host.bgi_animation_frames.insert(u32::MAX, 11);
+    for (animation, expected) in [(7, 23), (-1, 11)] {
+        let result = variable(VariableScope::Global, VariableType::Int16, 49);
+        let expression = assign(result, binary(constant(animation), vec![], 101));
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+
+        vm.step(Tick::new(0), &mut host).unwrap();
+
+        assert_eq!(vm.variable(VariableScope::Global, 49), expected);
+    }
 }
 
 #[test]

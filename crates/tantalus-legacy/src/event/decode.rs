@@ -809,6 +809,7 @@ impl Decoder<'_> {
                 96 => ExpressionOp::AngleToObject,
                 98 => ExpressionOp::Sine,
                 100 => ExpressionOp::ItemCount,
+                101 => ExpressionOp::BgiAnimationFrame,
                 102 => ExpressionOp::Angle2,
                 106 => ExpressionOp::AnimationFrame,
                 114 => ExpressionOp::NoOp,
