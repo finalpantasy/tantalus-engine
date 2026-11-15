@@ -1,0 +1,839 @@
+{
+  "assembly": "x64/FF9_Data/Managed/Assembly-CSharp.dll",
+  "assembly_sha256": "2fd5a4b7300a2806b875a9913e9001ed970c2ce4e449938a00d142fd1339b8d2",
+  "known_row_checks": {
+    "failed": [],
+    "passed": 98,
+    "total": 98
+  },
+  "method": "static constructors evaluated as constant-only IL (managed_il); no game code run",
+  "schema": "tantalus.battle-tables.v1",
+  "tables": [
+    {
+      "count": 192,
+      "name": "actions",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "add_no": 0,
+            "btl_ref": {
+              "attr": 0,
+              "power": 0,
+              "prog_no": 0,
+              "rate": 0
+            },
+            "category": 0,
+            "id": 0,
+            "info": {
+              "cursor": 0,
+              "dead": 0,
+              "def_cam": 0,
+              "def_cur": 0,
+              "def_dead": 0,
+              "sfx_no": 0,
+              "sub_win": 0,
+              "vfx_no": 0
+            },
+            "kind": 0,
+            "mp": 0,
+            "name_arg": 0,
+            "vfx2": 10
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "add_no": 0,
+            "btl_ref": {
+              "attr": 0,
+              "power": 16,
+              "prog_no": 10,
+              "rate": 0
+            },
+            "category": 71,
+            "id": 1,
+            "info": {
+              "cursor": 3,
+              "dead": 1,
+              "def_cam": 0,
+              "def_cur": 1,
+              "def_dead": 0,
+              "sfx_no": 0,
+              "sub_win": 1,
+              "vfx_no": 9
+            },
+            "kind": 1,
+            "mp": 6,
+            "name_arg": 5,
+            "vfx2": 8
+          }
+        },
+        {
+          "index": 2,
+          "row": {
+            "add_no": 0,
+            "btl_ref": {
+              "attr": 0,
+              "power": 38,
+              "prog_no": 10,
+              "rate": 0
+            },
+            "category": 71,
+            "id": 2,
+            "info": {
+              "cursor": 3,
+              "dead": 1,
+              "def_cam": 0,
+              "def_cur": 1,
+              "def_dead": 0,
+              "sfx_no": 0,
+              "sub_win": 1,
+              "vfx_no": 162
+            },
+            "kind": 1,
+            "mp": 10,
+            "name_arg": 10,
+            "vfx2": 141
+          }
+        },
+        {
+          "index": 191,
+          "row": {
+            "add_no": 0,
+            "btl_ref": {
+              "attr": 128,
+              "power": 40,
+              "prog_no": 63,
+              "rate": 0
+            },
+            "category": 6,
+            "id": 191,
+            "info": {
+              "cursor": 8,
+              "dead": 0,
+              "def_cam": 0,
+              "def_cur": 0,
+              "def_dead": 0,
+              "sfx_no": 0,
+              "sub_win": 0,
+              "vfx_no": 224
+            },
+            "kind": 0,
+            "mp": 50,
+            "name_arg": 1597,
+            "vfx2": 10
+          }
+        }
+      ],
+      "source": "FF9BattleDB.aa_data (AA_DATA)"
+    },
+    {
+      "count": 32,
+      "name": "status_data",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "clear": 134217728,
+            "conti_cnt": 0,
+            "id": 0,
+            "invalid": 4294967295,
+            "opr_cnt": 0,
+            "priority": 2
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "clear": 98304,
+            "conti_cnt": 0,
+            "id": 1,
+            "invalid": 65538,
+            "opr_cnt": 20,
+            "priority": 7
+          }
+        },
+        {
+          "index": 31,
+          "row": {
+            "clear": 0,
+            "conti_cnt": 25,
+            "id": 31,
+            "invalid": 2281701440,
+            "opr_cnt": 0,
+            "priority": 0
+          }
+        }
+      ],
+      "source": "FF9BattleDB.status_data (STAT_DATA)"
+    },
+    {
+      "count": 128,
+      "name": "status_sets",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": 0
+        },
+        {
+          "index": 1,
+          "row": 262144
+        },
+        {
+          "index": 5,
+          "row": 2466448408
+        },
+        {
+          "index": 127,
+          "row": 0
+        }
+      ],
+      "source": "FF9BattleDB.add_status (uint[])"
+    },
+    {
+      "count": 256,
+      "name": "items",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "ability": [
+              0,
+              0,
+              0
+            ],
+            "bonus": 0,
+            "color": 0,
+            "eq_lv": 1,
+            "equip": 8,
+            "help": 0,
+            "id": 0,
+            "kind": 128,
+            "name": 0,
+            "pad": 0,
+            "price": 250,
+            "shape": 0,
+            "sort": 21
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "ability": [
+              101,
+              0,
+              0
+            ],
+            "bonus": 0,
+            "color": 0,
+            "eq_lv": 1,
+            "equip": 2048,
+            "help": 16,
+            "id": 1,
+            "kind": 128,
+            "name": 7,
+            "pad": 0,
+            "price": 320,
+            "shape": 1,
+            "sort": 22
+          }
+        },
+        {
+          "index": 255,
+          "row": {
+            "ability": [
+              0,
+              0,
+              0
+            ],
+            "bonus": 0,
+            "color": 0,
+            "eq_lv": 0,
+            "equip": 0,
+            "help": 13233,
+            "id": 255,
+            "kind": 0,
+            "name": 2955,
+            "pad": 0,
+            "price": 0,
+            "shape": 0,
+            "sort": 0
+          }
+        }
+      ],
+      "source": "ff9item._FF9Item_Data (FF9ITEM_DATA)"
+    },
+    {
+      "count": 32,
+      "name": "item_use",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "btl_ref": {
+              "attr": 0,
+              "power": 12,
+              "prog_no": 74,
+              "rate": 0
+            },
+            "id": 0,
+            "info": {
+              "cursor": 0,
+              "dead": 0,
+              "def_cam": 0,
+              "def_cur": 1,
+              "def_dead": 0,
+              "sfx_no": 0,
+              "sub_win": 1,
+              "vfx_no": 292
+            },
+            "status": 0
+          }
+        },
+        {
+          "index": 12,
+          "row": {
+            "btl_ref": {
+              "attr": 0,
+              "power": 10,
+              "prog_no": 69,
+              "rate": 0
+            },
+            "id": 12,
+            "info": {
+              "cursor": 0,
+              "dead": 0,
+              "def_cam": 0,
+              "def_cur": 1,
+              "def_dead": 0,
+              "sfx_no": 0,
+              "sub_win": 1,
+              "vfx_no": 8
+            },
+            "status": 0
+          }
+        },
+        {
+          "index": 31,
+          "row": {
+            "btl_ref": {
+              "attr": 0,
+              "power": 0,
+              "prog_no": 0,
+              "rate": 0
+            },
+            "id": 31,
+            "info": {
+              "cursor": 0,
+              "dead": 0,
+              "def_cam": 0,
+              "def_cur": 0,
+              "def_dead": 0,
+              "sfx_no": 0,
+              "sub_win": 0,
+              "vfx_no": 0
+            },
+            "status": 0
+          }
+        }
+      ],
+      "source": "ff9item._FF9Item_Info (ITEM_DATA)"
+    },
+    {
+      "count": 88,
+      "name": "weapons",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "add_no": 0,
+            "btl_ref": {
+              "attr": 0,
+              "power": 12,
+              "prog_no": 5,
+              "rate": 0
+            },
+            "category": 1,
+            "id": 0,
+            "model_found": true,
+            "model_name": "GEO_WEP_B1_011",
+            "model_no": 37,
+            "offset": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "add_no": 0,
+            "btl_ref": {
+              "attr": 0,
+              "power": 12,
+              "prog_no": 1,
+              "rate": 0
+            },
+            "category": 5,
+            "id": 1,
+            "model_found": true,
+            "model_name": "GEO_WEP_B1_012",
+            "model_no": 476,
+            "offset": [
+              17,
+              200
+            ]
+          }
+        },
+        {
+          "index": 87,
+          "row": {
+            "add_no": 0,
+            "btl_ref": {
+              "attr": 0,
+              "power": 64,
+              "prog_no": 0,
+              "rate": 0
+            },
+            "category": 6,
+            "id": 87,
+            "model_found": false,
+            "model_name": null,
+            "model_no": 0,
+            "offset": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "source": "ff9weap._FF9Weapon_Data (WEAPON)"
+    },
+    {
+      "count": 136,
+      "name": "armor",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "id": 0,
+            "m_def": 0,
+            "m_ev": 3,
+            "p_def": 0,
+            "p_ev": 5
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "id": 1,
+            "m_def": 0,
+            "m_ev": 5,
+            "p_def": 0,
+            "p_ev": 7
+          }
+        },
+        {
+          "index": 135,
+          "row": {
+            "id": 135,
+            "m_def": 0,
+            "m_ev": 0,
+            "p_def": 0,
+            "p_ev": 4
+          }
+        }
+      ],
+      "source": "ff9armor._FF9Armor_Data (DEF_PARAMS)"
+    },
+    {
+      "count": 176,
+      "name": "equip_bonus",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "absorb": 0,
+            "dex": 0,
+            "half": 0,
+            "id": 0,
+            "invalid": 0,
+            "mgc": 0,
+            "p_up_attr": 0,
+            "str_": 0,
+            "weak": 0,
+            "wpr": 0
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "absorb": 0,
+            "dex": 0,
+            "half": 0,
+            "id": 1,
+            "invalid": 0,
+            "mgc": 0,
+            "p_up_attr": 0,
+            "str_": 0,
+            "weak": 0,
+            "wpr": 0
+          }
+        },
+        {
+          "index": 175,
+          "row": {
+            "absorb": 0,
+            "dex": 0,
+            "half": 0,
+            "id": 175,
+            "invalid": 0,
+            "mgc": 0,
+            "p_up_attr": 0,
+            "str_": 0,
+            "weak": 0,
+            "wpr": 0
+          }
+        }
+      ],
+      "source": "ff9equip._FF9EquipBonus_Data (EQUIP_PRIVILEGE)"
+    },
+    {
+      "count": 64,
+      "name": "support_abilities",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "capa_val": 15,
+            "category": 0,
+            "help": 0,
+            "help_size": 8301,
+            "id": 0,
+            "name": 0
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "capa_val": 6,
+            "category": 0,
+            "help": 43,
+            "help_size": 8301,
+            "id": 1,
+            "name": 13
+          }
+        },
+        {
+          "index": 63,
+          "row": {
+            "capa_val": 20,
+            "category": 0,
+            "help": 2068,
+            "help_size": 4096,
+            "id": 63,
+            "name": 652
+          }
+        }
+      ],
+      "source": "ff9abil._FF9Abil_SaData (SA_DATA)"
+    },
+    {
+      "count": 32,
+      "name": "shops",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": [
+            1,
+            2,
+            16,
+            17,
+            57,
+            70,
+            88,
+            89,
+            102,
+            112,
+            114,
+            136,
+            137,
+            149,
+            150,
+            177,
+            255
+          ]
+        },
+        {
+          "index": 31,
+          "row": [
+            236,
+            237,
+            240,
+            241,
+            242,
+            243,
+            244,
+            245,
+            246,
+            247,
+            248,
+            253,
+            255
+          ]
+        }
+      ],
+      "source": "ff9buy._FF9Buy_Data (byte[][])"
+    },
+    {
+      "count": 64,
+      "name": "synthesis",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "dst": 7,
+            "id": 0,
+            "price": 300,
+            "shop": 79,
+            "src": [
+              1,
+              2
+            ]
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "dst": 8,
+            "id": 1,
+            "price": 700,
+            "shop": 95,
+            "src": [
+              2,
+              2
+            ]
+          }
+        },
+        {
+          "index": 63,
+          "row": {
+            "dst": 98,
+            "id": 63,
+            "price": 50000,
+            "shop": 32,
+            "src": [
+              92,
+              12
+            ]
+          }
+        }
+      ],
+      "source": "ff9mix._FF9MIX_DATA (FF9MIX_DATA)"
+    },
+    {
+      "count": 48,
+      "name": "commands",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "ability": 0,
+            "count": 0,
+            "help": 0,
+            "help_size": 4096,
+            "id": 0,
+            "kind": 0,
+            "name": 0
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "ability": 176,
+            "count": 0,
+            "help": 1,
+            "help_size": 8293,
+            "id": 1,
+            "kind": 0,
+            "name": 1
+          }
+        },
+        {
+          "index": 47,
+          "row": {
+            "ability": 0,
+            "count": 0,
+            "help": 1090,
+            "help_size": 4096,
+            "id": 47,
+            "kind": 0,
+            "name": 281
+          }
+        }
+      ],
+      "source": "rdata._FF9FAbil_ComData (FF9COMMAND)"
+    },
+    {
+      "count": 192,
+      "name": "command_abilities",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": 49
+        },
+        {
+          "index": 1,
+          "row": 51
+        },
+        {
+          "index": 191,
+          "row": 173
+        }
+      ],
+      "source": "rdata._FF9BMenu_ComAbil (int[])"
+    },
+    {
+      "count": 12,
+      "name": "level_base",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "cap": 18,
+            "dex": 23,
+            "id": 0,
+            "mgc": 18,
+            "str_": 21,
+            "wpr": 23
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "cap": 14,
+            "dex": 16,
+            "id": 1,
+            "mgc": 24,
+            "str_": 12,
+            "wpr": 19
+          }
+        },
+        {
+          "index": 11,
+          "row": {
+            "cap": 10,
+            "dex": 24,
+            "id": 11,
+            "mgc": 19,
+            "str_": 21,
+            "wpr": 23
+          }
+        }
+      ],
+      "source": "ff9level._FF9Level_Base (FF9LEVEL_BASE)"
+    },
+    {
+      "count": 99,
+      "name": "level_hp_mp",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "hp": 250,
+            "index": 0,
+            "mp": 200
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "hp": 314,
+            "index": 1,
+            "mp": 206
+          }
+        },
+        {
+          "index": 98,
+          "row": {
+            "hp": 4524,
+            "index": 98,
+            "mp": 642
+          }
+        }
+      ],
+      "source": "ff9level._FF9Level_HpMp (FF9LEVEL_HPMP)"
+    },
+    {
+      "count": 99,
+      "name": "level_exp",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": 0
+        },
+        {
+          "index": 1,
+          "row": 16
+        },
+        {
+          "index": 98,
+          "row": 6633167
+        }
+      ],
+      "source": "ff9level._FF9Level_Exp (ulong[])"
+    },
+    {
+      "count": 16,
+      "name": "learnable_abilities",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": [
+            {
+              "id": 101,
+              "max_ap": 40
+            },
+            {
+              "id": 102,
+              "max_ap": 40
+            },
+            {
+              "id": 103,
+              "max_ap": 40
+            }
+          ]
+        }
+      ],
+      "set_sizes": [
+        48,
+        48,
+        48,
+        48,
+        48,
+        48,
+        48,
+        48,
+        48,
+        48,
+        48,
+        48,
+        48,
+        48,
+        48,
+        48
+      ],
+      "source": "ff9abil._FF9Abil_PaData (PA_DATA[][])"
+    }
+  ],
+  "unresolved": [
+    "rdata._FF9BMenu_MenuNormal and _FF9BMenu_MenuTrance: multi-dimensional arrays (command_tags[20,2], byte[20,3]); the evaluator does not model rank-2 arrays, so the per-character command menu layout is not read.",
+    "ff9play.FF9Play_New PLAYER_INFO[9] and ff9play.FF9Play_SetDefEquips byte[16][5]: arrays built inside method bodies, not static initializers; not evaluated. Starting party, starting equipment and default-equipment rows remain unread.",
+    "Enemy stat and attack tables are not in the assembly; they are per-scene battle data (see battle_scene.rs).",
+    "Item, ability, command and status display names and help text: the tables hold text ids only; text lives in the localized message resources.",
+    "Base stats per character: _FF9Level_Base is indexed by the equipment/character id (0..11); Memoria's BaseStats.csv names rows by character but the installed table carries no names.",
+    "ITEM_DATA (item_use) holds the battle-use effect for items 224..255 (FF9ITEM_INFO_START); the mapping from FF9ITEM_DATA.bonus/ability fields to Memoria's ItemEffects.csv is not decoded here.",
+    "AA_DATA.Name: the constructor takes a name id but the installed constructor body does not store it; kept as `name_arg` only."
+  ]
+}
