@@ -99,6 +99,10 @@ pub struct FieldWorld {
     pub encounters: Vec<EncounterRequest>,
     pub field_transitions: Vec<i16>,
     world_transitions: Vec<i16>,
+    /// Field movie service (`fldfmv`), driven by `FMV` and system variables 14/15.
+    pub fmv: super::FieldFmv,
+    /// Reference `FF9.fldMapNo` of the running field (0 when unknown).
+    pub field_map_no: i32,
     pending_requests: BTreeSet<EntityId>,
     pending_callers: BTreeSet<i32>,
     shared_scripts: BTreeSet<EntityId>,
@@ -151,6 +155,8 @@ impl FieldWorld {
             encounters: Vec::new(),
             field_transitions: Vec::new(),
             world_transitions: Vec::new(),
+            fmv: super::FieldFmv::new(),
+            field_map_no: 0,
             pending_requests: BTreeSet::new(),
             pending_callers: BTreeSet::new(),
             shared_scripts: BTreeSet::new(),

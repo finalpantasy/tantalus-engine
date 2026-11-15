@@ -1,9 +1,11 @@
 pub mod director;
+pub mod fmv;
 pub mod host;
 pub mod snapshot;
 pub mod world;
 
 pub use director::{DirectorStep, FieldDirector, RequestedScript};
+pub use fmv::FieldFmv;
 pub use host::FieldHost;
 pub use snapshot::{
     EntrySnapshot, FIELD_SNAPSHOT_FORMAT, FieldSnapshot, restore_scene, snapshot_scene,

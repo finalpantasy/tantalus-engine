@@ -2,6 +2,7 @@ use crate::install::ImportError;
 use serde::{Deserialize, Serialize};
 
 pub const DXT5_FORMAT: i32 = 12;
+pub const DXT1_FORMAT: i32 = 10;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TextureSettings {
@@ -67,18 +68,19 @@ impl Texture2D {
                 "Texture2D complete image size does not match its data",
             ));
         }
-        if format != DXT5_FORMAT {
+        if format != DXT5_FORMAT && format != DXT1_FORMAT {
             return Err(ImportError::unsupported(
                 source,
                 format!("Texture2D format {format}"),
             ));
         }
-        let expected = (width as usize).div_ceil(4) * (height as usize).div_ceil(4) * 16;
+        let block_bytes = if format == DXT1_FORMAT { 8 } else { 16 };
+        let expected = (width as usize).div_ceil(4) * (height as usize).div_ceil(4) * block_bytes;
         if image_data.len() != expected {
             return Err(invalid(
                 source,
                 format!(
-                    "DXT5 data has {} bytes for {width}x{height}, expected {expected}",
+                    "DXT data has {} bytes for {width}x{height}, expected {expected}",
                     image_data.len()
                 ),
             ));
@@ -108,7 +110,11 @@ impl Texture2D {
     }
 
     pub fn rgba_bytes(&self) -> Result<Vec<u8>, ImportError> {
-        let decoded = decode_dxt5(self)?;
+        let decoded = if self.format == DXT1_FORMAT {
+            decode_dxt1(self)
+        } else {
+            decode_dxt5(self)?
+        };
         let width = self.width as usize;
         let height = self.height as usize;
         let stride = width * 4;
@@ -224,6 +230,41 @@ fn decode_dxt5(texture: &Texture2D) -> Result<Vec<u8>, ImportError> {
         }
     }
     Ok(output)
+}
+
+/// BC1: 4-color blocks when `c0 > c1`, otherwise 3 colors plus transparent.
+fn decode_dxt1(texture: &Texture2D) -> Vec<u8> {
+    let width = texture.width as usize;
+    let height = texture.height as usize;
+    let mut output = vec![0; width * height * 4];
+    let blocks_per_row = width.div_ceil(4);
+    for (block_index, block) in texture.image_data.chunks_exact(8).enumerate() {
+        let block_x = (block_index % blocks_per_row) * 4;
+        let block_y = (block_index / blocks_per_row) * 4;
+        let first = u16::from_le_bytes([block[0], block[1]]);
+        let second = u16::from_le_bytes([block[2], block[3]]);
+        let mut colors = color_palette(first, second).map(|c| [c[0], c[1], c[2], 255]);
+        if first <= second {
+            let (low, high) = (colors[0], colors[1]);
+            for (channel, value) in colors[2].iter_mut().enumerate().take(3) {
+                *value = ((u16::from(low[channel]) + u16::from(high[channel])) / 2) as u8;
+            }
+            colors[3] = [0, 0, 0, 0];
+        }
+        let indices = u32::from_le_bytes([block[4], block[5], block[6], block[7]]);
+        for y in 0..4 {
+            for x in 0..4 {
+                let (pixel_x, pixel_y) = (block_x + x, block_y + y);
+                if pixel_x >= width || pixel_y >= height {
+                    continue;
+                }
+                let color = colors[((indices >> ((y * 4 + x) * 2)) & 3) as usize];
+                let target = (pixel_y * width + pixel_x) * 4;
+                output[target..target + 4].copy_from_slice(&color);
+            }
+        }
+    }
+    output
 }
 
 fn alpha_palette(first: u8, second: u8) -> [u8; 8] {

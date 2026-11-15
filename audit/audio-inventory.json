@@ -1,0 +1,168 @@
+{
+  "description": "Sound asset inventory from tantalusctl assets inspect-bundle --audio-all",
+  "primary_total_sound_assets": 4029,
+  "bundles": {
+    "p0data61.bin": {
+      "bundle": "p0data61.bin",
+      "container_entries": 109,
+      "sound_assets": 109,
+      "by_container_type": {
+        "class49:bytes": 109
+      },
+      "by_magic": {
+        "akb2": 109
+      },
+      "akb_parsed": 109,
+      "akb_payload_in_range": 109,
+      "min_sample_rate": 44100,
+      "max_sample_rate": 44100,
+      "looped": 101,
+      "with_alternate_loop": 1,
+      "total_samples": 756571300,
+      "total_granule_samples": 489221104,
+      "loop_end_matches_granule": 100,
+      "total_payload_bytes": 175292826,
+      "codecs": {
+        "vorbis": 109
+      },
+      "ogg_pages": 506426,
+      "sample_count_mismatches": 101,
+      "failures": []
+    },
+    "p0data62.bin": {
+      "bundle": "p0data62.bin",
+      "container_entries": 1684,
+      "sound_assets": 1684,
+      "by_container_type": {
+        "class49:bytes": 1684
+      },
+      "by_magic": {
+        "akb2": 1684
+      },
+      "akb_parsed": 1684,
+      "akb_payload_in_range": 1684,
+      "min_sample_rate": 44100,
+      "max_sample_rate": 44100,
+      "looped": 259,
+      "with_alternate_loop": 0,
+      "total_samples": 1417329068,
+      "total_granule_samples": 836181899,
+      "loop_end_matches_granule": 259,
+      "total_payload_bytes": 189869527,
+      "codecs": {
+        "vorbis": 1684
+      },
+      "ogg_pages": 165158,
+      "sample_count_mismatches": 259,
+      "failures": []
+    },
+    "p0data63.bin": {
+      "bundle": "p0data63.bin",
+      "container_entries": 2236,
+      "sound_assets": 2236,
+      "by_container_type": {
+        "class49:bytes": 2236
+      },
+      "by_magic": {
+        "akb2": 2236
+      },
+      "akb_parsed": 2236,
+      "akb_payload_in_range": 2236,
+      "min_sample_rate": 44100,
+      "max_sample_rate": 44100,
+      "looped": 304,
+      "with_alternate_loop": 0,
+      "total_samples": 1207292748,
+      "total_granule_samples": 560843003,
+      "loop_end_matches_granule": 304,
+      "total_payload_bytes": 137291103,
+      "codecs": {
+        "vorbis": 2236
+      },
+      "ogg_pages": 200200,
+      "sample_count_mismatches": 304,
+      "failures": []
+    },
+    "p0data601.bin": {
+      "bundle": "p0data601.bin",
+      "container_entries": 109,
+      "sound_assets": 109,
+      "by_container_type": {
+        "class49:bytes": 109
+      },
+      "by_magic": {
+        "akb2": 109
+      },
+      "akb_parsed": 109,
+      "akb_payload_in_range": 109,
+      "min_sample_rate": 44100,
+      "max_sample_rate": 44100,
+      "looped": 101,
+      "with_alternate_loop": 1,
+      "total_samples": 756571300,
+      "total_granule_samples": 489221104,
+      "loop_end_matches_granule": 100,
+      "total_payload_bytes": 175292826,
+      "codecs": {
+        "vorbis": 109
+      },
+      "ogg_pages": 506426,
+      "sample_count_mismatches": 101,
+      "failures": []
+    },
+    "p0data611.bin": {
+      "bundle": "p0data611.bin",
+      "container_entries": 1563,
+      "sound_assets": 1563,
+      "by_container_type": {
+        "class49:bytes": 1563
+      },
+      "by_magic": {
+        "akb2": 1563
+      },
+      "akb_parsed": 1563,
+      "akb_payload_in_range": 1563,
+      "min_sample_rate": 44100,
+      "max_sample_rate": 44100,
+      "looped": 259,
+      "with_alternate_loop": 0,
+      "total_samples": 1402542944,
+      "total_granule_samples": 821395775,
+      "loop_end_matches_granule": 259,
+      "total_payload_bytes": 184945657,
+      "codecs": {
+        "vorbis": 1563
+      },
+      "ogg_pages": 163694,
+      "sample_count_mismatches": 259,
+      "failures": []
+    },
+    "p0data621.bin": {
+      "bundle": "p0data621.bin",
+      "container_entries": 2236,
+      "sound_assets": 2236,
+      "by_container_type": {
+        "class49:bytes": 2236
+      },
+      "by_magic": {
+        "akb2": 2236
+      },
+      "akb_parsed": 2236,
+      "akb_payload_in_range": 2236,
+      "min_sample_rate": 44100,
+      "max_sample_rate": 44100,
+      "looped": 304,
+      "with_alternate_loop": 0,
+      "total_samples": 1207292748,
+      "total_granule_samples": 560843003,
+      "loop_end_matches_granule": 304,
+      "total_payload_bytes": 137291103,
+      "codecs": {
+        "vorbis": 2236
+      },
+      "ogg_pages": 200200,
+      "sample_count_mismatches": 304,
+      "failures": []
+    }
+  }
+}

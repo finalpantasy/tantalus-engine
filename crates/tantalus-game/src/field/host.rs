@@ -109,6 +109,18 @@ impl LegacyEventHost for FieldHost<'_> {
                 HostEvent::CloseWindow { window } => {
                     self.world.windows.insert(*window, false);
                 }
+                HostEvent::DispatchCinematic {
+                    operation,
+                    argument,
+                    auxiliary,
+                } => {
+                    // Movie lengths are not imported yet, so a played movie
+                    // finishes on its first frame, as if skipped.
+                    let map = self.world.field_map_no;
+                    self.world
+                        .fmv
+                        .dispatch(*operation, *argument, *auxiliary, map, |_, _| None);
+                }
                 HostEvent::CloseAllWindows => {
                     for open in self.world.windows.values_mut() {
                         *open = false;
@@ -386,6 +398,13 @@ impl LegacyEventHost for FieldHost<'_> {
     }
 
     fn read_system_variable(&mut self, variable: u8) -> Result<i32, EngineError> {
+        // 14 GetCinematicFrame and 15 SyncCinematic come from the movie
+        // service (`GetSysvar.cs`, `fldfmv.FF9FieldFMVDispatch` 4 and 3).
+        match variable {
+            14 => return Ok(self.world.fmv.frame),
+            15 => return Ok(self.world.fmv.sync()),
+            _ => {}
+        }
         // Engine state is zero-initialized in the reference, so unset
         // system variables read as zero rather than erroring.
         Ok(self.world.system_variable(variable).unwrap_or(0))
