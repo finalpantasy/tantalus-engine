@@ -134,6 +134,10 @@ pub enum InstructionKind {
         source: u8,
         unique_id: u8,
     },
+    SetTriangleActive {
+        triangle: Expression,
+        active: Expression,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -188,6 +192,7 @@ pub enum HostEvent {
     InitializeObject { source: u8, unique_id: u8 },
     InitializeRegion { source: u8, unique_id: u8 },
     InitializeCode { source: u8, unique_id: u8 },
+    SetTriangleActive { triangle: u32, active: bool },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

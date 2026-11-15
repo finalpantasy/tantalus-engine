@@ -120,6 +120,7 @@ impl LegacyEventHost for Host {
                 HostEvent::InitializeObject { .. } => {}
                 HostEvent::InitializeRegion { .. } => {}
                 HostEvent::InitializeCode { .. } => {}
+                HostEvent::SetTriangleActive { .. } => {}
             }
         }
         Ok(())
@@ -1003,4 +1004,34 @@ fn new_emits_code_initialization_with_a_distinct_host_command() {
         }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn bgiactivet_supports_immediate_and_expression_arguments() {
+    let program = decode_program(&[154, 0, 0x34, 0x12, 1, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTriangleActive {
+            triangle: 0x1234,
+            active: true
+        }]
+    );
+
+    let mut bytes = vec![154, 3];
+    append_expression(&mut bytes, constant(-1));
+    append_expression(&mut bytes, constant(0));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTriangleActive {
+            triangle: u32::MAX,
+            active: false
+        }]
+    );
 }

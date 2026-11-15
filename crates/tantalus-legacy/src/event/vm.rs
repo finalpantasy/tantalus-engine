@@ -246,6 +246,13 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::InitializeCode { source, unique_id });
                 }
+                InstructionKind::SetTriangleActive { triangle, active } => {
+                    let triangle =
+                        self.evaluate(host, &triangle, instruction.offset, opcode)? as u32;
+                    let active = self.evaluate(host, &active, instruction.offset, opcode)? != 0;
+                    self.pc = next;
+                    events.push(HostEvent::SetTriangleActive { triangle, active });
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -838,6 +845,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::InitializeObject { .. } => 0x09,
         InstructionKind::InitializeRegion { .. } => 0x08,
         InstructionKind::InitializeCode { .. } => 0x07,
+        InstructionKind::SetTriangleActive { .. } => 0x9a,
     }
 }
 

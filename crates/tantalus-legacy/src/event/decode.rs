@@ -21,6 +21,7 @@ const OP_BACKGROUND_MOVE: u8 = 0x58;
 const OP_INITIALIZE_OBJECT: u8 = 0x09;
 const OP_INITIALIZE_REGION: u8 = 0x08;
 const OP_INITIALIZE_CODE: u8 = 0x07;
+const OP_SET_TRIANGLE_ACTIVE: u8 = 0x9a;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -148,6 +149,26 @@ impl Decoder<'_> {
                 source: self.byte()?,
                 unique_id: self.byte()?,
             },
+            OP_SET_TRIANGLE_ACTIVE => {
+                let flags = self.byte()?;
+                let triangle = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.i16()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                let active = if flags & 2 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::SetTriangleActive { triangle, active }
+            }
             _ => {
                 return Err(VmError::new(
                     VmErrorKind::UnsupportedOpcode,

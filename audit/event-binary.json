@@ -54,14 +54,15 @@
     "B_SYSVAR 122 reads the serialized system-variable ID through the host and reports unknown IDs",
     "NEW3 0x09 decodes source and unique IDs and emits InitializeObject; party aliases, default ID resolution, replacement, and model loading remain host work",
     "NEW2 0x08 decodes source and unique IDs and emits the distinct InitializeRegion host command",
-    "NEW 0x07 decodes source and unique IDs and emits the distinct InitializeCode host command"
+    "NEW 0x07 decodes source and unique IDs and emits the distinct InitializeCode host command",
+    "BGIACTIVET 0x9A supports immediate and expression arguments, preserves unsigned triangle IDs, and emits SetTriangleActive"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 395,
-    "opcode": "0x9A",
+    "offset": 400,
+    "opcode": "0xC5",
     "kind": "event",
-    "instruction": "BGIACTIVET"
+    "instruction": "FLDSND0"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
