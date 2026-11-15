@@ -19,8 +19,8 @@
     "asset_bytes": 10924,
     "entries": 22,
     "functions": 36,
-    "decoded_functions": 0,
-    "decode_error_count": 18,
+    "decoded_functions": 13,
+    "decode_error_count": 23,
     "script_bytes": 10620,
     "script_sha256": "c6033b9d6da5043468ae416074644cf64002e86d1c40be8f80cc16891579f16e",
     "reference_match": "UnityPy 1.25.0 independently reproduces the entry count, byte count, and concatenated script SHA-256"
@@ -191,7 +191,8 @@
     "pad0f 0x0F consumes its flag and yields once through the reference default path",
     "WAITANIM 0x41 continues immediately when inactive and otherwise waits for host-owned animation completion",
     "SONGFLAG 0x1B emits SetBattleMusicContinuation using nonzero-as-true semantics",
-    "pad0a 0x0A consumes its flag and yields once through the reference default path"
+    "pad0a 0x0A consumes its flag and yields once through the reference default path",
+    "partial entry diagnostics preserve every successfully decoded function and every function-level error while decode_entry remains fail-fast"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -323,7 +324,61 @@
     "kind": "Decode",
     "instruction": "FLDSND0 expression/operands do not complete before the function boundary after model-code support"
   },
-  "next_decode_boundary": {
+  "newly_visible_function_failures": [
+    {
+      "entry": 13,
+      "function": 1,
+      "function_tag": 1,
+      "instruction_offset": 68,
+      "expression_offset": 70,
+      "offset": 581,
+      "opcode": 55,
+      "kind": "UnsupportedOpcode",
+      "instruction": "WAIT contains unsupported expression opcode 0x37"
+    },
+    {
+      "entry": 13,
+      "function": 3,
+      "function_tag": 12,
+      "instruction_offset": 11,
+      "offset": 2407,
+      "opcode": 35,
+      "kind": "UnsupportedOpcode",
+      "instruction": "event opcode 0x23"
+    },
+    {
+      "entry": 13,
+      "function": 4,
+      "function_tag": 13,
+      "instruction_offset": 48,
+      "offset": 2492,
+      "opcode": 239,
+      "kind": "UnsupportedOpcode",
+      "instruction": "event opcode 0xEF"
+    },
+    {
+      "entry": 13,
+      "function": 5,
+      "function_tag": 14,
+      "instruction_offset": 10,
+      "offset": 2760,
+      "opcode": null,
+      "kind": "Decode",
+      "instruction": "WindowSync expression/operands do not complete before the function boundary"
+    },
+    {
+      "entry": 15,
+      "function": 1,
+      "function_tag": 1,
+      "instruction_offset": 151,
+      "expression_offset": 152,
+      "offset": 428,
+      "opcode": 69,
+      "kind": "UnsupportedOpcode",
+      "instruction": "JMP_IF contains unsupported expression opcode 0x45"
+    }
+  ],
+  "unknown_extended_entry_16": {
     "entry": 16,
     "function": 1,
     "function_tag": 1,
@@ -332,6 +387,17 @@
     "opcode": 456,
     "kind": "UnsupportedOpcode",
     "instruction": "unknown extended event opcode 0x1C8; no matching pinned enum or dispatcher operation was found"
+  },
+  "next_decode_boundary": {
+    "entry": 13,
+    "function": 1,
+    "function_tag": 1,
+    "instruction_offset": 68,
+    "expression_offset": 70,
+    "offset": 581,
+    "opcode": 55,
+    "kind": "UnsupportedOpcode",
+    "instruction": "WAIT contains unsupported expression opcode 0x37 after partial diagnostic reporting"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

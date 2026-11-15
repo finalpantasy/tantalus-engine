@@ -107,3 +107,21 @@ fn function_decode_errors_include_the_tag_and_entry_relative_offset() {
     assert_eq!(error.opcode, Some(0x0c));
     assert!(error.message.contains("function 0 (tag 0)"));
 }
+
+#[test]
+fn partial_decode_preserves_successes_and_every_function_error() {
+    let mut unsupported = fixture();
+    unsupported[154] = 0x0c;
+    let binary = EventBinary::parse(&unsupported).unwrap();
+
+    let report = binary.decode_entry_with_diagnostics(0).unwrap();
+
+    assert_eq!(report.functions.len(), 1);
+    assert_eq!(report.functions[0].tag, 3);
+    assert_eq!(report.errors.len(), 1);
+    assert_eq!(report.errors[0].function, 0);
+    assert_eq!(report.errors[0].tag, 0);
+    assert_eq!(report.errors[0].error.offset, 10);
+    assert_eq!(report.errors[0].error.opcode, Some(0x0c));
+    assert!(binary.decode_entry(0).is_err());
+}

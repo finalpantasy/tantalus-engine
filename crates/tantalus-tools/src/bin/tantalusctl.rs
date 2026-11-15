@@ -325,10 +325,24 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 .sum::<usize>();
             let mut decode_errors = Vec::new();
             for entry in &binary.entries {
-                match binary.decode_entry(entry.index) {
+                match binary.decode_entry_with_diagnostics(entry.index) {
                     Ok(decoded) => {
-                        decoded_entries += 1;
                         decoded_functions += decoded.functions.len();
+                        if decoded.errors.is_empty() {
+                            decoded_entries += 1;
+                        }
+                        for failure in decoded.errors {
+                            let error = failure.error;
+                            decode_errors.push(serde_json::json!({
+                                "entry": entry.index,
+                                "function": failure.function,
+                                "tag": failure.tag,
+                                "kind": format!("{:?}", error.kind),
+                                "offset": error.offset,
+                                "opcode": error.opcode,
+                                "message": error.message,
+                            }));
+                        }
                     }
                     Err(error) => decode_errors.push(serde_json::json!({
                         "entry": entry.index,

@@ -24,6 +24,20 @@ pub struct EventEntryProgram {
     pub functions: Vec<EventFunction>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventFunctionError {
+    pub function: usize,
+    pub tag: u16,
+    pub error: VmError,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventEntryDecodeReport {
+    pub entry_type: u8,
+    pub functions: Vec<EventFunction>,
+    pub errors: Vec<EventFunctionError>,
+}
+
 #[derive(Debug, Clone)]
 pub struct EventBinary {
     pub version: u8,
@@ -107,6 +121,20 @@ impl EventBinary {
     }
 
     pub fn decode_entry(&self, index: usize) -> Result<EventEntryProgram, VmError> {
+        let report = self.decode_entry_with_diagnostics(index)?;
+        if let Some(failure) = report.errors.into_iter().next() {
+            return Err(failure.error);
+        }
+        Ok(EventEntryProgram {
+            entry_type: report.entry_type,
+            functions: report.functions,
+        })
+    }
+
+    pub fn decode_entry_with_diagnostics(
+        &self,
+        index: usize,
+    ) -> Result<EventEntryDecodeReport, VmError> {
         let bytes = self.entry_bytes(index).ok_or_else(|| {
             VmError::new(
                 VmErrorKind::Decode,
@@ -116,9 +144,10 @@ impl EventBinary {
             )
         })?;
         if bytes.is_empty() {
-            return Ok(EventEntryProgram {
+            return Ok(EventEntryDecodeReport {
                 entry_type: 0xff,
                 functions: Vec::new(),
+                errors: Vec::new(),
             });
         }
 
@@ -138,6 +167,7 @@ impl EventBinary {
         }
 
         let mut functions = Vec::with_capacity(function_count);
+        let mut errors = Vec::new();
         for function_index in 0..function_count {
             let table_position = 2 + function_index * 4;
             let tag = u16::from_le_bytes([bytes[table_position], bytes[table_position + 1]]);
@@ -158,23 +188,30 @@ impl EventBinary {
                     ),
                 ));
             }
-            let program = decode_program(&bytes[start..end]).map_err(|mut error| {
-                error.offset += start as u32;
-                error.message = format!(
-                    "event entry {index} function {function_index} (tag {tag}): {}",
-                    error.message
-                );
-                error
-            })?;
-            functions.push(EventFunction {
-                tag,
-                offset: start as u32,
-                program,
-            });
+            match decode_program(&bytes[start..end]) {
+                Ok(program) => functions.push(EventFunction {
+                    tag,
+                    offset: start as u32,
+                    program,
+                }),
+                Err(mut error) => {
+                    error.offset += start as u32;
+                    error.message = format!(
+                        "event entry {index} function {function_index} (tag {tag}): {}",
+                        error.message
+                    );
+                    errors.push(EventFunctionError {
+                        function: function_index,
+                        tag,
+                        error,
+                    });
+                }
+            }
         }
-        Ok(EventEntryProgram {
+        Ok(EventEntryDecodeReport {
             entry_type,
             functions,
+            errors,
         })
     }
 }
