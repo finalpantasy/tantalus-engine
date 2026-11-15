@@ -100,6 +100,7 @@ const OP_ADD_ITEM: u32 = 0x48;
 const OP_REMOVE_ITEM: u32 = 0x49;
 const OP_INCREMENT_FROG_COUNT: u32 = 0xe0;
 const OP_SET_TILE_ANIMATION_FLAGS: u32 = 0x63;
+const OP_SET_TILE_ANIMATION_RANGE: u32 = 0x64;
 const OP_SET_TILE_ANIMATION_FRAME: u32 = 0xe7;
 const OP_OPEN_PARTY_MENU: u32 = 0xb2;
 const OP_INITIALIZE_CHARACTER: u32 = 0xfe;
@@ -1228,6 +1229,24 @@ impl Decoder<'_> {
                 InstructionKind::SetTileAnimationFlags {
                     animation: argument(1)?,
                     flags: argument(2)?,
+                }
+            }
+            OP_SET_TILE_ANIMATION_RANGE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetTileAnimationRange {
+                    animation: argument(1)?,
+                    first_frame: argument(2)?,
+                    last_frame: argument(4)?,
                 }
             }
             OP_SET_TILE_ANIMATION_FRAME_WAIT => {

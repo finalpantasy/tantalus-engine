@@ -369,6 +369,11 @@ pub enum InstructionKind {
         animation: Expression,
         flags: Expression,
     },
+    SetTileAnimationRange {
+        animation: Expression,
+        first_frame: Expression,
+        last_frame: Expression,
+    },
     IncrementFrogCount,
     SetTileAnimationFrame {
         animation: Expression,
@@ -773,6 +778,11 @@ pub enum HostEvent {
     SetTileAnimationFlags {
         animation: i32,
         flags: i32,
+    },
+    SetTileAnimationRange {
+        animation: i32,
+        first_frame: i32,
+        last_frame: i32,
     },
     IncrementFrogCount,
     SetTileAnimationFrame {

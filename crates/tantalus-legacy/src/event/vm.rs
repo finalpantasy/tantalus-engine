@@ -1135,6 +1135,23 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetTileAnimationFlags { animation, flags });
                 }
+                InstructionKind::SetTileAnimationRange {
+                    animation,
+                    first_frame,
+                    last_frame,
+                } => {
+                    let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
+                    let first_frame =
+                        self.evaluate(host, &first_frame, instruction.offset, opcode)?;
+                    let last_frame =
+                        self.evaluate(host, &last_frame, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetTileAnimationRange {
+                        animation,
+                        first_frame,
+                        last_frame,
+                    });
+                }
                 InstructionKind::IncrementFrogCount => {
                     self.pc = next;
                     events.push(HostEvent::IncrementFrogCount);
@@ -2677,6 +2694,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetSimulationFloor { .. } => 0x104,
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
         InstructionKind::SetTileAnimationFlags { .. } => 0x63,
+        InstructionKind::SetTileAnimationRange { .. } => 0x64,
         InstructionKind::SetTileAnimationFrameWait { .. } => 0x62,
         InstructionKind::IncrementFrogCount => 0xe0,
         InstructionKind::SetTileAnimationFrame { .. } => 0xe7,
