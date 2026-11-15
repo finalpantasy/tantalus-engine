@@ -737,10 +737,6 @@ pub enum InstructionKind {
     QueueEnemyAttack {
         attack: Expression,
     },
-    StartBattle {
-        rush: Expression,
-        battle: Expression,
-    },
     ShowObjectWindow {
         object: Expression,
         window: Expression,
@@ -753,9 +749,6 @@ pub enum InstructionKind {
         code: Expression,
         argument: Expression,
         value: [Expression; 2],
-    },
-    ChangeWorldMap {
-        destination: Expression,
     },
     SetUserControl {
         enabled: bool,
@@ -1539,10 +1532,6 @@ pub enum HostEvent {
     QueueEnemyAttack {
         attack: i32,
     },
-    StartBattle {
-        rush: i32,
-        battle: i32,
-    },
     ShowObjectWindow {
         object: EntityId,
         window: u8,
@@ -1554,9 +1543,6 @@ pub enum HostEvent {
         code: i32,
         argument: i32,
         value: [i16; 2],
-    },
-    ChangeWorldMap {
-        destination: i16,
     },
     SetUserControl {
         enabled: bool,

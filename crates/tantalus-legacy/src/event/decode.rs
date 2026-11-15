@@ -224,11 +224,9 @@ const OP_CLOSE_ALL_WINDOWS: u32 = 0xeb;
 const OP_ALIGN_ACTOR_TO_CAMERA_EYE: u32 = 0xb7;
 const OP_PROGRESS_JUMP: u32 = 0xdc;
 const OP_QUEUE_ENEMY_ATTACK: u32 = 0x38;
-const OP_START_BATTLE: u32 = 0x2a;
 const OP_SHOW_OBJECT_WINDOW: u32 = 0x95;
 const OP_SHOW_OBJECT_WINDOW_ASYNC: u32 = 0x96;
 const OP_RUN_SPS_CODE: u32 = 0xda;
-const OP_CHANGE_WORLD_MAP: u32 = 0xb6;
 const OP_SETUP_JUMP: u32 = 0xe2;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
@@ -765,12 +763,6 @@ impl Decoder<'_> {
                     rush: self.operand(flags, 1, false)?,
                     group: Some(self.operand(flags, 2, false)?),
                     battle: self.operand(flags, 4, true)?,
-                }
-            }
-            OP_CHANGE_WORLD_MAP => {
-                let flags = self.byte()?;
-                InstructionKind::ChangeWorldMap {
-                    destination: self.operand(flags, 1, true)?,
                 }
             }
             OP_SYNC_PARTY => InstructionKind::SyncPartyUid,
@@ -2609,13 +2601,6 @@ impl Decoder<'_> {
                 let flags = self.byte()?;
                 InstructionKind::QueueEnemyAttack {
                     attack: self.operand(flags, 1, false)?,
-                }
-            }
-            OP_START_BATTLE => {
-                let flags = self.byte()?;
-                InstructionKind::StartBattle {
-                    rush: self.operand(flags, 1, false)?,
-                    battle: self.operand(flags, 2, true)?,
                 }
             }
             OP_SHOW_OBJECT_WINDOW | OP_SHOW_OBJECT_WINDOW_ASYNC => {

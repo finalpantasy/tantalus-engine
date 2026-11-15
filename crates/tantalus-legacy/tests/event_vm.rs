@@ -319,10 +319,8 @@ impl LegacyEventHost for Host {
                 HostEvent::AlignActorToCameraEye { .. } => {}
                 HostEvent::ProgressJump { .. } => {}
                 HostEvent::QueueEnemyAttack { .. } => {}
-                HostEvent::StartBattle { .. } => {}
                 HostEvent::ShowObjectWindow { .. } => {}
                 HostEvent::RunSpsCode { .. } => {}
-                HostEvent::ChangeWorldMap { .. } => {}
                 HostEvent::SetCameraBounds { .. } => {}
                 HostEvent::SetCharacterRow { .. } => {}
                 HostEvent::SetActorPitchRoll { .. } => {}
@@ -7838,40 +7836,6 @@ fn btlcmd_decodes_the_enemy_attack_operand() {
 }
 
 #[test]
-fn encount_decodes_rush_and_battle_identifiers() {
-    let program = decode_program(&[0x2a, 0, 1, 0x39, 0x30, 4]).unwrap();
-    let mut vm = EventVm::new(program);
-    let mut host = Host::new();
-    let report = vm.step(Tick::new(0), &mut host).unwrap();
-    assert_eq!(
-        report.events,
-        [HostEvent::StartBattle {
-            rush: 1,
-            battle: 0x3039,
-        }]
-    );
-
-    // The raw id keeps Steiner's state in the highest bit; the host splits it.
-    let mut bytes = vec![0x2a, 3];
-    append_expression(&mut bytes, constant(0));
-    append_expression(&mut bytes, constant(-32768));
-    bytes.push(4);
-    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
-    let report = vm.step(Tick::new(0), &mut host).unwrap();
-    assert_eq!(
-        report.events,
-        [HostEvent::StartBattle {
-            rush: 0,
-            battle: -32768,
-        }]
-    );
-
-    let truncated = decode_program(&[0x2a, 0, 1]).unwrap_err();
-    assert_eq!(truncated.kind, VmErrorKind::Decode);
-    assert!(truncated.message.contains("opcode Some(42)"));
-}
-
-#[test]
 fn mesa_waits_on_the_window_and_mesan_continues() {
     let program = decode_program(&[0x95, 0, 5, 1, 4, 0x15, 0x00, 4]).unwrap();
     let mut vm = EventVm::new(program);
@@ -7925,16 +7889,4 @@ fn sps2_decodes_simple_special_effect_parameters() {
     let truncated = decode_program(&[0xda, 0, 3, 9, 0x7f]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(218)"));
-}
-
-#[test]
-fn wmapjump_emits_the_world_map_destination() {
-    let program = decode_program(&[0xb6, 0, 0x2c, 0x01, 4]).unwrap();
-    let mut vm = EventVm::new(program);
-    let mut host = Host::new();
-    let report = vm.step(Tick::new(0), &mut host).unwrap();
-    assert_eq!(
-        report.events,
-        [HostEvent::ChangeWorldMap { destination: 300 }]
-    );
 }

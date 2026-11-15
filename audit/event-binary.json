@@ -253,10 +253,8 @@
     "EYE 0xB7 is operand-less, binds to the current actor, and emits AlignActorToCameraEye; world-mode camera reads stay host-owned",
     "JUMP3 0xDC is operand-less, binds to the current actor, emits ProgressJump once per tick, and repeats while the host reports an active jump (MOVJ-style wait; new host query actor_jump_is_active); jump frame interpolation stays host-owned",
     "BTLCMD 0x38 decodes a byte attack operand (immediate or expression) and emits QueueEnemyAttack; SV_Target reads and ATB/counter queueing stay host-owned",
-    "ENCOUNT 0x2A decodes a byte rush type and a signed 16-bit battle id (each an immediate or expression) and emits StartBattle with the raw id (Steiner state bit included); battle scene selection and the battle transition stay host-owned",
     "MESA 0x95 and MESAN 0x96 decode an object talker, a byte window id, a byte UI flag list, and a signed 16-bit text id (each an immediate or expression; a negative object is an error) and emit ShowObjectWindow; MESA then waits on the window like WindowSync while MESAN continues",
-    "SPS2 0xDA decodes a byte sps id, a byte parameter type, a byte first argument, and two signed 16-bit values (each an immediate or expression) and emits RunSpsCode; the field/battle/world SPS engines stay host-owned",
-    "WMAPJUMP 0xB6 decodes a signed 16-bit world map destination (immediate or expression) and emits ChangeWorldMap; the world transition stays host-owned"
+    "SPS2 0xDA decodes a byte sps id, a byte parameter type, a byte first argument, and two signed 16-bit values (each an immediate or expression) and emits RunSpsCode; the field/battle/world SPS engines stay host-owned"
   ],
   "malformed_entry_boundary": {
     "entry": 1,

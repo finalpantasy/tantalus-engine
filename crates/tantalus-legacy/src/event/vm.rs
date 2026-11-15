@@ -2139,12 +2139,6 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::QueueEnemyAttack { attack });
                 }
-                InstructionKind::StartBattle { rush, battle } => {
-                    let rush = self.evaluate(host, &rush, instruction.offset, opcode)?;
-                    let battle = self.evaluate(host, &battle, instruction.offset, opcode)?;
-                    self.pc = next;
-                    events.push(HostEvent::StartBattle { rush, battle });
-                }
                 InstructionKind::ShowObjectWindow {
                     object,
                     window,
@@ -2196,12 +2190,6 @@ impl EventVm {
                         argument,
                         value,
                     });
-                }
-                InstructionKind::ChangeWorldMap { destination } => {
-                    let destination =
-                        self.evaluate(host, &destination, instruction.offset, opcode)? as i16;
-                    self.pc = next;
-                    events.push(HostEvent::ChangeWorldMap { destination });
                 }
                 InstructionKind::SetUserControl { enabled, .. } => {
                     self.pc = next;
@@ -4161,10 +4149,8 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::AlignActorToCameraEye => 0xb7,
         InstructionKind::ProgressJump => 0xdc,
         InstructionKind::QueueEnemyAttack { .. } => 0x38,
-        InstructionKind::StartBattle { .. } => 0x2a,
         InstructionKind::ShowObjectWindow { opcode, .. } => u32::from(*opcode),
         InstructionKind::RunSpsCode { .. } => 0xda,
-        InstructionKind::ChangeWorldMap { .. } => 0xb6,
         InstructionKind::SetCameraBounds { .. } => 0x1e,
         InstructionKind::SetCharacterRow { .. } => 0x62,
         InstructionKind::ClearPartyStatus { .. } => 0xd9,
