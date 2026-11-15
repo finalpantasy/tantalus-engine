@@ -368,6 +368,11 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::RestoreAllVisibility);
                 }
+                InstructionKind::SetTimerRunning(running) => {
+                    let running = self.evaluate(host, &running, instruction.offset, opcode)? != 0;
+                    self.pc = next;
+                    events.push(HostEvent::SetTimerRunning { running });
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -1043,6 +1048,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::RequestScriptAsync { .. } => 0x10,
         InstructionKind::DefineTileViewport { .. } => 0xc8,
         InstructionKind::RestoreAllVisibility => 0xd6,
+        InstructionKind::SetTimerRunning(_) => 0x7d,
     }
 }
 

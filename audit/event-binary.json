@@ -73,14 +73,15 @@
     "BGVDEFINE 0xC8 decodes viewport ID and signed rectangle operands and emits DefineTileViewport",
     "entry 0 decodes completely",
     "B_POST_PLUS 4 stores the incremented target and returns its original value",
-    "POPSHOW 0xD6 consumes its flag and emits RestoreAllVisibility"
+    "POPSHOW 0xD6 consumes its flag and emits RestoreAllVisibility",
+    "TIMERCONTROL 0x7D decodes a boolean operand and emits SetTimerRunning"
   ],
   "next_decode_boundary": {
     "entry": 1,
-    "offset": 27,
-    "opcode": "0x7D",
+    "offset": 30,
+    "opcode": "0x16",
     "kind": "event",
-    "instruction": "TIMERCONTROL"
+    "instruction": "REPLY"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

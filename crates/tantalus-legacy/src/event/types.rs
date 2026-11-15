@@ -179,6 +179,7 @@ pub enum InstructionKind {
         height: Expression,
     },
     RestoreAllVisibility,
+    SetTimerRunning(Expression),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -304,6 +305,9 @@ pub enum HostEvent {
         height: i16,
     },
     RestoreAllVisibility,
+    SetTimerRunning {
+        running: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -131,6 +131,7 @@ impl LegacyEventHost for Host {
                 HostEvent::RequestScriptAsync { .. } => {}
                 HostEvent::DefineTileViewport { .. } => {}
                 HostEvent::RestoreAllVisibility => {}
+                HostEvent::SetTimerRunning { .. } => {}
             }
         }
         Ok(())
@@ -1408,4 +1409,18 @@ fn popshow_emits_scene_visibility_restoration() {
 
     assert_eq!(report.events, [HostEvent::RestoreAllVisibility]);
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn timercontrol_emits_running_and_paused_states() {
+    for (operand, running) in [(0, false), (1, true)] {
+        let program = decode_program(&[125, 0, operand, 4]).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+        assert_eq!(report.events, [HostEvent::SetTimerRunning { running }]);
+        assert_eq!(vm.status(), VmStatus::Completed);
+    }
 }

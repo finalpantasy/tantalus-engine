@@ -34,6 +34,7 @@ const OP_SET_VIBRATION_FRAME_RATE: u8 = 0xfa;
 const OP_REQUEST_SCRIPT_ASYNC: u8 = 0x10;
 const OP_DEFINE_TILE_VIEWPORT: u8 = 0xc8;
 const OP_RESTORE_ALL_VISIBILITY: u8 = 0xd6;
+const OP_SET_TIMER_RUNNING: u8 = 0x7d;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -339,6 +340,18 @@ impl Decoder<'_> {
             OP_RESTORE_ALL_VISIBILITY => {
                 self.byte()?;
                 InstructionKind::RestoreAllVisibility
+            }
+            OP_SET_TIMER_RUNNING => {
+                let flags = self.byte()?;
+                let running = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::SetTimerRunning(running)
             }
             _ => {
                 return Err(VmError::new(
