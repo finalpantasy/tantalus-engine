@@ -434,6 +434,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut all_functions = false;
     let mut orchestrate = false;
     let mut scan_requests = false;
+    let mut talk_confirm = None;
     let mut atan_table = None;
     let mut navigation_bundle = None;
     let mut navigation_bgi = None;
@@ -494,6 +495,17 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             Some("--all-functions") => all_functions = true,
             Some("--orchestrate") => orchestrate = true,
             Some("--scan-requests") => scan_requests = true,
+            Some("--talk-confirm") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--talk-confirm` requires a mask".to_owned())?;
+                talk_confirm = Some(
+                    i32::from_str_radix(value.trim_start_matches("0x"), 16)
+                        .map_err(|_| "`--talk-confirm` requires a hex mask".to_owned())?,
+                );
+            }
             Some("--navigation-bundle") => {
                 index += 1;
                 let value = args
@@ -1087,6 +1099,13 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 }
             }
         }
+        if let Some(mask) = talk_confirm {
+            // Demo mode: entity 0 acts as the player holding confirm, so
+            // talk triggers fire wherever an object set a talk radius.
+            director.set_player(tantalus_contracts::EntityId::new(0));
+            director.set_confirm_mask(Some(mask));
+            director.set_input_mask(mask);
+        }
         let mut operations = 0u64;
         let mut error = None;
         let mut ticks_run = 0u64;
@@ -1117,6 +1136,21 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                                 }
                                 Ok(None) => unspawned_requests += 1,
                                 Err(_) => unspawned_requests += 1,
+                            }
+                        }
+                        // Talk dispatch: the reference calls the object's
+                        // function tag 3 (EventEngine.IsActuallyTalkable,
+                        // tagId = 3) when the player confirms in range.
+                        for trigger in &step.talk_triggers {
+                            let target = trigger.get() as usize;
+                            if target >= pool.len() {
+                                continue;
+                            }
+                            if let Ok(Some((entity, function_tag))) =
+                                register(&mut director, target, Some(3), 0)
+                            {
+                                entry_tags.push((target, function_tag));
+                                spawned.push((entity, target as u64));
                             }
                         }
                     }
