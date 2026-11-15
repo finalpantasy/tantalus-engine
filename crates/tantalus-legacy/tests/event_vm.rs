@@ -181,6 +181,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetActorFacing { .. } => {}
                 HostEvent::StartActorTurn { .. } => {}
                 HostEvent::AimAtCamera => {}
+                HostEvent::SetModelColor { .. } => {}
                 HostEvent::PlayTextureAnimation { .. } => {}
                 HostEvent::DisableRun => {}
                 HostEvent::SetTileCamera { .. } => {}
@@ -5061,6 +5062,30 @@ fn run_lock_tile_camera_card_game_and_game_over_commands() {
     let mut vm = EventVm::new(program);
     let report = vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(report.events, [HostEvent::GameOver]);
+    assert_eq!(report.status, VmStatus::Completed);
+}
+
+#[test]
+fn model_color_sets_the_color_then_yields_one_frame() {
+    let mut host = Host::new();
+    let program = decode_program(&[0x8f, 0, 9, 200, 100, 50, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 6);
+    let mut vm = EventVm::new(program);
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetModelColor {
+            object: 9,
+            red: 200,
+            green: 100,
+            blue: 50,
+        }]
+    );
+    assert_eq!(vm.pc(), 6);
+    assert_ne!(vm.status(), VmStatus::Completed);
+
+    let report = vm.step(Tick::new(1), &mut host).unwrap();
     assert_eq!(report.status, VmStatus::Completed);
 }
 

@@ -294,6 +294,13 @@ pub enum InstructionKind {
         z: Expression,
     },
     AimAtCamera,
+    /// `CHRCOLOR` 0x8F: set a model's color, then yield one frame.
+    SetModelColor {
+        object: Expression,
+        red: Expression,
+        green: Expression,
+        blue: Expression,
+    },
     /// `DTURN` 0xBB: animated turn of an object chosen by entry.
     StartObjectTurn {
         object: Expression,
@@ -1114,6 +1121,12 @@ pub enum HostEvent {
         speed: i32,
     },
     AimAtCamera,
+    SetModelColor {
+        object: i32,
+        red: u8,
+        green: u8,
+        blue: u8,
+    },
     PlayTextureAnimation {
         object: i32,
         animation: i32,

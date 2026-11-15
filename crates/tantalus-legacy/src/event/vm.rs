@@ -1052,6 +1052,27 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::StartCardGame { opponent });
                 }
+                InstructionKind::SetModelColor {
+                    object,
+                    red,
+                    green,
+                    blue,
+                } => {
+                    let object = self.evaluate(host, &object, instruction.offset, opcode)?;
+                    let red = self.evaluate(host, &red, instruction.offset, opcode)? as u8;
+                    let green = self.evaluate(host, &green, instruction.offset, opcode)? as u8;
+                    let blue = self.evaluate(host, &blue, instruction.offset, opcode)? as u8;
+                    self.pc = next;
+                    events.push(HostEvent::SetModelColor {
+                        object,
+                        red,
+                        green,
+                        blue,
+                    });
+                    // Memoria's first execution sets the color and returns FLOW_STATE_WAIT;
+                    // the second execution only clears its marker and continues.
+                    break;
+                }
                 InstructionKind::AimAtCamera => {
                     self.pc = next;
                     events.push(HostEvent::AimAtCamera);
@@ -4099,6 +4120,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::WalkActor { .. } => 0x23,
         InstructionKind::MoveActor { .. } => 0xbf,
         InstructionKind::AimAtCamera => 0xb8,
+        InstructionKind::SetModelColor { .. } => 0x8f,
         InstructionKind::StartObjectTurn { .. } => 0xbb,
         InstructionKind::PlayObjectAnimation { .. } => 0xbd,
         InstructionKind::PlayTextureAnimation { once: false, .. } => 0xc0,
