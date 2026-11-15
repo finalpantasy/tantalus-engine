@@ -185,3 +185,94 @@ fn key_derivation_matches_an_independent_known_answer() {
     assert_eq!(hex, expected);
     assert_eq!(LegacyAesCodec::decrypt(&cipher).unwrap(), plain);
 }
+
+#[test]
+fn schema_payload_round_trips_every_source_primitive_type() {
+    let schema = [
+        BaseSaveFieldType::Byte,
+        BaseSaveFieldType::SByte,
+        BaseSaveFieldType::Int16,
+        BaseSaveFieldType::UInt16,
+        BaseSaveFieldType::Int32,
+        BaseSaveFieldType::UInt32,
+        BaseSaveFieldType::Int64,
+        BaseSaveFieldType::UInt64,
+        BaseSaveFieldType::Single,
+        BaseSaveFieldType::Double,
+        BaseSaveFieldType::Boolean,
+        BaseSaveFieldType::String128,
+        BaseSaveFieldType::String4K,
+    ];
+    let payload = BaseSavePayload {
+        values: vec![
+            BaseSaveValue::U8(0xFE),
+            BaseSaveValue::I8(-2),
+            BaseSaveValue::I16(-300),
+            BaseSaveValue::U16(60_000),
+            BaseSaveValue::I32(-123_456),
+            BaseSaveValue::U32(4_000_000_000),
+            BaseSaveValue::I64(-9_000_000_000),
+            BaseSaveValue::U64(18_000_000_000_000_000_000),
+            BaseSaveValue::F32(12.5),
+            BaseSaveValue::F64(-0.25),
+            BaseSaveValue::Bool(true),
+            BaseSaveValue::String("party".to_owned()),
+            BaseSaveValue::String("save\0name".to_owned()),
+        ],
+    };
+
+    let encoded = payload.encode(&schema).unwrap();
+    assert_eq!(
+        encoded.len(),
+        schema.iter().map(|field| field.size()).sum::<usize>()
+    );
+    assert_eq!(BaseSavePayload::decode(&encoded, &schema).unwrap(), payload);
+}
+
+#[test]
+fn schema_payload_trims_fixed_string_nuls_and_preserves_interior_nuls() {
+    let schema = [BaseSaveFieldType::String128];
+    let mut bytes = vec![0; 128];
+    bytes[..8].copy_from_slice(b"\0hi\0mid\0");
+    let decoded = BaseSavePayload::decode(&bytes, &schema).unwrap();
+    assert_eq!(
+        decoded.values,
+        [BaseSaveValue::String("hi\0mid".to_owned())]
+    );
+}
+
+#[test]
+fn schema_payload_reports_type_name_size_and_truncation_errors() {
+    assert_eq!(
+        BaseSaveFieldType::from_legacy_type_name("System.String"),
+        Some(BaseSaveFieldType::String128)
+    );
+    assert_eq!(
+        BaseSaveFieldType::from_legacy_type_name("String4K"),
+        Some(BaseSaveFieldType::String4K)
+    );
+    assert_eq!(BaseSaveFieldType::String4K.size(), 4096);
+    assert_eq!(
+        BaseSaveFieldType::from_legacy_type_name("System.Object"),
+        None
+    );
+
+    let schema = [BaseSaveFieldType::Int16, BaseSaveFieldType::Int32];
+    let error = BaseSavePayload::decode(&[1, 0], &schema).unwrap_err();
+    assert_eq!(error.offset, 2);
+    assert!(error.context.contains("truncated 4-byte value"));
+
+    let error = BaseSavePayload::decode(&[0, 0], &[]).unwrap_err();
+    assert!(error.context.contains("consumed 0 of 2"));
+
+    let mismatch = BaseSavePayload {
+        values: vec![BaseSaveValue::Bool(true)],
+    };
+    assert!(mismatch.encode(&schema).is_err());
+
+    let mut invalid_utf8 = vec![0xFF; 128];
+    invalid_utf8[127] = 0;
+    let error =
+        BaseSavePayload::decode(&invalid_utf8, &[BaseSaveFieldType::String128]).unwrap_err();
+    assert!(error.context.contains("invalid UTF-8"));
+}
