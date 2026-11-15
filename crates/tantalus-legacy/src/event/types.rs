@@ -105,6 +105,7 @@ pub enum ExpressionOp {
     SubtractAssignAllMembers,
     AndAssignMembers,
     XorAssignMembers,
+    OrAssignMembers,
     XorAssignAllMembers,
     AndAssignAllMembers,
     AssignAllMembers,

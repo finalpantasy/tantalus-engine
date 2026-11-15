@@ -1548,6 +1548,7 @@ impl Decoder<'_> {
                 65 => ExpressionOp::XorAssignAllMembers,
                 67 => ExpressionOp::AndAssignMembers,
                 68 => ExpressionOp::XorAssignMembers,
+                69 => ExpressionOp::OrAssignMembers,
                 70 => ExpressionOp::CastI8,
                 71 => ExpressionOp::CastU8,
                 72 => ExpressionOp::CastI16,

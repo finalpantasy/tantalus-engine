@@ -2097,7 +2097,9 @@ impl EventVm {
                         target: None,
                     });
                 }
-                ExpressionOp::AndAssignMembers | ExpressionOp::XorAssignMembers => {
+                ExpressionOp::AndAssignMembers
+                | ExpressionOp::XorAssignMembers
+                | ExpressionOp::OrAssignMembers => {
                     if stack.len() < 3 {
                         return Err(expression_error(
                             offset,
@@ -2132,6 +2134,7 @@ impl EventVm {
                     let value = match operation {
                         ExpressionOp::AndAssignMembers => selected_values & operand,
                         ExpressionOp::XorAssignMembers => selected_values ^ operand,
+                        ExpressionOp::OrAssignMembers => selected_values | operand,
                         _ => unreachable!(),
                     };
                     host.write_object_member(reference, value)
@@ -2773,6 +2776,7 @@ fn operand_start(
         }
         ExpressionOp::AndAssignMembers
         | ExpressionOp::XorAssignMembers
+        | ExpressionOp::OrAssignMembers
         | ExpressionOp::XorAssignAllMembers
         | ExpressionOp::AndAssignAllMembers
         | ExpressionOp::ShiftRightAssignAllMembers

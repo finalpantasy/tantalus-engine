@@ -2440,6 +2440,56 @@ fn member_and_assignment_uses_the_last_selected_target() {
 }
 
 #[test]
+fn member_or_assignment_uses_the_last_selected_target() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 52);
+    let expression = assign(
+        result,
+        [vec![41, 2], constant(0b101), constant(2), vec![69]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.slots.insert(0, EntityId::new(10));
+    host.slots.insert(2, EntityId::new(12));
+    let first = ObjectMemberRef {
+        object: EntityId::new(10),
+        member: 2,
+    };
+    let last = ObjectMemberRef {
+        object: EntityId::new(12),
+        member: 2,
+    };
+    host.object_members.insert(first, 0);
+    host.object_members.insert(last, 255);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(vm.variable(VariableScope::Global, 52), 6);
+    assert_eq!(host.object_members[&last], 6);
+    assert_eq!(host.member_target, Some(last.object));
+    assert_eq!(host.member_writes, [(last, 6)]);
+
+    let result = variable(VariableScope::Global, VariableType::Int16, 52);
+    let expression = assign(
+        result,
+        [vec![41, 4], constant(0), constant(3), vec![69]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let current = ObjectMemberRef {
+        object: EntityId::new(42),
+        member: 4,
+    };
+    let mut host = Host::new();
+    host.member_target = Some(current.object);
+    host.object_members.insert(current, 15);
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 52), 3);
+    assert_eq!(host.member_target, Some(current.object));
+    assert_eq!(host.member_writes, [(current, 3)]);
+}
+
+#[test]
 fn empty_member_xor_mask_preserves_and_writes_the_current_target() {
     let result = variable(VariableScope::Global, VariableType::Int16, 17);
     let expression = assign(

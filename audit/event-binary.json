@@ -204,7 +204,8 @@
     "B_SPS 108 consumes two expression operands and returns zero through the pinned no-effect path",
     "BGAWAIT 0x62 decodes animation, pause frame, and wait bytes and emits SetTileAnimationFrameWait",
     "B_PARTYADD 109 delegates party insertion to the host and returns the reference failure flag",
-    "FLDSND0 through FLDSND3 (0xC5-0xC8) share signed code/ID and variant-specific argument decoding while retaining the actual opcode"
+    "FLDSND0 through FLDSND3 (0xC5-0xC8) share signed code/ID and variant-specific argument decoding while retaining the actual opcode",
+    "B_OR_LET_E 69 ORs the selected-value mask with its operand and writes the last selected target"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -381,12 +382,11 @@
       "entry": 15,
       "function": 1,
       "function_tag": 1,
-      "instruction_offset": 151,
-      "expression_offset": 152,
-      "offset": 428,
-      "opcode": 69,
+      "instruction_offset": 175,
+      "offset": 448,
+      "opcode": 285,
       "kind": "UnsupportedOpcode",
-      "instruction": "JMP_IF contains unsupported expression opcode 0x45"
+      "instruction": "Memoria ADD_STATUS extended event opcode 0x11D after B_OR_LET_E support"
     }
   ],
   "unknown_extended_entry_16": {
