@@ -111,7 +111,8 @@
     "RADIUS 0x4B emits actor-bound pathing, collision, and talk radii with byte wrapping",
     "IDLESPEED 0x86 emits four actor-bound standing-animation speed bytes",
     "NECKID 0x8B emits actor-bound self/target head-focus masks",
-    "CFLAG 0x93 emits current-object flags for host-side protected-bit preservation"
+    "CFLAG 0x93 emits current-object flags for host-side protected-bit preservation",
+    "B_GT_E 29 returns per-slot greater-than flags without writes, including zero for an empty mask"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -136,11 +137,10 @@
     "entry": 6,
     "function": 1,
     "function_tag": 1,
-    "offset": 146,
-    "expression_offset": 30,
-    "opcode": 29,
+    "offset": 158,
+    "opcode": 120,
     "kind": "UnsupportedOpcode",
-    "instruction": "B_GT_E after entry 6 tag 0 decoded completely"
+    "instruction": "PRINTQUAD after selected-member greater-than support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

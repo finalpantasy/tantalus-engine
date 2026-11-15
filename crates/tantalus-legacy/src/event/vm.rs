@@ -1227,7 +1227,9 @@ impl EventVm {
                     value: 0,
                     target: None,
                 }),
-                ExpressionOp::EqualMembers | ExpressionOp::LessOrEqualMembers => {
+                ExpressionOp::EqualMembers
+                | ExpressionOp::LessOrEqualMembers
+                | ExpressionOp::GreaterMembers => {
                     if stack.len() < 3 {
                         return Err(expression_error(
                             offset,
@@ -1255,6 +1257,7 @@ impl EventVm {
                             let matches = match operation {
                                 ExpressionOp::EqualMembers => value == comparison,
                                 ExpressionOp::LessOrEqualMembers => value <= comparison,
+                                ExpressionOp::GreaterMembers => value > comparison,
                                 _ => unreachable!(),
                             };
                             result |= i32::from(matches) << 7;
@@ -1626,7 +1629,8 @@ fn operand_start(
         }
         ExpressionOp::XorAssignMembers
         | ExpressionOp::EqualMembers
-        | ExpressionOp::LessOrEqualMembers => {
+        | ExpressionOp::LessOrEqualMembers
+        | ExpressionOp::GreaterMembers => {
             let value = operand_start(operations, index, offset, opcode)?;
             let mask = operand_start(operations, value, offset, opcode)?;
             operand_start(operations, mask, offset, opcode)
