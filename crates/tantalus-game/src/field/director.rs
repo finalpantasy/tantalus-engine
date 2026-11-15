@@ -19,6 +19,8 @@ use tantalus_legacy::{VmStatus, decode_program};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DirectorStep {
     pub tick: Tick,
+    /// Total event instructions executed across all entries this tick.
+    pub operations: u64,
     pub completed_entries: Vec<EntityId>,
     pub encounters: Vec<EncounterRequest>,
 }
@@ -41,6 +43,17 @@ impl FieldDirector {
             program_sources: BTreeMap::new(),
             tick: 0,
         }
+    }
+
+    /// Register an already-decoded program without raw source bytes. Such
+    /// entries cannot be snapshotted (the save is explicit about the missing
+    /// source); use for probes and tests.
+    pub fn add_entry_program(
+        &mut self,
+        entity: EntityId,
+        program: tantalus_legacy::EventProgram,
+    ) -> Result<(), EngineError> {
+        self.scene.add_entry(entity, program)
     }
 
     pub fn world(&self) -> &FieldWorld {
@@ -98,8 +111,13 @@ impl FieldDirector {
         })?;
         self.world.advance();
         self.tick += 1;
+        let operations: u64 = steps
+            .iter()
+            .map(|step| u64::from(step.report.operations))
+            .sum();
         Ok(DirectorStep {
             tick,
+            operations,
             completed_entries: steps
                 .iter()
                 .filter(|step| step.report.status == VmStatus::Completed)

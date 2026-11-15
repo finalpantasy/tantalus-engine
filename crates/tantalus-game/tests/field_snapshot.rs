@@ -68,7 +68,7 @@ fn snapshot_round_trips_world_and_rebuilds_entries() {
         .find(|entry| entry.entity == actor(2))
         .unwrap();
     assert!(!entry_a.resumed_from_start);
-    assert!(entry_b.resumed_from_start);
+    assert!(!entry_b.resumed_from_start);
     assert!(entry_b.wait_state.is_some());
 
     let json = snapshot.to_json().unwrap();
@@ -79,16 +79,28 @@ fn snapshot_round_trips_world_and_rebuilds_entries() {
     assert_eq!(restored_world, world);
     assert_eq!(restored_scene.len(), 2);
 
-    // Restored entries restart from tick zero. Entry 1 re-applies its gil
-    // immediately (the documented restart limitation that mid-function resume,
-    // pending `EventVm::resume`, will remove); item counts stay clamped.
-    // Entry 2 is still inside its restarted wait when entry 1 completes.
+    // Restored entries resume their recorded positions: entry 1 stays
+    // completed (no gil re-application), and entry 2 continues inside its
+    // recorded wait, then applies its gil grant exactly once.
     let (tick, status) = run_until_completed(&mut restored_scene, &mut restored_world, 16);
     assert_eq!(status, VmStatus::Completed);
     assert_eq!(tick, 0);
-    assert_eq!(restored_world.gil, 200);
-    // Same restart re-application for the item grant.
-    assert_eq!(restored_world.items[&12], 6);
+    assert_eq!(restored_world.gil, 100);
+    assert_eq!(restored_world.items[&12], 3);
+
+    for tick in 1..12u64 {
+        let mut host = FieldHost::new(&mut restored_world);
+        let steps = restored_scene.step(Tick::new(tick), &mut host).unwrap();
+        restored_world.advance();
+        if steps
+            .iter()
+            .all(|step| step.report.status == VmStatus::Completed)
+        {
+            break;
+        }
+    }
+    assert_eq!(restored_world.gil, 150);
+    assert_eq!(restored_world.items[&12], 3);
 }
 
 #[test]

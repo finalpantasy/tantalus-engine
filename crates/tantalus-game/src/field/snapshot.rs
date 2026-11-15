@@ -1,11 +1,13 @@
 //! Field save snapshots: a versioned, serde-native envelope capturing world
 //! state plus per-entry program sources and observed VM state.
 //!
-//! Restoring the world is exact. Entry VMs restart their programs from tick
-//! zero for now: mid-function resume needs `EventVm::resume` (requested from
-//! Claude), so [`EntrySnapshot::resumed_from_start`] is set whenever the saved
-//! pc was past the entry point with work remaining. The world-side reward
-//! ledger makes restarts safe against double commits.
+//! Restoring the world is exact, and entry VMs resume their recorded
+//! position through `tantalus_legacy::EventVm::resume` (validated: the pc
+//! must be an instruction boundary, waiting statuses need a wait state).
+//! VM variables and the instruction budget start fresh on resume, as in
+//! `EventVm::new`; scripts that depend on their variables across saves need
+//! them snapshotted separately (follow-up). [`EntrySnapshot::resumed_from_start`]
+//! remains in the format for compatibility and is now always false.
 
 use super::{FieldScene, FieldWorld};
 use serde::{Deserialize, Serialize};
@@ -23,9 +25,8 @@ pub struct EntrySnapshot {
     pub pc: u32,
     pub status: VmStatus,
     pub wait_state: Option<WaitState>,
-    /// True when the entry restarts from tick zero on restore (mid-function
-    /// resume is not available yet); false when the snapshot is at a clean
-    /// boundary (pc 0 or a completed entry).
+    /// Retained for format compatibility; always false now that restore
+    /// resumes recorded VM positions through `EventVm::resume`.
     pub resumed_from_start: bool,
 }
 
@@ -91,14 +92,13 @@ pub fn snapshot_scene(
                 false,
             )
         })?;
-        let clean_boundary = pc == 0 || status == VmStatus::Completed;
         entries.push(EntrySnapshot {
             entity,
             program: program.clone(),
             pc,
             status,
             wait_state,
-            resumed_from_start: !clean_boundary,
+            resumed_from_start: false,
         });
     }
     Ok(FieldSnapshot {
@@ -108,9 +108,10 @@ pub fn snapshot_scene(
     })
 }
 
-/// Rebuild a scene and world from a snapshot. World state restores exactly;
-/// entries restart their programs unless the snapshot was at a clean
-/// boundary, in which case restart is indistinguishable from resume.
+/// Rebuild a scene and world from a snapshot. World state restores exactly
+/// and each entry resumes its recorded pc/status/wait through
+/// `EventVm::resume`; invalid recordings (off-boundary pc, waiting without a
+/// wait state) are explicit errors.
 pub fn restore_scene(snapshot: &FieldSnapshot) -> Result<(FieldScene, FieldWorld), EngineError> {
     let mut scene = FieldScene::new();
     for entry in &snapshot.entries {
@@ -122,7 +123,22 @@ pub fn restore_scene(snapshot: &FieldSnapshot) -> Result<(FieldScene, FieldWorld
                 true,
             )
         })?;
-        scene.add_entry(entry.entity, program)?;
+        let vm = tantalus_legacy::EventVm::resume(
+            program,
+            entry.entity,
+            entry.pc,
+            entry.status,
+            entry.wait_state,
+        )
+        .map_err(|error| {
+            EngineError::new(
+                ErrorCategory::UnknownContent,
+                format!("entry {} vm state is not resumable: {error}", entry.entity),
+                "tantalus-game/snapshot",
+                true,
+            )
+        })?;
+        scene.add_resumed(entry.entity, vm)?;
     }
     Ok((scene, snapshot.world.clone()))
 }

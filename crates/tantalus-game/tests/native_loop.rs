@@ -95,11 +95,10 @@ fn packaged_loop_events_battle_rewards_save_and_restore() {
     assert_eq!(restored.world(), director.world());
     assert!(!restored.coordinator().is_active());
 
-    // The restored field keeps running: entries restart from tick zero
-    // (documented `resumed_from_start` semantics), so the gil grant re-applies
-    // while the battle reward ledger does not.
+    // The restored field resumes recorded positions: the completed entry does
+    // not re-run, so neither the gil grant nor a second encounter re-appears.
     let step = restored.step().unwrap();
     assert!(step.completed_entries.contains(&EntityId::new(1)));
-    assert_eq!(restored.world().gil, 220);
+    assert_eq!(restored.world().gil, 120);
     assert_eq!(restored.world().encounters.len(), 0);
 }

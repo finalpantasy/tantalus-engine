@@ -153,6 +153,8 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut objects = false;
     let mut text_asset = None;
     let mut event = None;
+    let mut field_execute = None;
+    let mut ticks = 64u64;
     let mut probe = false;
     let mut inventory = false;
     let mut texture = None;
@@ -183,6 +185,26 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 if text_asset.replace(value.to_owned()).is_some() {
                     return Err("`--text-asset` may only be supplied once".to_owned());
                 }
+            }
+            Some("--field-execute") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--field-execute` requires a UTF-8 asset name".to_owned())?;
+                if field_execute.replace(value.to_owned()).is_some() {
+                    return Err("`--field-execute` may only be supplied once".to_owned());
+                }
+            }
+            Some("--ticks") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--ticks` requires an integer".to_owned())?;
+                ticks = value
+                    .parse()
+                    .map_err(|_| "`--ticks` requires an unsigned integer".to_owned())?;
             }
             Some("--event") => {
                 index += 1;
@@ -452,6 +474,120 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             println!("{}", serde_json::to_string_pretty(&report).unwrap());
         } else {
             println!("{name}: {} event binaries", candidates.len());
+        }
+        return Ok(());
+    }
+    if let Some(name) = field_execute {
+        let bytes = bundle
+            .read_entry(0, 300 * 1024 * 1024)
+            .map_err(|error| error.to_string())?;
+        let serialized =
+            tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
+                .map_err(|error| error.to_string())?;
+        let mut found = None;
+        for (index, object) in serialized.report().objects.iter().enumerate() {
+            if object.class_id != 49 {
+                continue;
+            }
+            let asset = tantalus_assets::pc::text_asset::TextAsset::parse(
+                serialized
+                    .object_data(index)
+                    .map_err(|error| error.to_string())?,
+                &name,
+            )
+            .map_err(|error| error.to_string())?;
+            if asset.name == name {
+                found = Some(asset.script);
+                break;
+            }
+        }
+        let script = found.ok_or_else(|| format!("event asset `{name}` was not found"))?;
+        let binary =
+            tantalus_legacy::EventBinary::parse(&script).map_err(|error| error.to_string())?;
+        // Each entry's first function runs as one scene entry. Multi-function
+        // orchestration (function tags beyond the first) is host-owned and
+        // not part of this probe.
+        let mut director = tantalus_game::FieldDirector::new(tantalus_game::FieldWorld::new());
+        let mut entry_tags = Vec::new();
+        let mut skipped = Vec::new();
+        for entry in &binary.entries {
+            let decoded = binary
+                .decode_entry_with_diagnostics(entry.index)
+                .map_err(|error| error.to_string())?;
+            let Some(function) = decoded.functions.first() else {
+                skipped.push(entry.index);
+                continue;
+            };
+            let entity = tantalus_contracts::EntityId::new(entry.index as u64);
+            director
+                .add_entry_program(entity, function.program.clone())
+                .map_err(|error| error.to_string())?;
+            director.world_mut().add_actor(entity, [0.0; 3]);
+            entry_tags.push((entry.index, function.tag));
+        }
+        let mut operations = 0u64;
+        let mut error = None;
+        let mut ticks_run = 0u64;
+        for _ in 0..ticks {
+            match director.step() {
+                Ok(step) => {
+                    operations += step.operations;
+                    ticks_run += 1;
+                }
+                Err(failure) => {
+                    error = Some(format!("{failure}"));
+                    break;
+                }
+            }
+        }
+        let states = director
+            .save()
+            .map(|snapshot| {
+                snapshot
+                    .entries
+                    .iter()
+                    .map(|entry| {
+                        serde_json::json!({
+                            "entry": entry.entity.get(),
+                            "pc": entry.pc,
+                            "status": format!("{:?}", entry.status),
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .map_err(|e| format!("{e}"))
+            .unwrap_or_else(|e| vec![serde_json::json!({"snapshot_error": e})]);
+        let completed = states
+            .iter()
+            .filter(|state| {
+                state
+                    .get("status")
+                    .and_then(|status| status.as_str())
+                    .map(|status| status == "Completed")
+                    .unwrap_or(false)
+            })
+            .count();
+        let report = serde_json::json!({
+            "name": name,
+            "ticks_requested": ticks,
+            "ticks_run": ticks_run,
+            "operations": operations,
+            "entries": entry_tags
+                .iter()
+                .map(|(entry, tag)| serde_json::json!({"entry": entry, "tag": tag}))
+                .collect::<Vec<_>>(),
+            "skipped_empty_entries": skipped,
+            "completed_entries": completed,
+            "final_states": states,
+            "error": error,
+        });
+        if json {
+            println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        } else {
+            println!(
+                "{name}: {} entries, {operations} operations in {ticks_run} ticks, {completed} completed",
+                entry_tags.len()
+            );
         }
         return Ok(());
     }

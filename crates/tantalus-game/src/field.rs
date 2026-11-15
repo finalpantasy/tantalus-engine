@@ -30,6 +30,19 @@ impl FieldScene {
         }
     }
 
+    pub fn add_resumed(&mut self, entity: EntityId, vm: EventVm) -> Result<(), EngineError> {
+        if self.entries.contains_key(&entity) {
+            return Err(EngineError::new(
+                ErrorCategory::Conflict,
+                format!("field entry {entity} already exists"),
+                "tantalus-game/field",
+                true,
+            ));
+        }
+        self.entries.insert(entity, vm);
+        Ok(())
+    }
+
     pub fn add_entry(
         &mut self,
         entity: EntityId,

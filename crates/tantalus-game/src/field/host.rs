@@ -285,9 +285,9 @@ impl LegacyEventHost for FieldHost<'_> {
     }
 
     fn read_system_variable(&mut self, variable: u8) -> Result<i32, EngineError> {
-        self.world
-            .system_variable(variable)
-            .ok_or_else(|| Self::unknown("system variable"))
+        // Engine state is zero-initialized in the reference, so unset
+        // system variables read as zero rather than erroring.
+        Ok(self.world.system_variable(variable).unwrap_or(0))
     }
 
     fn read_system_list(&mut self, index: u8) -> Result<i32, EngineError> {
