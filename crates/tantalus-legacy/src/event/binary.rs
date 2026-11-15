@@ -31,7 +31,7 @@ impl EventBinary {
             return Err(VmError::new(
                 VmErrorKind::UnsupportedOpcode,
                 2,
-                Some(version),
+                Some(u32::from(version)),
                 format!("unsupported event binary version {version}; expected vanilla 2"),
             ));
         }

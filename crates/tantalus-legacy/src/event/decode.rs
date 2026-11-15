@@ -2,43 +2,43 @@ use super::*;
 use std::collections::BTreeMap;
 use tantalus_contracts::EntityId;
 
-const OP_NOP: u8 = 0x00;
-const OP_JUMP: u8 = 0x01;
-const OP_JUMP_IF_NOT: u8 = 0x02;
-const OP_JUMP_IF: u8 = 0x03;
-const OP_RETURN: u8 = 0x04;
-const OP_EVALUATE: u8 = 0x05;
-const OP_WINDOW_SYNC: u8 = 0x1f;
-const OP_WINDOW_ASYNC: u8 = 0x20;
-const OP_CLOSE_WINDOW: u8 = 0x21;
-const OP_WAIT: u8 = 0x22;
-const OP_WAIT_WINDOW: u8 = 0x54;
-const OP_MOVE_ACTOR: u8 = 0xbf;
-const OP_AIM_AT_CAMERA: u8 = 0xb8;
-const OP_DEFINE_PLAYER_CONTROL: u8 = 0x2c;
-const OP_SET_CONTROL_DIRECTION: u8 = 0x67;
-const OP_BACKGROUND_MOVE: u8 = 0x58;
-const OP_INITIALIZE_OBJECT: u8 = 0x09;
-const OP_INITIALIZE_REGION: u8 = 0x08;
-const OP_INITIALIZE_CODE: u8 = 0x07;
-const OP_SET_TRIANGLE_ACTIVE: u8 = 0x9a;
-const OP_RUN_SOUND: u8 = 0xc5;
-const OP_ATTACH_OBJECT_OFFSET: u8 = 0xd4;
-const OP_SET_NAVIGATION_ATTRIBUTE_MASK: u8 = 0x27;
-const OP_YIELD: u8 = 0x0e;
-const OP_PADDING17: u8 = 0x17;
-const OP_SHADOW_ON: u8 = 0x7f;
-const OP_SET_TEXT_VARIABLE: u8 = 0x66;
-const OP_SET_OBJECT_SCALE: u8 = 0x9f;
-const OP_SET_VIBRATION_FRAME_RATE: u8 = 0xfa;
-const OP_REQUEST_SCRIPT_ASYNC: u8 = 0x10;
-const OP_DEFINE_TILE_VIEWPORT: u8 = 0xc8;
-const OP_RESTORE_ALL_VISIBILITY: u8 = 0xd6;
-const OP_SET_TIMER_RUNNING: u8 = 0x7d;
-const OP_REQUEST_CALLER_ASYNC: u8 = 0x16;
-const OP_CALCULATE_EXIT_POSITION: u8 = 0xa4;
-const OP_REQUEST_CALLER_SYNC: u8 = 0x14;
-const OP_ATTACH_TILE: u8 = 0x92;
+const OP_NOP: u32 = 0x00;
+const OP_JUMP: u32 = 0x01;
+const OP_JUMP_IF_NOT: u32 = 0x02;
+const OP_JUMP_IF: u32 = 0x03;
+const OP_RETURN: u32 = 0x04;
+const OP_EVALUATE: u32 = 0x05;
+const OP_WINDOW_SYNC: u32 = 0x1f;
+const OP_WINDOW_ASYNC: u32 = 0x20;
+const OP_CLOSE_WINDOW: u32 = 0x21;
+const OP_WAIT: u32 = 0x22;
+const OP_WAIT_WINDOW: u32 = 0x54;
+const OP_MOVE_ACTOR: u32 = 0xbf;
+const OP_AIM_AT_CAMERA: u32 = 0xb8;
+const OP_DEFINE_PLAYER_CONTROL: u32 = 0x2c;
+const OP_SET_CONTROL_DIRECTION: u32 = 0x67;
+const OP_BACKGROUND_MOVE: u32 = 0x58;
+const OP_INITIALIZE_OBJECT: u32 = 0x09;
+const OP_INITIALIZE_REGION: u32 = 0x08;
+const OP_INITIALIZE_CODE: u32 = 0x07;
+const OP_SET_TRIANGLE_ACTIVE: u32 = 0x9a;
+const OP_RUN_SOUND: u32 = 0xc5;
+const OP_ATTACH_OBJECT_OFFSET: u32 = 0xd4;
+const OP_SET_NAVIGATION_ATTRIBUTE_MASK: u32 = 0x27;
+const OP_YIELD: u32 = 0x0e;
+const OP_PADDING17: u32 = 0x17;
+const OP_SHADOW_ON: u32 = 0x7f;
+const OP_SET_TEXT_VARIABLE: u32 = 0x66;
+const OP_SET_OBJECT_SCALE: u32 = 0x9f;
+const OP_SET_VIBRATION_FRAME_RATE: u32 = 0xfa;
+const OP_REQUEST_SCRIPT_ASYNC: u32 = 0x10;
+const OP_DEFINE_TILE_VIEWPORT: u32 = 0xc8;
+const OP_RESTORE_ALL_VISIBILITY: u32 = 0xd6;
+const OP_SET_TIMER_RUNNING: u32 = 0x7d;
+const OP_REQUEST_CALLER_ASYNC: u32 = 0x16;
+const OP_CALCULATE_EXIT_POSITION: u32 = 0xa4;
+const OP_REQUEST_CALLER_SYNC: u32 = 0x14;
+const OP_ATTACH_TILE: u32 = 0x92;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -78,7 +78,13 @@ struct Decoder<'a> {
 impl Decoder<'_> {
     fn instruction(&mut self) -> Result<Instruction, VmError> {
         let offset = self.position as u32;
-        let opcode = self.byte()?;
+        let mut code = 0u32;
+        let mut code_byte = self.byte()?;
+        while code_byte == 0xff {
+            code += 0x100;
+            code_byte = self.byte()?;
+        }
+        let opcode = code + u32::from(code_byte);
         let kind = match opcode {
             OP_NOP => InstructionKind::Nop,
             OP_JUMP => InstructionKind::Jump(self.i16()?),
@@ -238,7 +244,7 @@ impl Decoder<'_> {
             }
             OP_YIELD | OP_PADDING17 => {
                 self.byte()?;
-                InstructionKind::Yield(opcode)
+                InstructionKind::Yield(opcode as u8)
             }
             OP_SHADOW_ON => {
                 self.byte()?;
@@ -493,7 +499,7 @@ impl Decoder<'_> {
                     return Err(VmError::new(
                         VmErrorKind::UnsupportedOpcode,
                         opcode_position,
-                        Some(opcode),
+                        Some(u32::from(opcode)),
                         "custom variable functions are not implemented",
                     ));
                 }
@@ -513,7 +519,7 @@ impl Decoder<'_> {
                             return Err(VmError::new(
                                 VmErrorKind::UnsupportedOpcode,
                                 opcode_position,
-                                Some(opcode),
+                                Some(u32::from(opcode)),
                                 format!("unsupported variable source {value}"),
                             ));
                         }
@@ -543,7 +549,7 @@ impl Decoder<'_> {
                     return Err(VmError::new(
                         VmErrorKind::UnsupportedOpcode,
                         opcode_position,
-                        Some(opcode),
+                        Some(u32::from(opcode)),
                         format!("unsupported expression operation (expression starts at {start})"),
                     ));
                 }

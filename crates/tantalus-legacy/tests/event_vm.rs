@@ -360,10 +360,10 @@ fn close_window_and_actor_movement_reach_the_host_once() {
 
 #[test]
 fn unsupported_and_truncated_programs_report_the_byte_offset() {
-    let unsupported = decode_program(&[0xff]).unwrap_err();
+    let unsupported = decode_program(&[0xfe]).unwrap_err();
     assert_eq!(unsupported.kind, VmErrorKind::UnsupportedOpcode);
     assert_eq!(unsupported.offset, 0);
-    assert_eq!(unsupported.opcode, Some(0xff));
+    assert_eq!(unsupported.opcode, Some(0xfe));
 
     let truncated = decode_program(&[5, 126, 1]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
@@ -1507,4 +1507,18 @@ fn bglattach_preserves_offsets_filter_mode_and_color() {
         }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn extended_prefixes_preserve_the_accumulated_opcode_in_errors() {
+    for (bytes, opcode) in [(&[255, 0, 0][..], 256), (&[255, 255, 1, 0][..], 513)] {
+        let error = decode_program(bytes).unwrap_err();
+        assert_eq!(error.kind, VmErrorKind::UnsupportedOpcode);
+        assert_eq!(error.offset, 0);
+        assert_eq!(error.opcode, Some(opcode));
+    }
+
+    let truncated = decode_program(&[255]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert_eq!(truncated.offset, 1);
 }

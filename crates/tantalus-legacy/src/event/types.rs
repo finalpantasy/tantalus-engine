@@ -357,7 +357,7 @@ pub struct VmStepReport {
 pub struct VmTraceEvent {
     pub tick: Tick,
     pub offset: u32,
-    pub opcode: Option<u8>,
+    pub opcode: Option<u32>,
     pub description: String,
 }
 
@@ -376,7 +376,7 @@ pub enum VmErrorKind {
 pub struct VmError {
     pub kind: VmErrorKind,
     pub offset: u32,
-    pub opcode: Option<u8>,
+    pub opcode: Option<u32>,
     pub message: String,
 }
 
@@ -384,7 +384,7 @@ impl VmError {
     pub fn new(
         kind: VmErrorKind,
         offset: u32,
-        opcode: Option<u8>,
+        opcode: Option<u32>,
         message: impl Into<String>,
     ) -> Self {
         Self {
@@ -395,7 +395,7 @@ impl VmError {
         }
     }
 
-    pub fn host(error: EngineError, offset: u32, opcode: u8) -> Self {
+    pub fn host(error: EngineError, offset: u32, opcode: u32) -> Self {
         Self::new(VmErrorKind::Host, offset, Some(opcode), error.to_string())
     }
 }

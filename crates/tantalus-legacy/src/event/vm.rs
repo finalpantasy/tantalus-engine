@@ -476,7 +476,7 @@ impl EventVm {
         host: &mut dyn LegacyEventHost,
         expression: &Expression,
         offset: u32,
-        opcode: u8,
+        opcode: u32,
     ) -> Result<i32, VmError> {
         #[derive(Clone, Copy)]
         enum StackTarget {
@@ -494,7 +494,7 @@ impl EventVm {
             host: &mut dyn LegacyEventHost,
             value: StackValue,
             offset: u32,
-            opcode: u8,
+            opcode: u32,
         ) -> Result<i32, VmError> {
             if let Some(StackTarget::Member(member)) = value.target {
                 let object = host
@@ -1035,7 +1035,7 @@ impl EventVm {
         host: &mut dyn LegacyEventHost,
         expression: &Expression,
         offset: u32,
-        opcode: u8,
+        opcode: u32,
     ) -> Result<u8, VmError> {
         let value = self.evaluate(host, expression, offset, opcode)?;
         if !(0..=u8::MAX.into()).contains(&value) {
@@ -1049,7 +1049,7 @@ impl EventVm {
         host: &mut dyn LegacyEventHost,
         expression: &Expression,
         offset: u32,
-        opcode: u8,
+        opcode: u32,
     ) -> Result<u16, VmError> {
         let value = self.evaluate(host, expression, offset, opcode)?;
         if !(0..=u16::MAX.into()).contains(&value) {
@@ -1062,7 +1062,7 @@ impl EventVm {
         Ok(value as u16)
     }
 
-    fn trace(&mut self, tick: Tick, offset: u32, opcode: u8, kind: &InstructionKind) {
+    fn trace(&mut self, tick: Tick, offset: u32, opcode: u32, kind: &InstructionKind) {
         if self.traces.len() == TRACE_CAPACITY {
             self.traces.pop_front();
         }
@@ -1084,7 +1084,7 @@ impl EventVm {
     }
 }
 
-fn opcode_for(kind: &InstructionKind) -> u8 {
+fn opcode_for(kind: &InstructionKind) -> u32 {
     match kind {
         InstructionKind::Nop => 0x00,
         InstructionKind::Jump(_) => 0x01,
@@ -1109,7 +1109,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::RunSound { .. } => 0xc5,
         InstructionKind::AttachObjectOffset { .. } => 0xd4,
         InstructionKind::SetNavigationAttributeMask(_) => 0x27,
-        InstructionKind::Yield(opcode) => *opcode,
+        InstructionKind::Yield(opcode) => u32::from(*opcode),
         InstructionKind::SetShadowEnabled(_) => 0x7f,
         InstructionKind::SetTextVariable { .. } => 0x66,
         InstructionKind::SetObjectScale { .. } => 0x9f,
@@ -1157,7 +1157,7 @@ fn normalize(value: i32, value_type: VariableType) -> i32 {
     }
 }
 
-fn expression_error(offset: u32, opcode: u8, message: impl Into<String>) -> VmError {
+fn expression_error(offset: u32, opcode: u32, message: impl Into<String>) -> VmError {
     VmError::new(
         VmErrorKind::InvalidExpression,
         offset,
@@ -1174,7 +1174,7 @@ struct LogicalPlan {
 fn logical_plans(
     operations: &[ExpressionOp],
     offset: u32,
-    opcode: u8,
+    opcode: u32,
 ) -> Result<BTreeMap<usize, LogicalPlan>, VmError> {
     let mut plans = BTreeMap::new();
     for (index, operation) in operations.iter().enumerate() {
@@ -1200,7 +1200,7 @@ fn operand_start(
     operations: &[ExpressionOp],
     end: usize,
     offset: u32,
-    opcode: u8,
+    opcode: u32,
 ) -> Result<usize, VmError> {
     if end == 0 {
         return Err(expression_error(offset, opcode, "missing logical operand"));
@@ -1267,7 +1267,7 @@ fn angle2(
     delta_x: i32,
     delta_z: i32,
     offset: u32,
-    opcode: u8,
+    opcode: u32,
 ) -> Result<i32, VmError> {
     if delta_x == 0 && delta_z == 0 {
         return Ok(0);
