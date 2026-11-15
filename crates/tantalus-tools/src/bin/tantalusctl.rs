@@ -2097,12 +2097,12 @@ fn run_field_composition(
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 
@@ -2403,6 +2403,96 @@ fn run_font_inventory(
     Ok(())
 }
 
+/// `assets inspect-serialized --path <resources.assets> --render-dialog <mes name> <entry> <out.png>
+/// [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]`.
+#[allow(clippy::too_many_arguments)]
+fn run_render_dialog(
+    path: &Path,
+    name: &str,
+    entry: i32,
+    out_png: &Path,
+    variant: usize,
+    page: usize,
+    window: &str,
+    size: &str,
+) -> Result<(), String> {
+    use tantalus_assets::pc::dialog_render::{
+        RenderRequest, SizeMode, UNKNOWNS, WindowAtlasChoice, render_from_install,
+    };
+    use tantalus_assets::pc::ui_atlas::encode_png_rgba;
+    let window = match window {
+        "blue" => WindowAtlasChoice::Blue,
+        "gray" => WindowAtlasChoice::Gray,
+        other => {
+            return Err(format!(
+                "`--dialog-window` must be blue or gray, got `{other}`"
+            ));
+        }
+    };
+    let size_mode = match size {
+        "auto" => SizeMode::Auto,
+        "hint" => SizeMode::Hint,
+        other => {
+            return Err(format!(
+                "`--dialog-size` must be auto or hint, got `{other}`"
+            ));
+        }
+    };
+    let rendered = render_from_install(&RenderRequest {
+        resources_assets: path,
+        mes_name: name,
+        variant,
+        entry_id: entry,
+        page,
+        window,
+        size_mode,
+    })
+    .map_err(|error| error.to_string())?;
+    let png = encode_png_rgba(
+        rendered.image.width as u32,
+        rendered.image.height as u32,
+        &rendered.image.rgba,
+    );
+    if let Some(parent) = out_png.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent)
+            .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
+    }
+    std::fs::write(out_png, png)
+        .map_err(|error| format!("could not write {}: {error}", out_png.display()))?;
+    let layout = &rendered.layout;
+    println!(
+        "{name} entry {entry} variant {variant}/{} page {page}/{}: {}x{} px image, body {}x{} ({} sizing), font {}, atlas {}",
+        rendered.variant_count,
+        layout.pages.len(),
+        rendered.image.width,
+        rendered.image.height,
+        layout.body_width,
+        layout.body_height,
+        layout.size_mode,
+        rendered.font_name,
+        rendered.atlas_name
+    );
+    println!("source: {}", rendered.entry_source.replace('\n', "\\n"));
+    println!(
+        "recorded, not executed: {} timing markers; {} unhandled tags; {} unknown tags; {} chars without a glyph",
+        layout.timing_events.len(),
+        layout.unhandled_tags.len(),
+        layout.unknown_tags.len(),
+        layout.missing_glyphs.len()
+    );
+    for tag in layout.timing_events.iter().chain(&layout.unhandled_tags) {
+        println!(
+            "  page {} glyph {} {} {}",
+            tag.page, tag.glyph_index, tag.code, tag.raw
+        );
+    }
+    println!("unknowns:");
+    for unknown in UNKNOWNS {
+        println!("  - {unknown}");
+    }
+    Ok(())
+}
+
 fn run_assets_inspect_serialized(args: Vec<OsString>) -> Result<(), String> {
     use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
     let mut path = None;
@@ -2414,6 +2504,11 @@ fn run_assets_inspect_serialized(args: Vec<OsString>) -> Result<(), String> {
     let mut fonts = false;
     let mut font_png: Option<PathBuf> = None;
     let mut atlas_png: Option<(String, PathBuf)> = None;
+    let mut render_dialog: Option<(String, i32, PathBuf)> = None;
+    let mut dialog_variant = 0usize;
+    let mut dialog_page = 0usize;
+    let mut dialog_window = "blue".to_owned();
+    let mut dialog_size = "auto".to_owned();
     let mut index = 2;
     while index < args.len() {
         match args[index].to_str() {
@@ -2427,6 +2522,51 @@ fn run_assets_inspect_serialized(args: Vec<OsString>) -> Result<(), String> {
                     .get(index)
                     .ok_or_else(|| "`--font-png` requires <dir>".to_owned())?;
                 font_png = Some(PathBuf::from(dir));
+            }
+            Some("--render-dialog") => {
+                let (Some(name), Some(entry), Some(out)) = (
+                    args.get(index + 1),
+                    args.get(index + 2),
+                    args.get(index + 3),
+                ) else {
+                    return Err(
+                        "`--render-dialog` requires <mes name> <entry> <out.png>".to_owned()
+                    );
+                };
+                let entry = entry
+                    .to_string_lossy()
+                    .parse::<i32>()
+                    .map_err(|_| "`--render-dialog` entry must be an integer text id".to_owned())?;
+                render_dialog = Some((
+                    name.to_string_lossy().into_owned(),
+                    entry,
+                    PathBuf::from(out),
+                ));
+                index += 3;
+            }
+            Some(
+                flag @ ("--dialog-variant" | "--dialog-page" | "--dialog-window" | "--dialog-size"),
+            ) => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| format!("`{flag}` requires a value"))?
+                    .to_string_lossy()
+                    .into_owned();
+                match flag {
+                    "--dialog-variant" => {
+                        dialog_variant = value
+                            .parse()
+                            .map_err(|_| "`--dialog-variant` must be an integer".to_owned())?;
+                    }
+                    "--dialog-page" => {
+                        dialog_page = value
+                            .parse()
+                            .map_err(|_| "`--dialog-page` must be an integer".to_owned())?;
+                    }
+                    "--dialog-window" => dialog_window = value,
+                    _ => dialog_size = value,
+                }
             }
             Some("--atlas-png") => {
                 let (Some(name), Some(out)) = (args.get(index + 1), args.get(index + 2)) else {
@@ -2459,6 +2599,18 @@ fn run_assets_inspect_serialized(args: Vec<OsString>) -> Result<(), String> {
         index += 1;
     }
     let path = path.ok_or_else(|| "missing required `--path <file>`".to_owned())?;
+    if let Some((name, entry, out_png)) = render_dialog {
+        return run_render_dialog(
+            &path,
+            &name,
+            entry,
+            &out_png,
+            dialog_variant,
+            dialog_page,
+            &dialog_window,
+            &dialog_size,
+        );
+    }
     if fonts || font_png.is_some() {
         return run_font_inventory(&path, font_png, out);
     }

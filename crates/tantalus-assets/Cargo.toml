@@ -7,7 +7,9 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+fontdue = "0.9.5"
 lewton = "0.10.2"
+lzma-rs = "0.3.0"
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
