@@ -93,6 +93,9 @@ fn real_fmv005_has_a_measurable_frame_count() {
         .find(|stream| stream.codec.name() == "theora")
         .expect("theora stream");
     let frames = theora.frame_count.expect("frame count");
-    assert!(frames > 100, "FMV005 should run seconds, got {frames} frames");
+    assert!(
+        frames > 100,
+        "FMV005 should run seconds, got {frames} frames"
+    );
     eprintln!("FMV005: {frames} frames, {:?}", theora.duration_seconds);
 }
