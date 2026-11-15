@@ -1,4 +1,5 @@
 mod base;
+pub mod ff9_tree;
 mod importer;
 mod preview;
 mod schema;
