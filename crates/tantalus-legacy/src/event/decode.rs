@@ -1404,6 +1404,7 @@ impl Decoder<'_> {
                 11 => ExpressionOp::PreDecrementMembers,
                 15 => ExpressionOp::NotMembers,
                 16 => ExpressionOp::Complement,
+                58 => ExpressionOp::SubtractAssignAllMembers,
                 59 => ExpressionOp::ShiftRightAssignMembers,
                 60 => ExpressionOp::ShiftRightAssignAllMembers,
                 64 => ExpressionOp::AndAssignAllMembers,

@@ -185,7 +185,8 @@
     "B_XOR_E 86 returns selected-member nonzero-XOR flags without writes and zero for an empty selection",
     "CHRFX 0x88 emits RunModelCode with current-object identity, one byte operation, and three signed 16-bit arguments",
     "BSSTART 0x100 consumes two byte operands through the reference no-side-effect path while retaining its opcode",
-    "B_SHIFT_RIGHT_LET_A 60 arithmetic-shifts and writes every selected member, returning the last result or zero"
+    "B_SHIFT_RIGHT_LET_A 60 arithmetic-shifts and writes every selected member, returning the last result or zero",
+    "B_MINUS_LET_A 58 subtracts from and writes every selected member, returning the last result or zero"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -321,12 +322,11 @@
     "entry": 16,
     "function": 1,
     "function_tag": 1,
-    "instruction_offset": 162,
-    "expression_offset": 165,
-    "offset": 496,
-    "opcode": 58,
+    "instruction_offset": 308,
+    "offset": 555,
+    "opcode": 228,
     "kind": "UnsupportedOpcode",
-    "instruction": "BSSTART contains unsupported B_MINUS_LET_A expression opcode 0x3A after all-member right-shift support"
+    "instruction": "event opcode 0xE4 after all-member subtraction support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

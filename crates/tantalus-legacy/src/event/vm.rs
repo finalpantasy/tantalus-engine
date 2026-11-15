@@ -1979,7 +1979,8 @@ impl EventVm {
                 }
                 ExpressionOp::XorAssignAllMembers
                 | ExpressionOp::AndAssignAllMembers
-                | ExpressionOp::ShiftRightAssignAllMembers => {
+                | ExpressionOp::ShiftRightAssignAllMembers
+                | ExpressionOp::SubtractAssignAllMembers => {
                     if stack.len() < 3 {
                         return Err(expression_error(
                             offset,
@@ -2011,6 +2012,9 @@ impl EventVm {
                                 ExpressionOp::XorAssignAllMembers => current ^ operand,
                                 ExpressionOp::ShiftRightAssignAllMembers => {
                                     current.wrapping_shr(operand as u32)
+                                }
+                                ExpressionOp::SubtractAssignAllMembers => {
+                                    current.wrapping_sub(operand)
                                 }
                                 _ => unreachable!(),
                             };
@@ -2545,6 +2549,7 @@ fn operand_start(
         | ExpressionOp::XorAssignAllMembers
         | ExpressionOp::AndAssignAllMembers
         | ExpressionOp::ShiftRightAssignAllMembers
+        | ExpressionOp::SubtractAssignAllMembers
         | ExpressionOp::AssignAllMembers
         | ExpressionOp::EqualMembers
         | ExpressionOp::NotEqualMembers
