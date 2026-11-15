@@ -360,6 +360,12 @@ impl FieldWorld {
             state.position[0] += dx;
             state.position[2] += dz;
             state.movement = None;
+            // Input walking faces the movement direction like scripted
+            // walks (reference facing scale, 0 south .. 192 east).
+            if dx != 0.0 || dz != 0.0 {
+                let degrees = dx.atan2(-dz).to_degrees();
+                state.facing = (128.0 + degrees * 128.0 / 180.0).round().rem_euclid(256.0) as i16;
+            }
         }
     }
 
@@ -483,6 +489,12 @@ impl FieldWorld {
                 } else {
                     state.position[0] += dx / distance * self.walk_speed;
                     state.position[2] += dz / distance * self.walk_speed;
+                    // Walking faces the movement direction on the reference
+                    // facing scale (0 south, 64 west, 128 north, 192 east):
+                    // `128 + atan2_deg(dx, -dz) * 128 / 180`, mod 256.
+                    let degrees = dx.atan2(-dz).to_degrees();
+                    state.facing =
+                        (128.0 + degrees * 128.0 / 180.0).round().rem_euclid(256.0) as i16;
                 }
             }
             if let Some(turn) = &mut state.turn {

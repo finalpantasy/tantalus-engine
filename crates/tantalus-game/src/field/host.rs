@@ -348,6 +348,9 @@ impl LegacyEventHost for FieldHost<'_> {
                 }
                 HostEvent::DefinePlayerControl { actor } => {
                     self.world.control_actor = Some(*actor);
+                    // The controlled actor is the interactive player for
+                    // talk triggers, region occupancy, and walk input.
+                    self.world.set_player(*actor);
                 }
                 HostEvent::SetUserControl { enabled } => {
                     self.world.user_control = *enabled;

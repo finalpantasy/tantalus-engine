@@ -275,3 +275,44 @@ fn object_member_reads_use_reference_member_semantics() {
         1
     );
 }
+
+#[test]
+fn define_player_control_designates_the_interactive_player() {
+    use tantalus_legacy::decode_program;
+
+    // DefinePlayerControl 0x2C is current-object; entry entity 1 declares
+    // itself the controlled actor.
+    let program = decode_program(&[0x2c, 4]).unwrap();
+    let mut scene = tantalus_game::FieldScene::new();
+    scene.add_entry(actor(1), program).unwrap();
+    let mut world = FieldWorld::new();
+    world.add_actor(actor(1), [0.0; 3]);
+    let mut host = FieldHost::new(&mut world);
+    scene.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(world.player(), Some(actor(1)));
+    assert_eq!(world.control_actor, Some(actor(1)));
+}
+
+#[test]
+fn walking_faces_the_movement_direction_on_the_reference_scale() {
+    use tantalus_game::field::world::Movement;
+
+    let mut world = FieldWorld::new();
+    // North is -Z (facing 128), east is +X (192), south +Z (0), west -X (64).
+    world.add_actor(actor(1), [0.0, 0.0, 0.0]);
+    for (destination, expected) in [
+        ([0.0, -100.0], 128),
+        ([100.0, 0.0], 192),
+        ([0.0, 100.0], 0),
+        ([-100.0, 0.0], 64),
+    ] {
+        world.actors.get_mut(&actor(1)).unwrap().position = [0.0, 0.0, 0.0];
+        world.actors.get_mut(&actor(1)).unwrap().movement = Some(Movement { destination });
+        world.advance();
+        assert_eq!(
+            world.actors[&actor(1)].facing,
+            expected,
+            "destination {destination:?}"
+        );
+    }
+}
