@@ -862,6 +862,16 @@ pub fn atlas_texture_rgba(
     path: &Path,
     atlas_name: &str,
 ) -> Result<(u32, u32, Vec<u8>), ImportError> {
+    let (_, width, height, rgba) = load_atlas(path, atlas_name)?;
+    Ok((width, height, rgba))
+}
+
+/// Decodes one named atlas of `path`: its sprite table plus the texture as RGBA8
+/// (top row first), returned as `(atlas, width, height, rgba)`.
+pub fn load_atlas(
+    path: &Path,
+    atlas_name: &str,
+) -> Result<(UiAtlas, u32, u32, Vec<u8>), ImportError> {
     let mut main = StandaloneSerialized::open(path)?;
     let file = main.inventory().file_name.clone();
     let behaviours: Vec<_> = main
@@ -908,7 +918,7 @@ pub fn atlas_texture_rgba(
         .ok_or_else(|| ImportError::invalid(path.display(), "atlas texture is unresolved"))?;
     let header = TextureHeader::parse(&data, &file)?;
     let rgba = decode_texture_rgba(&data, &file)?;
-    Ok((header.width as u32, header.height as u32, rgba))
+    Ok((atlas, header.width as u32, header.height as u32, rgba))
 }
 
 /// The leading Texture2D fields (enough to size and classify it).

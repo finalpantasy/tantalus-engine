@@ -39,6 +39,8 @@ pub struct ActorState {
     pub animation_frames: u16,
     pub animation_frame: u16,
     pub talk_radius: u8,
+    /// Facing on the `getvobj` member-3 scale, 0..=255 (0 south, 64 west,
+    /// 128 north, 192 east).
     pub facing: i16,
     pub flags: i32,
     pub level: i32,

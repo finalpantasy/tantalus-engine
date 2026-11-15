@@ -95,6 +95,22 @@ pub const NO_RESET: u64 = PETRIFY
     | DEFEND
     | DOOM
     | GRADUAL_PETRIFY;
+// B5 masks (Memoria/Data/Battle/BattleStatus.cs:123-150).
+/// `BattleStatusConst.OprCount` (`BattleStatus.cs:123`).
+pub const OPR_COUNT: u64 = VENOM | POISON | REGEN | GRADUAL_PETRIFY | DOOM;
+/// `BattleStatusConst.CmdCancel` (`BattleStatus.cs:124`).
+pub const CMD_CANCEL: u64 = PETRIFY | VENOM | DEATH | CONFUSE | BERSERK | SLEEP;
+/// `BattleStatusConst.CannotAct` (`BattleStatus.cs:126`).
+pub const CANNOT_ACT: u64 = PETRIFY | VENOM | STOP | FREEZE;
+/// `BattleStatusConst.PreventEnemyCmd` (`BattleStatus.cs:131`).
+pub const PREVENT_ENEMY_CMD: u64 = CANNOT_ACT | DEATH | SLEEP;
+/// `BattleStatusConst.StopAtb` (`BattleStatus.cs:132`).
+pub const STOP_ATB: u64 = PETRIFY | DEATH | STOP | JUMP;
+/// `BattleStatusConst.CannotEscape` (`BattleStatus.cs:136`).
+pub const CANNOT_ESCAPE: u64 = PETRIFY | VENOM | ZOMBIE | DEATH | STOP | SLEEP | FREEZE | JUMP;
+/// `BattleStatusConst.PreventATBConfirm` (`BattleStatus.cs:150`).
+pub const PREVENT_ATB_CONFIRM: u64 = VENOM | SLEEP | FREEZE;
+
 pub const BATTLE_END: u64 = PETRIFY | VENOM | STOP;
 pub const PENALTY_EVADE: u64 = PETRIFY | VENOM | VIRUS | BLIND | CONFUSE | STOP | SLEEP | FREEZE;
 pub const REMOVE_ON_PHYSICALLY_ATTACKED: u64 = CONFUSE | SLEEP;
@@ -283,7 +299,7 @@ fn apply_script(unit: &mut BattleUnit, id: u8, ctx: &StatusCtx<'_>) -> AlterResu
 
 /// `btl_stat.SetOprStatusCount` (`btl_stat.cs:127`) for the statuses with an
 /// `IOprStatusScript`: Venom, Poison, Regen, Doom, Gradual Petrify.
-fn set_opr_status_count(unit: &mut BattleUnit, id: u8, ctx: &StatusCtx<'_>) {
+pub fn set_opr_status_count(unit: &mut BattleUnit, id: u8, ctx: &StatusCtx<'_>) {
     let status = 1u64 << id;
     if status & (VENOM | POISON | REGEN | DOOM | GRADUAL_PETRIFY) == 0 {
         return;

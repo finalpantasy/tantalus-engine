@@ -16,12 +16,17 @@
 //! settings (`IsDmg9999`, `IsHpMpFull`) are data driven or UI settings and are
 //! not modeled; see `audit/playable-milestones.md` row B4.
 
+pub mod atb;
 pub mod calc;
 pub mod command;
 pub mod cost;
+pub mod flee;
+pub mod machine;
+pub mod queue;
 pub mod rng;
 pub mod scripts;
 pub mod status;
+pub mod targeting;
 pub mod unit;
 
 pub use calc::{
