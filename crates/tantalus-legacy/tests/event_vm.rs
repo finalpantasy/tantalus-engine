@@ -78,6 +78,7 @@ struct Host {
     item_counts: BTreeMap<i32, i32>,
     animation_frames: BTreeMap<(EntityId, i32), i32>,
     bgi_animation_frames: BTreeMap<u32, i32>,
+    party_members: Vec<i32>,
     fail: bool,
 }
 
@@ -96,6 +97,7 @@ impl Host {
             item_counts: BTreeMap::new(),
             animation_frames: BTreeMap::new(),
             bgi_animation_frames: BTreeMap::new(),
+            party_members: Vec::new(),
             fail: false,
         }
     }
@@ -266,6 +268,10 @@ impl LegacyEventHost for Host {
             .get(&animation)
             .copied()
             .ok_or_else(|| Self::target_error(format!("unknown BGI animation {animation}")))
+    }
+
+    fn party_contains(&mut self, character: i32) -> Result<bool, EngineError> {
+        Ok(self.party_members.contains(&character))
     }
 
     fn script_request_is_complete(&mut self, _entity: EntityId) -> Result<bool, EngineError> {
@@ -2326,6 +2332,22 @@ fn baframe_reads_unsigned_bgi_animation_frame() {
         vm.step(Tick::new(0), &mut host).unwrap();
 
         assert_eq!(vm.variable(VariableScope::Global, 49), expected);
+    }
+}
+
+#[test]
+fn party_check_returns_zero_or_one_from_host_membership() {
+    let mut host = Host::new();
+    host.party_members.push(2);
+    for (character, expected) in [(2, 1), (3, 0)] {
+        let result = variable(VariableScope::Global, VariableType::Int16, 50);
+        let expression = assign(result, binary(constant(character), vec![], 107));
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+
+        vm.step(Tick::new(0), &mut host).unwrap();
+
+        assert_eq!(vm.variable(VariableScope::Global, 50), expected);
     }
 }
 

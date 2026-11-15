@@ -1005,6 +1005,19 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::PartyContains => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing party-check operand")
+                    })?;
+                    let character = read_value(host, value, offset, opcode)?;
+                    let contains = host
+                        .party_contains(character)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    stack.push(StackValue {
+                        value: i32::from(contains),
+                        target: None,
+                    });
+                }
                 ExpressionOp::Add
                 | ExpressionOp::Subtract
                 | ExpressionOp::Multiply
@@ -1815,6 +1828,7 @@ fn operand_start(
         | ExpressionOp::ItemCount
         | ExpressionOp::AnimationFrame
         | ExpressionOp::BgiAnimationFrame
+        | ExpressionOp::PartyContains
         | ExpressionOp::ConsumeAndZero
         | ExpressionOp::PreIncrement
         | ExpressionOp::PreDecrement

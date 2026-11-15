@@ -136,6 +136,15 @@ impl LegacyEventHost for Host {
         ))
     }
 
+    fn party_contains(&mut self, character: i32) -> Result<bool, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            format!("field fixture cannot check party character {character}"),
+            "fixture-host",
+            true,
+        ))
+    }
+
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,

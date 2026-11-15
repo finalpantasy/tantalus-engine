@@ -812,6 +812,7 @@ impl Decoder<'_> {
                 101 => ExpressionOp::BgiAnimationFrame,
                 102 => ExpressionOp::Angle2,
                 106 => ExpressionOp::AnimationFrame,
+                107 => ExpressionOp::PartyContains,
                 114 => ExpressionOp::NoOp,
                 EXPR_CONST_I16 => ExpressionOp::Constant(i32::from(self.i16()?)),
                 EXPR_CONST_I32 => ExpressionOp::Constant(self.i32()?),
