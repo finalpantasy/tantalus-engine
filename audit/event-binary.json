@@ -215,6 +215,7 @@
     "ITEMDELETE 0x49 decodes the same item/count layout and emits RemoveItem",
     "BGARANGE 0x65 decodes animation, first-frame, and last-frame bytes and emits SetTileAnimationRange",
     "BGARATE 0x61 decodes a byte animation and a signed 16-bit frame rate (each an immediate or expression) and emits SetTileAnimationRate; the Prima Vista fast-forward rate override stays host-owned",
+    "POS3 0xA1, DPOS3 0xAD, MOVE3 0xA2, MOVE3H 0xE8, MOVH 0xA5, TURNTO 0x9B, WAITSEQ 0x44 and BGI 0xA8 decode with flag-bit operands: POS3/DPOS3 emit position events with the reference Z negation, the walk forms emit WalkActorMixed and wait for movement, WAITSEQ waits on a shared_script_is_active host query; per-map fixes stay host-owned",
     "expression operations B_LE (26), B_COUNT (42) and B_BGIFLOOR (113) decode and evaluate; B_PICK (43) stays unsupported (direct calculation-stack manipulation)",
     "expression operations 48, 49, 52, 53, 61, 62, 63 (DIV/REM/SHL/SHR/AND/XOR/OR assign) and 121 (B_SYSLIST system-list element) decode and evaluate; zero divisors leave the target unchanged; system-list access goes through read_system_list and write_system_list host methods",
     "expression operation B_DISTANCE (94) decodes as DistanceToPoint: float distance from the current actor to an X/Z point, truncated to an integer",

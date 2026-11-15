@@ -42,6 +42,14 @@ const OP_CLOSE_WINDOW: u32 = 0x21;
 const OP_WAIT: u32 = 0x22;
 const OP_WAIT_ANIMATION: u32 = 0x41;
 const OP_WAIT_TURN: u32 = 0x50;
+const OP_SET_ACTOR_POSITION_XZY: u32 = 0xa1;
+const OP_MOVE_ACTOR_XZY: u32 = 0xad;
+const OP_WALK_ACTOR_XZY: u32 = 0xa2;
+const OP_SLIDE_ACTOR: u32 = 0xa5;
+const OP_WALK_ACTOR_XZY_SIDEWAYS: u32 = 0xe8;
+const OP_TURN_TO_POSITION: u32 = 0x9b;
+const OP_WAIT_SHARED_SCRIPT: u32 = 0x44;
+const OP_SET_PATHING: u32 = 0xa8;
 const OP_WAIT_WINDOW: u32 = 0x54;
 const OP_WALK_ACTOR: u32 = 0x23;
 const OP_MOVE_ACTOR: u32 = 0xbf;
@@ -655,6 +663,57 @@ impl Decoder<'_> {
                     actor: self.operand(flags, 1, false)?,
                     x: self.operand(flags, 2, true)?,
                     z: self.operand(flags, 4, true)?,
+                }
+            }
+            OP_SET_ACTOR_POSITION_XZY => {
+                let flags = self.byte()?;
+                InstructionKind::SetActorPositionXzy {
+                    x: self.operand(flags, 1, true)?,
+                    z: self.operand(flags, 2, true)?,
+                    y: self.operand(flags, 4, true)?,
+                }
+            }
+            OP_MOVE_ACTOR_XZY => {
+                let flags = self.byte()?;
+                InstructionKind::MoveActorXzy {
+                    actor: self.operand(flags, 1, false)?,
+                    x: self.operand(flags, 2, true)?,
+                    z: self.operand(flags, 4, true)?,
+                    y: self.operand(flags, 8, true)?,
+                }
+            }
+            OP_WALK_ACTOR_XZY | OP_WALK_ACTOR_XZY_SIDEWAYS => {
+                let flags = self.byte()?;
+                InstructionKind::WalkActorMixed {
+                    opcode: opcode as u8,
+                    x: self.operand(flags, 1, true)?,
+                    y: self.operand(flags, 2, true)?,
+                    z: self.operand(flags, 4, true)?,
+                }
+            }
+            OP_SLIDE_ACTOR => {
+                let flags = self.byte()?;
+                let x = self.operand(flags, 1, true)?;
+                let z = self.operand(flags, 2, true)?;
+                InstructionKind::WalkActorMixed {
+                    opcode: opcode as u8,
+                    x,
+                    y: Expression(vec![ExpressionOp::Constant(0), ExpressionOp::End]),
+                    z,
+                }
+            }
+            OP_TURN_TO_POSITION => {
+                let flags = self.byte()?;
+                InstructionKind::TurnActorToPosition {
+                    x: self.operand(flags, 1, true)?,
+                    z: self.operand(flags, 2, true)?,
+                }
+            }
+            OP_WAIT_SHARED_SCRIPT => InstructionKind::WaitSharedScript,
+            OP_SET_PATHING => {
+                let flags = self.byte()?;
+                InstructionKind::SetPathing {
+                    enabled: self.operand(flags, 1, false)?,
                 }
             }
             OP_AIM_AT_CAMERA => InstructionKind::AimAtCamera,

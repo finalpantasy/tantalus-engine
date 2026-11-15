@@ -384,6 +384,38 @@ pub enum InstructionKind {
     },
     CalculateExitPosition,
     WalkToExit,
+    /// `POS3` 0xA1: arguments in file order X, Z (negated at execution), Y.
+    SetActorPositionXzy {
+        x: Expression,
+        z: Expression,
+        y: Expression,
+    },
+    /// `DPOS3` 0xAD: object entry then X, Z (negated at execution), Y.
+    MoveActorXzy {
+        actor: Expression,
+        x: Expression,
+        z: Expression,
+        y: Expression,
+    },
+    /// `MOVE3` 0xA2, `MOVE3H` 0xE8 and `MOVH` 0xA5: the `MoveToward_mixed(x, y, z)` form.
+    /// `y` is negated at execution; `MOVH` supplies a constant zero `y`.
+    WalkActorMixed {
+        opcode: u8,
+        x: Expression,
+        y: Expression,
+        z: Expression,
+    },
+    /// `TURNTO` 0x9B.
+    TurnActorToPosition {
+        x: Expression,
+        z: Expression,
+    },
+    /// `WAITSEQ` 0x44.
+    WaitSharedScript,
+    /// `BGI` 0xA8.
+    SetPathing {
+        enabled: Expression,
+    },
     CalculateScreenPosition(Expression),
     ChangeField(Expression),
     RequestCallerSync {
@@ -845,6 +877,7 @@ pub enum WaitState {
         tag: u8,
     },
     ScriptRequest,
+    SharedScript,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1266,6 +1299,24 @@ pub enum HostEvent {
         actor: EntityId,
         count: u8,
     },
+    MoveActorXzy {
+        actor: EntityId,
+        position: [i32; 3],
+    },
+    WalkActorMixed {
+        actor: EntityId,
+        destination: [i32; 3],
+        mode: u8,
+    },
+    TurnActorToPosition {
+        actor: EntityId,
+        x: i32,
+        z: i32,
+    },
+    SetPathing {
+        actor: EntityId,
+        enabled: i32,
+    },
     SetAnimationSpeed {
         actor: EntityId,
         speed: u8,
@@ -1637,6 +1688,7 @@ pub trait LegacyEventHost {
     fn add_party_member(&mut self, character: i32) -> Result<bool, EngineError>;
     fn party_menu_is_open(&self) -> bool;
     fn actor_turn_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
+    fn shared_script_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn actor_animation_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn field_actor_movement_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn field_exit_movement_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;

@@ -129,6 +129,25 @@ impl EventVm {
                     self.wait = None;
                     self.status = VmStatus::Running;
                 }
+                WaitState::SharedScript => {
+                    self.status = VmStatus::Waiting;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            self.pc,
+                            Some(0x44),
+                            "shared script wait requires current actor context",
+                        ));
+                    };
+                    if host
+                        .shared_script_is_active(actor)
+                        .map_err(|error| VmError::host(error, self.pc, 0x44))?
+                    {
+                        return Ok(self.report(tick, 0, Vec::new()));
+                    }
+                    self.wait = None;
+                    self.status = VmStatus::Running;
+                }
                 WaitState::ActorMovement { next } => {
                     self.status = VmStatus::Waiting;
                     let Some(actor) = self.entity else {
@@ -621,6 +640,120 @@ impl EventVm {
                     let remaining = if frames > 254 { 253 } else { frames - 1 };
                     self.wait = Some(WaitState::Frames(remaining as u8));
                     self.status = VmStatus::Waiting;
+                }
+                InstructionKind::SetActorPositionXzy { x, z, y } => {
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)?;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)?;
+                    let y = self.evaluate(host, &y, instruction.offset, opcode)?;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "positioning requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetActorPosition {
+                        actor,
+                        position: [x, y, z.wrapping_neg()],
+                    });
+                }
+                InstructionKind::MoveActorXzy { actor, x, z, y } => {
+                    let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)?;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)?;
+                    let y = self.evaluate(host, &y, instruction.offset, opcode)?;
+                    if actor < 0 {
+                        return Err(VmError::new(
+                            VmErrorKind::InvalidExpression,
+                            instruction.offset,
+                            Some(opcode),
+                            "actor identity cannot be negative",
+                        ));
+                    }
+                    self.pc = next;
+                    events.push(HostEvent::MoveActorXzy {
+                        actor: EntityId::new(actor as u64),
+                        position: [x, y, z.wrapping_neg()],
+                    });
+                }
+                InstructionKind::WalkActorMixed {
+                    opcode: walk_opcode,
+                    x,
+                    y,
+                    z,
+                } => {
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)?;
+                    let y = self.evaluate(host, &y, instruction.offset, opcode)?;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)?;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "walk requires current actor context",
+                        ));
+                    };
+                    let mode = match walk_opcode {
+                        0xa5 => 1,
+                        0xa2 => 2,
+                        _ => 3,
+                    };
+                    self.pc = instruction.offset;
+                    self.wait = Some(WaitState::ActorMovement { next });
+                    self.status = VmStatus::Waiting;
+                    events.push(HostEvent::WalkActorMixed {
+                        actor,
+                        destination: [x, y.wrapping_neg(), z],
+                        mode,
+                    });
+                }
+                InstructionKind::TurnActorToPosition { x, z } => {
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)?;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)?;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::TurnActorToPosition { actor, x, z });
+                }
+                InstructionKind::WaitSharedScript => {
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "shared script wait requires current actor context",
+                        ));
+                    };
+                    if host
+                        .shared_script_is_active(actor)
+                        .map_err(|error| VmError::host(error, instruction.offset, opcode))?
+                    {
+                        self.wait = Some(WaitState::SharedScript);
+                        self.status = VmStatus::Waiting;
+                    } else {
+                        self.pc = next;
+                    }
+                }
+                InstructionKind::SetPathing { enabled } => {
+                    let enabled = self.evaluate(host, &enabled, instruction.offset, opcode)?;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetPathing { actor, enabled });
                 }
                 InstructionKind::WaitTurn => {
                     if self.entity.is_none() {
@@ -3665,6 +3798,12 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::Wait(_) => 0x22,
         InstructionKind::WaitAnimation => 0x41,
         InstructionKind::WaitTurn => 0x50,
+        InstructionKind::SetActorPositionXzy { .. } => 0xa1,
+        InstructionKind::MoveActorXzy { .. } => 0xad,
+        InstructionKind::WalkActorMixed { opcode, .. } => u32::from(*opcode),
+        InstructionKind::TurnActorToPosition { .. } => 0x9b,
+        InstructionKind::WaitSharedScript => 0x44,
+        InstructionKind::SetPathing { .. } => 0xa8,
         InstructionKind::WaitWindow(_) => 0x54,
         InstructionKind::AddItem { .. } => 0x48,
         InstructionKind::RemoveItem { .. } => 0x49,

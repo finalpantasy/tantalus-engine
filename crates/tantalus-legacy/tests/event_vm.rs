@@ -84,6 +84,7 @@ struct Host {
     party_members: Vec<i32>,
     party_menu_open: bool,
     actor_turn_active: bool,
+    shared_script_active: bool,
     actor_animation_active: bool,
     actor_movement_active: bool,
     exit_movement_active: bool,
@@ -114,6 +115,7 @@ impl Host {
             party_members: Vec::new(),
             party_menu_open: false,
             actor_turn_active: false,
+            shared_script_active: false,
             actor_animation_active: false,
             actor_movement_active: false,
             exit_movement_active: false,
@@ -240,6 +242,10 @@ impl LegacyEventHost for Host {
                 HostEvent::SetInactiveAnimation { .. } => {}
                 HostEvent::SetFollowFocusTurn { .. } => {}
                 HostEvent::SetAnimationLoopCount { .. } => {}
+                HostEvent::MoveActorXzy { .. } => {}
+                HostEvent::WalkActorMixed { .. } => {}
+                HostEvent::TurnActorToPosition { .. } => {}
+                HostEvent::SetPathing { .. } => {}
                 HostEvent::SetAnimationSpeed { .. } => {}
                 HostEvent::SetCharacterAttribute { .. } => {}
                 HostEvent::SetTurnSpeed { .. } => {}
@@ -477,6 +483,10 @@ impl LegacyEventHost for Host {
 
     fn party_menu_is_open(&self) -> bool {
         self.party_menu_open
+    }
+
+    fn shared_script_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
+        Ok(self.shared_script_active)
     }
 
     fn actor_turn_is_active(&mut self, _actor: EntityId) -> Result<bool, EngineError> {
@@ -4641,6 +4651,108 @@ fn less_or_equal_count_and_bgi_floor_expression_operations() {
     let mut vm = EventVm::new(program);
     vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(vm.variable(VariableScope::Global, 31), 3);
+}
+
+#[test]
+fn xzy_position_and_walk_commands_negate_the_reference_axis_and_wait_for_movement() {
+    let actor = EntityId::new(11);
+    let mut host = Host::new();
+
+    // POS3: X, Z (negated), Y, each a signed 16-bit immediate.
+    let program = decode_program(&[0xa1, 0, 100, 0, 20, 0, 50, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 8);
+    let mut vm = EventVm::new(program).with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetActorPosition {
+            actor,
+            position: [100, 50, -20]
+        }]
+    );
+
+    // DPOS3: object entry byte, then the same three words.
+    let mut vm = EventVm::new(decode_program(&[0xad, 0, 5, 100, 0, 20, 0, 50, 0, 4]).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::MoveActorXzy {
+            actor: EntityId::new(5),
+            position: [100, 50, -20]
+        }]
+    );
+
+    // MOVH (slide), MOVE3 and MOVE3H wait for the actor movement.
+    for (bytes, destination, mode) in [
+        (vec![0xa5, 0, 30, 0, 40, 0, 4], [30, 0, 40], 1),
+        (vec![0xa2, 0, 30, 0, 20, 0, 40, 0, 4], [30, -20, 40], 2),
+        (vec![0xe8, 0, 30, 0, 20, 0, 40, 0, 4], [30, -20, 40], 3),
+    ] {
+        let mut vm = EventVm::new(decode_program(&bytes).unwrap()).with_entity(actor);
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(
+            report.events,
+            [HostEvent::WalkActorMixed {
+                actor,
+                destination,
+                mode
+            }]
+        );
+        assert_eq!(report.status, VmStatus::Waiting);
+        assert_eq!(vm.pc(), 0);
+    }
+
+    let mut vm = EventVm::new(decode_program(&[0xa5, 0, 30, 0, 40, 0, 4]).unwrap());
+    assert!(
+        vm.step(Tick::new(0), &mut host)
+            .unwrap_err()
+            .message
+            .contains("actor context")
+    );
+}
+
+#[test]
+fn turn_to_position_pathing_and_shared_script_wait() {
+    let actor = EntityId::new(11);
+    let mut host = Host::new();
+
+    let mut vm =
+        EventVm::new(decode_program(&[0x9b, 0, 0x10, 0, 0xf0, 0xff, 0xa8, 0, 0, 4]).unwrap())
+            .with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [
+            HostEvent::TurnActorToPosition {
+                actor,
+                x: 16,
+                z: -16
+            },
+            HostEvent::SetPathing { actor, enabled: 0 },
+        ]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[0x44, 4]).unwrap()).with_entity(actor);
+    host.shared_script_active = true;
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Waiting);
+    assert_eq!(vm.wait_state(), Some(WaitState::SharedScript));
+    assert_eq!(
+        vm.step(Tick::new(1), &mut host).unwrap().status,
+        VmStatus::Waiting
+    );
+    host.shared_script_active = false;
+    assert_eq!(
+        vm.step(Tick::new(2), &mut host).unwrap().status,
+        VmStatus::Completed
+    );
+
+    host.shared_script_active = false;
+    let mut vm = EventVm::new(decode_program(&[0x44, 4]).unwrap()).with_entity(actor);
+    assert_eq!(
+        vm.step(Tick::new(0), &mut host).unwrap().status,
+        VmStatus::Completed
+    );
 }
 
 #[test]
