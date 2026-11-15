@@ -129,3 +129,50 @@ fn director_step_surfaces_script_requests_for_orchestration() {
     director.world_mut().complete_request(EntityId::new(2));
     assert!(!director.world().request_pending(EntityId::new(2)));
 }
+
+#[test]
+fn request_orchestration_cycle_spawns_completes_and_clears() {
+    use tantalus_legacy::decode_program;
+
+    let mut director = FieldDirector::new(FieldWorld::new());
+    director.world_mut().add_actor(EntityId::new(0), [0.0; 3]);
+    director.world_mut().add_actor(EntityId::new(1), [0.0; 3]);
+    // Entry 0 requests level 1 of entry 1, function tag 7, then ends.
+    director
+        .add_entry(EntityId::new(0), &[0x10, 0, 1, 1, 7, 4])
+        .unwrap();
+
+    let step = director.step().unwrap();
+    assert_eq!(step.completed_entries, [EntityId::new(0)]);
+    assert_eq!(
+        step.requests,
+        [tantalus_game::RequestedScript {
+            level: 1,
+            target: EntityId::new(1),
+            tag: 7,
+            synchronous: false,
+        }]
+    );
+    assert!(director.world().request_pending(EntityId::new(1)));
+
+    // The orchestrator spawns the requested function as its own VM.
+    let spawned = EntityId::new(256 + 7);
+    director
+        .add_entry_program(spawned, decode_program(&[0xce, 0, 50, 0, 0, 4]).unwrap())
+        .unwrap();
+
+    let mut completed_spawn = false;
+    for _ in 0..8 {
+        let step = director.step().unwrap();
+        if step.completed_entries.contains(&spawned) {
+            completed_spawn = true;
+            break;
+        }
+    }
+    assert!(completed_spawn);
+    assert_eq!(director.world().gil, 50);
+
+    // Completing the request clears the host pend so a waiting REQSW resumes.
+    director.world_mut().complete_request(EntityId::new(1));
+    assert!(!director.world().request_pending(EntityId::new(1)));
+}
