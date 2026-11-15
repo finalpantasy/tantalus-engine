@@ -1,7 +1,11 @@
 pub mod host;
+pub mod snapshot;
 pub mod world;
 
 pub use host::FieldHost;
+pub use snapshot::{
+    EntrySnapshot, FIELD_SNAPSHOT_FORMAT, FieldSnapshot, restore_scene, snapshot_scene,
+};
 pub use world::{
     ActorState, CharacterStats, EncounterRequest, FieldWorld, Jump, Movement, TimerState, Turn,
 };
@@ -63,6 +67,22 @@ impl FieldScene {
 
     pub fn len(&self) -> usize {
         self.entries.len()
+    }
+
+    /// Observed per-entry VM state for snapshots: entity, program counter,
+    /// status, and wait state.
+    pub fn entry_states(
+        &self,
+    ) -> Vec<(
+        EntityId,
+        u32,
+        tantalus_legacy::VmStatus,
+        Option<tantalus_legacy::WaitState>,
+    )> {
+        self.entries
+            .iter()
+            .map(|(entity, vm)| (*entity, vm.pc(), vm.status(), vm.wait_state()))
+            .collect()
     }
 
     pub fn is_empty(&self) -> bool {

@@ -6,22 +6,23 @@
 //! camera shakes, fades) are accepted and ignored by the host, while anything
 //! a wait, query, or later event can observe lives here.
 
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use tantalus_contracts::EntityId;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Movement {
     pub destination: [f32; 2],
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Turn {
     pub target: i16,
     pub speed: i32,
     pub remaining_ticks: u32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Jump {
     pub from: [f32; 3],
     pub to: [f32; 3],
@@ -29,7 +30,7 @@ pub struct Jump {
     pub frame: u8,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ActorState {
     pub position: [f32; 3],
     pub movement: Option<Movement>,
@@ -52,7 +53,7 @@ impl ActorState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EncounterRequest {
     pub rush: i32,
     pub group: Option<i32>,
@@ -60,14 +61,14 @@ pub struct EncounterRequest {
     pub steiner_state: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct TimerState {
     pub seconds: i32,
     pub running: bool,
     pub displayed: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct CharacterStats {
     pub current_hp: i32,
     pub max_hp: i32,
@@ -77,7 +78,7 @@ pub struct CharacterStats {
 
 pub(crate) const MAX_GIL: u32 = 9_999_999;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FieldWorld {
     pub actors: BTreeMap<EntityId, ActorState>,
     pub windows: BTreeMap<u8, bool>,
