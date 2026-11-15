@@ -910,6 +910,103 @@ pub fn analyze_world_map(
     Ok(report)
 }
 
+/// Walk-mesh inputs of one block mesh, as `WMBlock.AddWalkMesh` reads them
+/// (`mesh.vertices`, `mesh.triangles`, `mesh.tangents`; `Mesh.triangles` adds each
+/// submesh's base vertex).
+#[derive(Debug, Clone, PartialEq)]
+pub struct WalkMeshData {
+    pub path: String,
+    /// Block-local vertex positions in Unity units.
+    pub positions: Vec<[f32; 3]>,
+    /// Triangle vertex indices, three per triangle, submeshes in order.
+    pub indices: Vec<u32>,
+    /// `tangent.x` of every vertex (the per-triangle map id is read from a
+    /// triangle's first vertex).
+    pub tangent_x: Vec<f32>,
+}
+
+/// Decodes the block meshes whose container path satisfies `wanted` into walk-mesh
+/// inputs. Meshes without a tangent channel are skipped and listed in the second
+/// return value.
+pub fn extract_walk_meshes(
+    file: &SerializedFile<'_>,
+    source: &str,
+    wanted: &dyn Fn(&str) -> bool,
+) -> Result<(Vec<WalkMeshData>, Vec<String>), ImportError> {
+    let objects = &file.report().objects;
+    let by_id: HashMap<i64, usize> = objects
+        .iter()
+        .enumerate()
+        .map(|(index, object)| (object.path_id, index))
+        .collect();
+    let bundle_index = objects
+        .iter()
+        .position(|object| object.class_id == 142)
+        .ok_or_else(|| ImportError::invalid(source, "AssetBundle metadata object is missing"))?;
+    let metadata = AssetBundleMetadata::parse(file.object_data(bundle_index)?, source)?;
+    let mut context = Context {
+        file,
+        source,
+        by_id,
+        trees: HashMap::new(),
+    };
+    let mut out = Vec::new();
+    let mut skipped = Vec::new();
+    for (path, info) in &metadata.container {
+        if !wanted(path) {
+            continue;
+        }
+        let Some(index) = context.object(info.path_id) else {
+            skipped.push(format!("{path}: object missing"));
+            continue;
+        };
+        if objects[index].class_id != MESH {
+            continue;
+        }
+        let mesh = match context.decode(index) {
+            Ok(UnityObject::Mesh(mesh)) => mesh,
+            Ok(_) => {
+                skipped.push(format!("{path}: not a Mesh"));
+                continue;
+            }
+            Err(message) => {
+                skipped.push(format!("{path}: {message}"));
+                continue;
+            }
+        };
+        let count = mesh.vertex_count as usize;
+        let positions = mesh.channel_f32(0).filter(|data| data.len() == count * 3);
+        let tangents = mesh.channel_f32(7).filter(|data| data.len() == count * 4);
+        let (Some(positions), Some(tangents)) = (positions, tangents) else {
+            skipped.push(format!("{path}: no position or tangent channel"));
+            continue;
+        };
+        let mut indices = Vec::new();
+        for submesh in &mesh.submeshes {
+            if submesh.topology != 0 {
+                continue;
+            }
+            let start = submesh.first_byte as usize / 2;
+            let end = start + submesh.index_count as usize;
+            let Some(slice) = mesh.indices.get(start..end) else {
+                skipped.push(format!("{path}: submesh index range out of bounds"));
+                continue;
+            };
+            indices.extend(slice.iter().map(|i| u32::from(*i) + submesh.first_vertex));
+        }
+        out.push(WalkMeshData {
+            path: path.clone(),
+            positions: positions
+                .chunks_exact(3)
+                .map(|p| [p[0], p[1], p[2]])
+                .collect(),
+            indices,
+            tangent_x: tangents.chunks_exact(4).map(|t| t[0]).collect(),
+        });
+    }
+    Ok((out, skipped))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
