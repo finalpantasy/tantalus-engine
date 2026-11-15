@@ -921,6 +921,37 @@ fn subtract_assign_writes_variable_or_member_and_returns_the_result() {
 }
 
 #[test]
+fn add_assign_writes_variable_or_member_and_returns_the_result() {
+    let target = variable(VariableScope::Global, VariableType::Int16, 44);
+    let result = variable(VariableScope::Global, VariableType::Int16, 45);
+    let bytes = [
+        evaluate(assign(target.clone(), constant(20))),
+        evaluate(assign(result, binary(target, constant(8), 50))),
+        vec![4],
+    ]
+    .concat();
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 44), 28);
+    assert_eq!(vm.variable(VariableScope::Global, 45), 28);
+
+    let reference = ObjectMemberRef {
+        object: EntityId::new(42),
+        member: 4,
+    };
+    let mut host = Host::new();
+    host.member_target = Some(reference.object);
+    host.object_members.insert(reference, 20);
+    let bytes = [vec![41, 4], constant(8), vec![50]].concat();
+    let program = decode_program(&[evaluate(bytes), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(host.object_members[&reference], 28);
+    assert_eq!(host.member_writes, [(reference, 28)]);
+}
+
+#[test]
 fn instruction_budget_stops_an_infinite_relative_jump() {
     let bytes = [1, 0xfd, 0xff];
     let program = decode_program(&bytes).unwrap();

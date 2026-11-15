@@ -997,16 +997,20 @@ impl EventVm {
                         target: None,
                     });
                 }
-                ExpressionOp::SubtractAssign => {
+                ExpressionOp::AddAssign | ExpressionOp::SubtractAssign => {
                     let operand = stack.pop().ok_or_else(|| {
-                        expression_error(offset, opcode, "missing subtraction operand")
+                        expression_error(offset, opcode, "missing arithmetic-assignment operand")
                     })?;
                     let operand = read_value(host, operand, offset, opcode)?;
                     let target = stack.pop().ok_or_else(|| {
-                        expression_error(offset, opcode, "missing subtraction target")
+                        expression_error(offset, opcode, "missing arithmetic-assignment target")
                     })?;
                     let current = read_value(host, target, offset, opcode)?;
-                    let value = current.wrapping_sub(operand);
+                    let value = match operation {
+                        ExpressionOp::AddAssign => current.wrapping_add(operand),
+                        ExpressionOp::SubtractAssign => current.wrapping_sub(operand),
+                        _ => unreachable!(),
+                    };
                     let value = match target.target {
                         Some(StackTarget::Variable(variable)) => {
                             let value = normalize(value, variable.value_type);
@@ -1026,7 +1030,7 @@ impl EventVm {
                             return Err(expression_error(
                                 offset,
                                 opcode,
-                                "subtraction target is not writable",
+                                "arithmetic-assignment target is not writable",
                             ));
                         }
                     };
@@ -1772,6 +1776,7 @@ fn operand_start(
         | ExpressionOp::Equal
         | ExpressionOp::NotEqual
         | ExpressionOp::Assign
+        | ExpressionOp::AddAssign
         | ExpressionOp::SubtractAssign
         | ExpressionOp::PostIncrementMembers
         | ExpressionOp::PostDecrementMembers

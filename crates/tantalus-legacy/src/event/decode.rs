@@ -807,6 +807,7 @@ impl Decoder<'_> {
                 39 => ExpressionOp::LogicalAnd,
                 40 => ExpressionOp::LogicalOr,
                 EXPR_ASSIGN => ExpressionOp::Assign,
+                50 => ExpressionOp::AddAssign,
                 51 => ExpressionOp::SubtractAssign,
                 46 => ExpressionOp::AssignMembers,
                 120 => ExpressionOp::ReadObjectMember(ObjectMemberRef {
