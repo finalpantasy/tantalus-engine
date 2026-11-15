@@ -445,6 +445,11 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut inventory = false;
     let mut mbg_all = false;
     let mut audio_all = false;
+    let mut audio_decode = false;
+    let mut audio_out: Option<PathBuf> = None;
+    let mut wav_dir: Option<PathBuf> = None;
+    let mut resources_assets: Option<PathBuf> = None;
+    let mut movie_inventory: Option<PathBuf> = None;
     let mut map_config_all = false;
     let mut unity_objects = false;
     let mut class_filter = None;
@@ -662,6 +667,22 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             Some("--inventory") => inventory = true,
             Some("--mbg-all") => mbg_all = true,
             Some("--audio-all") => audio_all = true,
+            Some("--audio-decode") => audio_decode = true,
+            Some(flag @ ("--audio-out" | "--wav" | "--resources-assets" | "--movie-inventory")) => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| format!("`{flag}` requires a path"))?;
+                let slot = match flag {
+                    "--audio-out" => &mut audio_out,
+                    "--wav" => &mut wav_dir,
+                    "--resources-assets" => &mut resources_assets,
+                    _ => &mut movie_inventory,
+                };
+                if slot.replace(PathBuf::from(value)).is_some() {
+                    return Err(format!("`{flag}` may only be supplied once"));
+                }
+            }
             Some("--map-config-all") => map_config_all = true,
             Some("--unity-objects") => unity_objects = true,
             Some("--world-map") => world_map = true,
@@ -737,6 +758,16 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         index += 1;
     }
     let path = path.ok_or_else(|| "missing required `--path <path>`".to_owned())?;
+    if audio_decode {
+        return run_audio_decode(&AudioDecodeRequest {
+            path: &path,
+            out: audio_out.as_deref(),
+            wav_dir: wav_dir.as_deref(),
+            resources_assets: resources_assets.as_deref(),
+            movie_inventory: movie_inventory.as_deref(),
+            json,
+        });
+    }
     if battle_scenes || battle_scene.is_some() {
         return run_battle_scene_report(&path, battle_scene.as_deref());
     }
@@ -1950,12 +1981,12 @@ fn run_field_composition(
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 
@@ -2546,6 +2577,139 @@ fn run_mes_dump(
     }
     if parsed_files == 0 {
         return Err("no matching `.mes` TextAsset".to_owned());
+    }
+    Ok(())
+}
+
+struct AudioDecodeRequest<'a> {
+    path: &'a std::path::Path,
+    out: Option<&'a std::path::Path>,
+    wav_dir: Option<&'a std::path::Path>,
+    resources_assets: Option<&'a std::path::Path>,
+    movie_inventory: Option<&'a std::path::Path>,
+    json: bool,
+}
+
+/// Decodes every sound asset of one bundle (or of `p0data61`-`p0data63` in a directory),
+/// resolves the FMV audio table and writes the audit report.
+fn run_audio_decode(request: &AudioDecodeRequest<'_>) -> Result<(), String> {
+    use tantalus_assets::pc::audio_decode as ad;
+    let bundles: Vec<PathBuf> = if request.path.is_dir() {
+        ["p0data61.bin", "p0data62.bin", "p0data63.bin"]
+            .iter()
+            .map(|name| request.path.join(name))
+            .collect()
+    } else {
+        vec![request.path.to_path_buf()]
+    };
+    if let Some(dir) = request.wav_dir {
+        std::fs::create_dir_all(dir)
+            .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    }
+    let mut reports = Vec::new();
+    for bundle in &bundles {
+        // Spot-check WAVs: the first three assets of each bundle plus the FMV059A song.
+        let written = std::cell::Cell::new(0usize);
+        let filter = |asset: &str| {
+            let take = written.get() < 3 || asset.contains("/movie_/fmv059a");
+            if take {
+                written.set(written.get() + 1);
+            }
+            take
+        };
+        let report = ad::decode_audio_bundle(bundle, request.wav_dir, &filter)?;
+        eprintln!(
+            "{}: {} assets, {} decoded, {} failed",
+            report.bundle, report.sound_assets, report.decoded_ok, report.decode_failed
+        );
+        reports.push(report);
+    }
+    // Movie names from the movie inventory, then the resource metadata.
+    let inventory_path = request
+        .movie_inventory
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("audit/movie-inventory.json"));
+    let mut movies = Vec::new();
+    if let Ok(text) = std::fs::read_to_string(&inventory_path) {
+        let value: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+        for file in value["files"].as_array().into_iter().flatten() {
+            if let Some(name) = file["file"].as_str() {
+                movies.push(name.split('.').next().unwrap_or(name).to_owned());
+            }
+        }
+    }
+    let mut notes = Vec::new();
+    let resources = request.resources_assets.map(PathBuf::from).or_else(|| {
+        let dir = if request.path.is_file() {
+            request.path.parent()?
+        } else {
+            request.path
+        };
+        let derived = dir.parent()?.join("x64/FF9_Data/resources.assets");
+        derived.is_file().then_some(derived)
+    });
+    let metadata = match resources {
+        Some(file) => match ad::read_text_asset(&file, "MovieAudioMetaData.txt")
+            .and_then(|bytes| ad::parse_movie_audio_metadata(&bytes))
+        {
+            Ok(map) => Some(map),
+            Err(e) => {
+                notes.push(format!("MovieAudioMetaData.txt not read: {e}"));
+                None
+            }
+        },
+        None => {
+            notes.push("MovieAudioMetaData.txt not read: resources.assets not found".to_owned());
+            None
+        }
+    };
+    if movies.is_empty() {
+        notes
+            .push("no movie inventory: only explicit GetMovieSoundIndex cases resolved".to_owned());
+    }
+    let rows = ad::resolve_movie_audio(&movies, metadata.as_ref(), &reports);
+    let unresolved: Vec<_> = rows.iter().filter(|r| !r.resolved).collect();
+    let (ok, failed) = reports
+        .iter()
+        .fold((0, 0), |(a, b), r| (a + r.decoded_ok, b + r.decode_failed));
+    let document = serde_json::json!({
+        "description": "Vorbis decode of AKB2 sound assets plus the FMV-to-sound table, from tantalusctl assets inspect-bundle --audio-decode",
+        "decoder": "lewton 0.10.2 (MIT OR Apache-2.0), pure Rust",
+        "totals": {
+            "sound_assets": reports.iter().map(|r| r.sound_assets).sum::<usize>(),
+            "decoded_ok": ok,
+            "decode_failed": failed,
+            "movie_rows": rows.len(),
+            "movie_rows_unresolved": unresolved.len(),
+        },
+        "notes": notes,
+        "bundles": reports,
+        "movie_audio": rows,
+    });
+    let text = serde_json::to_string_pretty(&document).map_err(|e| e.to_string())?;
+    let out = request
+        .out
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("audit/audio-decode.json"));
+    std::fs::write(&out, format!("{text}\n"))
+        .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+    if request.json {
+        println!("{text}");
+    } else {
+        println!(
+            "decoded {ok} ok, {failed} failed; {} movie rows, {} unresolved; wrote {}",
+            rows.len(),
+            unresolved.len(),
+            out.display()
+        );
+        for row in unresolved {
+            println!(
+                "UNRESOLVED {} ({}): {}",
+                row.movie,
+                row.resource_id,
+                row.unresolved_reason.as_deref().unwrap_or("")
+            );
+        }
     }
     Ok(())
 }

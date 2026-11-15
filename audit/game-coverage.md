@@ -11,8 +11,8 @@ Scope: the owned PC install at `E:/SteamLibrary/steamapps/common/FINAL FANTASY I
 | World map | `p0data3` | 3,439 assets | all classified; 2,178 block meshes decode; raw `wmap` packs account for every byte (`--world-map`); `.hed`/`.nwp` tables kept raw |
 | Character and object models | `p0data4` | 5,252 assets, 525 model directories | 522 assemble to render-ready skinned models (`--assemble-all`); 3 hold only textures |
 | Animations | `p0data5` | 9,278 clips for 702 models | all clips parse; 7,930 of 7,939 paired clips match their model skeleton |
-| Audio | `p0data61`-`p0data63` and mirrors | 4,029 sound assets | all classify as AKB2 with Vorbis; headers parse (`--audio-all`); no decoder |
-| Movies | `StreamingAssets/ma` | 60 files | all parse as single-stream Theora 1280x960 at 15 fps with no audio stream; no decoder |
+| Audio | `p0data61`-`p0data63` and mirrors | 4,029 sound assets | all classify as AKB2 with Vorbis; headers parse (`--audio-all`); all 4,029 decode to PCM with `lewton` and report loop points (`--audio-decode`, `audit/audio-decode.json`); no mixer or device output |
+| Movies | `StreamingAssets/ma` | 60 files | all parse as single-stream Theora 1280x960 at 15 fps with no audio stream; no video decoder. Movie audio is separate sound assets: the `GetMovieSoundIndex` table is ported and 61 of 66 FMV/MBG rows resolve to assets (`audit/audio-decode.json`) |
 | Data tables, UI, fonts, text | `resources.assets`, `sharedassets*` | 59 files, 5,291 TextAssets | inventoried (`inspect-serialized`); 4,537 `.mes` files parse; data tables not parsed |
 | Saves | user save folder | not inventoried | legacy import is T10, NOT_RUN |
 
