@@ -116,6 +116,7 @@ pub enum InstructionKind {
     SetWalkAnimation(Expression),
     SetRunAnimation(Expression),
     SetLeftTurnAnimation(Expression),
+    SetRightTurnAnimation(Expression),
     SetActorFacing(Expression),
     Return,
     Wait(Expression),
@@ -319,6 +320,10 @@ pub enum HostEvent {
         animation: u16,
     },
     SetLeftTurnAnimation {
+        actor: EntityId,
+        animation: u16,
+    },
+    SetRightTurnAnimation {
         actor: EntityId,
         animation: u16,
     },

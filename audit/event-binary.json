@@ -106,7 +106,8 @@
     "AIDLE 0x33 emits actor-bound SetIdleAnimation with wide immediate/expression IDs",
     "AWALK 0x34 emits actor-bound SetWalkAnimation with wide immediate/expression IDs",
     "ARUN 0x35 emits actor-bound SetRunAnimation with wide immediate/expression IDs",
-    "ATURNL 0x7A emits actor-bound SetLeftTurnAnimation with wide immediate/expression IDs"
+    "ATURNL 0x7A emits actor-bound SetLeftTurnAnimation with wide immediate/expression IDs",
+    "ATURNR 0x7B emits actor-bound SetRightTurnAnimation with wide immediate/expression IDs"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -131,10 +132,10 @@
     "entry": 6,
     "function": 0,
     "function_tag": 0,
-    "offset": 68,
-    "opcode": 123,
+    "offset": 72,
+    "opcode": 75,
     "kind": "UnsupportedOpcode",
-    "instruction": "ATURNR after left-turn-animation support; entries 4 and 5 omit BSFLOOR's argument flag"
+    "instruction": "BAWAIT after right-turn-animation support; entries 4 and 5 omit BSFLOOR's argument flag"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

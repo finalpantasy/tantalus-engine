@@ -196,6 +196,20 @@ impl EventVm {
                         self.evaluate(host, &expression, instruction.offset, opcode)?;
                     self.pc = next;
                 }
+                InstructionKind::SetRightTurnAnimation(animation) => {
+                    let animation =
+                        self.evaluate(host, &animation, instruction.offset, opcode)? as u16;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "right-turn animation requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetRightTurnAnimation { actor, animation });
+                }
                 InstructionKind::SetLeftTurnAnimation(animation) => {
                     let animation =
                         self.evaluate(host, &animation, instruction.offset, opcode)? as u16;
@@ -1339,6 +1353,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetWalkAnimation { .. } => 0x34,
         InstructionKind::SetRunAnimation { .. } => 0x35,
         InstructionKind::SetLeftTurnAnimation { .. } => 0x7a,
+        InstructionKind::SetRightTurnAnimation { .. } => 0x7b,
         InstructionKind::SetActorFacing { .. } => 0x36,
         InstructionKind::Return => 0x04,
         InstructionKind::Evaluate(_) => 0x05,
