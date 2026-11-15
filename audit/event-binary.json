@@ -77,14 +77,15 @@
     "TIMERCONTROL 0x7D decodes a boolean operand and emits SetTimerRunning",
     "REPLY 0x16 decodes level and function tag and emits caller-targeted RequestCallerAsync",
     "MJPOS 0xA4 consumes its flag and emits CalculateExitPosition for region/actor host state",
-    "REPLYEW 0x14 emits RequestCallerSync once and waits on the host completion state"
+    "REPLYEW 0x14 emits RequestCallerSync once and waits on the host completion state",
+    "BGLATTACH 0x92 decodes tile, offsets, filter mode, and RGB operands and emits AttachTile"
   ],
   "next_decode_boundary": {
     "entry": 1,
-    "offset": 69,
-    "opcode": "0x92",
-    "kind": "event",
-    "instruction": "BGLATTACH"
+    "offset": 91,
+    "opcode": "0xFF",
+    "kind": "extended_opcode_prefix",
+    "instruction": "EXT"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

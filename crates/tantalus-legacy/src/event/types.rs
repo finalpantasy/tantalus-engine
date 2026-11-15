@@ -189,6 +189,15 @@ pub enum InstructionKind {
         level: Expression,
         tag: u8,
     },
+    AttachTile {
+        overlay: Expression,
+        x: Expression,
+        y: Expression,
+        filter_mode: Expression,
+        red: Expression,
+        green: Expression,
+        blue: Expression,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -326,6 +335,13 @@ pub enum HostEvent {
     RequestCallerSync {
         level: i32,
         tag: u8,
+    },
+    AttachTile {
+        overlay: i32,
+        x: i16,
+        y: i16,
+        filter_mode: i8,
+        color: [u8; 3],
     },
 }
 

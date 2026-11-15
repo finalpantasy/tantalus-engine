@@ -38,6 +38,7 @@ const OP_SET_TIMER_RUNNING: u8 = 0x7d;
 const OP_REQUEST_CALLER_ASYNC: u8 = 0x16;
 const OP_CALCULATE_EXIT_POSITION: u8 = 0xa4;
 const OP_REQUEST_CALLER_SYNC: u8 = 0x14;
+const OP_ATTACH_TILE: u8 = 0x92;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -388,6 +389,33 @@ impl Decoder<'_> {
                 InstructionKind::RequestCallerSync {
                     level,
                     tag: self.byte()?,
+                }
+            }
+            OP_ATTACH_TILE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::AttachTile {
+                    overlay: argument(1, false)?,
+                    x: argument(2, true)?,
+                    y: argument(4, false)?,
+                    filter_mode: argument(8, false)?,
+                    red: argument(16, false)?,
+                    green: argument(32, false)?,
+                    blue: argument(64, false)?,
                 }
             }
             _ => {

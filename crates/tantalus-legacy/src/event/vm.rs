@@ -416,6 +416,32 @@ impl EventVm {
                     self.status = VmStatus::Waiting;
                     events.push(HostEvent::RequestCallerSync { level, tag });
                 }
+                InstructionKind::AttachTile {
+                    overlay,
+                    x,
+                    y,
+                    filter_mode,
+                    red,
+                    green,
+                    blue,
+                } => {
+                    let overlay = self.evaluate(host, &overlay, instruction.offset, opcode)?;
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
+                    let y = self.evaluate(host, &y, instruction.offset, opcode)? as i16;
+                    let filter_mode =
+                        self.evaluate(host, &filter_mode, instruction.offset, opcode)? as i8;
+                    let red = self.evaluate(host, &red, instruction.offset, opcode)? as u8;
+                    let green = self.evaluate(host, &green, instruction.offset, opcode)? as u8;
+                    let blue = self.evaluate(host, &blue, instruction.offset, opcode)? as u8;
+                    self.pc = next;
+                    events.push(HostEvent::AttachTile {
+                        overlay,
+                        x,
+                        y,
+                        filter_mode,
+                        color: [red, green, blue],
+                    });
+                }
                 InstructionKind::MoveActor { actor, x, z } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
                     let x = self.evaluate(host, &x, instruction.offset, opcode)?;
@@ -1095,6 +1121,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::RequestCallerAsync { .. } => 0x16,
         InstructionKind::CalculateExitPosition => 0xa4,
         InstructionKind::RequestCallerSync { .. } => 0x14,
+        InstructionKind::AttachTile { .. } => 0x92,
     }
 }
 

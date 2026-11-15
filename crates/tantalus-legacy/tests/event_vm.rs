@@ -137,6 +137,7 @@ impl LegacyEventHost for Host {
                 HostEvent::RequestCallerAsync { .. } => {}
                 HostEvent::CalculateExitPosition => {}
                 HostEvent::RequestCallerSync { .. } => {}
+                HostEvent::AttachTile { .. } => {}
             }
         }
         Ok(())
@@ -1484,4 +1485,26 @@ fn replyew_requests_once_and_waits_for_script_completion() {
         vm.step(Tick::new(2), &mut host).unwrap().status,
         VmStatus::Completed
     );
+}
+
+#[test]
+fn bglattach_preserves_offsets_filter_mode_and_color() {
+    let bytes = [146, 0, 2, 0xf6, 0xff, 20, 255, 1, 2, 3, 4];
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(
+        report.events,
+        [HostEvent::AttachTile {
+            overlay: 2,
+            x: -10,
+            y: 20,
+            filter_mode: -1,
+            color: [1, 2, 3]
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
 }
