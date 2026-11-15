@@ -132,6 +132,7 @@ impl LegacyEventHost for Host {
                 HostEvent::DefineTileViewport { .. } => {}
                 HostEvent::RestoreAllVisibility => {}
                 HostEvent::SetTimerRunning { .. } => {}
+                HostEvent::RequestCallerAsync { .. } => {}
             }
         }
         Ok(())
@@ -1423,4 +1424,20 @@ fn timercontrol_emits_running_and_paused_states() {
         assert_eq!(report.events, [HostEvent::SetTimerRunning { running }]);
         assert_eq!(vm.status(), VmStatus::Completed);
     }
+}
+
+#[test]
+fn reply_emits_a_caller_targeted_async_request() {
+    let program = decode_program(&[22, 0, 2, 11, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(
+        report.events,
+        [HostEvent::RequestCallerAsync { level: 2, tag: 11 }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
 }

@@ -35,6 +35,7 @@ const OP_REQUEST_SCRIPT_ASYNC: u8 = 0x10;
 const OP_DEFINE_TILE_VIEWPORT: u8 = 0xc8;
 const OP_RESTORE_ALL_VISIBILITY: u8 = 0xd6;
 const OP_SET_TIMER_RUNNING: u8 = 0x7d;
+const OP_REQUEST_CALLER_ASYNC: u8 = 0x16;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -352,6 +353,21 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::SetTimerRunning(running)
+            }
+            OP_REQUEST_CALLER_ASYNC => {
+                let flags = self.byte()?;
+                let level = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::RequestCallerAsync {
+                    level,
+                    tag: self.byte()?,
+                }
             }
             _ => {
                 return Err(VmError::new(

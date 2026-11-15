@@ -180,6 +180,10 @@ pub enum InstructionKind {
     },
     RestoreAllVisibility,
     SetTimerRunning(Expression),
+    RequestCallerAsync {
+        level: Expression,
+        tag: u8,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -307,6 +311,10 @@ pub enum HostEvent {
     RestoreAllVisibility,
     SetTimerRunning {
         running: bool,
+    },
+    RequestCallerAsync {
+        level: i32,
+        tag: u8,
     },
 }
 
