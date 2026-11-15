@@ -944,19 +944,19 @@ impl EventVm {
                     value: 0,
                     target: None,
                 }),
-                ExpressionOp::EqualMembers => {
+                ExpressionOp::EqualMembers | ExpressionOp::LessOrEqualMembers => {
                     if stack.len() < 3 {
                         return Err(expression_error(
                             offset,
                             opcode,
-                            "member equality requires mask, target, and comparison inputs",
+                            "member comparison requires mask, target, and comparison inputs",
                         ));
                     }
                     let Some(StackTarget::Member(_)) = stack[stack.len() - 2].target else {
                         return Err(expression_error(
                             offset,
                             opcode,
-                            "member equality target is not a selected member",
+                            "member comparison target is not a selected member",
                         ));
                     };
                     let mask = read_value(host, stack[stack.len() - 3], offset, opcode)?;
@@ -968,9 +968,13 @@ impl EventVm {
                         if mask & (1 << slot) != 0 {
                             host.select_object_member_target(Some(slot))
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
-                            result |=
-                                i32::from(read_value(host, target, offset, opcode)? == comparison)
-                                    << 7;
+                            let value = read_value(host, target, offset, opcode)?;
+                            let matches = match operation {
+                                ExpressionOp::EqualMembers => value == comparison,
+                                ExpressionOp::LessOrEqualMembers => value <= comparison,
+                                _ => unreachable!(),
+                            };
+                            result |= i32::from(matches) << 7;
                         }
                     }
                     stack.truncate(stack.len() - 3);
@@ -1303,7 +1307,9 @@ fn operand_start(
             let right = operand_start(operations, index, offset, opcode)?;
             operand_start(operations, right, offset, opcode)
         }
-        ExpressionOp::XorAssignMembers | ExpressionOp::EqualMembers => {
+        ExpressionOp::XorAssignMembers
+        | ExpressionOp::EqualMembers
+        | ExpressionOp::LessOrEqualMembers => {
             let value = operand_start(operations, index, offset, opcode)?;
             let mask = operand_start(operations, value, offset, opcode)?;
             operand_start(operations, mask, offset, opcode)

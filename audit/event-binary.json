@@ -90,7 +90,8 @@
     "CLI reports every failing entry plus decoded and total function counts",
     "SPS 0xB3 decodes byte IDs and three signed-wide arguments and emits SetSpsParameters",
     "unnamed expression 114 matches the reference no-dispatch path without a stack effect",
-    "NOP consumes the argument-flag byte read by the reference event dispatcher"
+    "NOP consumes the argument-flag byte read by the reference event dispatcher",
+    "B_LE_E 30 returns per-slot less-or-equal flags without writes, including zero for an empty mask"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -114,11 +115,10 @@
     "entry": 0,
     "function": 0,
     "function_tag": 0,
-    "offset": 187,
-    "expression_offset": 180,
-    "opcode": 30,
+    "offset": 258,
+    "opcode": 108,
     "kind": "UnsupportedOpcode",
-    "instruction": "B_LE_E expression after corrected NOP alignment"
+    "instruction": "event opcode after selected-member less-or-equal support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
