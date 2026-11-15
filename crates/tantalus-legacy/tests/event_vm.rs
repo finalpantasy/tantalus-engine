@@ -335,6 +335,7 @@ impl LegacyEventHost for Host {
                 HostEvent::DeleteAllCards => {}
                 HostEvent::QueueSpecialAttack { .. } => {}
                 HostEvent::ChangeDisc { .. } => {}
+                HostEvent::SetSimulationActive { .. } => {}
                 HostEvent::SetSimulationFlags { .. } => {}
                 HostEvent::SetSimulationAlgorithm { .. } => {}
                 HostEvent::SetSimulationDelta { .. } => {}
@@ -5189,6 +5190,18 @@ fn assigning_to_a_plain_value_writes_nothing_and_yields_the_value() {
 }
 
 #[test]
+fn watch_decodes_its_label_and_refuses_to_execute_it() {
+    // `WATCH "ab"` then a one-variable expression (`d4 be`) ending in 0x7f, then End.
+    let program = decode_program(&[0x4e, b'a', b'b', 0, 0xd4, 0xbe, 0x7f, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 7);
+    assert!(program.instructions.contains_key(&7));
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::UnsupportedOpcode);
+}
+
+#[test]
 fn pad0e_consumes_its_flag_and_yields_before_continuing() {
     let program = decode_program(&[14, 4]).unwrap();
     assert_eq!(program.instructions[&0].kind, InstructionKind::Yield(14));
@@ -8223,6 +8236,13 @@ fn btlseq_and_discchange_emit_raw_operands() {
 #[test]
 fn battle_simulation_commands_decode_their_operands() {
     let cases: &[(&[u8], HostEvent)] = &[
+        (
+            &[0xff, 0x02, 0, 0, 1, 4],
+            HostEvent::SetSimulationActive {
+                simulation: 0,
+                active: 1,
+            },
+        ),
         (
             &[0xff, 0x03, 0, 1, 2, 4],
             HostEvent::SetSimulationFlags {

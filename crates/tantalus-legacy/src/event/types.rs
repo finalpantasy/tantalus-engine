@@ -808,6 +808,17 @@ pub enum InstructionKind {
     ChangeDisc {
         destination: Expression,
     },
+    /// `BSACTIVE` 0x102: enable or disable a walkmesh simulation.
+    SetSimulationActive {
+        simulation: Expression,
+        active: Expression,
+    },
+    /// `WATCH` 0x4E: a NUL-terminated label plus a variable expression. The layout is proven by real world scripts, the
+    /// behavior is not, so executing it is an explicit error.
+    Watch {
+        label: Vec<u8>,
+        variable: Expression,
+    },
     SetSimulationFlags {
         simulation: Expression,
         flags: Expression,
@@ -1670,6 +1681,10 @@ pub enum HostEvent {
     },
     ChangeDisc {
         destination: i32,
+    },
+    SetSimulationActive {
+        simulation: i32,
+        active: i32,
     },
     SetSimulationFlags {
         simulation: i32,

@@ -51,28 +51,29 @@
    "field": 818,
    "world": 15
   },
-  "functions_decoded": 42551,
-  "decode_errors": 31,
+  "functions_decoded": 42581,
+  "decode_errors": 1,
   "decode_error_opcodes": {
-   "258": {
-    "count": 6,
-    "first_event": "EVT_CHOCO_CH_FGD_0"
-   },
    "12": {
     "count": 1,
     "first_event": "EVT_GARGAN_GR_GGT_0"
-   },
-   "78": {
-    "count": 2,
-    "first_event": "EVT_WORLD_WORLDSV"
    }
   },
   "probe": {
-   "functions": 42277,
-   "completed": 35284,
-   "waiting_on_host": 6952,
+   "functions": 42307,
+   "completed": 35300,
+   "waiting_on_host": 6956,
    "instruction_budget_stops": 36,
-   "other_runtime_errors": []
+   "other_runtime_errors": [
+    {
+     "event": "EVT_WORLD_WORLDSV",
+     "error": "UnsupportedOpcode opcode Some(78): WATCH behavior is not proven by the pinned source"
+    },
+    {
+     "event": "EVT_WORLD_WORLDTS",
+     "error": "UnsupportedOpcode opcode Some(78): WATCH behavior is not proven by the pinned source"
+    }
+   ]
   },
   "absent_names": [
    "EVT_ALEX1_AC_ENT_1F",

@@ -5,7 +5,7 @@ Scope: the owned PC install at `E:/SteamLibrary/steamapps/common/FINAL FANTASY I
 | Domain | Where | Count in install | Rust status today |
 |---|---|---|---|
 | Fields (background, walkmesh, atlas) | `p0data11`-`p0data19` (mirrors `p0data101`-`p0data181`) | 674 field directories | all 674 load: scene, navigation and atlas parse and the navigation mesh builds. Rendering and play proven on one field only |
-| Field, battle and world scripts | `p0data7` `eventengine/eventbinary`, 7 languages | 1395 scripts (818 field, 562 battle, 15 world) | 42,551 functions decode; 31 fail on 3 expression operations not yet decoded. Dry-run: 35,284 complete, 6,952 wait on host state, 36 stop at the instruction budget, no runtime errors |
+| Field, battle and world scripts | `p0data7` `eventengine/eventbinary`, 7 languages | 1395 scripts (818 field, 562 battle, 15 world) | 42,581 functions decode; 1 fails (expression operation 12). Dry-run: 35,300 complete, 6,956 wait on host state, 36 stop at the instruction budget, 2 stop on the unsupported WATCH opcode |
 | Field and movie config | `p0data7` `mapconfigdata`, `mbgdata` | 818 map configs, 57 movie backgrounds | not parsed |
 | Battle scenes and models | `p0data2` | 562 scenes, 178 info files, 6,243 model files | not parsed (T08) |
 | World map | `p0data3` | 3,439 assets | not parsed |
@@ -18,15 +18,15 @@ Scope: the owned PC install at `E:/SteamLibrary/steamapps/common/FINAL FANTASY I
 
 ## Event decode gaps
 
-31 functions in 9 events fail to decode. These are expression operations, not opcodes:
+1 function in 1 event fails to decode:
 
-- operation 258: 6 events, first `EVT_CHOCO_CH_FGD_0`
-- operation 12 (`B_SINGLE_PLUS`): 1 event, `EVT_GARGAN_GR_GGT_0`; Memoria pushes a stale value for it, so it stays unknown
-- operation 78 (`B_OBJSPEC`): 2 events, first `EVT_WORLD_WORLDSV`
+- expression operation 12 (`B_SINGLE_PLUS`): `EVT_GARGAN_GR_GGT_0`; Memoria pushes a stale value for it, so it stays unknown.
+
+Two opcodes were closed in this pass. `BSACTIVE` (`0x102`) now decodes and emits a host event. `WATCH` (`0x4E`) decodes as a label plus one variable expression, but it refuses to run: the pinned source does not define its behavior. The dry run reaches that refusal in 2 world events (`EVT_WORLD_WORLDSV`, `EVT_WORLD_WORLDTS`).
 
 Two extended opcodes stay recorded as unknown: entry 13 function 1 `0x180` and entry 16 function 1 `0x1C8`.
 
-447 names in Memoria's event table are not present in this bundle (294 battle, 57 startup, 20 SPS and others); they are listed in the JSON. The dry run has no runtime errors.
+447 names in Memoria's event table are not present in this bundle (294 battle, 57 startup, 20 SPS and others); they are listed in the JSON. The dry run has no other runtime errors.
 
 ## Reproduce
 

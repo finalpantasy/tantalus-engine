@@ -30,6 +30,7 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
         (Some("assets"), Some("inspect-bundle")) => run_assets_inspect_bundle(args),
         (Some("assets"), Some("extract-resource")) => run_assets_extract_resource(args),
         (Some("assets"), Some("extract-text")) => run_assets_extract_text(args),
+        (Some("assets"), Some("inspect-serialized")) => run_assets_inspect_serialized(args),
         (Some("scenario"), Some("run")) => run_scenario(args),
         _ => Err(usage().to_owned()),
     }
@@ -330,6 +331,98 @@ fn run_assets_import(args: Vec<OsString>) -> Result<(), String> {
     Ok(())
 }
 
+fn run_unity_objects(
+    bundle: &tantalus_assets::pc::unity_raw::UnityRawBundle,
+    path: &std::path::Path,
+    class_filter: Option<u16>,
+    json: bool,
+) -> Result<(), String> {
+    let source = path.to_string_lossy();
+    let bytes = bundle
+        .read_entry(0, 600 * 1024 * 1024)
+        .map_err(|error| error.to_string())?;
+    let serialized = tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &source)
+        .map_err(|error| error.to_string())?;
+    let report = tantalus_assets::pc::unity_object::inspect_unity_objects(
+        &serialized,
+        class_filter,
+        &source,
+    )
+    .map_err(|error| error.to_string())?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        return Ok(());
+    }
+    println!(
+        "Unity {} type trees: {}; {} objects: {} parsed, {} failed",
+        report.unity_version,
+        report.type_trees_embedded,
+        report.objects_selected,
+        report.parsed,
+        report.failed
+    );
+    for class in &report.classes {
+        println!(
+            "  class {:>3} {:<20} {:>6} objects {:>6} parsed {:>4} failed{}",
+            class.class_id,
+            class.type_name,
+            class.objects,
+            class.parsed,
+            class.failed,
+            if class.typed { " (typed)" } else { "" }
+        );
+        for failure in &class.failure_samples {
+            println!("      {}: {}", failure.path_id, failure.message);
+        }
+    }
+    if let Some(mesh) = &report.mesh {
+        println!(
+            "  meshes {}: {} vertices (max {}), {} indices, {} submeshes, {} skinned, {} bind poses (max {}), {} compressed, {} blend-shape",
+            mesh.meshes,
+            mesh.total_vertices,
+            mesh.max_vertices,
+            mesh.total_indices,
+            mesh.submeshes,
+            mesh.skinned_meshes,
+            mesh.total_bind_poses,
+            mesh.max_bind_poses,
+            mesh.compressed_meshes,
+            mesh.blend_shape_meshes
+        );
+    }
+    if let Some(clips) = &report.animation {
+        println!(
+            "  clips {}: {} legacy, {} curves (rot {} pos {} scale {} float {}), {} keys, max {:.3}s / {} frames",
+            clips.clips,
+            clips.legacy_clips,
+            clips.rotation_curves + clips.position_curves + clips.scale_curves + clips.float_curves,
+            clips.rotation_curves,
+            clips.position_curves,
+            clips.scale_curves,
+            clips.float_curves,
+            clips.total_keys,
+            clips.max_length_seconds,
+            clips.max_frames
+        );
+    }
+    if let Some(tree) = &report.hierarchy {
+        println!(
+            "  hierarchy: {} game objects, {} transforms ({} roots, depth {}), {} broken transform links, {} broken component links, {} renderers ({} mesh unresolved, {} bone unresolved, {} bone-count mismatch)",
+            tree.game_objects,
+            tree.transforms,
+            tree.root_transforms,
+            tree.max_depth,
+            tree.broken_transform_links,
+            tree.broken_component_links,
+            tree.skinned_renderers,
+            tree.renderer_mesh_unresolved,
+            tree.renderer_bone_unresolved,
+            tree.renderer_bone_count_mismatch
+        );
+    }
+    Ok(())
+}
+
 fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut path = None;
     let mut json = false;
@@ -346,6 +439,10 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut ticks = 64u64;
     let mut probe = false;
     let mut inventory = false;
+    let mut mbg_all = false;
+    let mut map_config_all = false;
+    let mut unity_objects = false;
+    let mut class_filter = None;
     let mut texture = None;
     let mut texture_id = None;
     let mut rgba_output = None;
@@ -353,6 +450,8 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut bgs = None;
     let mut field = None;
     let mut atlas_for = None;
+    let mut battle_scenes = false;
+    let mut battle_scene = None;
     let mut index = 2;
     while index < args.len() {
         match args[index].to_str() {
@@ -507,10 +606,36 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     return Err("`--bgi` may only be supplied once".to_owned());
                 }
             }
+            Some("--battle-scenes") => battle_scenes = true,
+            Some("--battle-scene") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--battle-scene` requires a UTF-8 scene name".to_owned())?;
+                if battle_scene.replace(value.to_owned()).is_some() {
+                    return Err("`--battle-scene` may only be supplied once".to_owned());
+                }
+            }
             Some("--json") => json = true,
             Some("--objects") => objects = true,
             Some("--probe") => probe = true,
             Some("--inventory") => inventory = true,
+            Some("--mbg-all") => mbg_all = true,
+            Some("--map-config-all") => map_config_all = true,
+            Some("--unity-objects") => unity_objects = true,
+            Some("--class") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--class` requires a class ID".to_owned())?
+                    .parse::<u16>()
+                    .map_err(|error| format!("invalid class ID: {error}"))?;
+                if class_filter.replace(value).is_some() {
+                    return Err("`--class` may only be supplied once".to_owned());
+                }
+            }
             _ => {
                 return Err(format!(
                     "unrecognized argument: {}",
@@ -521,6 +646,9 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         index += 1;
     }
     let path = path.ok_or_else(|| "missing required `--path <path>`".to_owned())?;
+    if battle_scenes || battle_scene.is_some() {
+        return run_battle_scene_report(&path, battle_scene.as_deref());
+    }
     let bundle = tantalus_assets::pc::unity_raw::UnityRawBundle::open(&path)
         .map_err(|error| error.to_string())?;
     if let Some(name) = event {
@@ -1027,6 +1155,15 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         }
         return Ok(());
     }
+    if mbg_all || map_config_all {
+        return run_parse_all(&bundle, &path, mbg_all, map_config_all);
+    }
+    if unity_objects {
+        return run_unity_objects(&bundle, &path, class_filter, json);
+    }
+    if class_filter.is_some() {
+        return Err("`--class` requires `--unity-objects`".to_owned());
+    }
     if inventory {
         let bytes = bundle
             .read_entry(0, 600 * 1024 * 1024)
@@ -1523,11 +1660,431 @@ fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
+}
+
+/// `--battle-scenes` (whole bundle) or `--battle-scene <name>` (one scene), always JSON.
+fn run_battle_scene_report(path: &std::path::Path, one: Option<&str>) -> Result<(), String> {
+    use tantalus_assets::pc::battle_scene::BattleBundleData;
+    let data = BattleBundleData::load(path).map_err(|error| error.to_string())?;
+    if let Some(name) = one {
+        let (key, scene) = data
+            .scene(name)
+            .ok_or_else(|| format!("battle scene `{name}` was not found"))?;
+        let scene = scene.as_ref().map_err(|error| error.to_string())?;
+        let sequence = data.sequences.get(key).map(|(file, parsed)| match parsed {
+            Ok(header) => serde_json::json!({"file": file, "header": header}),
+            Err(error) => serde_json::json!({"file": file, "error": error.to_string()}),
+        });
+        let report = serde_json::json!({
+            "name": key,
+            "flags": scene.header.flag_names(),
+            "scene": scene,
+            "sequence": sequence,
+        });
+        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        return Ok(());
+    }
+    let mut parsed = 0_usize;
+    let mut failed = Vec::new();
+    let mut trailing = Vec::new();
+    let mut versions: std::collections::BTreeMap<u8, usize> = std::collections::BTreeMap::new();
+    let (mut patterns, mut types, mut attacks) = (0_usize, 0_usize, 0_usize);
+    for (name, scene) in &data.scenes {
+        match scene {
+            Ok(scene) => {
+                parsed += 1;
+                patterns += scene.patterns.len();
+                types += scene.monster_types.len();
+                attacks += scene.attacks.len();
+                *versions.entry(scene.header.version).or_insert(0) += 1;
+                if scene.trailing_bytes != 0 {
+                    trailing.push(
+                        serde_json::json!({"scene": name, "trailing_bytes": scene.trailing_bytes, "all_zero": scene.trailing_all_zero, "nonzero_bytes_after_first_dword": scene.trailing.iter().skip(4).filter(|b| **b != 0).count(), "head": scene.trailing.iter().take(16).map(|b| format!("{b:02x}")).collect::<String>(), "file_len": scene.file_len}),
+                    );
+                }
+            }
+            Err(error) => {
+                failed.push(serde_json::json!({"scene": name, "error": error.to_string()}))
+            }
+        }
+    }
+    let seq_ok = data.sequences.values().filter(|(_, r)| r.is_ok()).count();
+    let seq_failed: Vec<_> = data
+        .sequences
+        .iter()
+        .filter_map(|(name, (_, r))| {
+            r.as_ref()
+                .err()
+                .map(|e| serde_json::json!({"scene": name, "error": e.to_string()}))
+        })
+        .collect();
+    let info_ok = data.infos.values().filter(|r| r.is_ok()).count();
+    let info_trailing = data
+        .infos
+        .values()
+        .filter(|r| r.as_ref().is_ok_and(|info| info.trailing_bytes != 0))
+        .count();
+    let info_failed: Vec<_> = data
+        .infos
+        .iter()
+        .filter_map(|(name, r)| {
+            r.as_ref()
+                .err()
+                .map(|e| serde_json::json!({"info": name, "error": e.to_string()}))
+        })
+        .collect();
+    let report = serde_json::json!({
+        "scenes_total": data.scenes.len(),
+        "scenes_parsed": parsed,
+        "scenes_failed": failed.len(),
+        "failures": failed,
+        "trailing_bytes_cases": trailing,
+        "header_versions": versions,
+        "total_patterns": patterns,
+        "total_monster_types": types,
+        "total_attacks": attacks,
+        "sequences_parsed": seq_ok,
+        "sequences_failed": seq_failed,
+        "battle_infos_parsed": info_ok,
+        "battle_infos_with_trailing_bytes": info_trailing,
+        "battle_infos_failed": info_failed,
+        "unknown_fields": tantalus_assets::pc::battle_scene::UNKNOWN_FIELDS,
+    });
+    println!("{}", serde_json::to_string_pretty(&report).unwrap());
+    Ok(())
+}
+
+/// Parses every `mbgdata` and/or `mapconfigdata` container entry in a bundle
+/// and prints a JSON summary (parsed/failed counts, frames, unconsumed bytes).
+fn run_parse_all(
+    bundle: &tantalus_assets::pc::unity_raw::UnityRawBundle,
+    path: &std::path::Path,
+    mbg_all: bool,
+    map_config_all: bool,
+) -> Result<(), String> {
+    let bytes = bundle
+        .read_entry(0, 600 * 1024 * 1024)
+        .map_err(|error| error.to_string())?;
+    let source = path.to_string_lossy();
+    let serialized = tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &source)
+        .map_err(|error| error.to_string())?;
+    let report = serialized.report();
+    let by_path_id: std::collections::BTreeMap<i64, usize> = report
+        .objects
+        .iter()
+        .enumerate()
+        .map(|(index, object)| (object.path_id, index))
+        .collect();
+    let (container_index, _) = report
+        .objects
+        .iter()
+        .enumerate()
+        .find(|(_, object)| object.class_id == 142)
+        .ok_or_else(|| "AssetBundle metadata object is missing".to_owned())?;
+    let metadata = tantalus_assets::pc::asset_bundle::AssetBundleMetadata::parse(
+        serialized
+            .object_data(container_index)
+            .map_err(|error| error.to_string())?,
+        &source,
+    )
+    .map_err(|error| error.to_string())?;
+    let script_of = |asset_path: &str, path_id: i64| -> Result<Vec<u8>, String> {
+        let index = by_path_id
+            .get(&path_id)
+            .ok_or_else(|| format!("{asset_path}: path ID {path_id} has no object"))?;
+        let data = serialized
+            .object_data(*index)
+            .map_err(|error| error.to_string())?;
+        tantalus_assets::pc::text_asset::TextAsset::parse(data, asset_path)
+            .map(|asset| asset.script)
+            .map_err(|error| error.to_string())
+    };
+    let mut output = serde_json::Map::new();
+    if mbg_all {
+        let (mut parsed, mut failed, mut total_frames, mut unconsumed) = (0, 0, 0usize, 0usize);
+        let (mut trailing, mut files, mut errors) = (0usize, Vec::new(), Vec::new());
+        for (asset_path, info) in &metadata.container {
+            if !asset_path.to_ascii_lowercase().ends_with(".mbgdata.bytes") {
+                continue;
+            }
+            let result = script_of(asset_path, info.path_id).and_then(|script| {
+                tantalus_assets::pc::mbg::MbgFile::parse(&script, asset_path)
+                    .map(|file| (script.len(), file))
+                    .map_err(|error| error.to_string())
+            });
+            match result {
+                Ok((size, file)) => {
+                    parsed += 1;
+                    total_frames += file.frames.len();
+                    unconsumed += file.unconsumed_bytes();
+                    trailing += file.trailing.len();
+                    files.push(serde_json::json!({
+                        "path": asset_path,
+                        "bytes": size,
+                        "frames": file.frames.len(),
+                        "declared_frames": file.frame_count,
+                        "unread_record_bytes": file.unconsumed_bytes() - file.trailing.len(),
+                        "trailing_bytes": file.trailing.len(),
+                    }));
+                }
+                Err(error) => {
+                    failed += 1;
+                    errors.push(serde_json::json!({"path": asset_path, "error": error}));
+                }
+            }
+        }
+        output.insert(
+            "mbg".to_owned(),
+            serde_json::json!({
+                "parsed": parsed,
+                "failed": failed,
+                "total_frames": total_frames,
+                "unconsumed_bytes": unconsumed,
+                "trailing_bytes": trailing,
+                "failures": errors,
+                "files": files,
+            }),
+        );
+    }
+    if map_config_all {
+        let (mut parsed, mut failed, mut trailing) = (0, 0, 0usize);
+        let (mut lights, mut chars, mut errors) = (0usize, 0usize, Vec::new());
+        let mut trailing_files = Vec::new();
+        let mut versions = std::collections::BTreeMap::<u16, usize>::new();
+        for (asset_path, info) in &metadata.container {
+            if !asset_path.to_ascii_lowercase().contains("/mapconfigdata/") {
+                continue;
+            }
+            let result = script_of(asset_path, info.path_id).and_then(|script| {
+                tantalus_assets::pc::map_config::MapConfig::parse(&script, asset_path)
+                    .map(|config| (script.len(), config))
+                    .map_err(|error| error.to_string())
+            });
+            match result {
+                Ok((size, config)) => {
+                    parsed += 1;
+                    lights += config.lights.len();
+                    chars += config.chars.len();
+                    trailing += config.trailing.len();
+                    *versions.entry(config.version).or_default() += 1;
+                    if !config.trailing.is_empty() {
+                        trailing_files.push(serde_json::json!({
+                            "path": asset_path,
+                            "bytes": size,
+                            "trailing_bytes": config.trailing.len(),
+                            "evt_count": config.evt_count,
+                            "memoria_size": config.memoria_size(),
+                        }));
+                    }
+                }
+                Err(error) => {
+                    failed += 1;
+                    errors.push(serde_json::json!({"path": asset_path, "error": error}));
+                }
+            }
+        }
+        output.insert(
+            "map_config".to_owned(),
+            serde_json::json!({
+                "parsed": parsed,
+                "failed": failed,
+                "total_lights": lights,
+                "total_chars": chars,
+                "trailing_bytes": trailing,
+                "versions": versions,
+                "failures": errors,
+                "files_with_trailing_bytes": trailing_files,
+            }),
+        );
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::Value::Object(output)).unwrap()
+    );
+    Ok(())
+}
+
+fn run_assets_inspect_serialized(args: Vec<OsString>) -> Result<(), String> {
+    use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
+    let mut path = None;
+    let mut json = false;
+    let mut out = None;
+    let mut mes = None;
+    let mut mes_all = false;
+    let mut index = 2;
+    while index < args.len() {
+        match args[index].to_str() {
+            Some("--json") => json = true,
+            Some("--mes-all") => mes_all = true,
+            Some(flag @ ("--path" | "--out" | "--mes")) => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| format!("`{flag}` requires a value"))?;
+                let slot_taken = match flag {
+                    "--path" => path.replace(PathBuf::from(value)).is_some(),
+                    "--out" => out.replace(PathBuf::from(value)).is_some(),
+                    _ => mes.replace(value.to_string_lossy().into_owned()).is_some(),
+                };
+                if slot_taken {
+                    return Err(format!("`{flag}` may only be supplied once"));
+                }
+            }
+            _ => {
+                return Err(format!(
+                    "unrecognized argument: {}",
+                    args[index].to_string_lossy()
+                ));
+            }
+        }
+        index += 1;
+    }
+    let path = path.ok_or_else(|| "missing required `--path <file>`".to_owned())?;
+    let mut file = StandaloneSerialized::open(&path).map_err(|error| error.to_string())?;
+    if mes.is_some() || mes_all {
+        return run_mes_dump(&mut file, mes.as_deref(), json);
+    }
+    let inventory = file.inventory();
+    let rendered = serde_json::to_string_pretty(inventory)
+        .map_err(|error| format!("could not serialize inventory: {error}"))?;
+    if let Some(out) = out {
+        std::fs::write(
+            &out,
+            format!(
+                "{rendered}
+"
+            ),
+        )
+        .map_err(|error| format!("could not write {}: {error}", out.display()))?;
+    }
+    if json {
+        println!("{rendered}");
+    } else {
+        println!(
+            "{}: {} bytes, format {}, Unity {}, {} objects",
+            inventory.file_name,
+            inventory.file_size,
+            inventory.format_version,
+            inventory.unity_version,
+            inventory.object_count
+        );
+        for class in &inventory.classes {
+            println!(
+                "  class {:>4} {:<14} x{}",
+                class.class_id, class.class_name, class.count
+            );
+            for name in class.names.iter().take(20) {
+                println!("      {name}");
+            }
+            if class.names.len() > 20 {
+                println!("      ... {} more names", class.names.len() - 20);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn run_mes_dump(
+    file: &mut tantalus_assets::pc::serialized_inventory::StandaloneSerialized,
+    name: Option<&str>,
+    json: bool,
+) -> Result<(), String> {
+    use std::collections::BTreeMap;
+    use tantalus_assets::pc::mes::{MesFile, MesToken, parse_mes_bytes};
+    let assets = file.text_assets().map_err(|error| error.to_string())?;
+    let mut parsed_files = 0usize;
+    let mut entry_total = 0usize;
+    let mut tag_counts: BTreeMap<String, usize> = BTreeMap::new();
+    let mut unknown: BTreeMap<String, usize> = BTreeMap::new();
+    let mut layouts: BTreeMap<String, usize> = BTreeMap::new();
+    let mut failures = Vec::new();
+    let mut sample_printed = false;
+    for (asset_name, object) in assets {
+        let selected = match name {
+            Some(wanted) => asset_name == wanted,
+            None => asset_name.ends_with(".mes"),
+        };
+        if !selected {
+            continue;
+        }
+        let asset = file
+            .read_text_asset(&object)
+            .map_err(|error| error.to_string())?;
+        let mes = match parse_mes_bytes(&asset.script, &asset_name) {
+            Ok(mes) => mes,
+            Err(error) => {
+                failures.push(format!("{asset_name}: {error}"));
+                continue;
+            }
+        };
+        parsed_files += 1;
+        entry_total += mes.entries.len();
+        *layouts.entry(format!("{:?}", mes.layout)).or_default() += 1;
+        for entry in &mes.entries {
+            for token in &entry.tokens {
+                if let MesToken::Tag(tag) = token {
+                    *tag_counts.entry(tag.code.clone()).or_default() += 1;
+                }
+            }
+        }
+        for (raw, count) in mes.unknown_tags() {
+            if name.is_none() {
+                eprintln!("unknown {raw} x{count} in {asset_name}");
+            }
+            *unknown.entry(raw).or_default() += count;
+        }
+        if name.is_some() {
+            println!(
+                "# {asset_name} ({}) layout={:?} entries={}",
+                asset.path_name,
+                mes.layout,
+                mes.entries.len()
+            );
+            for entry in &mes.entries {
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::to_string(entry).map_err(|error| error.to_string())?
+                    );
+                } else {
+                    println!("[{}] {}", entry.id, MesFile::entry_source(entry));
+                }
+            }
+        } else if !sample_printed && !mes.entries.is_empty() {
+            sample_printed = true;
+            let entry = &mes.entries[0];
+            println!(
+                "sample {asset_name} ({}) entry {}:",
+                asset.path_name, entry.id
+            );
+            println!(
+                "{}",
+                serde_json::to_string_pretty(entry).map_err(|e| e.to_string())?
+            );
+        }
+    }
+    if name.is_none() || parsed_files == 0 {
+        println!("mes files parsed: {parsed_files}");
+        println!("entries: {entry_total}");
+        println!("layouts: {layouts:?}");
+        println!("tags: {tag_counts:?}");
+        println!("unknown tags: {}", unknown.len());
+        for (raw, count) in &unknown {
+            println!("  {raw} x{count}");
+        }
+        for failure in &failures {
+            println!("failure: {failure}");
+        }
+    }
+    if parsed_files == 0 {
+        return Err("no matching `.mes` TextAsset".to_owned());
+    }
+    Ok(())
 }

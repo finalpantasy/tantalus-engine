@@ -244,7 +244,9 @@ const OP_WAIT_OBJECT_TURN: u32 = 0xbc;
 const OP_WAIT_OBJECT_ANIMATION: u32 = 0xbe;
 const OP_QUEUE_SPECIAL_ATTACK: u32 = 0xe5;
 const OP_CHANGE_DISC: u32 = 0xac;
+const OP_SET_SIMULATION_ACTIVE: u32 = 0x102;
 const OP_SET_SIMULATION_FLAGS: u32 = 0x103;
+const OP_WATCH: u32 = 0x4e;
 const OP_SET_SIMULATION_ALGORITHM: u32 = 0x106;
 const OP_SET_SIMULATION_DELTA: u32 = 0x107;
 const OP_SET_SIMULATION_AXIS: u32 = 0x108;
@@ -2743,11 +2745,19 @@ impl Decoder<'_> {
                     destination: self.operand(flags, 1, true)?,
                 }
             }
-            OP_SET_SIMULATION_FLAGS | OP_SET_SIMULATION_ALGORITHM | OP_SET_SIMULATION_AXIS => {
+            OP_SET_SIMULATION_ACTIVE
+            | OP_SET_SIMULATION_FLAGS
+            | OP_SET_SIMULATION_ALGORITHM
+            | OP_SET_SIMULATION_AXIS => {
                 let flags = self.byte()?;
                 let simulation = self.operand(flags, 1, false)?;
                 let value = self.operand(flags, 2, false)?;
-                if opcode == OP_SET_SIMULATION_FLAGS {
+                if opcode == OP_SET_SIMULATION_ACTIVE {
+                    InstructionKind::SetSimulationActive {
+                        simulation,
+                        active: value,
+                    }
+                } else if opcode == OP_SET_SIMULATION_FLAGS {
                     InstructionKind::SetSimulationFlags {
                         simulation,
                         flags: value,
@@ -2762,6 +2772,21 @@ impl Decoder<'_> {
                         simulation,
                         axis: value,
                     }
+                }
+            }
+            OP_WATCH => {
+                // Real world scripts carry a NUL-terminated label such as `g_wld_ride` followed
+                // by a variable expression ending in `7f`; Memoria's field dispatcher skips both.
+                let mut label = Vec::new();
+                loop {
+                    match self.byte()? {
+                        0 => break,
+                        byte => label.push(byte),
+                    }
+                }
+                InstructionKind::Watch {
+                    label,
+                    variable: self.expression()?,
                 }
             }
             OP_SET_SIMULATION_DELTA => {

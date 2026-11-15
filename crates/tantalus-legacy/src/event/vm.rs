@@ -2467,6 +2467,21 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::ChangeDisc { destination });
                 }
+                InstructionKind::SetSimulationActive { simulation, active } => {
+                    let simulation =
+                        self.evaluate(host, &simulation, instruction.offset, opcode)?;
+                    let active = self.evaluate(host, &active, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetSimulationActive { simulation, active });
+                }
+                InstructionKind::Watch { .. } => {
+                    return Err(VmError::new(
+                        VmErrorKind::UnsupportedOpcode,
+                        instruction.offset,
+                        Some(opcode),
+                        "WATCH behavior is not proven by the pinned source",
+                    ));
+                }
                 InstructionKind::SetSimulationFlags { simulation, flags } => {
                     let simulation =
                         self.evaluate(host, &simulation, instruction.offset, opcode)?;
@@ -4476,6 +4491,8 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::WaitObjectAnimation { .. } => 0xbe,
         InstructionKind::QueueSpecialAttack { .. } => 0xe5,
         InstructionKind::ChangeDisc { .. } => 0xac,
+        InstructionKind::SetSimulationActive { .. } => 0x102,
+        InstructionKind::Watch { .. } => 0x4e,
         InstructionKind::SetSimulationFlags { .. } => 0x103,
         InstructionKind::SetSimulationAlgorithm { .. } => 0x106,
         InstructionKind::SetSimulationDelta { .. } => 0x107,

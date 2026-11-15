@@ -1,11 +1,17 @@
 pub mod asset_bundle;
+pub mod battle_scene;
 pub mod bgi;
 pub mod bgs;
 pub mod bundled_field;
 pub mod field;
+pub mod map_config;
+pub mod mbg;
+pub mod mes;
 pub mod serialized;
+pub mod serialized_inventory;
 pub mod text_asset;
 pub mod texture;
+pub mod unity_object;
 pub mod unity_raw;
 
 use crate::install::ImportError;
