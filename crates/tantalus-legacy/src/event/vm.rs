@@ -196,6 +196,33 @@ impl EventVm {
                         self.evaluate(host, &expression, instruction.offset, opcode)?;
                     self.pc = next;
                 }
+                InstructionKind::SetActorRadii {
+                    pathing_size,
+                    collision_radius,
+                    talk_radius,
+                } => {
+                    let pathing_size =
+                        self.evaluate(host, &pathing_size, instruction.offset, opcode)?;
+                    let collision_radius =
+                        self.evaluate(host, &collision_radius, instruction.offset, opcode)? as u8;
+                    let talk_radius =
+                        self.evaluate(host, &talk_radius, instruction.offset, opcode)? as u8;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "actor radii require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetActorRadii {
+                        actor,
+                        pathing_size,
+                        collision_radius,
+                        talk_radius,
+                    });
+                }
                 InstructionKind::SetRightTurnAnimation(animation) => {
                     let animation =
                         self.evaluate(host, &animation, instruction.offset, opcode)? as u16;
@@ -1354,6 +1381,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetRunAnimation { .. } => 0x35,
         InstructionKind::SetLeftTurnAnimation { .. } => 0x7a,
         InstructionKind::SetRightTurnAnimation { .. } => 0x7b,
+        InstructionKind::SetActorRadii { .. } => 0x4b,
         InstructionKind::SetActorFacing { .. } => 0x36,
         InstructionKind::Return => 0x04,
         InstructionKind::Evaluate(_) => 0x05,

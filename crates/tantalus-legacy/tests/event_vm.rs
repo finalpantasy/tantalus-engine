@@ -123,6 +123,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetRunAnimation { .. } => {}
                 HostEvent::SetLeftTurnAnimation { .. } => {}
                 HostEvent::SetRightTurnAnimation { .. } => {}
+                HostEvent::SetActorRadii { .. } => {}
                 HostEvent::SetActorFacing { .. } => {}
                 HostEvent::AimAtCamera => {}
                 HostEvent::DefinePlayerControl { .. } => {}
@@ -605,6 +606,46 @@ fn aturnr_sets_actor_right_turn_animation_from_wide_operand() {
     );
 
     let mut vm = EventVm::new(decode_program(&[123, 0, 1, 0, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
+}
+
+#[test]
+fn radius_sets_actor_pathing_collision_and_talk_radii() {
+    let program = decode_program(&[75, 0, 30, 8, 9, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetActorRadii {
+            actor: EntityId::new(42),
+            pathing_size: 30,
+            collision_radius: 8,
+            talk_radius: 9
+        }]
+    );
+
+    let mut bytes = vec![75, 7];
+    for value in [-1, 300, -2] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetActorRadii {
+            actor: EntityId::new(42),
+            pathing_size: -1,
+            collision_radius: 44,
+            talk_radius: 254
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[75, 0, 30, 8, 9, 4]).unwrap());
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));

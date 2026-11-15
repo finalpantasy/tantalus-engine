@@ -16,6 +16,7 @@ const OP_SET_WALK_ANIMATION: u32 = 0x34;
 const OP_SET_RUN_ANIMATION: u32 = 0x35;
 const OP_SET_LEFT_TURN_ANIMATION: u32 = 0x7a;
 const OP_SET_RIGHT_TURN_ANIMATION: u32 = 0x7b;
+const OP_SET_ACTOR_RADII: u32 = 0x4b;
 const OP_SET_ACTOR_FACING: u32 = 0x36;
 const OP_EVALUATE: u32 = 0x05;
 const OP_WINDOW_SYNC: u32 = 0x1f;
@@ -148,6 +149,24 @@ impl Decoder<'_> {
                 InstructionKind::SetActorPosition {
                     x: argument(1)?,
                     z: argument(2)?,
+                }
+            }
+            OP_SET_ACTOR_RADII => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetActorRadii {
+                    pathing_size: argument(1)?,
+                    collision_radius: argument(2)?,
+                    talk_radius: argument(4)?,
                 }
             }
             OP_SET_RIGHT_TURN_ANIMATION => {
