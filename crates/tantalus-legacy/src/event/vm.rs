@@ -749,6 +749,12 @@ impl EventVm {
                         frame_rate,
                     });
                 }
+                InstructionKind::SetTileAnimationFrame { animation, frame } => {
+                    let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
+                    let frame = self.evaluate(host, &frame, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetTileAnimationFrame { animation, frame });
+                }
                 InstructionKind::AttachTile {
                     overlay,
                     x,
@@ -1714,6 +1720,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::RequestCallerSync { .. } => 0x14,
         InstructionKind::SetSimulationFloor { .. } => 0x104,
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
+        InstructionKind::SetTileAnimationFrame { .. } => 0xe7,
         InstructionKind::AttachTile { .. } => 0x92,
     }
 }

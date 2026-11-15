@@ -169,6 +169,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetTileShadeColor { .. } => {}
                 HostEvent::SetSimulationFloor { .. } => {}
                 HostEvent::SetSimulationFrameRate { .. } => {}
+                HostEvent::SetTileAnimationFrame { .. } => {}
                 HostEvent::AttachTile { .. } => {}
             }
         }
@@ -2965,6 +2966,38 @@ fn bsrate_sets_signed_simulation_frame_rate_with_extended_opcode() {
         [HostEvent::SetSimulationFrameRate {
             simulation: 1,
             frame_rate: 30
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn bgaframe_sets_tile_animation_frame_without_clamping() {
+    let program = decode_program(&[231, 0, 2, 255, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileAnimationFrame {
+            animation: 2,
+            frame: 255
+        }]
+    );
+
+    let mut bytes = vec![231, 3];
+    append_expression(&mut bytes, constant(1));
+    append_expression(&mut bytes, constant(-1));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileAnimationFrame {
+            animation: 1,
+            frame: -1
         }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);

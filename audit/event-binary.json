@@ -132,7 +132,8 @@
     "B_PARTYCHK 107 returns one or zero from the host's party-membership query",
     "B_AND_LET_E 67 builds truth flags from selected member values, ANDs them with the operand, and writes the result through the current target",
     "B_XOR_LET_E 68 now follows the same source-compatible selected-value mask construction instead of using the operand or old target value as flags",
-    "decode diagnostics identify the instruction start as well as the missing-byte offset"
+    "decode diagnostics identify the instruction start as well as the missing-byte offset",
+    "BGAFRAME 0xE7 decodes immediate/expression animation and frame operands and emits SetTileAnimationFrame without clamping"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -167,10 +168,10 @@
     "entry": 3,
     "function": 1,
     "function_tag": 1,
-    "offset": 100,
-    "opcode": 231,
+    "offset": 137,
+    "opcode": 178,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0xE7 after classifying the truncated conditional entry"
+    "instruction": "event opcode 0xB2 after tile animation-frame support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
