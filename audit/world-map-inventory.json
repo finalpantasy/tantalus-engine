@@ -1,0 +1,973 @@
+{
+  "block_mesh_folders": {
+    "0_1": 1991,
+    "0_2": 187
+  },
+  "block_mesh_name_path_mismatches": 0,
+  "block_mesh_row_mismatches": 0,
+  "block_mesh_triangles": 364693,
+  "block_mesh_vertices": 1094079,
+  "block_meshes_decoded": 2178,
+  "block_meshes_failed": 0,
+  "bundle_object_count": 18634,
+  "class_counts": {
+    "1": 4404,
+    "111": 12,
+    "114": 1442,
+    "115": 2,
+    "142": 1,
+    "21": 66,
+    "23": 2946,
+    "28": 142,
+    "33": 2946,
+    "4": 4404,
+    "43": 2199,
+    "48": 20,
+    "49": 25,
+    "74": 1,
+    "84": 24
+  },
+  "classified_entries": 3439,
+  "container_entries": 3439,
+  "discs": [
+    {
+      "block_meshes": 1090,
+      "block_prefabs": 480,
+      "cells_with_meshes": 275,
+      "disc": 1,
+      "grid_max_x": 23,
+      "grid_max_y": 19,
+      "grid_min_x": 0,
+      "grid_min_y": 0,
+      "map_values_for_land_cells": {
+        "0": 244,
+        "1": 2,
+        "10": 1,
+        "11": 2,
+        "12": 1,
+        "13": 3,
+        "14": 3,
+        "15": 3,
+        "16": 3,
+        "2": 1,
+        "3": 1,
+        "4": 2,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 3,
+        "9": 3
+      },
+      "map_values_for_sea_cells": {
+        "0": 205
+      },
+      "meshes_by_kind": {
+        "beach": 47,
+        "falls": 4,
+        "object": 89,
+        "river": 15,
+        "riverjoint": 8,
+        "sea": 627,
+        "sea4f": 1,
+        "stream": 9,
+        "terrain": 286,
+        "volcanocrater": 2,
+        "volcanolava": 2
+      },
+      "meshes_in_more_than_one_prefab": 2,
+      "meshes_not_in_any_prefab": 38,
+      "prefab_flag_totals": {
+        "HasBeach1": 0,
+        "HasBeach2": 0,
+        "HasFalls": 0,
+        "HasRiver": 0,
+        "HasRiverJoint": 0,
+        "HasSea": 0,
+        "HasSpecialObject": 65,
+        "HasStream": 0,
+        "HasVolcanoCrater": 0,
+        "HasVolcanoLava": 0,
+        "Is3_9": 0,
+        "IsReady": 0,
+        "IsSea": 205,
+        "IsSwitchable": 26
+      },
+      "prefab_initial_xy_mismatch": 0,
+      "prefab_slots": 1461,
+      "prefab_slots_matching_block": 1051,
+      "prefab_slots_shared_sea_mesh": 410,
+      "prefabs_without_meshes": 0,
+      "triangles": 181709,
+      "unreferenced_mesh_kinds": {
+        "form2 [0][0] sea4": 1,
+        "form2 [13][16] sea3": 1,
+        "form2 [13][17] sea4": 1,
+        "form2 [13][4] sea3": 1,
+        "form2 [13][4] sea4": 1,
+        "form2 [13][4] sea5": 1,
+        "form2 [14][15] beach1": 1,
+        "form2 [14][17] river": 1,
+        "form2 [14][6] sea3": 1,
+        "form2 [14][6] sea4": 1,
+        "form2 [14][6] sea5": 1,
+        "form2 [16][14] stream": 1,
+        "form2 [16][1] beach1": 1,
+        "form2 [16][1] sea3": 1,
+        "form2 [16][1] sea4": 1,
+        "form2 [16][1] sea5": 1,
+        "form2 [19][10] river": 1,
+        "form2 [19][11] falls": 1,
+        "form2 [19][11] river": 1,
+        "form2 [19][11] riverjoint": 1,
+        "form2 [19][11] stream": 1,
+        "form2 [20][10] river": 1,
+        "form2 [20][10] sea4": 1,
+        "form2 [20][11] river": 1,
+        "form2 [20][11] riverjoint": 1,
+        "form2 [21][10] sea4": 1,
+        "form2 [22][14] sea4": 1,
+        "form2 [7][1] sea4": 1,
+        "form2 [8][1] sea4": 1,
+        "form2 [9][17] beach1": 1,
+        "form2 [9][17] sea1": 1,
+        "form2 [9][17] sea2": 1,
+        "form2 [9][17] sea3": 1,
+        "form2 [9][17] sea4": 1,
+        "form2 [9][17] sea5": 1,
+        "form2 [9][1] sea3": 1,
+        "form2 [9][1] sea4": 1,
+        "form2 [9][1] sea5": 1
+      },
+      "vertices": 545127
+    },
+    {
+      "block_meshes": 1088,
+      "block_prefabs": 480,
+      "cells_with_meshes": 275,
+      "disc": 4,
+      "grid_max_x": 23,
+      "grid_max_y": 19,
+      "grid_min_x": 0,
+      "grid_min_y": 0,
+      "map_values_for_land_cells": {},
+      "map_values_for_sea_cells": {},
+      "meshes_by_kind": {
+        "beach": 47,
+        "falls": 4,
+        "object": 88,
+        "river": 15,
+        "riverjoint": 7,
+        "sea": 627,
+        "sea4f": 1,
+        "stream": 9,
+        "terrain": 286,
+        "volcanocrater": 2,
+        "volcanolava": 2
+      },
+      "meshes_in_more_than_one_prefab": 0,
+      "meshes_not_in_any_prefab": 38,
+      "prefab_flag_totals": {
+        "HasBeach1": 0,
+        "HasBeach2": 0,
+        "HasFalls": 0,
+        "HasRiver": 0,
+        "HasRiverJoint": 0,
+        "HasSea": 0,
+        "HasSpecialObject": 65,
+        "HasStream": 0,
+        "HasVolcanoCrater": 0,
+        "HasVolcanoLava": 0,
+        "Is3_9": 0,
+        "IsReady": 0,
+        "IsSea": 205,
+        "IsSwitchable": 26
+      },
+      "prefab_initial_xy_mismatch": 0,
+      "prefab_slots": 1459,
+      "prefab_slots_matching_block": 1049,
+      "prefab_slots_shared_sea_mesh": 410,
+      "prefabs_without_meshes": 0,
+      "triangles": 182984,
+      "unreferenced_mesh_kinds": {
+        "form2 [0][0] sea4": 1,
+        "form2 [13][16] sea3": 1,
+        "form2 [13][17] sea4": 1,
+        "form2 [13][4] sea3": 1,
+        "form2 [13][4] sea4": 1,
+        "form2 [13][4] sea5": 1,
+        "form2 [14][15] beach1": 1,
+        "form2 [14][17] river": 1,
+        "form2 [14][6] sea3": 1,
+        "form2 [14][6] sea4": 1,
+        "form2 [14][6] sea5": 1,
+        "form2 [16][14] stream": 1,
+        "form2 [16][1] beach1": 1,
+        "form2 [16][1] sea3": 1,
+        "form2 [16][1] sea4": 1,
+        "form2 [16][1] sea5": 1,
+        "form2 [19][10] river": 1,
+        "form2 [19][11] falls": 1,
+        "form2 [19][11] river": 1,
+        "form2 [19][11] riverjoint": 1,
+        "form2 [19][11] stream": 1,
+        "form2 [20][10] river": 1,
+        "form2 [20][10] sea4": 1,
+        "form2 [20][11] river": 1,
+        "form2 [20][11] riverjoint": 1,
+        "form2 [21][10] sea4": 1,
+        "form2 [22][14] sea4": 1,
+        "form2 [7][1] sea4": 1,
+        "form2 [8][1] sea4": 1,
+        "form2 [9][17] beach1": 1,
+        "form2 [9][17] sea1": 1,
+        "form2 [9][17] sea2": 1,
+        "form2 [9][17] sea3": 1,
+        "form2 [9][17] sea4": 1,
+        "form2 [9][17] sea5": 1,
+        "form2 [9][1] sea3": 1,
+        "form2 [9][1] sea4": 1,
+        "form2 [9][1] sea5": 1
+      },
+      "vertices": 548952
+    }
+  ],
+  "distinct_container_paths": 3430,
+  "failures": [],
+  "groups": [
+    {
+      "class_id": 43,
+      "count": 1090,
+      "group": "disc1/block_mesh"
+    },
+    {
+      "class_id": 43,
+      "count": 1088,
+      "group": "disc4/block_mesh"
+    },
+    {
+      "class_id": 21,
+      "count": 7,
+      "group": "effectmodels/material"
+    },
+    {
+      "class_id": 43,
+      "count": 13,
+      "group": "effectmodels/mesh_asset"
+    },
+    {
+      "class_id": 74,
+      "count": 1,
+      "group": "effectmodels/model_animation"
+    },
+    {
+      "class_id": 43,
+      "count": 7,
+      "group": "effectmodels/model_mesh"
+    },
+    {
+      "class_id": 1,
+      "count": 7,
+      "group": "effectmodels/model_object"
+    },
+    {
+      "class_id": 28,
+      "count": 5,
+      "group": "effectmodels/texture"
+    },
+    {
+      "class_id": 21,
+      "count": 48,
+      "group": "materials/material"
+    },
+    {
+      "class_id": 28,
+      "count": 49,
+      "group": "materials/texture"
+    },
+    {
+      "class_id": 21,
+      "count": 10,
+      "group": "materials_old/material"
+    },
+    {
+      "class_id": 28,
+      "count": 28,
+      "group": "materials_old/texture"
+    },
+    {
+      "class_id": 1,
+      "count": 481,
+      "group": "prefabs/disc1/block_prefab"
+    },
+    {
+      "class_id": 1,
+      "count": 481,
+      "group": "prefabs/disc4/block_prefab"
+    },
+    {
+      "class_id": 1,
+      "count": 15,
+      "group": "prefabs/effect_prefab"
+    },
+    {
+      "class_id": 43,
+      "count": 1,
+      "group": "prefabs/embedded_object_mesh"
+    },
+    {
+      "class_id": 1,
+      "count": 1,
+      "group": "prefabs/embedded_object_prefab"
+    },
+    {
+      "class_id": 1,
+      "count": 1,
+      "group": "prefabs/extra_prefab"
+    },
+    {
+      "class_id": 21,
+      "count": 1,
+      "group": "prefabs/material"
+    },
+    {
+      "class_id": 28,
+      "count": 1,
+      "group": "prefabs/texture"
+    },
+    {
+      "class_id": 1,
+      "count": 1,
+      "group": "prefabs/unused_root_prefab"
+    },
+    {
+      "class_id": 84,
+      "count": 14,
+      "group": "rendertextures/render_texture"
+    },
+    {
+      "class_id": 84,
+      "count": 10,
+      "group": "rendertextures_old/render_texture"
+    },
+    {
+      "class_id": 28,
+      "count": 54,
+      "group": "textures/texture"
+    },
+    {
+      "class_id": 49,
+      "count": 25,
+      "group": "wmap/binary_text_asset"
+    }
+  ],
+  "objects": {
+    "game_objects": 987,
+    "game_objects_decoded": 987,
+    "material_texture_slots": 143,
+    "materials": 66,
+    "materials_decoded": 66,
+    "other_meshes": 21,
+    "other_meshes_decoded": 21,
+    "render_textures": 24,
+    "texture_formats": {
+      "10": 5,
+      "12": 3,
+      "3": 122,
+      "5": 7
+    },
+    "texture_max_dimension": 512,
+    "textures": 137,
+    "textures_decoded": 137
+  },
+  "unclassified_entries": 0,
+  "unclassified_samples": [],
+  "wmap_assets": [
+    {
+      "account": {
+        "parsed": 0,
+        "raw_named": 33344,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 33344,
+      "counts": {},
+      "failures": [],
+      "kind": "tcb",
+      "notes": [
+        "SPS texture container; format read by Memoria's SPS code, not here"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/common/effect/fx.tcb.bytes"
+    },
+    {
+      "account": {
+        "parsed": 41380,
+        "raw_named": 0,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 41380,
+      "counts": {
+        "pack_segments": 24,
+        "tim_images": 24
+      },
+      "failures": [],
+      "kind": "tim_pack",
+      "notes": [],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/common/hintmap.ntp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 90296,
+        "raw_named": 0,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 90296,
+      "counts": {
+        "pack_segments": 13,
+        "tim_images": 13
+      },
+      "failures": [],
+      "kind": "tim_pack",
+      "notes": [],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/common/navi.ntp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 50208,
+        "raw_named": 0,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 50208,
+      "counts": {
+        "pack_segments": 15,
+        "tim_images": 15
+      },
+      "failures": [],
+      "kind": "tim_pack",
+      "notes": [],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/common/systex.ntp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 41796,
+        "raw_named": 0,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 41796,
+      "counts": {
+        "pack_segments": 16,
+        "tim_images": 16
+      },
+      "failures": [],
+      "kind": "tim_pack",
+      "notes": [],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc1/anmtex.ntp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 678218,
+        "raw_named": 222785,
+        "unexplained": 0,
+        "zero_padding": 18549
+      },
+      "bytes": 919552,
+      "counts": {
+        "effect_lists": 12,
+        "effect_records": 28,
+        "encounter_records": 355,
+        "eva_raw_bytes": 156,
+        "image_entries": 11,
+        "nwb_blocks": 1,
+        "nwb_cells": 4,
+        "nwb_gap_zero_bytes": 1336,
+        "nwb_surfaces": 512,
+        "nwb_texture_region_nonzero_bytes": 0,
+        "nwb_vertices": 324,
+        "pack_segments": 321,
+        "special_encounter_groups": 9,
+        "texture_project_entries": 30,
+        "tim_images": 222,
+        "uncovered_sectors": 0
+      },
+      "failures": [],
+      "kind": "disc_image",
+      "notes": [
+        "slot 0: tim_pack (43008 bytes)",
+        "slot 1: frame_pack (90112 bytes)",
+        "slot 2: raw (4096 bytes)",
+        "slot 3: raw (4096 bytes)",
+        "slot 4: raw (2048 bytes)",
+        "slot 5: tim_pack (51200 bytes)",
+        "slot 6: tim_pack (92160 bytes)",
+        "slot 7: tim_pack (43008 bytes)",
+        "slot 8: tim_pack (436224 bytes)",
+        "slot 9: pack (116736 bytes)",
+        "slot 10: raw (34816 bytes)"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc1/disc.img.bytes"
+    },
+    {
+      "account": {
+        "parsed": 678218,
+        "raw_named": 222785,
+        "unexplained": 0,
+        "zero_padding": 18549
+      },
+      "bytes": 919552,
+      "counts": {
+        "effect_lists": 12,
+        "effect_records": 28,
+        "encounter_records": 355,
+        "eva_raw_bytes": 156,
+        "image_entries": 11,
+        "nwb_blocks": 1,
+        "nwb_cells": 4,
+        "nwb_gap_zero_bytes": 1336,
+        "nwb_surfaces": 512,
+        "nwb_texture_region_nonzero_bytes": 0,
+        "nwb_vertices": 324,
+        "pack_segments": 321,
+        "special_encounter_groups": 9,
+        "texture_project_entries": 30,
+        "tim_images": 222,
+        "uncovered_sectors": 0
+      },
+      "failures": [],
+      "kind": "disc_image",
+      "notes": [
+        "slot 0: tim_pack (43008 bytes)",
+        "slot 1: frame_pack (90112 bytes)",
+        "slot 2: raw (4096 bytes)",
+        "slot 3: raw (4096 bytes)",
+        "slot 4: raw (2048 bytes)",
+        "slot 5: tim_pack (51200 bytes)",
+        "slot 6: tim_pack (92160 bytes)",
+        "slot 7: tim_pack (43008 bytes)",
+        "slot 8: tim_pack (436224 bytes)",
+        "slot 9: pack (116736 bytes)",
+        "slot 10: raw (34816 bytes)"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc1/discmr.img.bytes"
+    },
+    {
+      "account": {
+        "parsed": 132,
+        "raw_named": 114972,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 115104,
+      "counts": {
+        "pack_segments": 32,
+        "tim_images": 0
+      },
+      "failures": [],
+      "kind": "pack",
+      "notes": [
+        "segments are not TIM images; format not defined by Memoria"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc1/dyna4.ntp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 17850,
+        "raw_named": 69932,
+        "unexplained": 0,
+        "zero_padding": 1338
+      },
+      "bytes": 89120,
+      "counts": {
+        "effect_lists": 12,
+        "effect_records": 28,
+        "encounter_records": 355,
+        "eva_raw_bytes": 156,
+        "nwb_blocks": 1,
+        "nwb_cells": 4,
+        "nwb_gap_zero_bytes": 1336,
+        "nwb_surfaces": 512,
+        "nwb_texture_region_nonzero_bytes": 0,
+        "nwb_vertices": 324,
+        "pack_segments": 67,
+        "special_encounter_groups": 9,
+        "texture_project_entries": 30
+      },
+      "failures": [],
+      "kind": "frame_pack",
+      "notes": [],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc1/fx.ntp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 0,
+        "raw_named": 3842,
+        "unexplained": 0,
+        "zero_padding": 254
+      },
+      "bytes": 4096,
+      "counts": {},
+      "failures": [],
+      "kind": "nwp_model_table",
+      "notes": [
+        "PSX model table (also the first 4096 bytes of the .nwp); not read by Memoria"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc1/model_h.hed.bytes"
+    },
+    {
+      "account": {
+        "parsed": 0,
+        "raw_named": 5715968,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 5715968,
+      "counts": {
+        "sectors": 2791
+      },
+      "failures": [],
+      "kind": "nwp_model_table",
+      "notes": [
+        "PSX model data: 4096-byte table then sector-aligned blocks; not read by Memoria"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc1/model_hm.nwp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 0,
+        "raw_named": 3842,
+        "unexplained": 0,
+        "zero_padding": 254
+      },
+      "bytes": 4096,
+      "counts": {},
+      "failures": [],
+      "kind": "nwp_model_table",
+      "notes": [
+        "PSX model table (also the first 4096 bytes of the .nwp); not read by Memoria"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc1/model_v.hed.bytes"
+    },
+    {
+      "account": {
+        "parsed": 0,
+        "raw_named": 5715968,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 5715968,
+      "counts": {
+        "sectors": 2791
+      },
+      "failures": [],
+      "kind": "nwp_model_table",
+      "notes": [
+        "PSX model data: 4096-byte table then sector-aligned blocks; not read by Memoria"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc1/model_vm.nwp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 434508,
+        "raw_named": 0,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 434508,
+      "counts": {
+        "pack_segments": 154,
+        "tim_images": 154
+      },
+      "failures": [],
+      "kind": "tim_pack",
+      "notes": [],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc1/static.ntp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 41796,
+        "raw_named": 0,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 41796,
+      "counts": {
+        "pack_segments": 16,
+        "tim_images": 16
+      },
+      "failures": [],
+      "kind": "tim_pack",
+      "notes": [],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc4/anmtex.ntp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 670074,
+        "raw_named": 190017,
+        "unexplained": 0,
+        "zero_padding": 18501
+      },
+      "bytes": 878592,
+      "counts": {
+        "effect_lists": 12,
+        "effect_records": 28,
+        "encounter_records": 355,
+        "eva_raw_bytes": 156,
+        "image_entries": 11,
+        "nwb_blocks": 1,
+        "nwb_cells": 4,
+        "nwb_gap_zero_bytes": 1336,
+        "nwb_surfaces": 512,
+        "nwb_texture_region_nonzero_bytes": 0,
+        "nwb_vertices": 324,
+        "pack_segments": 317,
+        "special_encounter_groups": 9,
+        "texture_project_entries": 30,
+        "tim_images": 218,
+        "uncovered_sectors": 0
+      },
+      "failures": [],
+      "kind": "disc_image",
+      "notes": [
+        "slot 0: tim_pack (43008 bytes)",
+        "slot 1: frame_pack (90112 bytes)",
+        "slot 2: raw (4096 bytes)",
+        "slot 3: raw (4096 bytes)",
+        "slot 4: raw (2048 bytes)",
+        "slot 5: tim_pack (51200 bytes)",
+        "slot 6: tim_pack (92160 bytes)",
+        "slot 7: tim_pack (43008 bytes)",
+        "slot 8: tim_pack (428032 bytes)",
+        "slot 9: pack (83968 bytes)",
+        "slot 10: raw (34816 bytes)"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc4/disc.img.bytes"
+    },
+    {
+      "account": {
+        "parsed": 670074,
+        "raw_named": 190017,
+        "unexplained": 0,
+        "zero_padding": 18501
+      },
+      "bytes": 878592,
+      "counts": {
+        "effect_lists": 12,
+        "effect_records": 28,
+        "encounter_records": 355,
+        "eva_raw_bytes": 156,
+        "image_entries": 11,
+        "nwb_blocks": 1,
+        "nwb_cells": 4,
+        "nwb_gap_zero_bytes": 1336,
+        "nwb_surfaces": 512,
+        "nwb_texture_region_nonzero_bytes": 0,
+        "nwb_vertices": 324,
+        "pack_segments": 317,
+        "special_encounter_groups": 9,
+        "texture_project_entries": 30,
+        "tim_images": 218,
+        "uncovered_sectors": 0
+      },
+      "failures": [],
+      "kind": "disc_image",
+      "notes": [
+        "slot 0: tim_pack (43008 bytes)",
+        "slot 1: frame_pack (90112 bytes)",
+        "slot 2: raw (4096 bytes)",
+        "slot 3: raw (4096 bytes)",
+        "slot 4: raw (2048 bytes)",
+        "slot 5: tim_pack (51200 bytes)",
+        "slot 6: tim_pack (92160 bytes)",
+        "slot 7: tim_pack (43008 bytes)",
+        "slot 8: tim_pack (428032 bytes)",
+        "slot 9: pack (83968 bytes)",
+        "slot 10: raw (34816 bytes)"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc4/discmr.img.bytes"
+    },
+    {
+      "account": {
+        "parsed": 132,
+        "raw_named": 82724,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 82856,
+      "counts": {
+        "pack_segments": 32,
+        "tim_images": 0
+      },
+      "failures": [],
+      "kind": "pack",
+      "notes": [
+        "segments are not TIM images; format not defined by Memoria"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc4/dyna4.ntp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 17850,
+        "raw_named": 69932,
+        "unexplained": 0,
+        "zero_padding": 1338
+      },
+      "bytes": 89120,
+      "counts": {
+        "effect_lists": 12,
+        "effect_records": 28,
+        "encounter_records": 355,
+        "eva_raw_bytes": 156,
+        "nwb_blocks": 1,
+        "nwb_cells": 4,
+        "nwb_gap_zero_bytes": 1336,
+        "nwb_surfaces": 512,
+        "nwb_texture_region_nonzero_bytes": 0,
+        "nwb_vertices": 324,
+        "pack_segments": 67,
+        "special_encounter_groups": 9,
+        "texture_project_entries": 30
+      },
+      "failures": [],
+      "kind": "frame_pack",
+      "notes": [],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc4/fx.ntp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 0,
+        "raw_named": 3842,
+        "unexplained": 0,
+        "zero_padding": 254
+      },
+      "bytes": 4096,
+      "counts": {},
+      "failures": [],
+      "kind": "nwp_model_table",
+      "notes": [
+        "PSX model table (also the first 4096 bytes of the .nwp); not read by Memoria"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc4/model_h.hed.bytes"
+    },
+    {
+      "account": {
+        "parsed": 0,
+        "raw_named": 5765120,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 5765120,
+      "counts": {
+        "sectors": 2815
+      },
+      "failures": [],
+      "kind": "nwp_model_table",
+      "notes": [
+        "PSX model data: 4096-byte table then sector-aligned blocks; not read by Memoria"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc4/model_hm.nwp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 0,
+        "raw_named": 3842,
+        "unexplained": 0,
+        "zero_padding": 254
+      },
+      "bytes": 4096,
+      "counts": {},
+      "failures": [],
+      "kind": "nwp_model_table",
+      "notes": [
+        "PSX model table (also the first 4096 bytes of the .nwp); not read by Memoria"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc4/model_v.hed.bytes"
+    },
+    {
+      "account": {
+        "parsed": 0,
+        "raw_named": 5765120,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 5765120,
+      "counts": {
+        "sectors": 2815
+      },
+      "failures": [],
+      "kind": "nwp_model_table",
+      "notes": [
+        "PSX model data: 4096-byte table then sector-aligned blocks; not read by Memoria"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc4/model_vm.nwp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 426364,
+        "raw_named": 0,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 426364,
+      "counts": {
+        "pack_segments": 150,
+        "tim_images": 150
+      },
+      "failures": [],
+      "kind": "tim_pack",
+      "notes": [],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/disc4/static.ntp.bytes"
+    },
+    {
+      "account": {
+        "parsed": 480,
+        "raw_named": 0,
+        "unexplained": 0,
+        "zero_padding": 0
+      },
+      "bytes": 480,
+      "counts": {
+        "grid_cells": 480,
+        "max_value": 16
+      },
+      "failures": [],
+      "kind": "grid_map",
+      "notes": [
+        "one byte per world block (24 columns x 20 rows, matching the disc-1 block prefab grid); meaning of the value is not defined by Memoria"
+      ],
+      "parsed_ok": true,
+      "path": "assets/resources/worldmap/wmap/map.bin.bytes"
+    }
+  ],
+  "wmap_bytes_parsed": 3859376,
+  "wmap_bytes_raw_named": 24174052,
+  "wmap_bytes_total": 28111220,
+  "wmap_bytes_unexplained": 0,
+  "wmap_bytes_zero_padding": 77792,
+  "wmap_failures": 0
+}

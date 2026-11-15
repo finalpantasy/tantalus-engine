@@ -15,6 +15,7 @@ pub mod text_asset;
 pub mod texture;
 pub mod unity_object;
 pub mod unity_raw;
+pub mod world_map;
 
 use crate::install::ImportError;
 use serde::{Deserialize, Serialize};
