@@ -1748,12 +1748,12 @@ fn run_scenario(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>]`, `assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--out <path>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 
@@ -2006,11 +2006,21 @@ fn run_assets_inspect_serialized(args: Vec<OsString>) -> Result<(), String> {
     let mut out = None;
     let mut mes = None;
     let mut mes_all = false;
+    let mut ui_atlases = false;
+    let mut atlas_png: Option<(String, PathBuf)> = None;
     let mut index = 2;
     while index < args.len() {
         match args[index].to_str() {
             Some("--json") => json = true,
             Some("--mes-all") => mes_all = true,
+            Some("--ui-atlases") => ui_atlases = true,
+            Some("--atlas-png") => {
+                let (Some(name), Some(out)) = (args.get(index + 1), args.get(index + 2)) else {
+                    return Err("`--atlas-png` requires <name> <out>".to_owned());
+                };
+                atlas_png = Some((name.to_string_lossy().into_owned(), PathBuf::from(out)));
+                index += 2;
+            }
             Some(flag @ ("--path" | "--out" | "--mes")) => {
                 index += 1;
                 let value = args
@@ -2035,6 +2045,9 @@ fn run_assets_inspect_serialized(args: Vec<OsString>) -> Result<(), String> {
         index += 1;
     }
     let path = path.ok_or_else(|| "missing required `--path <file>`".to_owned())?;
+    if ui_atlases || atlas_png.is_some() {
+        return run_ui_atlases(&path, ui_atlases, atlas_png, out, json);
+    }
     let mut file = StandaloneSerialized::open(&path).map_err(|error| error.to_string())?;
     if mes.is_some() || mes_all {
         return run_mes_dump(&mut file, mes.as_deref(), json);
@@ -2075,6 +2088,96 @@ fn run_assets_inspect_serialized(args: Vec<OsString>) -> Result<(), String> {
                 println!("      ... {} more names", class.names.len() - 20);
             }
         }
+    }
+    Ok(())
+}
+
+fn run_ui_atlases(
+    path: &std::path::Path,
+    list: bool,
+    atlas_png: Option<(String, PathBuf)>,
+    out: Option<PathBuf>,
+    json: bool,
+) -> Result<(), String> {
+    use tantalus_assets::pc::ui_atlas::{
+        atlas_texture_rgba, encode_png_rgba, scan_ui, scan_ui_dir,
+    };
+    if let Some((name, target)) = atlas_png {
+        let (width, height, rgba) =
+            atlas_texture_rgba(path, &name).map_err(|error| error.to_string())?;
+        std::fs::write(&target, encode_png_rgba(width, height, &rgba))
+            .map_err(|error| format!("could not write {}: {error}", target.display()))?;
+        println!("{name}: {width}x{height} -> {}", target.display());
+        if !list {
+            return Ok(());
+        }
+    }
+    let (scans, unreadable) = if path.is_dir() {
+        scan_ui_dir(path).map_err(|error| error.to_string())?
+    } else {
+        (
+            vec![scan_ui(path).map_err(|error| error.to_string())?],
+            Vec::new(),
+        )
+    };
+    let unreadable: Vec<_> = unreadable
+        .into_iter()
+        .map(|(file, error)| serde_json::json!({ "file": file, "error": error }))
+        .collect();
+    let report = serde_json::json!({
+        "note": "UIAtlas/UIFont MonoBehaviours decoded from standalone Unity files; names, counts and sizes only, no pixel data.",
+        "files": scans,
+        "unreadable": unreadable,
+    });
+    let rendered = serde_json::to_string_pretty(&report)
+        .map_err(|error| format!("could not serialize UI report: {error}"))?;
+    if let Some(out) = out {
+        std::fs::write(
+            &out,
+            format!(
+                "{rendered}
+"
+            ),
+        )
+        .map_err(|error| format!("could not write {}: {error}", out.display()))?;
+    }
+    if json {
+        println!("{rendered}");
+        return Ok(());
+    }
+    for scan in &scans {
+        if scan.atlases.is_empty() && scan.fonts.is_empty() && scan.failures.is_empty() {
+            continue;
+        }
+        println!("{}: {} MonoBehaviours", scan.file, scan.mono_behaviours);
+        for atlas in &scan.atlases {
+            let size = atlas.texture.as_ref().map_or("unresolved".to_owned(), |t| {
+                format!("{}x{} {}", t.width, t.height, t.name)
+            });
+            println!(
+                "  atlas {:<28} {:>4} sprites  {size}",
+                atlas.name, atlas.sprite_count
+            );
+        }
+        for font in &scan.fonts {
+            let size = font.texture.as_ref().map_or("no texture".to_owned(), |t| {
+                format!("{}x{} {}", t.width, t.height, t.name)
+            });
+            let atlas = font.atlas.as_deref().unwrap_or("-");
+            println!(
+                "  font  {:<28} {:>4} glyphs  atlas {atlas}  {size}",
+                font.name, font.glyph_count
+            );
+        }
+        for failure in &scan.failures {
+            println!(
+                "  FAIL {} {}: {}",
+                failure.script, failure.path_id, failure.message
+            );
+        }
+    }
+    for item in &unreadable {
+        println!("unreadable: {item}");
     }
     Ok(())
 }
