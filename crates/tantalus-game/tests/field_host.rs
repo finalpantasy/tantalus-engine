@@ -155,3 +155,74 @@ fn bgi_queries_resolve_through_the_navigation_mesh() {
     assert_eq!(host.read_bgi_character_floor(7).unwrap(), 0);
     assert!(host.read_bgi_character_triangle(99).is_err());
 }
+
+#[test]
+fn object_member_reads_use_reference_member_semantics() {
+    use tantalus_legacy::ObjectMemberRef;
+
+    let mut world = FieldWorld::new();
+    world.add_actor(actor(1), [10.0, -4.0, 7.0]);
+    world.map_uid(7, actor(1));
+    let mut host = FieldHost::new(&mut world);
+
+    // 0 pos.x, 1 -pos.y, 2 pos.z with the checking rule.
+    assert_eq!(
+        host.read_object_member(ObjectMemberRef {
+            object: actor(1),
+            member: 0,
+        })
+        .unwrap(),
+        10
+    );
+    assert_eq!(
+        host.read_object_member(ObjectMemberRef {
+            object: actor(1),
+            member: 1,
+        })
+        .unwrap(),
+        4
+    );
+    assert_eq!(
+        host.read_object_member(ObjectMemberRef {
+            object: actor(1),
+            member: 2,
+        })
+        .unwrap(),
+        7
+    );
+    // 5 uid resolves through the reverse UID map.
+    assert_eq!(
+        host.read_object_member(ObjectMemberRef {
+            object: actor(1),
+            member: 5,
+        })
+        .unwrap(),
+        7
+    );
+    // Unbacked members and unknown actors stay explicit.
+    assert!(
+        host.read_object_member(ObjectMemberRef {
+            object: actor(1),
+            member: 4,
+        })
+        .is_err()
+    );
+    assert!(
+        host.read_object_member(ObjectMemberRef {
+            object: actor(99),
+            member: 0,
+        })
+        .is_err()
+    );
+    // Halfway floats round away from zero in the reference, matching ceil.
+    world.actors.get_mut(&actor(1)).unwrap().position = [0.5, 0.0, 0.0];
+    let mut host = FieldHost::new(&mut world);
+    assert_eq!(
+        host.read_object_member(ObjectMemberRef {
+            object: actor(1),
+            member: 0,
+        })
+        .unwrap(),
+        1
+    );
+}

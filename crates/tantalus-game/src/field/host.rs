@@ -19,6 +19,20 @@ impl<'a> FieldHost<'a> {
         Self { world }
     }
 
+    /// Reference CastFloatToIntWithChecking: round when unambiguous, else -1.
+    fn cast_float_with_checking(value: f32) -> i32 {
+        let floor = value.floor() as i32;
+        let ceil = value.ceil() as i32;
+        let round = value.round() as i32;
+        if round == ceil {
+            ceil
+        } else if round == floor {
+            floor
+        } else {
+            -1
+        }
+    }
+
     fn unknown(feature: &str) -> EngineError {
         EngineError::new(
             ErrorCategory::UnknownContent,
@@ -70,6 +84,23 @@ impl<'a> FieldHost<'a> {
 impl LegacyEventHost for FieldHost<'_> {
     fn apply(&mut self, events: &[HostEvent]) -> Result<(), EngineError> {
         for event in events {
+            // v1 member-target tracking: the reference resolves member
+            // reads against the executing object; the closest observable
+            // proxy at apply time is the actor an event operates on.
+            match event {
+                HostEvent::WalkActor { actor, .. }
+                | HostEvent::PlayAnimation { actor, .. }
+                | HostEvent::StopAnimation { actor }
+                | HostEvent::StartActorTurn { actor, .. }
+                | HostEvent::SetupJump { actor, .. }
+                | HostEvent::ProgressJump { actor }
+                | HostEvent::MoveActorToExit { actor }
+                | HostEvent::SetActorPosition { actor, .. }
+                | HostEvent::WalkTowardObject { actor, .. } => {
+                    self.world.set_current_actor(Some(*actor));
+                }
+                _ => {}
+            }
             match event {
                 HostEvent::ShowWindow { window, .. }
                 | HostEvent::ShowObjectWindow { window, .. } => {
@@ -280,7 +311,30 @@ impl LegacyEventHost for FieldHost<'_> {
         {
             return Ok(value);
         }
-        Err(Self::unknown("object member read"))
+        let state = self
+            .world
+            .actors
+            .get(&reference.object)
+            .ok_or_else(|| Self::unknown("object member read for an unknown actor"))?;
+        // Reference getvobj members (EBin.cs): 0 pos.x, 1 -pos.y, 2 pos.z
+        // (floats converted with the floor/ceil/round checking rule), 3
+        // facing fixed-point, 4 flags, 5 uid, 6 level, 7 anim frame.
+        let position = match reference.member {
+            0 => Some(state.position[0]),
+            1 => Some(-state.position[1]),
+            2 => Some(state.position[2]),
+            _ => None,
+        };
+        if let Some(value) = position {
+            return Ok(Self::cast_float_with_checking(value));
+        }
+        match reference.member {
+            5 => self
+                .world
+                .uid_of(reference.object)
+                .ok_or_else(|| Self::unknown("object member uid without a UID mapping")),
+            _ => Err(Self::unknown("object member read is not backed yet")),
+        }
     }
 
     fn select_object_member_target(&mut self, slot: Option<u8>) -> Result<EntityId, EngineError> {

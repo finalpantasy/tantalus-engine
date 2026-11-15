@@ -339,6 +339,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut field_execute = None;
     let mut all_functions = false;
     let mut orchestrate = false;
+    let mut scan_requests = false;
     let mut atan_table = None;
     let mut navigation_bundle = None;
     let mut navigation_bgi = None;
@@ -386,6 +387,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             }
             Some("--all-functions") => all_functions = true,
             Some("--orchestrate") => orchestrate = true,
+            Some("--scan-requests") => scan_requests = true,
             Some("--navigation-bundle") => {
                 index += 1;
                 let value = args
@@ -695,6 +697,65 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         }
         return Ok(());
     }
+    if scan_requests {
+        let bytes = bundle
+            .read_entry(0, 300 * 1024 * 1024)
+            .map_err(|error| error.to_string())?;
+        let serialized =
+            tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
+                .map_err(|error| error.to_string())?;
+        let mut candidates = Vec::new();
+        let mut scanned = 0usize;
+        for (index, object) in serialized.report().objects.iter().enumerate() {
+            if object.class_id != 49 {
+                continue;
+            }
+            let data = match serialized.object_data(index) {
+                Ok(data) => data,
+                Err(_) => continue,
+            };
+            let name_probe = String::new();
+            let asset = match tantalus_assets::pc::text_asset::TextAsset::parse(data, &name_probe) {
+                Ok(asset) => asset,
+                Err(_) => continue,
+            };
+            if !asset.name.ends_with(".eb") {
+                continue;
+            }
+            scanned += 1;
+            let Ok(binary) = tantalus_legacy::EventBinary::parse(&asset.script) else {
+                continue;
+            };
+            for entry in &binary.entries {
+                let Ok(decoded) = binary.decode_entry_with_diagnostics(entry.index) else {
+                    continue;
+                };
+                let has_request = decoded.functions.iter().any(|function| {
+                    function.program.instructions.values().any(|instruction| {
+                        matches!(
+                            instruction.kind,
+                            tantalus_legacy::InstructionKind::RequestScriptAsync { .. }
+                                | tantalus_legacy::InstructionKind::RequestScriptSync { .. }
+                                | tantalus_legacy::InstructionKind::RequestCallerAsync { .. }
+                                | tantalus_legacy::InstructionKind::RequestCallerSync { .. }
+                                | tantalus_legacy::InstructionKind::RunSharedScript { .. }
+                        )
+                    })
+                });
+                if has_request {
+                    candidates.push(asset.name.clone());
+                    break;
+                }
+            }
+        }
+        let report = serde_json::json!({
+            "bundle": path.file_name().map(|n| n.to_string_lossy().into_owned()),
+            "event_assets_scanned": scanned,
+            "requesting_archives": candidates,
+        });
+        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        return Ok(());
+    }
     if let Some(name) = field_execute {
         let bytes = bundle
             .read_entry(0, 300 * 1024 * 1024)
@@ -814,6 +875,20 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             director.world_mut().add_actor(entity, [0.0; 3]);
             Ok(Some((entity, *function_tag)))
         };
+        // Objects exist at field start: every entry has a base actor keyed by
+        // its index (the uid convention), so member reads against objects an
+        // entry's init has not run yet still resolve to real state.
+        for entry in 0..pool.len() {
+            let base = tantalus_contracts::EntityId::new(entry as u64);
+            director.world_mut().add_actor(base, [0.0; 3]);
+            director.world_mut().map_uid(entry as i32, base);
+        }
+        // Slots 251..255 are the always-present party member objects.
+        for slot in 251u64..256 {
+            let entity = tantalus_contracts::EntityId::new(slot);
+            director.world_mut().add_actor(entity, [0.0; 3]);
+            director.world_mut().map_uid(slot as i32, entity);
+        }
         if orchestrate {
             for (entry, functions) in pool.iter().enumerate() {
                 if functions.is_empty() {

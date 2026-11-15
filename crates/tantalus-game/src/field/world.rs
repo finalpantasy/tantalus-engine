@@ -116,6 +116,9 @@ pub struct FieldWorld {
     /// Field walkmesh backing BGI character queries; absent until the caller
     /// imports the field's navigation mesh.
     navigation: Option<FieldNavigationMesh>,
+    /// Last actor observed in applied host events; v1 stand-in for the
+    /// reference's current-executing-object member target.
+    current_actor: Option<EntityId>,
 }
 
 impl Default for FieldWorld {
@@ -155,6 +158,7 @@ impl FieldWorld {
             applied_resolutions: BTreeSet::new(),
             atan_table: None,
             navigation: None,
+            current_actor: None,
         }
     }
 
@@ -299,7 +303,19 @@ impl FieldWorld {
     }
 
     pub(crate) fn member_target(&self) -> Option<EntityId> {
-        self.member_target
+        self.member_target.or(self.current_actor)
+    }
+
+    pub(crate) fn set_current_actor(&mut self, actor: Option<EntityId>) {
+        self.current_actor = actor;
+    }
+
+    /// Reverse UID lookup for member reads.
+    pub(crate) fn uid_of(&self, entity: EntityId) -> Option<i32> {
+        self.uid_map
+            .iter()
+            .find(|(_, mapped)| **mapped == entity)
+            .map(|(uid, _)| *uid)
     }
 
     pub(crate) fn set_member_target(&mut self, target: Option<EntityId>) {
