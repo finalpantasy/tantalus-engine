@@ -139,6 +139,7 @@ pub enum InstructionKind {
     SetIdleAnimation(Expression),
     SetWalkAnimation(Expression),
     SetRunAnimation(Expression),
+    PlayAnimation(Expression),
     SetLeftTurnAnimation(Expression),
     SetRightTurnAnimation(Expression),
     SetJumpAnimation {
@@ -421,6 +422,10 @@ pub enum HostEvent {
         animation: u16,
     },
     SetRunAnimation {
+        actor: EntityId,
+        animation: u16,
+    },
+    PlayAnimation {
         actor: EntityId,
         animation: u16,
     },

@@ -360,6 +360,20 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetRunAnimation { actor, animation });
                 }
+                InstructionKind::PlayAnimation(animation) => {
+                    let animation =
+                        self.evaluate(host, &animation, instruction.offset, opcode)? as u16;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "animation playback requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::PlayAnimation { actor, animation });
+                }
                 InstructionKind::SetWalkAnimation(animation) => {
                     let animation =
                         self.evaluate(host, &animation, instruction.offset, opcode)? as u16;
@@ -1937,6 +1951,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetIdleAnimation { .. } => 0x33,
         InstructionKind::SetWalkAnimation { .. } => 0x34,
         InstructionKind::SetRunAnimation { .. } => 0x35,
+        InstructionKind::PlayAnimation { .. } => 0x40,
         InstructionKind::SetLeftTurnAnimation { .. } => 0x7a,
         InstructionKind::SetRightTurnAnimation { .. } => 0x7b,
         InstructionKind::SetJumpAnimation { .. } => 0x94,

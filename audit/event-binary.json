@@ -155,7 +155,8 @@
     "FMV 0x28 decodes two byte operands and emits DispatchCinematic with the operation, argument, and a repeated first-operand evaluation",
     "QUAD 0x29 decodes an 8-bit count and up to eight signed 16-bit X/Z pairs, then emits DefineRegion for the current object",
     "CLEARSTATUS 0xD9 emits ClearPartyStatus with raw character and status-mask operands",
-    "B_AND 36 evaluates ordinary bitwise intersection through the shared binary expression path"
+    "B_AND 36 evaluates ordinary bitwise intersection through the shared binary expression path",
+    "ANIM 0x40 emits PlayAnimation for the current actor with an unsigned 16-bit ID and no implicit wait"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -240,10 +241,10 @@
     "entries": [11, 12],
     "function": 1,
     "function_tag": 2,
-    "offset": 112,
-    "opcode": 64,
+    "offset": 200,
+    "opcode": 253,
     "kind": "UnsupportedOpcode",
-    "instruction": "ANIM event opcode 0x40 after status clearing and ordinary bitwise AND support"
+    "instruction": "event opcode 0xFD after current-actor animation playback support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

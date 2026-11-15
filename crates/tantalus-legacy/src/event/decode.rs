@@ -15,6 +15,7 @@ const OP_SET_ACTOR_POSITION: u32 = 0x1d;
 const OP_SET_IDLE_ANIMATION: u32 = 0x33;
 const OP_SET_WALK_ANIMATION: u32 = 0x34;
 const OP_SET_RUN_ANIMATION: u32 = 0x35;
+const OP_PLAY_ANIMATION: u32 = 0x40;
 const OP_PRINT_QUAD: u32 = 0x78;
 const OP_SET_LEFT_TURN_ANIMATION: u32 = 0x7a;
 const OP_SET_RIGHT_TURN_ANIMATION: u32 = 0x7b;
@@ -337,6 +338,18 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::SetRunAnimation(animation)
+            }
+            OP_PLAY_ANIMATION => {
+                let flags = self.byte()?;
+                let animation = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.i16()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::PlayAnimation(animation)
             }
             OP_SET_WALK_ANIMATION => {
                 let flags = self.byte()?;

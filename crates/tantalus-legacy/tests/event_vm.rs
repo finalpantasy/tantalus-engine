@@ -190,6 +190,7 @@ impl LegacyEventHost for Host {
                 HostEvent::DispatchCinematic { .. } => {}
                 HostEvent::DefineRegion { .. } => {}
                 HostEvent::ClearPartyStatus { .. } => {}
+                HostEvent::PlayAnimation { .. } => {}
             }
         }
         Ok(())
@@ -754,6 +755,42 @@ fn bitwise_and_evaluates_the_shared_binary_expression_path() {
             statuses: 85
         }]
     );
+}
+
+#[test]
+fn play_animation_uses_the_current_actor_and_unsigned_animation_id() {
+    let program = decode_program(&[64, 0, 0x34, 0x12, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::PlayAnimation {
+            actor: EntityId::new(42),
+            animation: 0x1234
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![64, 1];
+    append_expression(&mut bytes, constant(300));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap()).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::PlayAnimation {
+            actor: EntityId::new(42),
+            animation: 300
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[64, 0, 1, 0, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
+    assert!(decode_program(&[64, 0, 1]).is_err());
 }
 
 #[test]
