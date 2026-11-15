@@ -97,6 +97,14 @@ const OP_BATTLE_SCENE_START: u32 = 0x100;
 const OP_SET_SIMULATION_FLOOR: u32 = 0x104;
 const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
 const OP_SET_TILE_ANIMATION_RATE: u32 = 0x61;
+const OP_DISABLE_USER_CONTROL: u32 = 0x2d;
+const OP_ENABLE_USER_CONTROL: u32 = 0x2e;
+const OP_RUN_SHARED_SCRIPT: u32 = 0x43;
+const OP_TURN_TOWARD_OBJECT: u32 = 0x51;
+const OP_SHOW_BUBBLE_ICON: u32 = 0x68;
+const OP_SET_FIELD_CAMERA: u32 = 0x7e;
+const OP_RAISE_WINDOWS: u32 = 0x8e;
+const OP_CALCULATE_SCREEN_ORIGIN: u32 = 0xea;
 const OP_SHOW_OBJECT_MESHES: u32 = 0x39;
 const OP_HIDE_OBJECT_MESHES: u32 = 0x3a;
 const OP_SET_OBJECT_INDEX: u32 = 0x3b;
@@ -2151,6 +2159,37 @@ impl Decoder<'_> {
                 };
                 InstructionKind::SetFieldName {
                     text: argument(1, true)?,
+                }
+            }
+            OP_DISABLE_USER_CONTROL | OP_ENABLE_USER_CONTROL => InstructionKind::SetUserControl {
+                enabled: opcode == OP_ENABLE_USER_CONTROL,
+                opcode: opcode as u8,
+            },
+            OP_RAISE_WINDOWS => InstructionKind::RaiseWindows,
+            OP_CALCULATE_SCREEN_ORIGIN => InstructionKind::CalculateScreenOrigin,
+            OP_RUN_SHARED_SCRIPT => {
+                let flags = self.byte()?;
+                InstructionKind::RunSharedScript {
+                    entry: self.operand(flags, 1, false)?,
+                }
+            }
+            OP_TURN_TOWARD_OBJECT => {
+                let flags = self.byte()?;
+                InstructionKind::TurnTowardObject {
+                    target: self.operand(flags, 1, false)?,
+                    speed: self.operand(flags, 2, false)?,
+                }
+            }
+            OP_SHOW_BUBBLE_ICON => {
+                let flags = self.byte()?;
+                InstructionKind::ShowBubbleIcon {
+                    icon: self.operand(flags, 1, false)?,
+                }
+            }
+            OP_SET_FIELD_CAMERA => {
+                let flags = self.byte()?;
+                InstructionKind::SetFieldCamera {
+                    camera: self.operand(flags, 1, false)?,
                 }
             }
             OP_SET_TILE_ANIMATION_FLAGS => {

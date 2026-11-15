@@ -241,6 +241,13 @@ impl LegacyEventHost for Host {
                 HostEvent::SetTimerTime { .. } => {}
                 HostEvent::EnableDialogChoices { .. } => {}
                 HostEvent::SetFieldName { .. } => {}
+                HostEvent::SetUserControl { .. } => {}
+                HostEvent::RaiseWindows => {}
+                HostEvent::CalculateScreenOrigin => {}
+                HostEvent::RunSharedScript { .. } => {}
+                HostEvent::TurnTowardObject { .. } => {}
+                HostEvent::ShowBubbleIcon { .. } => {}
+                HostEvent::SetFieldCamera { .. } => {}
                 HostEvent::SetTileAnimationRate { .. } => {}
                 HostEvent::SetTileAnimationFrameWait { .. } => {}
                 HostEvent::SetTileAnimationFlags { .. } => {}
@@ -6092,6 +6099,78 @@ fn mesh_timer_and_dialog_commands_decode_operands() {
     let truncated = decode_program(&[105, 0, 1]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(105)"));
+}
+
+#[test]
+fn user_control_raise_windows_and_screen_origin_are_operand_less_host_commands() {
+    let mut host = Host::new();
+    for (opcode, expected) in [
+        (0x2du8, HostEvent::SetUserControl { enabled: false }),
+        (0x2e, HostEvent::SetUserControl { enabled: true }),
+        (0x8e, HostEvent::RaiseWindows),
+        (0xea, HostEvent::CalculateScreenOrigin),
+    ] {
+        let program = decode_program(&[opcode, 4]).unwrap();
+        assert_eq!(program.instructions[&0].length, 1, "opcode {opcode:#04x}");
+        let mut vm = EventVm::new(program);
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(report.events, [expected]);
+        assert!(
+            vm.traces()
+                .any(|trace| trace.opcode == Some(u32::from(opcode)))
+        );
+        assert_eq!(report.status, VmStatus::Completed);
+    }
+}
+
+#[test]
+fn camera_bubble_script_and_turn_commands_decode_flag_bit_operands() {
+    let actor = EntityId::new(9);
+    let mut host = Host::new();
+
+    let mut vm = EventVm::new(decode_program(&[0x7e, 0, 2, 4]).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::SetFieldCamera { camera: 2 }]);
+
+    let mut bytes = vec![0x68, 1];
+    append_expression(&mut bytes, constant(5));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::ShowBubbleIcon { icon: 5 }]);
+
+    let mut vm = EventVm::new(decode_program(&[0x43, 0, 13, 4]).unwrap()).with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RunSharedScript { actor, entry: 13 }]
+    );
+    let mut vm = EventVm::new(decode_program(&[0x43, 0, 13, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
+
+    let mut vm = EventVm::new(decode_program(&[0x51, 0, 250, 4, 4]).unwrap()).with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::TurnTowardObject {
+            actor,
+            target: 250,
+            speed: 4,
+        }]
+    );
+
+    let mut bytes = vec![0x51, 0b01, 0];
+    append_expression(&mut bytes, constant(-1));
+    bytes.extend_from_slice(&[4, 4]);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap()).with_entity(actor);
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert!(error.message.contains("cannot be negative"));
+
+    let truncated = decode_program(&[0x51, 0, 1]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(81)"));
 }
 
 #[test]

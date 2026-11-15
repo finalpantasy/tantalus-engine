@@ -535,6 +535,25 @@ pub enum InstructionKind {
     SetFieldName {
         text: Expression,
     },
+    SetUserControl {
+        enabled: bool,
+        opcode: u8,
+    },
+    RaiseWindows,
+    CalculateScreenOrigin,
+    RunSharedScript {
+        entry: Expression,
+    },
+    TurnTowardObject {
+        target: Expression,
+        speed: Expression,
+    },
+    ShowBubbleIcon {
+        icon: Expression,
+    },
+    SetFieldCamera {
+        camera: Expression,
+    },
     SetTileAnimationRate {
         animation: Expression,
         frame_rate: Expression,
@@ -1141,6 +1160,26 @@ pub enum HostEvent {
     },
     SetFieldName {
         text: i32,
+    },
+    SetUserControl {
+        enabled: bool,
+    },
+    RaiseWindows,
+    CalculateScreenOrigin,
+    RunSharedScript {
+        actor: EntityId,
+        entry: i32,
+    },
+    TurnTowardObject {
+        actor: EntityId,
+        target: i32,
+        speed: i32,
+    },
+    ShowBubbleIcon {
+        icon: i32,
+    },
+    SetFieldCamera {
+        camera: i32,
     },
     SetTileAnimationRate {
         animation: i32,

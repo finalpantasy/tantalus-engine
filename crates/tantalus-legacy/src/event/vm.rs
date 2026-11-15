@@ -1581,6 +1581,66 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetFieldName { text });
                 }
+                InstructionKind::SetUserControl { enabled, .. } => {
+                    self.pc = next;
+                    events.push(HostEvent::SetUserControl { enabled });
+                }
+                InstructionKind::RaiseWindows => {
+                    self.pc = next;
+                    events.push(HostEvent::RaiseWindows);
+                }
+                InstructionKind::CalculateScreenOrigin => {
+                    self.pc = next;
+                    events.push(HostEvent::CalculateScreenOrigin);
+                }
+                InstructionKind::RunSharedScript { entry } => {
+                    let entry = self.evaluate(host, &entry, instruction.offset, opcode)?;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "shared script requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::RunSharedScript { actor, entry });
+                }
+                InstructionKind::TurnTowardObject { target, speed } => {
+                    let target = self.evaluate(host, &target, instruction.offset, opcode)?;
+                    let speed = self.evaluate(host, &speed, instruction.offset, opcode)?;
+                    if target < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "turn requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::TurnTowardObject {
+                        actor,
+                        target,
+                        speed,
+                    });
+                }
+                InstructionKind::ShowBubbleIcon { icon } => {
+                    let icon = self.evaluate(host, &icon, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::ShowBubbleIcon { icon });
+                }
+                InstructionKind::SetFieldCamera { camera } => {
+                    let camera = self.evaluate(host, &camera, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetFieldCamera { camera });
+                }
                 InstructionKind::SetTileAnimationRate {
                     animation,
                     frame_rate,
@@ -3215,6 +3275,13 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
         InstructionKind::SetTileAnimationFlags { .. } => 0x64,
         InstructionKind::SetTileAnimationRange { .. } => 0x65,
+        InstructionKind::SetUserControl { opcode, .. } => u32::from(*opcode),
+        InstructionKind::RaiseWindows => 0x8e,
+        InstructionKind::CalculateScreenOrigin => 0xea,
+        InstructionKind::RunSharedScript { .. } => 0x43,
+        InstructionKind::TurnTowardObject { .. } => 0x51,
+        InstructionKind::ShowBubbleIcon { .. } => 0x68,
+        InstructionKind::SetFieldCamera { .. } => 0x7e,
         InstructionKind::ShowObjectMeshes { .. } => 0x39,
         InstructionKind::HideObjectMeshes { .. } => 0x3a,
         InstructionKind::SetObjectIndex { .. } => 0x3b,
