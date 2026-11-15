@@ -427,3 +427,31 @@ fn nonzero_member_selection_shift_assignment_is_explicitly_rejected() {
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert!(error.message.contains("object-slot host"));
 }
+
+#[test]
+fn logical_operators_skip_or_execute_right_side_effects_correctly() {
+    for (left, opcode, expected_result, expected_side_effect) in
+        [(0, 39, 0, 0), (1, 39, 0, -1), (1, 40, 1, 0), (0, 40, 0, -1)]
+    {
+        let side_target = variable(VariableScope::Map, VariableType::Int16, 21);
+        let result_target = variable(VariableScope::Global, VariableType::Int16, 10);
+        let expression = assign(
+            result_target,
+            [constant(left), side_target, vec![5], vec![opcode]].concat(),
+        );
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+        vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(
+            vm.variable(VariableScope::Global, 10),
+            expected_result,
+            "result for left={left} opcode={opcode}"
+        );
+        assert_eq!(
+            vm.variable(VariableScope::Map, 21),
+            expected_side_effect,
+            "side effect for left={left} opcode={opcode}"
+        );
+    }
+}

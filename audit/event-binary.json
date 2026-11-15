@@ -31,13 +31,14 @@
     "CC 0x2C emits DefinePlayerControl with the current entity; missing context is an explicit error",
     "B_OBJSPECA 0x78 reads a host value by explicit object UID and member ID",
     "0x3B executes empty member selections with reference stack cleanup; nonzero masks remain explicit errors",
-    "expression evaluation returns the top value and permits reference-compatible leftover stack values"
+    "expression evaluation returns the top value and permits reference-compatible leftover stack values",
+    "logical AND 0x27 and OR 0x28 use postfix ranges to skip right-side effects correctly"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 92,
-    "opcode": "0x27",
-    "kind": "logical AND requires short-circuit evaluation"
+    "offset": 117,
+    "opcode": "0x0B",
+    "kind": "member pre-decrement requires member-selection stack support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

@@ -265,7 +265,29 @@ impl EventVm {
         }
 
         let mut stack: Vec<StackValue> = Vec::new();
-        for operation in &expression.0 {
+        let logical_plans = logical_plans(&expression.0, offset, opcode)?;
+        let mut index = 0;
+        while index < expression.0.len() {
+            if let Some(plan) = logical_plans.get(&index) {
+                let left = stack.last().ok_or_else(|| {
+                    expression_error(offset, opcode, "missing short-circuit left operand")
+                })?;
+                let skip = if plan.is_and {
+                    left.value == 0
+                } else {
+                    left.value != 0
+                };
+                if skip {
+                    stack.pop();
+                    stack.push(StackValue {
+                        value: i32::from(!plan.is_and),
+                        variable: None,
+                    });
+                    index = plan.operator_index + 1;
+                    continue;
+                }
+            }
+            let operation = &expression.0[index];
             let binary = |stack: &mut Vec<StackValue>, _operation: &ExpressionOp| {
                 let right = stack
                     .pop()
@@ -329,6 +351,18 @@ impl EventVm {
                     };
                     stack.push(StackValue {
                         value,
+                        variable: None,
+                    });
+                }
+                ExpressionOp::LogicalAnd | ExpressionOp::LogicalOr => {
+                    let (left, right) = binary(&mut stack, operation)?;
+                    let value = match operation {
+                        ExpressionOp::LogicalAnd => left.value != 0 && right.value != 0,
+                        ExpressionOp::LogicalOr => left.value != 0 || right.value != 0,
+                        _ => unreachable!(),
+                    };
+                    stack.push(StackValue {
+                        value: i32::from(value),
                         variable: None,
                     });
                 }
@@ -417,6 +451,7 @@ impl EventVm {
                 }
                 ExpressionOp::End => break,
             }
+            index += 1;
         }
         stack
             .last()
@@ -536,4 +571,76 @@ fn expression_error(offset: u32, opcode: u8, message: impl Into<String>) -> VmEr
         Some(opcode),
         message,
     )
+}
+
+struct LogicalPlan {
+    operator_index: usize,
+    is_and: bool,
+}
+
+fn logical_plans(
+    operations: &[ExpressionOp],
+    offset: u32,
+    opcode: u8,
+) -> Result<BTreeMap<usize, LogicalPlan>, VmError> {
+    let mut plans = BTreeMap::new();
+    for (index, operation) in operations.iter().enumerate() {
+        let is_and = match operation {
+            ExpressionOp::LogicalAnd => true,
+            ExpressionOp::LogicalOr => false,
+            _ => continue,
+        };
+        let right_start = operand_start(operations, index, offset, opcode)?;
+        let _left_start = operand_start(operations, right_start, offset, opcode)?;
+        plans.insert(
+            right_start,
+            LogicalPlan {
+                operator_index: index,
+                is_and,
+            },
+        );
+    }
+    Ok(plans)
+}
+
+fn operand_start(
+    operations: &[ExpressionOp],
+    end: usize,
+    offset: u32,
+    opcode: u8,
+) -> Result<usize, VmError> {
+    if end == 0 {
+        return Err(expression_error(offset, opcode, "missing logical operand"));
+    }
+    let index = end - 1;
+    match operations[index] {
+        ExpressionOp::Constant(_)
+        | ExpressionOp::Variable(_)
+        | ExpressionOp::ReadObjectMember(_)
+        | ExpressionOp::Pad => Ok(index),
+        ExpressionOp::Negate
+        | ExpressionOp::Not
+        | ExpressionOp::PostDecrement
+        | ExpressionOp::PostIncrementMembers => operand_start(operations, index, offset, opcode),
+        ExpressionOp::Add
+        | ExpressionOp::Subtract
+        | ExpressionOp::Multiply
+        | ExpressionOp::Divide
+        | ExpressionOp::Remainder
+        | ExpressionOp::Less
+        | ExpressionOp::Greater
+        | ExpressionOp::Equal
+        | ExpressionOp::NotEqual
+        | ExpressionOp::Assign
+        | ExpressionOp::LogicalAnd
+        | ExpressionOp::LogicalOr => {
+            let right = operand_start(operations, index, offset, opcode)?;
+            operand_start(operations, right, offset, opcode)
+        }
+        ExpressionOp::ShiftRightAssignMembers | ExpressionOp::End => Err(expression_error(
+            offset,
+            opcode,
+            "unsupported stack shape for a short-circuit operand",
+        )),
+    }
 }

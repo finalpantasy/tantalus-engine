@@ -156,6 +156,8 @@ impl Decoder<'_> {
                 EXPR_GREATER => ExpressionOp::Greater,
                 EXPR_EQUAL => ExpressionOp::Equal,
                 EXPR_NOT_EQUAL => ExpressionOp::NotEqual,
+                39 => ExpressionOp::LogicalAnd,
+                40 => ExpressionOp::LogicalOr,
                 EXPR_ASSIGN => ExpressionOp::Assign,
                 120 => ExpressionOp::ReadObjectMember(ObjectMemberRef {
                     object: EntityId::new(self.byte()? as u64),
