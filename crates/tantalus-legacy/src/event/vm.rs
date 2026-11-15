@@ -340,6 +340,26 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::AttachObjectOffset { actor, x, y, z });
                 }
+                InstructionKind::SetActorModel { model, eye_height } => {
+                    let model = self.evaluate(host, &model, instruction.offset, opcode)? as u16;
+                    let eye_height = self
+                        .evaluate(host, &eye_height, instruction.offset, opcode)?
+                        .wrapping_mul(-4) as i16;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "model selection requires current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetActorModel {
+                        actor,
+                        model,
+                        eye_height,
+                    });
+                }
                 InstructionKind::ResetWalkState => {
                     let Some(actor) = self.entity else {
                         return Err(VmError::new(
@@ -1248,6 +1268,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::AttachObjectOffset { .. } => 0xd4,
         InstructionKind::ResetWalkState => 0x25,
         InstructionKind::SetMovementSpeed(_) => 0x26,
+        InstructionKind::SetActorModel { .. } => 0x2f,
         InstructionKind::SetNavigationAttributeMask(_) => 0x27,
         InstructionKind::Yield(opcode) => u32::from(*opcode),
         InstructionKind::SetShadowEnabled(_) => 0x7f,

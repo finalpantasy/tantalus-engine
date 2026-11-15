@@ -31,6 +31,7 @@ const OP_RUN_SOUND: u32 = 0xc5;
 const OP_ATTACH_OBJECT_OFFSET: u32 = 0xd4;
 const OP_RESET_WALK_STATE: u32 = 0x25;
 const OP_SET_MOVEMENT_SPEED: u32 = 0x26;
+const OP_SET_ACTOR_MODEL: u32 = 0x2f;
 const OP_SET_NAVIGATION_ATTRIBUTE_MASK: u32 = 0x27;
 const OP_YIELD: u32 = 0x0e;
 const OP_PADDING17: u32 = 0x17;
@@ -323,6 +324,26 @@ impl Decoder<'_> {
                     ])
                 };
                 InstructionKind::SetMovementSpeed(speed)
+            }
+            OP_SET_ACTOR_MODEL => {
+                let flags = self.byte()?;
+                let model = if flags & 1 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.i16()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                let eye_height = if flags & 2 != 0 {
+                    self.expression()?
+                } else {
+                    Expression(vec![
+                        ExpressionOp::Constant(i32::from(self.byte()?)),
+                        ExpressionOp::End,
+                    ])
+                };
+                InstructionKind::SetActorModel { model, eye_height }
             }
             OP_SET_NAVIGATION_ATTRIBUTE_MASK => {
                 let flags = self.byte()?;

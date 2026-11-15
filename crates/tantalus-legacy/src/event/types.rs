@@ -165,6 +165,10 @@ pub enum InstructionKind {
     },
     ResetWalkState,
     SetMovementSpeed(Expression),
+    SetActorModel {
+        model: Expression,
+        eye_height: Expression,
+    },
     SetNavigationAttributeMask(Expression),
     Yield(u8),
     SetShadowEnabled(bool),
@@ -330,6 +334,11 @@ pub enum HostEvent {
     SetMovementSpeed {
         actor: EntityId,
         speed: u8,
+    },
+    SetActorModel {
+        actor: EntityId,
+        model: u16,
+        eye_height: i16,
     },
     SetNavigationAttributeMask {
         mask: u8,

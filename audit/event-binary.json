@@ -99,7 +99,8 @@
     "MSPEED 0x26 emits actor-bound SetMovementSpeed with immediate/expression byte operands",
     "CLRDIST 0x25 emits actor-bound ResetWalkState and rejects missing actor context",
     "DELETE 0x1C emits typed object deletion and terminates the current entry for target 255",
-    "BSFLOOR 0x104 decodes two unsigned IDs and emits SetSimulationFloor; real entries 4 and 5 truncate before its argument flag"
+    "BSFLOOR 0x104 decodes two unsigned IDs and emits SetSimulationFloor; real entries 4 and 5 truncate before its argument flag",
+    "MODEL 0x2F emits actor-bound SetActorModel with a wide model ID and -4x eye-height operand"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -124,10 +125,10 @@
     "entry": 6,
     "function": 0,
     "function_tag": 0,
-    "offset": 34,
-    "opcode": 47,
+    "offset": 39,
+    "opcode": 29,
     "kind": "UnsupportedOpcode",
-    "instruction": "next non-malformed entry; entries 4 and 5 omit BSFLOOR's argument flag"
+    "instruction": "POS after actor-bound MODEL support; entries 4 and 5 omit BSFLOOR's argument flag"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
