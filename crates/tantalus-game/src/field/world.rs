@@ -99,6 +99,20 @@ pub type FmvFrameCounts = std::sync::Arc<dyn Fn(i32, i32) -> Option<u32> + Send 
 pub type ItemIdMap =
     std::sync::Arc<dyn Fn(&tantalus_contracts::ContentId) -> Option<i32> + Send + Sync>;
 
+/// Builds the default reward-item identity mapping for a vanilla item table:
+/// every supplied legacy id resolves the content identity `ffix:item/<id>`.
+/// Unknown identities resolve to `None` so callers can record them as
+/// unmapped instead of dropping them silently.
+pub fn default_item_id_map(legacy_ids: impl IntoIterator<Item = i32>) -> ItemIdMap {
+    let table: BTreeMap<String, i32> = legacy_ids
+        .into_iter()
+        .map(|id| (format!("ffix:item/{id}"), id))
+        .collect();
+    std::sync::Arc::new(move |content: &tantalus_contracts::ContentId| {
+        table.get(content.as_str()).copied()
+    })
+}
+
 /// Computes a character's stats for a total experience amount; the
 /// provider owns the level tables. Runtime-only.
 pub type LevelGrowth = std::sync::Arc<dyn Fn(i32, u64) -> Option<CharacterStats> + Send + Sync>;

@@ -205,3 +205,29 @@ fn reward_experience_levels_characters_through_the_growth_provider() {
     assert_eq!(bare.character_exp[&0], 120);
     assert!(bare.character_stats.is_empty());
 }
+
+#[test]
+fn default_item_id_map_resolves_vanilla_table_identities() {
+    use tantalus_game::field::world::default_item_id_map;
+
+    let map = default_item_id_map([0, 12, 255]);
+    assert_eq!(map(&ContentId::parse("ffix:item/12").unwrap()), Some(12));
+    assert_eq!(map(&ContentId::parse("ffix:item/0").unwrap()), Some(0));
+    // Identities outside the table are unmapped, never guessed.
+    assert_eq!(map(&ContentId::parse("ffix:item/77").unwrap()), None);
+    assert_eq!(map(&content("item/12")), None);
+
+    // The default map drives real reward application end to end.
+    let mut world = tantalus_game::FieldWorld::new();
+    world.item_id_map = Some(default_item_id_map([12]));
+    let bundle = RewardBundle {
+        resolution_id: 9,
+        experience: 0,
+        gil: 0,
+        items: vec![ContentId::parse("ffix:item/12").unwrap()],
+    };
+    let mut services = WorldGameServices::new(&mut world);
+    services.commit_rewards(&bundle).unwrap();
+    assert_eq!(services.world.items[&12], 1);
+    assert!(services.unmapped_items.is_empty());
+}

@@ -84,7 +84,7 @@ impl EncounterCoordinator {
 /// accepted and ignored so retries cannot double-apply.
 /// Maps a reward item's content identity to the legacy inventory item id
 /// used by field scripts. Runtime behavior, not world state.
-pub type ItemIdMap = std::sync::Arc<dyn Fn(&ContentId) -> Option<i32> + Send + Sync>;
+pub type ItemIdMap = crate::field::world::ItemIdMap;
 
 #[derive(Debug)]
 pub struct WorldGameServices<'a> {

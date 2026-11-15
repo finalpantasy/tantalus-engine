@@ -30,7 +30,7 @@ fn main() -> ExitCode {
 }
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N,...]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N,...]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -49,6 +49,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut character_data: Option<PathBuf> = None;
     let mut game_data: Option<PathBuf> = None;
     let mut mes_map: Option<PathBuf> = None;
+    let mut item_table: Option<PathBuf> = None;
     let mut language = String::from("us");
     let mut choices: BTreeMap<(i32, u16), i32> = BTreeMap::new();
     while let Some(flag) = iter.next() {
@@ -66,6 +67,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
             "--max-fields" => max_fields = parse_number(&value()?, "--max-fields")?,
             "--ticks" => ticks = parse_number(&value()?, "--ticks")?,
             "--character-data" => character_data = Some(PathBuf::from(value()?)),
+            "--item-table" => item_table = Some(PathBuf::from(value()?)),
             "--explore" => explore = true,
             "--walk-demo" => walk_demo = true,
             "--game-data" => game_data = Some(PathBuf::from(value()?)),
@@ -124,6 +126,21 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 }
                 None => BTreeMap::new(),
             };
+            // Reward-item identities: the vanilla item table maps
+            // `ffix:item/<legacy id>` onto the ids field scripts use.
+            let item_ids: Option<Vec<i32>> = match item_table {
+                Some(path) => {
+                    use tantalus_assets::pc::battle_tables::extract_battle_tables;
+                    use tantalus_assets::pc::managed_il::Assembly;
+                    let bytes = std::fs::read(&path)
+                        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+                    let assembly = Assembly::parse(&bytes).map_err(|error| error.to_string())?;
+                    let tables =
+                        extract_battle_tables(&assembly).map_err(|error| error.to_string())?;
+                    Some(tables.items.iter().map(|row| row.id as i32).collect())
+                }
+                None => None,
+            };
             let text = match (game_data.clone(), mes_map) {
                 (Some(data), Some(map_path)) => {
                     // Clone for ChainOptions (the FMV movie inventory).
@@ -153,6 +170,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     choices,
                     game_data,
                     growth_tables,
+                    item_ids,
                 },
             )
         }
@@ -366,6 +384,8 @@ struct ChainOptions {
         BTreeMap<i32, tantalus_game::new_game::BaseStats>,
         Vec<tantalus_game::new_game::LevelRow>,
     )>,
+    /// Vanilla item-table legacy ids for the reward-item identity mapping.
+    item_ids: Option<Vec<i32>>,
 }
 
 /// Per-field text facts the scripted player needs.
@@ -530,6 +550,7 @@ fn chain(
         choices,
         game_data,
         growth_tables,
+        item_ids,
     } = options;
     let mut world = tantalus_game::FieldWorld::new();
     // Movie frame counts for the FMV service: scan the Ogg container of
@@ -579,6 +600,9 @@ fn chain(
     }
     // FF9Play_Init: every character has a player record from new game on.
     world.character_stats = stats;
+    if let Some(ids) = item_ids {
+        world.item_id_map = Some(tantalus_game::field::world::default_item_id_map(ids));
+    }
     if let Some((base, levels)) = growth_tables {
         world.level_growth = Some(std::sync::Arc::new(move |character, total_exp| {
             let base = base.get(&character)?;
