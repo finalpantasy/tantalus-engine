@@ -2371,6 +2371,7 @@ impl EventVm {
         enum StackTarget {
             Variable(VariableRef),
             Member(u8),
+            SystemList(u8),
         }
 
         #[derive(Clone, Copy)]
@@ -2391,6 +2392,9 @@ impl EventVm {
                     .and_then(|object| host.read_object_member(ObjectMemberRef { object, member }))
                     .map_err(|error| VmError::host(error, offset, opcode))?;
                 Ok(object)
+            } else if let Some(StackTarget::SystemList(index)) = value.target {
+                host.read_system_list(index)
+                    .map_err(|error| VmError::host(error, offset, opcode))
             } else {
                 Ok(value.value)
             }
@@ -2643,6 +2647,38 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::BgiCharacterFloor => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing BGI character operand")
+                    })?;
+                    let character = read_value(host, value, offset, opcode)?;
+                    let floor = host
+                        .read_bgi_character_floor(character)
+                        .map_err(|error| VmError::host(error, offset, opcode))?;
+                    stack.push(StackValue {
+                        value: floor,
+                        target: None,
+                    });
+                }
+                ExpressionOp::ActiveBitCount => {
+                    let value = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing active-bit operand")
+                    })?;
+                    let active = read_value(host, value, offset, opcode)?;
+                    // Memoria walks an Int16 mask: bit 15 is tested as the sign-extended 0xFFFF8000.
+                    let mut count = 0;
+                    let mut check: i16 = 1;
+                    while check != 0 {
+                        if active & i32::from(check) != 0 {
+                            count += 1;
+                        }
+                        check = check.wrapping_shl(1);
+                    }
+                    stack.push(StackValue {
+                        value: count,
+                        target: None,
+                    });
+                }
                 ExpressionOp::CharacterMaxMp => {
                     let value = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing maximum-MP character operand")
@@ -2740,6 +2776,8 @@ impl EventVm {
                 | ExpressionOp::ShiftRight
                 | ExpressionOp::Angle
                 | ExpressionOp::Angle2
+                | ExpressionOp::DistanceToPoint
+                | ExpressionOp::LessOrEqual
                 | ExpressionOp::Less
                 | ExpressionOp::Greater
                 | ExpressionOp::GreaterOrEqual
@@ -2777,8 +2815,24 @@ impl EventVm {
                             )?
                         }
                         ExpressionOp::Angle2 => angle2(host, left, right, offset, opcode)?,
+                        ExpressionOp::DistanceToPoint => {
+                            let actor = self.entity.ok_or_else(|| {
+                                expression_error(
+                                    offset,
+                                    opcode,
+                                    "coordinate distance requires object context",
+                                )
+                            })?;
+                            let position = host
+                                .read_object_position(actor)
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            let delta_x = left as f32 - position[0];
+                            let delta_z = right as f32 - position[2];
+                            (delta_x * delta_x + delta_z * delta_z).sqrt() as i32
+                        }
                         ExpressionOp::Divide | ExpressionOp::Remainder => left,
                         ExpressionOp::Less => i32::from(left < right),
+                        ExpressionOp::LessOrEqual => i32::from(left <= right),
                         ExpressionOp::Greater => i32::from(left > right),
                         ExpressionOp::GreaterOrEqual => i32::from(left >= right),
                         ExpressionOp::Equal => i32::from(left == right),
@@ -2807,7 +2861,14 @@ impl EventVm {
                 }
                 ExpressionOp::AddAssign
                 | ExpressionOp::SubtractAssign
-                | ExpressionOp::MultiplyAssign => {
+                | ExpressionOp::MultiplyAssign
+                | ExpressionOp::DivideAssign
+                | ExpressionOp::RemainderAssign
+                | ExpressionOp::ShiftLeftAssign
+                | ExpressionOp::ShiftRightAssign
+                | ExpressionOp::AndAssign
+                | ExpressionOp::XorAssign
+                | ExpressionOp::OrAssign => {
                     let operand = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing arithmetic-assignment operand")
                     })?;
@@ -2816,31 +2877,50 @@ impl EventVm {
                         expression_error(offset, opcode, "missing arithmetic-assignment target")
                     })?;
                     let current = read_value(host, target, offset, opcode)?;
+                    // Memoria DIV_LET and REM_LET leave the target untouched on a zero divisor.
+                    let write = !(matches!(
+                        operation,
+                        ExpressionOp::DivideAssign | ExpressionOp::RemainderAssign
+                    ) && operand == 0);
                     let value = match operation {
                         ExpressionOp::AddAssign => current.wrapping_add(operand),
                         ExpressionOp::SubtractAssign => current.wrapping_sub(operand),
                         ExpressionOp::MultiplyAssign => current.wrapping_mul(operand),
+                        ExpressionOp::DivideAssign if write => current.wrapping_div(operand),
+                        ExpressionOp::RemainderAssign if write => current.wrapping_rem(operand),
+                        ExpressionOp::DivideAssign | ExpressionOp::RemainderAssign => current,
+                        ExpressionOp::ShiftLeftAssign => current.wrapping_shl(operand as u32),
+                        ExpressionOp::ShiftRightAssign => current.wrapping_shr(operand as u32),
+                        ExpressionOp::AndAssign => current & operand,
+                        ExpressionOp::XorAssign => current ^ operand,
+                        ExpressionOp::OrAssign => current | operand,
                         _ => unreachable!(),
                     };
-                    match target.target {
-                        Some(StackTarget::Variable(variable)) => {
-                            let normalized = normalize(value, variable.value_type);
-                            self.variables
-                                .insert((variable.scope, variable.index), normalized);
-                        }
-                        Some(StackTarget::Member(member)) => {
-                            let object = host
-                                .select_object_member_target(None)
-                                .map_err(|error| VmError::host(error, offset, opcode))?;
-                            host.write_object_member(ObjectMemberRef { object, member }, value)
-                                .map_err(|error| VmError::host(error, offset, opcode))?;
-                        }
-                        None => {
-                            return Err(expression_error(
-                                offset,
-                                opcode,
-                                "arithmetic-assignment target is not writable",
-                            ));
+                    if write {
+                        match target.target {
+                            Some(StackTarget::Variable(variable)) => {
+                                let normalized = normalize(value, variable.value_type);
+                                self.variables
+                                    .insert((variable.scope, variable.index), normalized);
+                            }
+                            Some(StackTarget::Member(member)) => {
+                                let object = host
+                                    .select_object_member_target(None)
+                                    .map_err(|error| VmError::host(error, offset, opcode))?;
+                                host.write_object_member(ObjectMemberRef { object, member }, value)
+                                    .map_err(|error| VmError::host(error, offset, opcode))?;
+                            }
+                            Some(StackTarget::SystemList(index)) => {
+                                host.write_system_list(index, value)
+                                    .map_err(|error| VmError::host(error, offset, opcode))?;
+                            }
+                            None => {
+                                return Err(expression_error(
+                                    offset,
+                                    opcode,
+                                    "arithmetic-assignment target is not writable",
+                                ));
+                            }
                         }
                     }
                     stack.push(StackValue {
@@ -2868,6 +2948,11 @@ impl EventVm {
                                 .select_object_member_target(None)
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
                             host.write_object_member(ObjectMemberRef { object, member }, value)
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            value
+                        }
+                        Some(StackTarget::SystemList(index)) => {
+                            host.write_system_list(index, value)
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
                             value
                         }
@@ -2917,6 +3002,12 @@ impl EventVm {
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
                             changed
                         }
+                        Some(StackTarget::SystemList(index)) => {
+                            let changed = current.wrapping_add(delta);
+                            host.write_system_list(index, changed)
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            changed
+                        }
                         None => {
                             return Err(expression_error(
                                 offset,
@@ -2937,6 +3028,10 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::SystemList(index) => stack.push(StackValue {
+                    value: 0,
+                    target: Some(StackTarget::SystemList(*index)),
+                }),
                 ExpressionOp::SystemVariable(variable) => {
                     let value = host
                         .read_system_variable(*variable)
@@ -3045,6 +3140,10 @@ impl EventVm {
                                     result,
                                 )
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
+                            }
+                            Some(StackTarget::SystemList(index)) => {
+                                host.write_system_list(index, result)
+                                    .map_err(|error| VmError::host(error, offset, opcode))?;
                             }
                             None => {}
                         }
@@ -3758,6 +3857,7 @@ fn operand_start(
         | ExpressionOp::ReadObjectMember(_)
         | ExpressionOp::Member(_)
         | ExpressionOp::SystemVariable(_)
+        | ExpressionOp::SystemList(_)
         | ExpressionOp::CustomVariable(_)
         | ExpressionOp::ObjectPointer(_)
         | ExpressionOp::ObjectSpecial
@@ -3776,6 +3876,8 @@ fn operand_start(
         | ExpressionOp::AnimationFrame
         | ExpressionOp::BgiAnimationFrame
         | ExpressionOp::BgiCharacterTriangle
+        | ExpressionOp::BgiCharacterFloor
+        | ExpressionOp::ActiveBitCount
         | ExpressionOp::CharacterMaxMp
         | ExpressionOp::PartyContains
         | ExpressionOp::PartyAdd
@@ -3800,6 +3902,8 @@ fn operand_start(
         | ExpressionOp::ShiftRight
         | ExpressionOp::Angle
         | ExpressionOp::Angle2
+        | ExpressionOp::DistanceToPoint
+        | ExpressionOp::LessOrEqual
         | ExpressionOp::Less
         | ExpressionOp::Greater
         | ExpressionOp::GreaterOrEqual
@@ -3812,6 +3916,13 @@ fn operand_start(
         | ExpressionOp::AddAssign
         | ExpressionOp::SubtractAssign
         | ExpressionOp::MultiplyAssign
+        | ExpressionOp::DivideAssign
+        | ExpressionOp::RemainderAssign
+        | ExpressionOp::ShiftLeftAssign
+        | ExpressionOp::ShiftRightAssign
+        | ExpressionOp::AndAssign
+        | ExpressionOp::XorAssign
+        | ExpressionOp::OrAssign
         | ExpressionOp::PostIncrementMembers
         | ExpressionOp::PostDecrementMembers
         | ExpressionOp::PreIncrementMembers

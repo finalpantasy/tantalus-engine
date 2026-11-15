@@ -72,6 +72,7 @@ struct Host {
     member_target: Option<EntityId>,
     object_members: BTreeMap<ObjectMemberRef, i32>,
     member_writes: Vec<(ObjectMemberRef, i32)>,
+    system_lists: BTreeMap<u8, i32>,
     script_request_complete: bool,
     caller_request_acceptable: bool,
     script_request_acceptable: bool,
@@ -100,6 +101,7 @@ impl Host {
             member_target: None,
             object_members: BTreeMap::new(),
             member_writes: Vec::new(),
+            system_lists: BTreeMap::new(),
             script_request_complete: false,
             caller_request_acceptable: false,
             script_request_acceptable: false,
@@ -348,6 +350,15 @@ impl LegacyEventHost for Host {
         Ok(())
     }
 
+    fn read_system_list(&mut self, index: u8) -> Result<i32, EngineError> {
+        Ok(self.system_lists.get(&index).copied().unwrap_or(0))
+    }
+
+    fn write_system_list(&mut self, index: u8, value: i32) -> Result<(), EngineError> {
+        self.system_lists.insert(index, value);
+        Ok(())
+    }
+
     fn read_system_variable(&mut self, variable: u8) -> Result<i32, EngineError> {
         if variable == 5 {
             Ok(77)
@@ -412,6 +423,15 @@ impl LegacyEventHost for Host {
     fn read_bgi_character_triangle(&mut self, character: i32) -> Result<i32, EngineError> {
         match character {
             7 => Ok(23),
+            _ => Err(Self::target_error(format!(
+                "unknown BGI character {character}"
+            ))),
+        }
+    }
+
+    fn read_bgi_character_floor(&mut self, character: i32) -> Result<i32, EngineError> {
+        match character {
+            7 => Ok(3),
             _ => Err(Self::target_error(format!(
                 "unknown BGI character {character}"
             ))),
@@ -4485,6 +4505,128 @@ fn angle_subtracts_fractional_actor_positions_before_fixed_point_conversion() {
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::InvalidExpression);
     assert!(error.message.contains("object context"));
+}
+
+#[test]
+fn distance_to_point_measures_from_the_current_actor_in_floating_point() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 31);
+    let expression = assign(result, binary(constant(14), constant(24), 94));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let actor = EntityId::new(42);
+    let mut vm = EventVm::new(program).with_entity(actor);
+    let mut host = Host::new();
+    host.object_positions.insert(actor, [10.25, 0.0, 20.75]);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+    // dx 3.75, dz 3.25 -> sqrt(24.625) = 4.96, truncated to 4.
+    assert_eq!(vm.variable(VariableScope::Global, 31), 4);
+
+    let result = variable(VariableScope::Global, VariableType::Int16, 31);
+    let expression = assign(result, binary(constant(14), constant(24), 94));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::InvalidExpression);
+    assert!(error.message.contains("object context"));
+}
+
+#[test]
+fn compound_assignments_match_the_reference_operators_and_skip_zero_divisors() {
+    let cases: [(u8, i32, i32, i32); 9] = [
+        (48, 100, 7, 14),
+        (49, 100, 7, 2),
+        (48, 100, 0, 100),
+        (49, 100, 0, 100),
+        (52, 3, 2, 12),
+        (53, -16, 2, -4),
+        (61, 12, 10, 8),
+        (62, 12, 10, 6),
+        (63, 12, 10, 14),
+    ];
+    for (opcode, initial, operand, expected) in cases {
+        let target = || variable(VariableScope::Global, VariableType::Int16, 31);
+        let program = decode_program(
+            &[
+                evaluate(assign(target(), constant(initial))),
+                evaluate(binary(target(), constant(operand), opcode)),
+                vec![4],
+            ]
+            .concat(),
+        )
+        .unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+        vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(
+            vm.variable(VariableScope::Global, 31),
+            expected,
+            "opcode {opcode} on {initial} with {operand}"
+        );
+    }
+}
+
+#[test]
+fn system_list_elements_read_and_write_through_the_host() {
+    let result = variable(VariableScope::Global, VariableType::Int16, 31);
+    let program = decode_program(
+        &[
+            evaluate(assign(vec![121, 3], constant(9))),
+            evaluate(assign(result, vec![121, 3])),
+            evaluate(binary(vec![121, 4], constant(5), 63)),
+            vec![4],
+        ]
+        .concat(),
+    )
+    .unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.system_lists.insert(4, 2);
+
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(host.system_lists[&3], 9);
+    assert_eq!(vm.variable(VariableScope::Global, 31), 9);
+    assert_eq!(host.system_lists[&4], 7);
+}
+
+#[test]
+fn less_or_equal_count_and_bgi_floor_expression_operations() {
+    let mut host = Host::new();
+    let cases: [(i32, i32, i32); 3] = [(3, 4, 1), (4, 4, 1), (5, 4, 0)];
+    for (left, right, expected) in cases {
+        let result = variable(VariableScope::Global, VariableType::Int16, 31);
+        let expression = assign(result, binary(constant(left), constant(right), 26));
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(vm.variable(VariableScope::Global, 31), expected);
+    }
+
+    // B_COUNT counts active bits; the Int16 mask reaches bit 15 as 0xFFFF8000.
+    for (mask, expected) in [
+        (0, 0),
+        (0b1011, 3),
+        (0x8000, 1),
+        (0x0001_0000, 1),
+        (0xff, 8),
+    ] {
+        let result = variable(VariableScope::Global, VariableType::Int16, 31);
+        let expression = assign(result, binary(constant(mask), vec![], 42));
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(
+            vm.variable(VariableScope::Global, 31),
+            expected,
+            "mask {mask:#x}"
+        );
+    }
+
+    let result = variable(VariableScope::Global, VariableType::Int16, 31);
+    let expression = assign(result, binary(constant(7), vec![], 113));
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 31), 3);
 }
 
 #[test]

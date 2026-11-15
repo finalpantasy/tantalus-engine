@@ -69,6 +69,24 @@ impl LegacyEventHost for Host {
         ))
     }
 
+    fn read_system_list(&mut self, index: u8) -> Result<i32, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            format!("field fixture has no system list element {index}"),
+            "fixture-host",
+            true,
+        ))
+    }
+
+    fn write_system_list(&mut self, index: u8, _value: i32) -> Result<(), EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            format!("field fixture has no system list element {index}"),
+            "fixture-host",
+            true,
+        ))
+    }
+
     fn read_system_variable(&mut self, variable: u8) -> Result<i32, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,
@@ -141,6 +159,15 @@ impl LegacyEventHost for Host {
     }
 
     fn read_bgi_character_triangle(&mut self, character: i32) -> Result<i32, EngineError> {
+        Err(EngineError::new(
+            ErrorCategory::UnknownContent,
+            format!("field fixture has no BGI character {character}"),
+            "fixture-host",
+            true,
+        ))
+    }
+
+    fn read_bgi_character_floor(&mut self, character: i32) -> Result<i32, EngineError> {
         Err(EngineError::new(
             ErrorCategory::UnknownContent,
             format!("field fixture has no BGI character {character}"),

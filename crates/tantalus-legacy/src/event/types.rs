@@ -53,6 +53,8 @@ pub enum ExpressionOp {
     ShiftRight,
     Angle,
     Angle2,
+    /// `B_DISTANCE` 94: distance from the current actor to an X/Z point.
+    DistanceToPoint,
     AngleToObject,
     DistanceToObject,
     ObjectPointer(u8),
@@ -60,6 +62,12 @@ pub enum ExpressionOp {
     AnimationFrame,
     BgiAnimationFrame,
     BgiCharacterTriangle,
+    /// `B_BGIFLOOR` 113: the floor index of a character's walkmesh position.
+    BgiCharacterFloor,
+    /// `B_LE` 26.
+    LessOrEqual,
+    /// `B_COUNT` 42: number of active member bits in the operand.
+    ActiveBitCount,
     CharacterMaxMp,
     PartyContains,
     PartyAdd,
@@ -78,6 +86,22 @@ pub enum ExpressionOp {
     AddAssign,
     SubtractAssign,
     MultiplyAssign,
+    /// `B_DIV_LET` 48: divide-assign; a zero divisor leaves the target unchanged.
+    DivideAssign,
+    /// `B_REM_LET` 49: remainder-assign; a zero divisor leaves the target unchanged.
+    RemainderAssign,
+    /// `B_SHIFT_LEFT_LET` 52.
+    ShiftLeftAssign,
+    /// `B_SHIFT_RIGHT_LET` 53.
+    ShiftRightAssign,
+    /// `B_AND_LET` 61.
+    AndAssign,
+    /// `B_XOR_LET` 62.
+    XorAssign,
+    /// `B_OR_LET` 63.
+    OrAssign,
+    /// `B_SYSLIST` 121: an element of the engine system list (battle script state).
+    SystemList(u8),
     PostIncrementMembers,
     PostDecrementMembers,
     PreIncrementMembers,
@@ -1561,6 +1585,8 @@ pub trait LegacyEventHost {
         value: i32,
     ) -> Result<(), EngineError>;
     fn read_system_variable(&mut self, variable: u8) -> Result<i32, EngineError>;
+    fn read_system_list(&mut self, index: u8) -> Result<i32, EngineError>;
+    fn write_system_list(&mut self, index: u8, value: i32) -> Result<(), EngineError>;
     fn read_atan_entry(&mut self, offset: i32) -> Result<u16, EngineError>;
     fn resolve_object_uid(&mut self, uid: i32) -> Result<EntityId, EngineError>;
     fn find_object_uid(&mut self, uid: u8) -> Result<Option<i32>, EngineError>;
@@ -1570,6 +1596,7 @@ pub trait LegacyEventHost {
     -> Result<i32, EngineError>;
     fn read_bgi_animation_frame(&mut self, animation: u32) -> Result<i32, EngineError>;
     fn read_bgi_character_triangle(&mut self, character: i32) -> Result<i32, EngineError>;
+    fn read_bgi_character_floor(&mut self, character: i32) -> Result<i32, EngineError>;
     fn read_character_max_mp(&mut self, character: i32) -> Result<i32, EngineError>;
     fn party_contains(&mut self, character: i32) -> Result<bool, EngineError>;
     fn add_party_member(&mut self, character: i32) -> Result<bool, EngineError>;
