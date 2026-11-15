@@ -14,6 +14,7 @@ const OP_SET_ACTOR_POSITION: u32 = 0x1d;
 const OP_SET_IDLE_ANIMATION: u32 = 0x33;
 const OP_SET_WALK_ANIMATION: u32 = 0x34;
 const OP_SET_RUN_ANIMATION: u32 = 0x35;
+const OP_PRINT_QUAD: u32 = 0x78;
 const OP_SET_LEFT_TURN_ANIMATION: u32 = 0x7a;
 const OP_SET_RIGHT_TURN_ANIMATION: u32 = 0x7b;
 const OP_SET_ACTOR_RADII: u32 = 0x4b;
@@ -113,6 +114,10 @@ impl Decoder<'_> {
                 InstructionKind::Nop
             }
             OP_UNUSED_PRINT => InstructionKind::NoOp(opcode),
+            OP_PRINT_QUAD => {
+                self.byte()?;
+                InstructionKind::NoOp(opcode)
+            }
             OP_JUMP => InstructionKind::Jump(self.i16()?),
             OP_JUMP_IF_NOT => InstructionKind::JumpIfNot {
                 condition: self.expression()?,

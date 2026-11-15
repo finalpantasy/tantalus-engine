@@ -112,7 +112,8 @@
     "IDLESPEED 0x86 emits four actor-bound standing-animation speed bytes",
     "NECKID 0x8B emits actor-bound self/target head-focus masks",
     "CFLAG 0x93 emits current-object flags for host-side protected-bit preservation",
-    "B_GT_E 29 returns per-slot greater-than flags without writes, including zero for an empty mask"
+    "B_GT_E 29 returns per-slot greater-than flags without writes, including zero for an empty mask",
+    "PRINTQUAD 0x78 consumes its flag and continues through the reference's no-side-effect path"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -137,10 +138,11 @@
     "entry": 6,
     "function": 1,
     "function_tag": 1,
-    "offset": 158,
-    "opcode": 120,
+    "offset": 166,
+    "expression_offset": 69,
+    "opcode": 65,
     "kind": "UnsupportedOpcode",
-    "instruction": "PRINTQUAD after selected-member greater-than support"
+    "instruction": "B_XOR_LET_A after PRINTQUAD"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
