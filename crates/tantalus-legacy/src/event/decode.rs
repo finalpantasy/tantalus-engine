@@ -96,6 +96,12 @@ const OP_BATTLE_SCENE_START: u32 = 0x100;
 const OP_SET_SIMULATION_FLOOR: u32 = 0x104;
 const OP_SET_SIMULATION_FRAME_RATE: u32 = 0x105;
 const OP_SET_TILE_ANIMATION_RATE: u32 = 0x61;
+const OP_START_VIBRATION: u32 = 0xf6;
+const OP_SET_VIBRATION_ACTIVE: u32 = 0xf7;
+const OP_RUN_VIBRATION_TRACK: u32 = 0xf8;
+const OP_ACTIVATE_VIBRATION_TRACK: u32 = 0xf9;
+const OP_SET_VIBRATION_FLAGS: u32 = 0xfb;
+const OP_SET_VIBRATION_RANGE: u32 = 0xfc;
 const OP_SET_TILE_BLOCK_ACTIVE: u32 = 0x5b;
 const OP_SET_TILE_LOOP: u32 = 0x5c;
 const OP_SET_TILE_PARALLAX: u32 = 0x5d;
@@ -1457,6 +1463,107 @@ impl Decoder<'_> {
                 InstructionKind::ResetTileAnimation {
                     animation: argument(1, false)?,
                     show_first_frame: argument(2, false)?,
+                }
+            }
+            OP_START_VIBRATION => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::StartVibration {
+                    frame: argument(1)?,
+                }
+            }
+            OP_SET_VIBRATION_ACTIVE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetVibrationActive {
+                    active: argument(1)?,
+                }
+            }
+            OP_RUN_VIBRATION_TRACK => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::RunVibrationTrack {
+                    track: argument(1)?,
+                    sample: argument(2)?,
+                    active: argument(4)?,
+                }
+            }
+            OP_ACTIVATE_VIBRATION_TRACK => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::ActivateVibrationTrack {
+                    track: argument(1)?,
+                    sample: argument(2)?,
+                    active: argument(4)?,
+                }
+            }
+            OP_SET_VIBRATION_FLAGS => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetVibrationFlags {
+                    flags: argument(1)?,
+                }
+            }
+            OP_SET_VIBRATION_RANGE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetVibrationRange {
+                    start: argument(1)?,
+                    end: argument(2)?,
                 }
             }
             OP_SET_TILE_ANIMATION_FLAGS => {

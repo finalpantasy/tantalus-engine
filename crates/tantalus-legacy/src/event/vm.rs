@@ -1195,6 +1195,57 @@ impl EventVm {
                         show_first_frame,
                     });
                 }
+                InstructionKind::StartVibration { frame } => {
+                    let frame = self.evaluate(host, &frame, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::StartVibration { frame });
+                }
+                InstructionKind::SetVibrationActive { active } => {
+                    let active = self.evaluate(host, &active, instruction.offset, opcode)? != 0;
+                    self.pc = next;
+                    events.push(HostEvent::SetVibrationActive { active });
+                }
+                InstructionKind::RunVibrationTrack {
+                    track,
+                    sample,
+                    active,
+                } => {
+                    let track = self.evaluate(host, &track, instruction.offset, opcode)?;
+                    let sample = self.evaluate(host, &sample, instruction.offset, opcode)?;
+                    let active = self.evaluate(host, &active, instruction.offset, opcode)? != 0;
+                    self.pc = next;
+                    events.push(HostEvent::RunVibrationTrack {
+                        track,
+                        sample,
+                        active,
+                    });
+                }
+                InstructionKind::ActivateVibrationTrack {
+                    track,
+                    sample,
+                    active,
+                } => {
+                    let track = self.evaluate(host, &track, instruction.offset, opcode)? as u32;
+                    let sample = self.evaluate(host, &sample, instruction.offset, opcode)? as u32;
+                    let active = self.evaluate(host, &active, instruction.offset, opcode)? != 0;
+                    self.pc = next;
+                    events.push(HostEvent::ActivateVibrationTrack {
+                        track,
+                        sample,
+                        active,
+                    });
+                }
+                InstructionKind::SetVibrationFlags { flags } => {
+                    let flags = self.evaluate(host, &flags, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::SetVibrationFlags { flags });
+                }
+                InstructionKind::SetVibrationRange { start, end } => {
+                    let start = self.evaluate(host, &start, instruction.offset, opcode)? as i16;
+                    let end = self.evaluate(host, &end, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                    events.push(HostEvent::SetVibrationRange { start, end });
+                }
                 InstructionKind::SetTileAnimationRate {
                     animation,
                     frame_rate,
@@ -2829,6 +2880,12 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetSimulationFrameRate { .. } => 0x105,
         InstructionKind::SetTileAnimationFlags { .. } => 0x64,
         InstructionKind::SetTileAnimationRange { .. } => 0x65,
+        InstructionKind::StartVibration { .. } => 0xf6,
+        InstructionKind::SetVibrationActive { .. } => 0xf7,
+        InstructionKind::RunVibrationTrack { .. } => 0xf8,
+        InstructionKind::ActivateVibrationTrack { .. } => 0xf9,
+        InstructionKind::SetVibrationFlags { .. } => 0xfb,
+        InstructionKind::SetVibrationRange { .. } => 0xfc,
         InstructionKind::SetTileBlockActive { .. } => 0x5b,
         InstructionKind::SetTileLoop { .. } => 0x5c,
         InstructionKind::SetTileParallax { .. } => 0x5d,

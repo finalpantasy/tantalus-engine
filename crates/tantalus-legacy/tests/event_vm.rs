@@ -208,6 +208,12 @@ impl LegacyEventHost for Host {
                 HostEvent::RunTileAnimation { .. } => {}
                 HostEvent::SetTileAnimationActive { .. } => {}
                 HostEvent::ResetTileAnimation { .. } => {}
+                HostEvent::StartVibration { .. } => {}
+                HostEvent::SetVibrationActive { .. } => {}
+                HostEvent::RunVibrationTrack { .. } => {}
+                HostEvent::ActivateVibrationTrack { .. } => {}
+                HostEvent::SetVibrationFlags { .. } => {}
+                HostEvent::SetVibrationRange { .. } => {}
                 HostEvent::SetTileAnimationRate { .. } => {}
                 HostEvent::SetTileAnimationFrameWait { .. } => {}
                 HostEvent::SetTileAnimationFlags { .. } => {}
@@ -5588,6 +5594,70 @@ fn tile_animation_run_active_and_reset_commands_emit_raw_operands() {
     let truncated = decode_program(&[95, 0, 1]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(95)"));
+}
+
+#[test]
+fn vibration_commands_decode_byte_operands_and_emit_raw_values() {
+    let mut host = Host::new();
+
+    let program = decode_program(&[246, 0, 200, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 3);
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::StartVibration { frame: 200 }]);
+    assert!(vm.traces().any(|trace| trace.opcode == Some(246)));
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![247, 1];
+    append_expression(&mut bytes, constant(0));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetVibrationActive { active: false }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[248, 0, 3, 1, 9, 4]).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RunVibrationTrack {
+            track: 3,
+            sample: 1,
+            active: true,
+        }]
+    );
+
+    let mut bytes = vec![249, 0b010, 5];
+    append_expression(&mut bytes, constant(-1));
+    bytes.push(0);
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ActivateVibrationTrack {
+            track: 5,
+            sample: u32::MAX,
+            active: false,
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[251, 0, 24, 4]).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.events, [HostEvent::SetVibrationFlags { flags: 24 }]);
+
+    let mut vm = EventVm::new(decode_program(&[252, 0, 2, 250, 4]).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetVibrationRange { start: 2, end: 250 }]
+    );
+
+    let truncated = decode_program(&[248, 0, 3, 1]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(248)"));
 }
 
 #[test]
