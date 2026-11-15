@@ -882,6 +882,67 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::DefinePlayerControl { actor: entity });
                 }
+                InstructionKind::ExitField => {
+                    self.pc = next;
+                    events.push(HostEvent::ExitField);
+                }
+                InstructionKind::DisableIdleAnimation => {
+                    self.pc = next;
+                    events.push(HostEvent::DisableIdleAnimation);
+                }
+                InstructionKind::PlayJumpAnimation { landing } => {
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::PlayJumpAnimation { actor, landing });
+                }
+                InstructionKind::StopAnimation => {
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::StopAnimation { actor });
+                }
+                InstructionKind::SetPathFloorActive { floor, active } => {
+                    let floor = self.evaluate(host, &floor, instruction.offset, opcode)?;
+                    let active = self.evaluate(host, &active, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::SetPathFloorActive { floor, active });
+                }
+                InstructionKind::PretendToBe { target } => {
+                    let target = self.evaluate(host, &target, instruction.offset, opcode)?;
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "current-object commands require current actor context",
+                        ));
+                    };
+                    if target < 0 {
+                        return Err(expression_error(
+                            instruction.offset,
+                            opcode,
+                            "object identity cannot be negative",
+                        ));
+                    }
+                    self.pc = next;
+                    events.push(HostEvent::PretendToBe {
+                        actor,
+                        target: EntityId::new(target as u64),
+                    });
+                }
                 InstructionKind::AimAtCamera => {
                     self.pc = next;
                     events.push(HostEvent::AimAtCamera);
@@ -3816,6 +3877,13 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::WalkActor { .. } => 0x23,
         InstructionKind::MoveActor { .. } => 0xbf,
         InstructionKind::AimAtCamera => 0xb8,
+        InstructionKind::ExitField => 0x9e,
+        InstructionKind::PlayJumpAnimation { landing: false } => 0x9c,
+        InstructionKind::PlayJumpAnimation { landing: true } => 0x9d,
+        InstructionKind::DisableIdleAnimation => 0x90,
+        InstructionKind::StopAnimation => 0x42,
+        InstructionKind::SetPathFloorActive { .. } => 0xcb,
+        InstructionKind::PretendToBe { .. } => 0xb5,
         InstructionKind::DefinePlayerControl => 0x2c,
         InstructionKind::SetControlDirection { .. } => 0x67,
         InstructionKind::Cinematic { .. } => 0x28,

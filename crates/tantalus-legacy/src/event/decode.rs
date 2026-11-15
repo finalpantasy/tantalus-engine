@@ -54,6 +54,13 @@ const OP_WAIT_WINDOW: u32 = 0x54;
 const OP_WALK_ACTOR: u32 = 0x23;
 const OP_MOVE_ACTOR: u32 = 0xbf;
 const OP_AIM_AT_CAMERA: u32 = 0xb8;
+const OP_EXIT_FIELD: u32 = 0x9e;
+const OP_PLAY_JUMP_ANIMATION: u32 = 0x9c;
+const OP_PLAY_LAND_ANIMATION: u32 = 0x9d;
+const OP_DISABLE_IDLE_ANIMATION: u32 = 0x90;
+const OP_STOP_ANIMATION: u32 = 0x42;
+const OP_SET_PATH_FLOOR_ACTIVE: u32 = 0xcb;
+const OP_PRETEND_TO_BE: u32 = 0xb5;
 const OP_DEFINE_PLAYER_CONTROL: u32 = 0x2c;
 const OP_SET_CONTROL_DIRECTION: u32 = 0x67;
 const OP_CINEMATIC: u32 = 0x28;
@@ -714,6 +721,24 @@ impl Decoder<'_> {
                 let flags = self.byte()?;
                 InstructionKind::SetPathing {
                     enabled: self.operand(flags, 1, false)?,
+                }
+            }
+            OP_EXIT_FIELD => InstructionKind::ExitField,
+            OP_PLAY_JUMP_ANIMATION => InstructionKind::PlayJumpAnimation { landing: false },
+            OP_PLAY_LAND_ANIMATION => InstructionKind::PlayJumpAnimation { landing: true },
+            OP_DISABLE_IDLE_ANIMATION => InstructionKind::DisableIdleAnimation,
+            OP_STOP_ANIMATION => InstructionKind::StopAnimation,
+            OP_SET_PATH_FLOOR_ACTIVE => {
+                let flags = self.byte()?;
+                InstructionKind::SetPathFloorActive {
+                    floor: self.operand(flags, 1, false)?,
+                    active: self.operand(flags, 2, false)?,
+                }
+            }
+            OP_PRETEND_TO_BE => {
+                let flags = self.byte()?;
+                InstructionKind::PretendToBe {
+                    target: self.operand(flags, 1, false)?,
                 }
             }
             OP_AIM_AT_CAMERA => InstructionKind::AimAtCamera,
