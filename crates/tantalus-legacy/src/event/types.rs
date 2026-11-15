@@ -56,6 +56,10 @@ pub enum ExpressionOp {
     PostDecrement,
     ReadObjectMember(ObjectMemberRef),
     CustomVariable(u16),
+    CastI8,
+    CastU8,
+    CastI16,
+    CastU16,
     ShiftRightAssignMembers,
     LogicalAnd,
     LogicalOr,
@@ -104,6 +108,11 @@ pub enum InstructionKind {
     SetControlDirection {
         arrow: Expression,
         analog: Expression,
+    },
+    BackgroundMove {
+        x: Expression,
+        y: Expression,
+        z: Expression,
     },
 }
 

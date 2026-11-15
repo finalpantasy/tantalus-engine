@@ -206,6 +206,12 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::CloseWindow { window });
                 }
+                InstructionKind::BackgroundMove { x, y, z } => {
+                    self.evaluate(host, &x, instruction.offset, opcode)? as i16;
+                    self.evaluate(host, &y, instruction.offset, opcode)? as i16;
+                    self.evaluate(host, &z, instruction.offset, opcode)? as i16;
+                    self.pc = next;
+                }
                 InstructionKind::SetControlDirection { arrow, analog } => {
                     let arrow = self.evaluate(host, &arrow, instruction.offset, opcode)? as i16;
                     let analog = self.evaluate(host, &analog, instruction.offset, opcode)? as i16;
@@ -443,6 +449,25 @@ impl EventVm {
                         variable: None,
                     });
                 }
+                ExpressionOp::CastI8
+                | ExpressionOp::CastU8
+                | ExpressionOp::CastI16
+                | ExpressionOp::CastU16 => {
+                    let value = stack
+                        .pop()
+                        .ok_or_else(|| expression_error(offset, opcode, "missing cast operand"))?;
+                    let value = match operation {
+                        ExpressionOp::CastI8 => (value.value as i8) as i32,
+                        ExpressionOp::CastU8 => (value.value as u8) as i32,
+                        ExpressionOp::CastI16 => (value.value as i16) as i32,
+                        ExpressionOp::CastU16 => (value.value as u16) as i32,
+                        _ => unreachable!(),
+                    };
+                    stack.push(StackValue {
+                        value,
+                        variable: None,
+                    });
+                }
                 ExpressionOp::ShiftRightAssignMembers => {
                     if stack.len() < 3 {
                         return Err(expression_error(
@@ -577,6 +602,7 @@ fn opcode_for(kind: &InstructionKind) -> u8 {
         InstructionKind::AimAtCamera => 0xb8,
         InstructionKind::DefinePlayerControl => 0x2c,
         InstructionKind::SetControlDirection { .. } => 0x67,
+        InstructionKind::BackgroundMove { .. } => 0x58,
     }
 }
 
@@ -672,7 +698,11 @@ fn operand_start(
         | ExpressionOp::PreDecrement
         | ExpressionOp::PostDecrement
         | ExpressionOp::PostIncrementMembers
-        | ExpressionOp::PreDecrementMembers => operand_start(operations, index, offset, opcode),
+        | ExpressionOp::PreDecrementMembers
+        | ExpressionOp::CastI8
+        | ExpressionOp::CastU8
+        | ExpressionOp::CastI16
+        | ExpressionOp::CastU16 => operand_start(operations, index, offset, opcode),
         ExpressionOp::Add
         | ExpressionOp::Subtract
         | ExpressionOp::Multiply

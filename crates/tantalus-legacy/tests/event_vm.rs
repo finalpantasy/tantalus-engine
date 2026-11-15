@@ -343,7 +343,7 @@ fn member_post_increment_rejects_missing_selection_inputs() {
 
 #[test]
 fn expression_padding_produces_zero() {
-    for opcode in 0..=3 {
+    for opcode in [0, 1, 2, 3, 103, 104, 105] {
         let program = decode_program(&[evaluate(vec![opcode]), vec![4]].concat()).unwrap();
         let mut vm = EventVm::new(program);
         let mut host = Host::new();
@@ -551,4 +551,52 @@ fn empty_expressions_evaluate_to_zero() {
     vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(vm.variable(VariableScope::Global, 14), 0);
     assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn bgsmove_consumes_three_operands_and_continues_without_invented_side_effects() {
+    let mut bytes = vec![0x58, 0];
+    for value in [10, -20, 30] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert!(report.events.is_empty());
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn expression_casts_apply_width_and_signedness() {
+    for (opcode, input, expected) in [
+        (70, 255, -1),
+        (71, 255, 255),
+        (72, 65_535, -1),
+        (73, 65_535, 65_535),
+    ] {
+        let target_type = if expected < 0 {
+            VariableType::Int16
+        } else {
+            VariableType::UInt16
+        };
+        let target = variable(VariableScope::Global, target_type, 15);
+        let expression = assign(target, [constant(input), vec![opcode]].concat());
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+        vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(vm.variable(VariableScope::Global, 15), expected);
+    }
+}
+
+#[test]
+fn real_member_cast_sequence_decodes() {
+    let bytes = [
+        5, 104, 0, 8, 0, 3, 0, 70, 0, 5, 213, 24, 125, 1, 0, 44, 127, 4,
+    ];
+    let program = decode_program(&bytes).unwrap();
+    assert!(program.instructions.contains_key(&0));
+    assert!(program.instructions.contains_key(&17));
 }

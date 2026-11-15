@@ -38,13 +38,18 @@
     "direct pre-decrement 0x07 returns and stores the new normalized value",
     "null/custom variable 0xE3 reads the serialized custom ID through the host",
     "greater-or-equal 0x1B evaluates comparisons",
-    "empty expressions evaluate to zero"
+    "empty expressions evaluate to zero",
+    "BGSMOVE 0x58 evaluates three signed 16-bit operands and continues without invented side effects",
+    "padding 103 through 105 produces zero",
+    "signed and unsigned 8-bit and 16-bit casts 70 through 73 preserve width and signedness",
+    "unsupported-expression diagnostics include the expression-start offset"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 279,
-    "opcode": "0x58",
-    "instruction": "BGSMOVE"
+    "offset": 287,
+    "opcode": "0x44",
+    "instruction": "B_OR_LET_E",
+    "expression_start": 281
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

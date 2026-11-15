@@ -17,6 +17,7 @@ const OP_MOVE_ACTOR: u8 = 0xbf;
 const OP_AIM_AT_CAMERA: u8 = 0xb8;
 const OP_DEFINE_PLAYER_CONTROL: u8 = 0x2c;
 const OP_SET_CONTROL_DIRECTION: u8 = 0x67;
+const OP_BACKGROUND_MOVE: u8 = 0x58;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -124,6 +125,14 @@ impl Decoder<'_> {
                     analog: self.expression()?,
                 }
             }
+            OP_BACKGROUND_MOVE => {
+                self.byte()?;
+                InstructionKind::BackgroundMove {
+                    x: self.expression()?,
+                    y: self.expression()?,
+                    z: self.expression()?,
+                }
+            }
             _ => {
                 return Err(VmError::new(
                     VmErrorKind::UnsupportedOpcode,
@@ -141,16 +150,21 @@ impl Decoder<'_> {
     }
 
     fn expression(&mut self) -> Result<Expression, VmError> {
+        let start = self.position as u32;
         let mut operations = Vec::new();
         loop {
             let opcode_position = self.position as u32;
             let opcode = self.byte()?;
             let operation = match opcode {
-                0..=3 => ExpressionOp::Pad,
+                0..=3 | 103..=105 => ExpressionOp::Pad,
                 5 => ExpressionOp::PostDecrement,
                 7 => ExpressionOp::PreDecrement,
                 11 => ExpressionOp::PreDecrementMembers,
                 59 => ExpressionOp::ShiftRightAssignMembers,
+                70 => ExpressionOp::CastI8,
+                71 => ExpressionOp::CastU8,
+                72 => ExpressionOp::CastI16,
+                73 => ExpressionOp::CastU16,
                 EXPR_CONST_I16 => ExpressionOp::Constant(i32::from(self.i16()?)),
                 EXPR_CONST_I32 => ExpressionOp::Constant(self.i32()?),
                 EXPR_POST_INCREMENT_MEMBERS => ExpressionOp::PostIncrementMembers,
@@ -232,7 +246,7 @@ impl Decoder<'_> {
                         VmErrorKind::UnsupportedOpcode,
                         opcode_position,
                         Some(opcode),
-                        "unsupported expression operation",
+                        format!("unsupported expression operation (expression starts at {start})"),
                     ));
                 }
             };
