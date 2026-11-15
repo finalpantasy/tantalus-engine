@@ -288,6 +288,10 @@ pub enum InstructionKind {
         object: Expression,
         animation: Expression,
     },
+    RunBattleCode {
+        code: Expression,
+        value: Expression,
+    },
     AttachTile {
         overlay: Expression,
         x: Expression,
@@ -539,6 +543,10 @@ pub enum HostEvent {
     StopTextureAnimation {
         object: i32,
         animation: i32,
+    },
+    RunBattleCode {
+        code: u32,
+        value: i32,
     },
     AttachTile {
         overlay: i32,

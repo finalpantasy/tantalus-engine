@@ -137,7 +137,8 @@
     "PARTYMENU 0xB2 decodes minimum size and signed-wide fixed-member mask, emits OpenPartyMenu once, and waits for host closure",
     "AJUMP 0x94 emits actor-bound SetJumpAnimation with a wide animation ID and two byte parameters",
     "JOIN 0xFE decodes five immediate/expression fields and emits complete InitializeCharacter host commands",
-    "TEXSTOP 0xC2 decodes object and animation operands and emits StopTextureAnimation"
+    "TEXSTOP 0xC2 decodes object and animation operands and emits StopTextureAnimation",
+    "BTLSET 0x4A emits RunBattleCode with an unsigned code and signed-wide value"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -172,10 +173,10 @@
     "entry": 3,
     "function": 1,
     "function_tag": 1,
-    "offset": 497,
-    "opcode": 74,
+    "offset": 587,
+    "opcode": 240,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x4A after texture-animation stop support"
+    "instruction": "event opcode 0xF0 after battle-code command support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

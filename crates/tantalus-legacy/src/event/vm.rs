@@ -835,6 +835,12 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::StopTextureAnimation { object, animation });
                 }
+                InstructionKind::RunBattleCode { code, value } => {
+                    let code = self.evaluate(host, &code, instruction.offset, opcode)? as u32;
+                    let value = self.evaluate(host, &value, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::RunBattleCode { code, value });
+                }
                 InstructionKind::AttachTile {
                     overlay,
                     x,
@@ -1805,6 +1811,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::OpenPartyMenu { .. } => 0xb2,
         InstructionKind::InitializeCharacter { .. } => 0xfe,
         InstructionKind::StopTextureAnimation { .. } => 0xc2,
+        InstructionKind::RunBattleCode { .. } => 0x4a,
         InstructionKind::AttachTile { .. } => 0x92,
     }
 }

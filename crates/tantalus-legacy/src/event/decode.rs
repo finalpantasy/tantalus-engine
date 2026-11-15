@@ -69,6 +69,7 @@ const OP_SET_TILE_ANIMATION_FRAME: u32 = 0xe7;
 const OP_OPEN_PARTY_MENU: u32 = 0xb2;
 const OP_INITIALIZE_CHARACTER: u32 = 0xfe;
 const OP_STOP_TEXTURE_ANIMATION: u32 = 0xc2;
+const OP_RUN_BATTLE_CODE: u32 = 0x4a;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
 const EXPR_NEGATE: u8 = 13;
@@ -840,6 +841,28 @@ impl Decoder<'_> {
                 InstructionKind::StopTextureAnimation {
                     object: argument(1)?,
                     animation: argument(2)?,
+                }
+            }
+            OP_RUN_BATTLE_CODE => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8, short: bool| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        let value = if short {
+                            i32::from(self.i16()?)
+                        } else {
+                            i32::from(self.byte()?)
+                        };
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(value),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::RunBattleCode {
+                    code: argument(1, false)?,
+                    value: argument(2, true)?,
                 }
             }
             OP_ATTACH_TILE => {
