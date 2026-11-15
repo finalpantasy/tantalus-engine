@@ -108,6 +108,9 @@ impl ClientSceneAdapter {
         scene: &FieldSceneDescription,
         assets: &ResolvedAssets,
     ) -> Result<(), ClientError> {
+        if scene.camera.size.contains(&0) {
+            return Err(ClientError::new("field camera dimensions must be positive"));
+        }
         let mut sprites = Vec::new();
         let mut identities = BTreeSet::new();
         for overlay in &scene.overlays {
@@ -140,7 +143,11 @@ impl ClientSceneAdapter {
         for sprite in sprites {
             self.spawn_field_sprite(sprite, assets);
         }
-        let transform = Transform::from_xyz(0.0, 0.0, 500.0);
+        let transform = Transform::from_xyz(
+            f32::from(scene.camera.center_offset[0]),
+            f32::from(scene.camera.center_offset[1]),
+            500.0,
+        );
         let camera = match &self.render_target {
             Some(target) => self
                 .app
@@ -267,11 +274,15 @@ impl ClientSceneAdapter {
                         sprite.atlas_rect[2] as f32,
                         sprite.atlas_rect[3] as f32,
                     )),
+                    custom_size: Some(Vec2::new(
+                        sprite.pixel_size[0] as f32,
+                        sprite.pixel_size[1] as f32,
+                    )),
                     ..Sprite::default()
                 },
                 Transform::from_xyz(
-                    to_units(sprite.pixel_offset[0]),
-                    to_units(-sprite.pixel_offset[1]),
+                    sprite.pixel_offset[0] as f32 + sprite.pixel_size[0] as f32 / 2.0,
+                    -(sprite.pixel_offset[1] as f32 + sprite.pixel_size[1] as f32 / 2.0),
                     to_units(sprite.depth as i32),
                 ),
                 FieldSpriteIdentity {

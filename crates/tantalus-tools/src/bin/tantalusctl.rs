@@ -5,7 +5,6 @@ use std::process::ExitCode;
 use tantalus_assets::{
     CancellationToken, DirectoryAssetSource, ImportPlan, import_subset, inspect_install,
 };
-use tantalus_contracts::ContentId;
 
 fn main() -> ExitCode {
     match run(std::env::args_os().skip(1).collect()) {
@@ -305,46 +304,46 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         return Ok(());
     }
     if let Some(field) = field {
-        let bytes = bundle
-            .read_entry(0, 300 * 1024 * 1024)
+        let loaded = tantalus_assets::pc::bundled_field::BundledField::load(&path, &field)
             .map_err(|error| error.to_string())?;
-        let serialized =
-            tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
-                .map_err(|error| error.to_string())?;
-        let load = |name: String| {
-            for (index, object) in serialized.report().objects.iter().enumerate() {
-                if object.class_id != 49 {
-                    continue;
-                }
-                let asset = tantalus_assets::pc::text_asset::TextAsset::parse(
-                    serialized
-                        .object_data(index)
-                        .map_err(|error| error.to_string())?,
-                    &name,
-                )
-                .map_err(|error| error.to_string())?;
-                if asset.name == name {
-                    return Ok(asset);
+        let mapped = &loaded.scene;
+        let mut active_sprites = 0_usize;
+        let mut viewport_sprites = 0_usize;
+        let mut bounds = [i32::MAX, i32::MIN, i32::MAX, i32::MIN];
+        for overlay in &mapped.overlays {
+            for sprite in &overlay.sprites {
+                if sprite.active && overlay.camera_index == mapped.camera_index as u8 {
+                    active_sprites += 1;
+                    bounds[0] = bounds[0].min(sprite.pixel_offset[0]);
+                    bounds[1] = bounds[1].max(sprite.pixel_offset[0]);
+                    bounds[2] = bounds[2].min(sprite.pixel_offset[1]);
+                    bounds[3] = bounds[3].max(sprite.pixel_offset[1]);
+                    let width = sprite.pixel_size[0] as i32;
+                    let height = sprite.pixel_size[1] as i32;
+                    if sprite.pixel_offset[0] < 160
+                        && sprite.pixel_offset[0] + width > -160
+                        && -sprite.pixel_offset[1] > -120
+                        && -sprite.pixel_offset[1] - height < 120
+                    {
+                        viewport_sprites += 1;
+                    }
                 }
             }
-            Err(format!("field asset `{name}` was not found"))
-        };
-        let scene_asset = load(format!("{field}.bgs"))?;
-        let navigation_asset = load(format!("{field}.bgi"))?;
-        let scene = tantalus_assets::pc::bgs::BgsFile::parse(&scene_asset.script, &field)
-            .map_err(|error| error.to_string())?;
-        let navigation = tantalus_assets::pc::bgi::BgiFile::parse(&navigation_asset.script, &field)
-            .map_err(|error| error.to_string())?;
-        let mapped = tantalus_assets::pc::field::FieldMapper::map(
-            &scene,
-            &navigation,
-            ContentId::parse("fixture:texture/atlas").unwrap(),
-            0,
-        )
-        .map_err(|error| error.to_string())?;
+        }
         let report = serde_json::json!({
             "name": field,
+            "scene_offset": loaded.scene_offset,
+            "active_sprites": active_sprites,
+            "viewport_sprites": viewport_sprites,
+            "active_offset_bounds": (active_sprites > 0).then_some(bounds),
+            "atlas": loaded.atlas_id.as_str(),
+            "atlas_path_id": loaded.atlas_path_id,
             "camera_projection": mapped.camera.projection,
+            "camera_size": mapped.camera.size,
+            "camera_center_offset": mapped.camera.center_offset,
+            "camera_viewport_x": mapped.camera.viewport_x,
+            "camera_viewport_y": mapped.camera.viewport_y,
+            "camera_translation": [mapped.camera.translation.x, mapped.camera.translation.y, mapped.camera.translation.z],
             "actor_anchor": [mapped.actor_anchor.x, mapped.actor_anchor.y, mapped.actor_anchor.z],
             "navigation_triangles": mapped.navigation_triangles,
             "overlays": mapped.overlays.len(),
@@ -354,10 +353,11 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             println!("{}", serde_json::to_string_pretty(&report).unwrap());
         } else {
             println!(
-                "{}: {} overlays, {} navigation triangles, actor anchor {:?}",
+                "{}: {} overlays, {} navigation triangles, atlas path ID {}, actor anchor {:?}",
                 field,
                 mapped.overlays.len(),
                 mapped.navigation_triangles,
+                loaded.atlas_path_id,
                 mapped.actor_anchor
             );
         }

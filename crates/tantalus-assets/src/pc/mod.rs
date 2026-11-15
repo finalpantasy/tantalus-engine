@@ -1,6 +1,7 @@
 pub mod asset_bundle;
 pub mod bgi;
 pub mod bgs;
+pub mod bundled_field;
 pub mod field;
 pub mod serialized;
 pub mod text_asset;
@@ -61,7 +62,7 @@ pub fn inspect_pc_container(path: &Path) -> Result<PcContainerReport, ImportErro
         codec_support: CodecSupport::Unsupported,
         detail: match kind {
             PcContainerKind::UnityFs => {
-                "UnityFS container recognized; AssetBundle object decoding is not implemented"
+                "UnityFS container recognized; UnityFS object decoding is not implemented"
                     .to_owned()
             }
             PcContainerKind::Unrecognized => {

@@ -46,6 +46,12 @@ The source-backed BGS parser handles scene headers, cameras, overlays, packed sp
 
 `FieldMapper` now maps the real BGS+BGI data into public field-scene contracts. The real result preserves projection 529, actor anchor (-130, 0, -648), 203 navigation triangles, 22 overlays, and 1,704 sprites. Mapping covers atlas rectangles, pixel offsets, shifted depth, alpha/transparency, visibility, and camera identity. Synthetic tests cover invalid cameras and depth overflow. Evidence: `audit/field-mapping.json`.
 
+## Native capture evidence
+
+`BundledField` resolves the actual BGS/BGI/Texture2D dependency set and gives the atlas a stable `ffix:field/fbg_n00_tshp_map001_th_cgr_0/atlas` identity. `tantalus-client capture-field` uploads its decoded RGBA to Bevy and applies the mapped sprites without a placeholder image. Atlas rectangles retain their source coordinates while native sprite dimensions remain independent of texture resolution.
+
+After capture warmup was changed to count received GPU frames, two independent 320×240 runs produced byte-identical nonempty PNGs with SHA-256 `94d9867915f025045010f318ab97b3ae043c89b00c16c46d0847dcc528445f52`. Inspection shows incorrect tile placement concentrated in part of the image. This proves real texture upload/render/readback only, not correct field composition or parity. Synthetic 2D capture also passes; synthetic 3D remains blank.
+
 ## Remaining dependency
 
-Render the mapped sprites in the native client, connect BGI navigation to movement, and validate actual field presentation and events. Real gameplay has not been run; this mapping milestone is not rendered parity.
+Correct field origin/projection, camera/overlay filtering, alpha/transparency, and composition against reference evidence; then connect BGI navigation to movement and real event execution. Real gameplay has not been run.

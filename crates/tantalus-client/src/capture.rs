@@ -45,6 +45,29 @@ pub fn capture_snapshot(
     output: &Path,
     config: CaptureConfig,
 ) -> Result<(), ClientError> {
+    capture_with(output, config, |adapter, target| {
+        adapter.set_render_target(RenderTarget::Image(target.into()));
+        adapter.apply(snapshot, &ResolvedAssets::default())
+    })
+}
+
+pub fn capture_field(
+    field: &tantalus_assets::pc::bundled_field::BundledField,
+    output: &Path,
+    config: CaptureConfig,
+) -> Result<(), ClientError> {
+    capture_with(output, config, |adapter, target| {
+        let assets = crate::field_assets::resolve_field_assets(adapter, field)?;
+        adapter.set_render_target(RenderTarget::Image(target.into()));
+        adapter.apply_field(&field.scene, &assets)
+    })
+}
+
+fn capture_with(
+    output: &Path,
+    config: CaptureConfig,
+    apply: impl FnOnce(&mut ClientSceneAdapter, Handle<Image>) -> Result<(), ClientError>,
+) -> Result<(), ClientError> {
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb_u8(18, 24, 36)))
         .add_plugins(
@@ -84,8 +107,7 @@ pub fn capture_snapshot(
     });
     adapter.app_mut().add_systems(Startup, initialize_copier);
     adapter.app_mut().world_mut().spawn(ImageToSave(cpu_image));
-    adapter.set_render_target(RenderTarget::Image(target.clone().into()));
-    adapter.apply(snapshot, &ResolvedAssets::default())?;
+    apply(&mut adapter, target)?;
 
     let result: Arc<Mutex<Option<Result<(), String>>>> = Arc::new(Mutex::new(None));
     adapter.app_mut().insert_resource(CaptureState {
@@ -262,8 +284,13 @@ fn capture_frame(
     mut exit: MessageWriter<AppExit>,
 ) {
     if state.frames_remaining > 0 {
-        state.frames_remaining -= 1;
-        while receiver.try_recv().is_ok() {}
+        let mut received_frame = false;
+        while receiver.try_recv().is_ok() {
+            received_frame = true;
+        }
+        if received_frame {
+            state.frames_remaining -= 1;
+        }
         return;
     }
 

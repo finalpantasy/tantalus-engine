@@ -146,3 +146,39 @@ fn invalid_camera_and_depth_overflow_are_rejected() {
         .is_err()
     );
 }
+
+#[test]
+fn upscaled_atlas_uses_sequential_padded_tiles_and_native_sprite_sizes() {
+    let mut scene = scene(2);
+    scene.overlays.push(scene.overlays[0].clone());
+    let mapped = FieldMapper::map_upscaled(
+        &scene,
+        &navigation(),
+        ContentId::parse("fixture:texture/atlas").unwrap(),
+        0,
+        [128, 128],
+        32,
+        2,
+    )
+    .unwrap();
+
+    let first = &mapped.overlays[0].sprites[0];
+    let second = &mapped.overlays[1].sprites[0];
+    assert_eq!(first.atlas_rect, [2, 2, 34, 34]);
+    assert_eq!(second.atlas_rect, [38, 2, 70, 34]);
+    assert_eq!(first.pixel_size, [16, 8]);
+    assert_eq!(second.pixel_offset, first.pixel_offset);
+
+    assert!(
+        FieldMapper::map_upscaled(
+            &scene,
+            &navigation(),
+            ContentId::parse("fixture:texture/atlas").unwrap(),
+            0,
+            [32, 32],
+            32,
+            2,
+        )
+        .is_err()
+    );
+}

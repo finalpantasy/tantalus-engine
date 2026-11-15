@@ -43,7 +43,8 @@ The current source includes:
 - Source-backed BGI navigation parsing with independently matched real field counts and offsets.
 - Real BGS scene/camera/overlay/sprite/animation parsing with independently matched header evidence.
 - Renderer-independent mapping of the real field's camera, actor anchor, navigation, overlays, and sprite atlas/depth data.
-- Bevy field-sprite spawning with atlas validation, deterministic depth order, and atomic missing-resource failure; visual capture remains unresolved.
+- Bevy field-sprite spawning with the real container-selected atlas, native-size/texture-resolution separation, deterministic depth order, and atomic missing-resource failure.
+- Repeatable nonempty synthetic-2D and real-field offscreen captures; real field composition remains incorrect and synthetic 3D remains blank.
 - Synthetic tests for missing resources, incorrect file types, non-ASCII paths, and unchanged source files.
 - A pinned Memoria reference baseline with 22 initial capability groups and 204 configuration bindings.
 - A Bevy 0.19.1 client driven by renderer-independent scene snapshots.
@@ -61,7 +62,7 @@ The current source includes:
 - Pure WASM module-state migration with schema/history updates and source-save preservation on failure.
 - Single-provider initialization, dispatch, snapshots, shutdown, and explicit failure without vanilla fallback.
 
-No original game assets are included. Bounded real AssetBundle object decoding and selected-field atlas association are implemented; the complete asset dependency closure and actual field rendering remain incomplete. Headless visual verification is failing after blank Tantalus and official Bevy control captures; see [`tasks/T05.md`](tasks/T05.md). No compatibility or performance claim is being made beyond the checks recorded in [`tasks/`](tasks/).
+No original game assets are included. Bounded real AssetBundle decoding, selected-field loading, and 2D offscreen capture are implemented; the complete asset dependency closure remains incomplete. Real field composition is visibly incorrect and synthetic 3D capture remains blank; see [`tasks/T05.md`](tasks/T05.md). No compatibility or performance claim is being made beyond the checks recorded in [`tasks/`](tasks/).
 
 ## Planned platform
 

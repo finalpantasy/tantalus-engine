@@ -59,24 +59,27 @@ fn scene_snapshots_are_serializable_without_bevy_types() {
 }
 
 #[test]
-#[ignore = "Bevy 0.19.1's own headless reference also produces blank captures on this host"]
-fn offscreen_layered_and_3d_scenes_produce_nonempty_images() {
+fn offscreen_layered_scene_produces_a_nonempty_image() {
+    assert_nonempty_capture("synthetic-2d", ScenePresentationMode::Layered2d);
+}
+
+#[test]
+#[ignore = "Synthetic 3D capture remains blank on this host"]
+fn offscreen_3d_scene_produces_a_nonempty_image() {
+    assert_nonempty_capture("synthetic-3d", ScenePresentationMode::Full3d);
+}
+
+fn assert_nonempty_capture(name: &str, mode: ScenePresentationMode) {
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../local/captures");
     std::fs::create_dir_all(&directory).unwrap();
+    let output = directory.join(format!("{name}.png"));
+    capture_snapshot(&synthetic_snapshot(mode), &output, CaptureConfig::default()).unwrap();
 
-    for (name, mode) in [
-        ("synthetic-2d", ScenePresentationMode::Layered2d),
-        ("synthetic-3d", ScenePresentationMode::Full3d),
-    ] {
-        let output = directory.join(format!("{name}.png"));
-        capture_snapshot(&synthetic_snapshot(mode), &output, CaptureConfig::default()).unwrap();
-
-        let bytes = std::fs::read(&output).unwrap();
-        assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
-        let image = image::load_from_memory(&bytes).unwrap().to_rgba8();
-        assert_eq!(image.width(), 320);
-        assert_eq!(image.height(), 180);
-        let colors: BTreeSet<_> = image.pixels().map(|pixel| pixel.0).collect();
-        assert!(colors.len() > 2, "{name} produced a blank or flat image");
-    }
+    let bytes = std::fs::read(&output).unwrap();
+    assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
+    let image = image::load_from_memory(&bytes).unwrap().to_rgba8();
+    assert_eq!(image.width(), 320);
+    assert_eq!(image.height(), 180);
+    let colors: BTreeSet<_> = image.pixels().map(|pixel| pixel.0).collect();
+    assert!(colors.len() > 2, "{name} produced a blank or flat image");
 }

@@ -5542,6 +5542,7 @@ dependencies = [
  "image",
  "serde",
  "serde_json",
+ "tantalus-assets",
  "tantalus-contracts",
  "tantalus-core",
  "tempfile",

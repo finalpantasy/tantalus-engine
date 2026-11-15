@@ -14,6 +14,7 @@ fn sprite(
         sprite_index: index,
         atlas: atlas.clone(),
         atlas_rect: [10, 20, 26, 28],
+        pixel_size: [16, 8],
         pixel_offset: [100, 50],
         depth,
         alpha: 0,
@@ -31,6 +32,7 @@ fn field(atlas: &ContentId) -> FieldSceneDescription {
             rotation: [0; 9],
             translation: Point3::default(),
             center_offset: [0; 2],
+            size: [320, 224],
             viewport_x: [0; 2],
             viewport_y: [0; 2],
             depth_offset: 0,
@@ -86,8 +88,17 @@ fn field_adapter_spawns_active_textured_sprites_in_depth_order() {
         sprites[0].1.rect.unwrap(),
         Rect::new(10.0, 20.0, 26.0, 28.0)
     );
-    assert_eq!(sprites[0].2.translation.x, 0.1);
-    assert_eq!(sprites[0].2.translation.y, -0.05);
+    assert_eq!(sprites[0].1.custom_size, Some(Vec2::new(16.0, 8.0)));
+    assert_eq!(sprites[0].2.translation.x, 108.0);
+    assert_eq!(sprites[0].2.translation.y, -54.0);
+
+    let mut cameras = adapter
+        .app_mut()
+        .world_mut()
+        .query::<(&Camera2d, &Transform)>();
+    let (_, camera) = cameras.iter(adapter.app().world()).next().unwrap();
+    assert_eq!(camera.translation.x, 0.0);
+    assert_eq!(camera.translation.y, 0.0);
 }
 
 #[test]
@@ -109,4 +120,25 @@ fn missing_atlas_does_not_clear_the_previous_field() {
             .count(),
         2
     );
+}
+
+#[test]
+fn atlas_resolution_does_not_change_native_sprite_placement() {
+    let atlas = ContentId::parse("fixture:texture/atlas").unwrap();
+    let mut adapter = ClientSceneAdapter::new();
+    let assets = resolved(&mut adapter, &atlas);
+    let mut scene = field(&atlas);
+    scene.overlays[0].sprites[0].atlas_rect = [10, 20, 74, 84];
+    adapter.apply_field(&scene, &assets).unwrap();
+
+    let mut sprites = adapter
+        .app_mut()
+        .world_mut()
+        .query::<(&FieldSpriteIdentity, &Transform)>();
+    let (_, transform) = sprites
+        .iter(adapter.app().world())
+        .find(|(identity, _)| identity.sprite == 0)
+        .unwrap();
+    assert_eq!(transform.translation.x, 108.0);
+    assert_eq!(transform.translation.y, -54.0);
 }
