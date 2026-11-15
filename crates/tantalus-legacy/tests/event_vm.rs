@@ -1119,3 +1119,18 @@ fn cast_list_matches_the_reference_empty_implementation() {
     assert_eq!(vm.variable(VariableScope::Global, 28), 0);
     assert_eq!(vm.status(), VmStatus::Completed);
 }
+
+#[test]
+fn right_shift_is_arithmetic_and_masks_the_shift_count() {
+    for (left, right, expected) in [(-8, 2, -2), (16, 2, 4), (1, 33, 0)] {
+        let result = variable(VariableScope::Global, VariableType::Int24, 29);
+        let expression = assign(result, binary(constant(left), constant(right), 23));
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        let mut host = Host::new();
+
+        vm.step(Tick::new(0), &mut host).unwrap();
+
+        assert_eq!(vm.variable(VariableScope::Global, 29), expected);
+    }
+}

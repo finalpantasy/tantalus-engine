@@ -59,13 +59,14 @@
     "FLDSND0 0xC5 decodes signed sound code and ID operands and emits RunSound with three zero arguments",
     "ATTACHOFFSET 0xD4 decodes three signed coordinates and emits an actor-bound AttachObjectOffset; missing actor context is explicit",
     "BGIMASK 0x27 decodes an immediate or expression mask and emits its wrapped byte",
-    "B_CAST_LIST 74 matches the reference empty implementation and returns zero without consuming an operand"
+    "B_CAST_LIST 74 matches the reference empty implementation and returns zero without consuming an operand",
+    "B_SHIFT_RIGHT 23 performs signed arithmetic shifts with the reference's masked shift count"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 936,
-    "opcode": "0x17",
-    "instruction": "B_SHIFT_RIGHT",
+    "offset": 938,
+    "opcode": "0x66",
+    "instruction": "B_ANGLE2",
     "expression_start": 936
   },
   "event_execution": "NOT_RUN",

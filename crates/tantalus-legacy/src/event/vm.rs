@@ -430,6 +430,7 @@ impl EventVm {
                 | ExpressionOp::Multiply
                 | ExpressionOp::Divide
                 | ExpressionOp::Remainder
+                | ExpressionOp::ShiftRight
                 | ExpressionOp::Less
                 | ExpressionOp::Greater
                 | ExpressionOp::GreaterOrEqual
@@ -442,6 +443,7 @@ impl EventVm {
                         ExpressionOp::Multiply => left.wrapping_mul(right),
                         ExpressionOp::Divide if right != 0 => left.wrapping_div(right),
                         ExpressionOp::Remainder if right != 0 => left.wrapping_rem(right),
+                        ExpressionOp::ShiftRight => left.wrapping_shr(right as u32),
                         ExpressionOp::Divide | ExpressionOp::Remainder => left,
                         ExpressionOp::Less => i32::from(left < right),
                         ExpressionOp::Greater => i32::from(left > right),
@@ -991,6 +993,7 @@ fn operand_start(
         | ExpressionOp::Multiply
         | ExpressionOp::Divide
         | ExpressionOp::Remainder
+        | ExpressionOp::ShiftRight
         | ExpressionOp::Less
         | ExpressionOp::Greater
         | ExpressionOp::GreaterOrEqual
