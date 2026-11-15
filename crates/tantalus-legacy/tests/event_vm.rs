@@ -177,6 +177,12 @@ impl LegacyEventHost for Host {
                 HostEvent::SetActorFacing { .. } => {}
                 HostEvent::StartActorTurn { .. } => {}
                 HostEvent::AimAtCamera => {}
+                HostEvent::ExitField => {}
+                HostEvent::PlayJumpAnimation { .. } => {}
+                HostEvent::DisableIdleAnimation => {}
+                HostEvent::StopAnimation { .. } => {}
+                HostEvent::SetPathFloorActive { .. } => {}
+                HostEvent::PretendToBe { .. } => {}
                 HostEvent::DefinePlayerControl { .. } => {}
                 HostEvent::SetControlDirection { .. } => {}
                 HostEvent::InitializeObject { .. } => {}
@@ -4752,6 +4758,78 @@ fn turn_to_position_pathing_and_shared_script_wait() {
     assert_eq!(
         vm.step(Tick::new(0), &mut host).unwrap().status,
         VmStatus::Completed
+    );
+}
+
+#[test]
+fn operand_less_exit_jump_and_animation_commands_use_one_byte_and_actor_context() {
+    let actor = EntityId::new(11);
+    let mut host = Host::new();
+
+    for (opcode, event) in [
+        (0x9e, HostEvent::ExitField),
+        (0x90, HostEvent::DisableIdleAnimation),
+    ] {
+        let program = decode_program(&[opcode, 4]).unwrap();
+        assert_eq!(program.instructions[&0].length, 1);
+        let mut vm = EventVm::new(program);
+        assert_eq!(vm.step(Tick::new(0), &mut host).unwrap().events, [event]);
+    }
+
+    let program = decode_program(&[0x9c, 0x9d, 0x42, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(actor);
+    assert_eq!(
+        vm.step(Tick::new(0), &mut host).unwrap().events,
+        [
+            HostEvent::PlayJumpAnimation {
+                actor,
+                landing: false
+            },
+            HostEvent::PlayJumpAnimation {
+                actor,
+                landing: true
+            },
+            HostEvent::StopAnimation { actor },
+        ]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[0x42, 4]).unwrap());
+    assert!(
+        vm.step(Tick::new(0), &mut host)
+            .unwrap_err()
+            .message
+            .contains("actor context")
+    );
+}
+
+#[test]
+fn path_floor_activation_and_pretend_to_be_decode_flag_bit_operands() {
+    let actor = EntityId::new(11);
+    let mut host = Host::new();
+
+    let program = decode_program(&[0xcb, 0, 3, 1, 0xb5, 0, 9, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 4);
+    let mut vm = EventVm::new(program).with_entity(actor);
+    assert_eq!(
+        vm.step(Tick::new(0), &mut host).unwrap().events,
+        [
+            HostEvent::SetPathFloorActive {
+                floor: 3,
+                active: 1
+            },
+            HostEvent::PretendToBe {
+                actor,
+                target: EntityId::new(9)
+            },
+        ]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[0xb5, 0, 9, 4]).unwrap());
+    assert!(
+        vm.step(Tick::new(0), &mut host)
+            .unwrap_err()
+            .message
+            .contains("actor context")
     );
 }
 

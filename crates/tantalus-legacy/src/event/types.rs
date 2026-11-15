@@ -273,6 +273,25 @@ pub enum InstructionKind {
         z: Expression,
     },
     AimAtCamera,
+    /// `MOVQ` 0x9E: walk the controlled character to the field exit and flush the field.
+    ExitField,
+    /// `PREJUMP` 0x9C (`landing: false`) and `POSTJUMP` 0x9D (`landing: true`).
+    PlayJumpAnimation {
+        landing: bool,
+    },
+    /// `SLEEPINH` 0x90.
+    DisableIdleAnimation,
+    /// `ENDANIM` 0x42.
+    StopAnimation,
+    /// `BGIACTIVEF` 0xCB.
+    SetPathFloorActive {
+        floor: Expression,
+        active: Expression,
+    },
+    /// `PRETEND` 0xB5.
+    PretendToBe {
+        target: Expression,
+    },
     DefinePlayerControl,
     SetControlDirection {
         arrow: Expression,
@@ -1016,6 +1035,23 @@ pub enum HostEvent {
         speed: i32,
     },
     AimAtCamera,
+    ExitField,
+    PlayJumpAnimation {
+        actor: EntityId,
+        landing: bool,
+    },
+    DisableIdleAnimation,
+    StopAnimation {
+        actor: EntityId,
+    },
+    SetPathFloorActive {
+        floor: i32,
+        active: i32,
+    },
+    PretendToBe {
+        actor: EntityId,
+        target: EntityId,
+    },
     DefinePlayerControl {
         actor: EntityId,
     },
