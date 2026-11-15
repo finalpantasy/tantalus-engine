@@ -91,7 +91,8 @@
     "SPS 0xB3 decodes byte IDs and three signed-wide arguments and emits SetSpsParameters",
     "unnamed expression 114 matches the reference no-dispatch path without a stack effect",
     "NOP consumes the argument-flag byte read by the reference event dispatcher",
-    "B_LE_E 30 returns per-slot less-or-equal flags without writes, including zero for an empty mask"
+    "B_LE_E 30 returns per-slot less-or-equal flags without writes, including zero for an empty mask",
+    "PPRINT 0x6C consumes only its opcode and continues without yielding or side effects"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -115,10 +116,10 @@
     "entry": 0,
     "function": 0,
     "function_tag": 0,
-    "offset": 258,
-    "opcode": 108,
+    "offset": 1072,
+    "opcode": 213,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode after selected-member less-or-equal support"
+    "instruction": "event opcode after non-yielding PPRINT support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

@@ -154,6 +154,9 @@ impl EventVm {
                     self.pc = next;
                     break;
                 }
+                InstructionKind::NoOp(_) => {
+                    self.pc = next;
+                }
                 InstructionKind::Jump(relative) => {
                     self.pc = jump_target(&instruction, relative)?;
                 }
@@ -1141,6 +1144,7 @@ impl EventVm {
 fn opcode_for(kind: &InstructionKind) -> u32 {
     match kind {
         InstructionKind::Nop => 0x00,
+        InstructionKind::NoOp(opcode) => *opcode,
         InstructionKind::Jump(_) => 0x01,
         InstructionKind::JumpIfNot { .. } => 0x02,
         InstructionKind::JumpIf { .. } => 0x03,

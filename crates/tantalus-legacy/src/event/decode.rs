@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use tantalus_contracts::EntityId;
 
 const OP_NOP: u32 = 0x00;
+const OP_UNUSED_PRINT: u32 = 0x6c;
 const OP_JUMP: u32 = 0x01;
 const OP_JUMP_IF_NOT: u32 = 0x02;
 const OP_JUMP_IF: u32 = 0x03;
@@ -92,6 +93,7 @@ impl Decoder<'_> {
                 self.byte()?;
                 InstructionKind::Nop
             }
+            OP_UNUSED_PRINT => InstructionKind::NoOp(opcode),
             OP_JUMP => InstructionKind::Jump(self.i16()?),
             OP_JUMP_IF_NOT => InstructionKind::JumpIfNot {
                 condition: self.expression()?,

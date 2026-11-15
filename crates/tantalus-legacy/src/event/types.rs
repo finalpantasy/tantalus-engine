@@ -91,6 +91,7 @@ pub struct Expression(pub Vec<ExpressionOp>);
 #[serde(rename_all = "snake_case")]
 pub enum InstructionKind {
     Nop,
+    NoOp(u32),
     Jump(i16),
     JumpIfNot {
         condition: Expression,
