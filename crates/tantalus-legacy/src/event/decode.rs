@@ -18,6 +18,7 @@ const OP_AIM_AT_CAMERA: u32 = 0xb8;
 const OP_DEFINE_PLAYER_CONTROL: u32 = 0x2c;
 const OP_SET_CONTROL_DIRECTION: u32 = 0x67;
 const OP_BACKGROUND_MOVE: u32 = 0x58;
+const OP_SET_TILE_SHADE_COLOR: u32 = 0x59;
 const OP_INITIALIZE_OBJECT: u32 = 0x09;
 const OP_INITIALIZE_REGION: u32 = 0x08;
 const OP_INITIALIZE_CODE: u32 = 0x07;
@@ -158,6 +159,25 @@ impl Decoder<'_> {
                     x: self.expression()?,
                     y: self.expression()?,
                     z: self.expression()?,
+                }
+            }
+            OP_SET_TILE_SHADE_COLOR => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetTileShadeColor {
+                    overlay: argument(1)?,
+                    red: argument(2)?,
+                    green: argument(4)?,
+                    blue: argument(8)?,
                 }
             }
             OP_INITIALIZE_OBJECT => InstructionKind::InitializeObject {

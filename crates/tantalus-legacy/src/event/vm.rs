@@ -416,6 +416,22 @@ impl EventVm {
                     self.status = VmStatus::Waiting;
                     events.push(HostEvent::RequestCallerSync { level, tag });
                 }
+                InstructionKind::SetTileShadeColor {
+                    overlay,
+                    red,
+                    green,
+                    blue,
+                } => {
+                    let overlay = self.evaluate(host, &overlay, instruction.offset, opcode)?;
+                    let red = self.evaluate(host, &red, instruction.offset, opcode)? as u8;
+                    let green = self.evaluate(host, &green, instruction.offset, opcode)? as u8;
+                    let blue = self.evaluate(host, &blue, instruction.offset, opcode)? as u8;
+                    self.pc = next;
+                    events.push(HostEvent::SetTileShadeColor {
+                        overlay,
+                        color: [red, green, blue],
+                    });
+                }
                 InstructionKind::AttachTile {
                     overlay,
                     x,
@@ -1115,6 +1131,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::DefinePlayerControl => 0x2c,
         InstructionKind::SetControlDirection { .. } => 0x67,
         InstructionKind::BackgroundMove { .. } => 0x58,
+        InstructionKind::SetTileShadeColor { .. } => 0x59,
         InstructionKind::InitializeObject { .. } => 0x09,
         InstructionKind::InitializeRegion { .. } => 0x08,
         InstructionKind::InitializeCode { .. } => 0x07,

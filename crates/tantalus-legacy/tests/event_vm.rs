@@ -137,6 +137,7 @@ impl LegacyEventHost for Host {
                 HostEvent::RequestCallerAsync { .. } => {}
                 HostEvent::CalculateExitPosition => {}
                 HostEvent::RequestCallerSync { .. } => {}
+                HostEvent::SetTileShadeColor { .. } => {}
                 HostEvent::AttachTile { .. } => {}
             }
         }
@@ -1534,6 +1535,38 @@ fn bglattach_preserves_offsets_filter_mode_and_color() {
             y: 20,
             filter_mode: -1,
             color: [1, 2, 3]
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
+fn bglcolor_decodes_immediate_and_expression_components() {
+    let program = decode_program(&[89, 0, 2, 255, 128, 1, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileShadeColor {
+            overlay: 2,
+            color: [255, 128, 1]
+        }]
+    );
+
+    let mut bytes = vec![89, 10, 3];
+    append_expression(&mut bytes, constant(128));
+    bytes.push(255);
+    append_expression(&mut bytes, constant(-1));
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetTileShadeColor {
+            overlay: 3,
+            color: [128, 255, 255]
         }]
     );
     assert_eq!(vm.status(), VmStatus::Completed);

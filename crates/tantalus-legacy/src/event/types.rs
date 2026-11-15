@@ -191,6 +191,12 @@ pub enum InstructionKind {
         level: Expression,
         tag: u8,
     },
+    SetTileShadeColor {
+        overlay: Expression,
+        red: Expression,
+        green: Expression,
+        blue: Expression,
+    },
     AttachTile {
         overlay: Expression,
         x: Expression,
@@ -337,6 +343,10 @@ pub enum HostEvent {
     RequestCallerSync {
         level: i32,
         tag: u8,
+    },
+    SetTileShadeColor {
+        overlay: i32,
+        color: [u8; 3],
     },
     AttachTile {
         overlay: i32,
