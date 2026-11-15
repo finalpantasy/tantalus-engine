@@ -124,6 +124,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetLeftTurnAnimation { .. } => {}
                 HostEvent::SetRightTurnAnimation { .. } => {}
                 HostEvent::SetActorRadii { .. } => {}
+                HostEvent::SetIdleAnimationSpeeds { .. } => {}
                 HostEvent::SetActorFacing { .. } => {}
                 HostEvent::AimAtCamera => {}
                 HostEvent::DefinePlayerControl { .. } => {}
@@ -646,6 +647,42 @@ fn radius_sets_actor_pathing_collision_and_talk_radii() {
     );
 
     let mut vm = EventVm::new(decode_program(&[75, 0, 30, 8, 9, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("actor context"));
+}
+
+#[test]
+fn idlespeed_sets_all_four_actor_animation_speeds() {
+    let program = decode_program(&[134, 0, 16, 20, 24, 28, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetIdleAnimationSpeeds {
+            actor: EntityId::new(42),
+            speeds: [16, 20, 24, 28]
+        }]
+    );
+
+    let mut bytes = vec![134, 15];
+    for value in [-1, 256, 32, 64] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetIdleAnimationSpeeds {
+            actor: EntityId::new(42),
+            speeds: [255, 0, 32, 64]
+        }]
+    );
+
+    let mut vm = EventVm::new(decode_program(&[134, 0, 16, 20, 24, 28, 4]).unwrap());
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("actor context"));

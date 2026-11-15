@@ -108,7 +108,8 @@
     "ARUN 0x35 emits actor-bound SetRunAnimation with wide immediate/expression IDs",
     "ATURNL 0x7A emits actor-bound SetLeftTurnAnimation with wide immediate/expression IDs",
     "ATURNR 0x7B emits actor-bound SetRightTurnAnimation with wide immediate/expression IDs",
-    "RADIUS 0x4B emits actor-bound pathing, collision, and talk radii with byte wrapping"
+    "RADIUS 0x4B emits actor-bound pathing, collision, and talk radii with byte wrapping",
+    "IDLESPEED 0x86 emits four actor-bound standing-animation speed bytes"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -133,10 +134,10 @@
     "entry": 6,
     "function": 0,
     "function_tag": 0,
-    "offset": 77,
-    "opcode": 134,
+    "offset": 83,
+    "opcode": 139,
     "kind": "UnsupportedOpcode",
-    "instruction": "IDLESPEED after actor radii; entries 4 and 5 omit BSFLOOR's argument flag"
+    "instruction": "NECKID after idle-animation speeds; entries 4 and 5 omit BSFLOOR's argument flag"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

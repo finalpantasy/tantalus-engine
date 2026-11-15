@@ -122,6 +122,7 @@ pub enum InstructionKind {
         collision_radius: Expression,
         talk_radius: Expression,
     },
+    SetIdleAnimationSpeeds([Expression; 4]),
     SetActorFacing(Expression),
     Return,
     Wait(Expression),
@@ -337,6 +338,10 @@ pub enum HostEvent {
         pathing_size: i32,
         collision_radius: u8,
         talk_radius: u8,
+    },
+    SetIdleAnimationSpeeds {
+        actor: EntityId,
+        speeds: [u8; 4],
     },
     SetActorFacing {
         actor: EntityId,

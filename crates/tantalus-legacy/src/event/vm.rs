@@ -196,6 +196,25 @@ impl EventVm {
                         self.evaluate(host, &expression, instruction.offset, opcode)?;
                     self.pc = next;
                 }
+                InstructionKind::SetIdleAnimationSpeeds(expressions) => {
+                    let [first, second, third, fourth] = expressions;
+                    let speeds = [
+                        self.evaluate(host, &first, instruction.offset, opcode)? as u8,
+                        self.evaluate(host, &second, instruction.offset, opcode)? as u8,
+                        self.evaluate(host, &third, instruction.offset, opcode)? as u8,
+                        self.evaluate(host, &fourth, instruction.offset, opcode)? as u8,
+                    ];
+                    let Some(actor) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "idle animation speeds require current actor context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::SetIdleAnimationSpeeds { actor, speeds });
+                }
                 InstructionKind::SetActorRadii {
                     pathing_size,
                     collision_radius,
@@ -1382,6 +1401,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetLeftTurnAnimation { .. } => 0x7a,
         InstructionKind::SetRightTurnAnimation { .. } => 0x7b,
         InstructionKind::SetActorRadii { .. } => 0x4b,
+        InstructionKind::SetIdleAnimationSpeeds { .. } => 0x86,
         InstructionKind::SetActorFacing { .. } => 0x36,
         InstructionKind::Return => 0x04,
         InstructionKind::Evaluate(_) => 0x05,
