@@ -213,6 +213,7 @@ impl LegacyEventHost for Host {
                 HostEvent::SetHeadFocusFlags { .. } => {}
                 HostEvent::SetWalkTurnSpeed { .. } => {}
                 HostEvent::PreloadField { .. } => {}
+                HostEvent::SetModelLight { .. } => {}
                 HostEvent::ChangeElementalAffinity { .. } => {}
                 HostEvent::SetRain { .. } => {}
                 HostEvent::ChangeField { .. } => {}
@@ -1107,6 +1108,52 @@ fn preload_field_preserves_hint_and_signed_field_identity() {
     let truncated = decode_program(&[253, 0, 5, 1]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
     assert!(truncated.message.contains("opcode Some(253)"));
+}
+
+#[test]
+fn model_light_decodes_signed_operands_and_wraps_colors_and_shadows() {
+    let mut bytes = vec![0xff, 0x21, 0];
+    for value in [-1_i32, 300, -2, 128, -5, 130] {
+        bytes.extend_from_slice(&value.to_le_bytes()[..3]);
+    }
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    assert_eq!(program.instructions[&0].length, 21);
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetModelLight {
+            model: -1,
+            color: [44, 254, 128],
+            shadow_intensity: -5,
+            shadow_scale: -126,
+        }]
+    );
+    assert!(vm.traces().any(|trace| trace.opcode == Some(0x121)));
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![0xff, 0x21, 63];
+    for value in [7, 10, 20, 30, -1, 2] {
+        append_expression(&mut bytes, constant(value));
+    }
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::SetModelLight {
+            model: 7,
+            color: [10, 20, 30],
+            shadow_intensity: -1,
+            shadow_scale: 2,
+        }]
+    );
+
+    let truncated = decode_program(&[0xff, 0x21, 0, 1]).unwrap_err();
+    assert_eq!(truncated.kind, VmErrorKind::Decode);
+    assert!(truncated.message.contains("opcode Some(289)"));
 }
 
 #[test]

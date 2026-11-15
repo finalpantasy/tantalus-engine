@@ -371,6 +371,12 @@ pub enum InstructionKind {
         code: Expression,
         arguments: [Expression; 3],
     },
+    SetModelLight {
+        model: Expression,
+        color: [Expression; 3],
+        shadow_intensity: Expression,
+        shadow_scale: Expression,
+    },
     ChangeElementalAffinity {
         target: Expression,
         kind: Expression,
@@ -736,6 +742,12 @@ pub enum HostEvent {
         object: EntityId,
         code: i32,
         arguments: [i16; 3],
+    },
+    SetModelLight {
+        model: i32,
+        color: [u8; 3],
+        shadow_intensity: i8,
+        shadow_scale: i8,
     },
     ChangeElementalAffinity {
         target: u16,

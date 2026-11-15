@@ -1170,6 +1170,28 @@ impl EventVm {
                         arguments,
                     });
                 }
+                InstructionKind::SetModelLight {
+                    model,
+                    color,
+                    shadow_intensity,
+                    shadow_scale,
+                } => {
+                    let model = self.evaluate(host, &model, instruction.offset, opcode)?;
+                    let red = self.evaluate(host, &color[0], instruction.offset, opcode)? as u8;
+                    let green = self.evaluate(host, &color[1], instruction.offset, opcode)? as u8;
+                    let blue = self.evaluate(host, &color[2], instruction.offset, opcode)? as u8;
+                    let shadow_intensity =
+                        self.evaluate(host, &shadow_intensity, instruction.offset, opcode)? as i8;
+                    let shadow_scale =
+                        self.evaluate(host, &shadow_scale, instruction.offset, opcode)? as i8;
+                    self.pc = next;
+                    events.push(HostEvent::SetModelLight {
+                        model,
+                        color: [red, green, blue],
+                        shadow_intensity,
+                        shadow_scale,
+                    });
+                }
                 InstructionKind::ChangeElementalAffinity {
                     target,
                     kind,
@@ -2504,6 +2526,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::RunBattleCode { .. } => 0x4a,
         InstructionKind::SetBattleMusicContinuation { .. } => 0x1b,
         InstructionKind::RunModelCode { .. } => 0x88,
+        InstructionKind::SetModelLight { .. } => 0x121,
         InstructionKind::ChangeElementalAffinity { .. } => 0x122,
         InstructionKind::SetRunEnabled { opcode, .. } => u32::from(*opcode),
         InstructionKind::SetPartyAvailability { .. } => 0xb4,

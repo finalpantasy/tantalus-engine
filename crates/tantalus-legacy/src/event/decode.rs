@@ -96,6 +96,7 @@ const OP_STOP_TEXTURE_ANIMATION: u32 = 0xc2;
 const OP_RUN_BATTLE_CODE: u32 = 0x4a;
 const OP_SET_BATTLE_MUSIC_CONTINUATION: u32 = 0x1b;
 const OP_RUN_MODEL_CODE: u32 = 0x88;
+const OP_SET_MODEL_LIGHT: u32 = 0x121;
 const OP_CHANGE_ELEMENTAL_AFFINITY: u32 = 0x122;
 const OP_DASH_ON: u32 = 0xf0;
 const OP_FULL_MEMBER: u32 = 0xb4;
@@ -1222,6 +1223,25 @@ impl Decoder<'_> {
                 InstructionKind::RunModelCode {
                     code: argument(1, false)?,
                     arguments: [argument(2, true)?, argument(4, true)?, argument(8, true)?],
+                }
+            }
+            OP_SET_MODEL_LIGHT => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(self.i24()?),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetModelLight {
+                    model: argument(1)?,
+                    color: [argument(2)?, argument(4)?, argument(8)?],
+                    shadow_intensity: argument(16)?,
+                    shadow_scale: argument(32)?,
                 }
             }
             OP_CHANGE_ELEMENTAL_AFFINITY => {
