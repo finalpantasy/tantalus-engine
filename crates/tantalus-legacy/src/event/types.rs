@@ -181,6 +181,10 @@ pub enum InstructionKind {
         arrow: Expression,
         analog: Expression,
     },
+    Cinematic {
+        operation: Expression,
+        argument: Expression,
+    },
     BackgroundMove {
         x: Expression,
         y: Expression,
@@ -455,6 +459,11 @@ pub enum HostEvent {
     SetControlDirection {
         arrow: i16,
         analog: i16,
+    },
+    DispatchCinematic {
+        operation: i32,
+        argument: i32,
+        auxiliary: i32,
     },
     InitializeObject {
         source: u8,

@@ -504,6 +504,21 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetControlDirection { arrow, analog });
                 }
+                InstructionKind::Cinematic {
+                    operation,
+                    argument,
+                } => {
+                    let operation_value =
+                        self.evaluate(host, &operation, instruction.offset, opcode)?;
+                    let argument = self.evaluate(host, &argument, instruction.offset, opcode)?;
+                    let auxiliary = self.evaluate(host, &operation, instruction.offset, opcode)?;
+                    self.pc = next;
+                    events.push(HostEvent::DispatchCinematic {
+                        operation: operation_value,
+                        argument,
+                        auxiliary,
+                    });
+                }
                 InstructionKind::DefinePlayerControl => {
                     let Some(entity) = self.entity else {
                         return Err(VmError::new(
@@ -1906,6 +1921,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::AimAtCamera => 0xb8,
         InstructionKind::DefinePlayerControl => 0x2c,
         InstructionKind::SetControlDirection { .. } => 0x67,
+        InstructionKind::Cinematic { .. } => 0x28,
         InstructionKind::BackgroundMove { .. } => 0x58,
         InstructionKind::SetTileShadeColor { .. } => 0x59,
         InstructionKind::SetSpsParameters { .. } => 0xb3,

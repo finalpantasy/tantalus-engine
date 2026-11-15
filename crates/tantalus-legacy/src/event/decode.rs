@@ -34,6 +34,7 @@ const OP_MOVE_ACTOR: u32 = 0xbf;
 const OP_AIM_AT_CAMERA: u32 = 0xb8;
 const OP_DEFINE_PLAYER_CONTROL: u32 = 0x2c;
 const OP_SET_CONTROL_DIRECTION: u32 = 0x67;
+const OP_CINEMATIC: u32 = 0x28;
 const OP_BACKGROUND_MOVE: u32 = 0x58;
 const OP_SET_TILE_SHADE_COLOR: u32 = 0x59;
 const OP_SET_SPS_PARAMETERS: u32 = 0xb3;
@@ -425,6 +426,23 @@ impl Decoder<'_> {
                 InstructionKind::SetControlDirection {
                     arrow: self.expression()?,
                     analog: self.expression()?,
+                }
+            }
+            OP_CINEMATIC => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(i32::from(self.byte()?)),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::Cinematic {
+                    operation: argument(1)?,
+                    argument: argument(2)?,
                 }
             }
             OP_BACKGROUND_MOVE => {

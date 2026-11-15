@@ -151,7 +151,8 @@
     "ROTXZ 0x37 emits actor-bound pitch/roll after wrapping shift-by-four fixed-point conversion",
     "B_KEYON 79 returns whether the host key-down bitmap intersects the operand mask",
     "B_LET_A 45 writes every selected member without reading old values and returns the last assigned value",
-    "wide JMP_SWITCH 0x0D decodes a 16-bit case count and shares consecutive-case/default execution with its shifted branch anchor while retaining its opcode"
+    "wide JMP_SWITCH 0x0D decodes a 16-bit case count and shares consecutive-case/default execution with its shifted branch anchor while retaining its opcode",
+    "FMV 0x28 decodes two byte operands and emits DispatchCinematic with the operation, argument, and a repeated first-operand evaluation"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -222,14 +223,24 @@
     "kind": "Decode",
     "instruction": "each 277-byte function declares 32005 wide-switch cases; the case table does not complete before the function boundary"
   },
-  "next_decode_boundary": {
+  "truncated_conditional_entry_10": {
     "entry": 10,
     "function": 1,
     "function_tag": 1,
-    "offset": 96,
-    "opcode": 40,
+    "instruction_offset": 261,
+    "offset": 284,
+    "opcode": 2,
+    "kind": "Decode",
+    "instruction": "JMP_IFNOT expression/relative operand do not complete before the function boundary after cinematic dispatch support"
+  },
+  "next_decode_boundary": {
+    "entry": 11,
+    "function": 0,
+    "function_tag": 0,
+    "offset": 10,
+    "opcode": 41,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x28 after wide-count switch support"
+    "instruction": "event opcode 0x29 after cinematic dispatch support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false
