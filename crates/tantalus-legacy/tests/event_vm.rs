@@ -188,6 +188,7 @@ impl LegacyEventHost for Host {
                 HostEvent::InitializeCharacter { .. } => {}
                 HostEvent::StopTextureAnimation { .. } => {}
                 HostEvent::RunBattleCode { .. } => {}
+                HostEvent::RunModelCode { .. } => {}
                 HostEvent::SetRunEnabled { .. } => {}
                 HostEvent::SetPartyAvailability { .. } => {}
                 HostEvent::MoveTile { .. } => {}
@@ -4545,6 +4546,48 @@ fn btlset_emits_unsigned_code_and_signed_value() {
             value: 300
         }]
     );
+}
+
+#[test]
+fn chrfx_dispatches_model_code_and_signed_arguments_for_the_current_object() {
+    let program = decode_program(&[136, 0, 16, 0xcc, 0x07, 4, 0, 0x9d, 0x03, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 9);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(42));
+    let mut host = Host::new();
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RunModelCode {
+            object: EntityId::new(42),
+            code: 16,
+            arguments: [1996, 4, 925]
+        }]
+    );
+    assert_eq!(report.status, VmStatus::Completed);
+
+    let mut bytes = vec![136, 15];
+    append_expression(&mut bytes, constant(-1));
+    append_expression(&mut bytes, constant(-2));
+    append_expression(&mut bytes, constant(300));
+    append_expression(&mut bytes, constant(-32769));
+    bytes.push(4);
+    let mut vm = EventVm::new(decode_program(&bytes).unwrap()).with_entity(EntityId::new(42));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RunModelCode {
+            object: EntityId::new(42),
+            code: -1,
+            arguments: [-2, 300, 32767]
+        }]
+    );
+
+    let mut vm =
+        EventVm::new(decode_program(&[136, 0, 16, 0xcc, 0x07, 4, 0, 0x9d, 0x03, 4]).unwrap());
+    let error = vm.step(Tick::new(0), &mut host).unwrap_err();
+    assert_eq!(error.kind, VmErrorKind::Host);
+    assert!(error.message.contains("object context"));
+    assert!(decode_program(&[136, 0, 16, 0]).is_err());
 }
 
 #[test]

@@ -182,7 +182,8 @@
     "WAITTURN 0x50 consumes no operand and uses an actor-context host-completion wait",
     "B_COS2 81 computes fixed-point cosine using the operand directly without a left shift",
     "B_SIN2 80 computes fixed-point sine using the operand directly without a left shift",
-    "B_XOR_E 86 returns selected-member nonzero-XOR flags without writes and zero for an empty selection"
+    "B_XOR_E 86 returns selected-member nonzero-XOR flags without writes and zero for an empty selection",
+    "CHRFX 0x88 emits RunModelCode with current-object identity, one byte operation, and three signed 16-bit arguments"
   ],
   "malformed_entry_boundary": {
     "entry": 1,
@@ -304,15 +305,25 @@
     "kind": "Decode",
     "instruction": "the final NOP does not contain its argument-flag byte before the function boundary after selected-member XOR support"
   },
+  "truncated_field_sound_entry_20": {
+    "entry": 20,
+    "function": 1,
+    "function_tag": 1,
+    "instruction_offset": 97,
+    "offset": 360,
+    "opcode": 197,
+    "kind": "Decode",
+    "instruction": "FLDSND0 expression/operands do not complete before the function boundary after model-code support"
+  },
   "next_decode_boundary": {
     "entry": 16,
-    "function": 0,
-    "function_tag": 0,
-    "instruction_offset": 92,
-    "offset": 102,
-    "opcode": 136,
+    "function": 1,
+    "function_tag": 1,
+    "instruction_offset": 162,
+    "offset": 409,
+    "opcode": 256,
     "kind": "UnsupportedOpcode",
-    "instruction": "event opcode 0x88 after preserving the entry 15 and 18 malformed boundaries"
+    "instruction": "extended event opcode 0x100 after model-code support"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

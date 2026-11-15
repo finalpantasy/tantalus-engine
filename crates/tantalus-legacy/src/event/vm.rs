@@ -1087,6 +1087,29 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::RunBattleCode { code, value });
                 }
+                InstructionKind::RunModelCode { code, arguments } => {
+                    let code = self.evaluate(host, &code, instruction.offset, opcode)?;
+                    let [first, second, third] = arguments;
+                    let arguments = [
+                        self.evaluate(host, &first, instruction.offset, opcode)? as i16,
+                        self.evaluate(host, &second, instruction.offset, opcode)? as i16,
+                        self.evaluate(host, &third, instruction.offset, opcode)? as i16,
+                    ];
+                    let Some(object) = self.entity else {
+                        return Err(VmError::new(
+                            VmErrorKind::Host,
+                            instruction.offset,
+                            Some(opcode),
+                            "model code requires current object context",
+                        ));
+                    };
+                    self.pc = next;
+                    events.push(HostEvent::RunModelCode {
+                        object,
+                        code,
+                        arguments,
+                    });
+                }
                 InstructionKind::ChangeElementalAffinity {
                     target,
                     kind,
@@ -2337,6 +2360,7 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::InitializeCharacter { .. } => 0xfe,
         InstructionKind::StopTextureAnimation { .. } => 0xc2,
         InstructionKind::RunBattleCode { .. } => 0x4a,
+        InstructionKind::RunModelCode { .. } => 0x88,
         InstructionKind::ChangeElementalAffinity { .. } => 0x122,
         InstructionKind::SetRunEnabled { opcode, .. } => u32::from(*opcode),
         InstructionKind::SetPartyAvailability { .. } => 0xb4,

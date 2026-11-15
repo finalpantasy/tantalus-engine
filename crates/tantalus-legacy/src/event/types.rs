@@ -357,6 +357,10 @@ pub enum InstructionKind {
         code: Expression,
         value: Expression,
     },
+    RunModelCode {
+        code: Expression,
+        arguments: [Expression; 3],
+    },
     ChangeElementalAffinity {
         target: Expression,
         kind: Expression,
@@ -703,6 +707,11 @@ pub enum HostEvent {
     RunBattleCode {
         code: u32,
         value: i32,
+    },
+    RunModelCode {
+        object: EntityId,
+        code: i32,
+        arguments: [i16; 3],
     },
     ChangeElementalAffinity {
         target: u16,
