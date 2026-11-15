@@ -3134,6 +3134,7 @@ impl Decoder<'_> {
                 89 => ExpressionOp::KeyState(KeyState::Held),
                 26 => ExpressionOp::LessOrEqual,
                 42 => ExpressionOp::ActiveBitCount,
+                43 => ExpressionOp::PickFirstMember,
                 112 => ExpressionOp::BgiCharacterTriangle,
                 113 => ExpressionOp::BgiCharacterFloor,
                 114 => ExpressionOp::NoOp,

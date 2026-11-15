@@ -87,6 +87,8 @@ pub enum ExpressionOp {
     LessOrEqual,
     /// `B_COUNT` 42: number of active member bits in the operand.
     ActiveBitCount,
+    /// `B_PICK` 43: read the second operand through the first member whose mask bit is set.
+    PickFirstMember,
     CharacterMaxMp,
     PartyContains,
     PartyAdd,

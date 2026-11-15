@@ -4943,6 +4943,51 @@ fn character_stat_and_key_state_expressions_read_through_the_host() {
 }
 
 #[test]
+fn pick_reads_the_member_of_the_first_active_slot_and_zero_for_an_empty_mask() {
+    let mut host = Host::new();
+    host.slots.insert(1, EntityId::new(11));
+    host.slots.insert(2, EntityId::new(12));
+    host.object_members.insert(
+        ObjectMemberRef {
+            object: EntityId::new(11),
+            member: 2,
+        },
+        77,
+    );
+    host.object_members.insert(
+        ObjectMemberRef {
+            object: EntityId::new(12),
+            member: 2,
+        },
+        99,
+    );
+
+    for (mask, expected) in [(0b0110, 77), (0b0100, 99), (0, 0)] {
+        let result = variable(VariableScope::Global, VariableType::Int16, 31);
+        let expression = assign(result, [constant(mask), vec![41, 2], vec![43]].concat());
+        let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+        let mut vm = EventVm::new(program);
+        vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(
+            vm.variable(VariableScope::Global, 31),
+            expected,
+            "mask {mask:#b}"
+        );
+    }
+    assert_eq!(host.member_target, Some(EntityId::new(12)));
+
+    // A pick without both operands is an expression error, not a panic.
+    let result = variable(VariableScope::Global, VariableType::Int16, 31);
+    let expression = assign(result, [constant(1), vec![43]].concat());
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    assert_eq!(
+        vm.step(Tick::new(0), &mut host).unwrap_err().kind,
+        VmErrorKind::InvalidExpression
+    );
+}
+
+#[test]
 fn pad0e_consumes_its_flag_and_yields_before_continuing() {
     let program = decode_program(&[14, 4]).unwrap();
     assert_eq!(program.instructions[&0].kind, InstructionKind::Yield(14));

@@ -3046,6 +3046,35 @@ impl EventVm {
                         target: None,
                     });
                 }
+                ExpressionOp::PickFirstMember => {
+                    if stack.len() < 2 {
+                        return Err(expression_error(
+                            offset,
+                            opcode,
+                            "first-member pick needs a mask and a member operand",
+                        ));
+                    }
+                    let body = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing first-member operand")
+                    })?;
+                    let mask = stack.pop().ok_or_else(|| {
+                        expression_error(offset, opcode, "missing first-member mask")
+                    })?;
+                    let mask = read_value(host, mask, offset, opcode)?;
+                    // Memoria scans only the first eight list slots.
+                    let result = match (0..8u8).find(|slot| mask & (1 << slot) != 0) {
+                        Some(slot) => {
+                            host.select_object_member_target(Some(slot))
+                                .map_err(|error| VmError::host(error, offset, opcode))?;
+                            read_value(host, body, offset, opcode)?
+                        }
+                        None => 0,
+                    };
+                    stack.push(StackValue {
+                        value: result,
+                        target: None,
+                    });
+                }
                 ExpressionOp::CharacterStat(stat) => {
                     let value = stack.pop().ok_or_else(|| {
                         expression_error(offset, opcode, "missing character-stat operand")
@@ -4289,6 +4318,7 @@ fn operand_start(
         | ExpressionOp::DivideAssignAllMembers
         | ExpressionOp::SubtractAssignAllMembers
         | ExpressionOp::AssignAllMembers
+        | ExpressionOp::PickFirstMember
         | ExpressionOp::EqualMembers
         | ExpressionOp::NotEqualMembers
         | ExpressionOp::AndMembers
