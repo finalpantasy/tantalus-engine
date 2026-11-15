@@ -370,6 +370,7 @@ pub enum InstructionKind {
     Cinematic {
         operation: Expression,
         argument: Expression,
+        auxiliary: Expression,
     },
     DefineRegion {
         vertices: Vec<[Expression; 2]>,

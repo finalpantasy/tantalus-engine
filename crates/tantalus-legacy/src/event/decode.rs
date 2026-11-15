@@ -855,19 +855,10 @@ impl Decoder<'_> {
             }
             OP_CINEMATIC => {
                 let flags = self.byte()?;
-                let mut argument = |bit: u8| {
-                    if flags & bit != 0 {
-                        self.expression()
-                    } else {
-                        Ok(Expression(vec![
-                            ExpressionOp::Constant(i32::from(self.byte()?)),
-                            ExpressionOp::End,
-                        ]))
-                    }
-                };
                 InstructionKind::Cinematic {
-                    operation: argument(1)?,
-                    argument: argument(2)?,
+                    operation: self.operand(flags, 1, false)?,
+                    argument: self.operand(flags, 2, true)?,
+                    auxiliary: self.operand(flags, 4, false)?,
                 }
             }
             OP_DEFINE_REGION => {

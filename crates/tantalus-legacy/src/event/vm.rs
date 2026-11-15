@@ -859,14 +859,14 @@ impl EventVm {
                 InstructionKind::Cinematic {
                     operation,
                     argument,
+                    auxiliary,
                 } => {
-                    let operation_value =
-                        self.evaluate(host, &operation, instruction.offset, opcode)?;
+                    let operation = self.evaluate(host, &operation, instruction.offset, opcode)?;
                     let argument = self.evaluate(host, &argument, instruction.offset, opcode)?;
-                    let auxiliary = self.evaluate(host, &operation, instruction.offset, opcode)?;
+                    let auxiliary = self.evaluate(host, &auxiliary, instruction.offset, opcode)?;
                     self.pc = next;
                     events.push(HostEvent::DispatchCinematic {
-                        operation: operation_value,
+                        operation,
                         argument,
                         auxiliary,
                     });
@@ -3890,17 +3890,17 @@ impl EventVm {
                         return Err(expression_error(
                             offset,
                             opcode,
-                            "all-member assignment requires target, mask, and value inputs",
+                            "all-member assignment requires mask, target, and value inputs",
                         ));
                     }
-                    let Some(StackTarget::Member(member)) = stack[stack.len() - 3].target else {
+                    let Some(StackTarget::Member(member)) = stack[stack.len() - 2].target else {
                         return Err(expression_error(
                             offset,
                             opcode,
                             "all-member assignment target is not a selected member",
                         ));
                     };
-                    let mask = read_value(host, stack[stack.len() - 2], offset, opcode)?;
+                    let mask = read_value(host, stack[stack.len() - 3], offset, opcode)?;
                     let operand = read_value(host, stack[stack.len() - 1], offset, opcode)?;
                     let mut result = 0;
                     for slot in 0..8 {
@@ -3929,17 +3929,17 @@ impl EventVm {
                         return Err(expression_error(
                             offset,
                             opcode,
-                            "all-member bitwise assignment requires target, mask, and value inputs",
+                            "all-member bitwise assignment requires mask, target, and value inputs",
                         ));
                     }
-                    let Some(StackTarget::Member(member)) = stack[stack.len() - 3].target else {
+                    let Some(StackTarget::Member(member)) = stack[stack.len() - 2].target else {
                         return Err(expression_error(
                             offset,
                             opcode,
                             "all-member bitwise assignment target is not a selected member",
                         ));
                     };
-                    let mask = read_value(host, stack[stack.len() - 2], offset, opcode)?;
+                    let mask = read_value(host, stack[stack.len() - 3], offset, opcode)?;
                     let operand = read_value(host, stack[stack.len() - 1], offset, opcode)?;
                     let mut result = 0;
                     for slot in 0..8 {
