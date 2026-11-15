@@ -51,14 +51,15 @@
     "B_PRE_PLUS 6 writes and returns the incremented variable or current member value",
     "B_COMP 16 applies a wrapping 32-bit bitwise complement",
     "B_EQ_E 34 returns selected-member equality flags without writes; empty masks return zero without target selection",
-    "B_SYSVAR 122 reads the serialized system-variable ID through the host and reports unknown IDs"
+    "B_SYSVAR 122 reads the serialized system-variable ID through the host and reports unknown IDs",
+    "NEW3 0x09 decodes source and unique IDs and emits InitializeObject; party aliases, default ID resolution, replacement, and model loading remain host work"
   ],
   "next_decode_boundary": {
     "entry": 0,
-    "offset": 357,
-    "opcode": "0x09",
+    "offset": 380,
+    "opcode": "0x08",
     "kind": "event",
-    "instruction": "NEW3"
+    "instruction": "NEW2"
   },
   "event_execution": "NOT_RUN",
   "payload_redistributed": false

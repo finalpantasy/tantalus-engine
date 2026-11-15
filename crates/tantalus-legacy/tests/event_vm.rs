@@ -117,6 +117,7 @@ impl LegacyEventHost for Host {
                 HostEvent::AimAtCamera => {}
                 HostEvent::DefinePlayerControl { .. } => {}
                 HostEvent::SetControlDirection { .. } => {}
+                HostEvent::InitializeObject { .. } => {}
             }
         }
         Ok(())
@@ -922,4 +923,30 @@ fn system_variables_read_by_serialized_id_and_reject_unknown_ids() {
     let error = vm.step(Tick::new(0), &mut host).unwrap_err();
     assert_eq!(error.kind, VmErrorKind::Host);
     assert!(error.message.contains("unknown system variable 6"));
+}
+
+#[test]
+fn new3_emits_object_initialization_and_preserves_the_default_id_for_the_host() {
+    let program = decode_program(&[9, 7, 0, 4]).unwrap();
+    assert_eq!(program.instructions[&0].length, 3);
+    assert_eq!(
+        program.instructions[&0].kind,
+        InstructionKind::InitializeObject {
+            source: 7,
+            unique_id: 0
+        }
+    );
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+
+    assert_eq!(
+        report.events,
+        [HostEvent::InitializeObject {
+            source: 7,
+            unique_id: 0
+        }]
+    );
+    assert_eq!(vm.status(), VmStatus::Completed);
 }

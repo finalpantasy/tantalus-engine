@@ -122,6 +122,10 @@ pub enum InstructionKind {
         y: Expression,
         z: Expression,
     },
+    InitializeObject {
+        source: u8,
+        unique_id: u8,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -173,6 +177,7 @@ pub enum HostEvent {
     AimAtCamera,
     DefinePlayerControl { actor: EntityId },
     SetControlDirection { arrow: i16, analog: i16 },
+    InitializeObject { source: u8, unique_id: u8 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
