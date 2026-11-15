@@ -127,12 +127,19 @@ impl LegacyEventHost for FieldHost<'_> {
                     argument,
                     auxiliary,
                 } => {
-                    // Movie lengths are not imported yet, so a played movie
+                    // Frame counts come from the caller-provided movie
+                    // inventory when available; without one a played movie
                     // finishes on its first frame, as if skipped.
                     let map = self.world.field_map_no;
+                    let provider = self.world.fmv_frame_counts.clone();
                     self.world
                         .fmv
-                        .dispatch(*operation, *argument, *auxiliary, map, |_, _| None);
+                        .dispatch(*operation, *argument, *auxiliary, map, {
+                            let provider = provider;
+                            move |disc, number| {
+                                provider.as_ref().and_then(|provide| provide(disc, number))
+                            }
+                        });
                 }
                 HostEvent::CloseAllWindows => {
                     for open in self.world.windows.values_mut() {

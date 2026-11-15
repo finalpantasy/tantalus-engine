@@ -89,7 +89,11 @@ pub struct CharacterStats {
 
 pub(crate) const MAX_GIL: u32 = 9_999_999;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Runtime movie frame-count lookup for the FMV service, keyed by
+/// `(disc, number)`. Behavior, not state: snapshots do not carry it.
+pub type FmvFrameCounts = std::sync::Arc<dyn Fn(i32, i32) -> Option<u32> + Send + Sync>;
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct FieldWorld {
     pub actors: BTreeMap<EntityId, ActorState>,
     pub windows: BTreeMap<u8, bool>,
@@ -171,6 +175,68 @@ pub struct FieldWorld {
     /// Direction-bit mapping `(up, down, left, right)` for player movement;
     /// none means input never moves the player (no layout guessed).
     walk_bits: Option<(i32, i32, i32, i32)>,
+    /// Movie frame-count provider for the FMV service, keyed by
+    /// `(disc, number)`. Runtime-only; snapshots do not carry it.
+    #[serde(skip)]
+    pub fmv_frame_counts: Option<FmvFrameCounts>,
+}
+
+impl std::fmt::Debug for FieldWorld {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("FieldWorld")
+            .field("actors", &self.actors)
+            .field("windows", &self.windows)
+            .field("gil", &self.gil)
+            .field("party", &self.party)
+            .field("player", &self.player)
+            .field("confirm_mask", &self.confirm_mask)
+            .field("walk_bits", &self.walk_bits)
+            .field(
+                "fmv_frame_counts",
+                &self.fmv_frame_counts.as_ref().map(|_| "provided"),
+            )
+            .finish()
+    }
+}
+
+impl PartialEq for FieldWorld {
+    fn eq(&self, other: &Self) -> bool {
+        // Compare every field; the runtime frame-count provider is
+        // behavior, not state.
+        self.actors == other.actors
+            && self.windows == other.windows
+            && self.items == other.items
+            && self.gil == other.gil
+            && self.party == other.party
+            && self.character_stats == other.character_stats
+            && self.field_name == other.field_name
+            && self.timer == other.timer
+            && self.encounters == other.encounters
+            && self.field_transitions == other.field_transitions
+            && self.world_transitions == other.world_transitions
+            && self.pending_requests == other.pending_requests
+            && self.pending_callers == other.pending_callers
+            && self.shared_scripts == other.shared_scripts
+            && self.party_menu_open == other.party_menu_open
+            && self.system_variables == other.system_variables
+            && self.system_lists == other.system_lists
+            && self.object_members == other.object_members
+            && self.member_target == other.member_target
+            && self.uid_map == other.uid_map
+            && self.rng == other.rng
+            && self.input_mask == other.input_mask
+            && self.walk_speed == other.walk_speed
+            && self.animation_default_ticks == other.animation_default_ticks
+            && self.exit_arrivals == other.exit_arrivals
+            && self.applied_resolutions == other.applied_resolutions
+            && self.atan_table == other.atan_table
+            && self.navigation == other.navigation
+            && self.current_actor == other.current_actor
+            && self.player == other.player
+            && self.confirm_mask == other.confirm_mask
+            && self.walk_bits == other.walk_bits
+    }
 }
 
 impl Default for FieldWorld {
@@ -226,6 +292,7 @@ impl FieldWorld {
             player: None,
             confirm_mask: None,
             walk_bits: None,
+            fmv_frame_counts: None,
         }
     }
 

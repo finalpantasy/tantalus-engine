@@ -117,11 +117,15 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 }
                 None => BTreeMap::new(),
             };
-            let text = match (game_data, mes_map) {
+            let text = match (game_data.clone(), mes_map) {
                 (Some(data), Some(map_path)) => {
+                    // Clone for ChainOptions (the FMV movie inventory).
                     let source = std::fs::read_to_string(&map_path)
                         .map_err(|error| format!("cannot read {}: {error}", map_path.display()))?;
-                    Some(FieldText::open(&data, &source, language)?)
+                    let text = FieldText::open(&data, &source, language)?;
+                    // The movies directory is derived from the same root.
+                    game_data = Some(data);
+                    Some(text)
                 }
                 (None, None) => None,
                 _ => return Err("--game-data and --mes-map go together".into()),
@@ -139,6 +143,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     stats,
                     text,
                     choices,
+                    game_data,
                 },
             )
         }
@@ -342,6 +347,8 @@ struct ChainOptions {
     /// Scripted answers for choice windows by (field map, text id); 0 when
     /// absent, the reference's default cursor position.
     choices: BTreeMap<(i32, u16), i32>,
+    /// `FF9_Data` directory for the FMV movie inventory (`StreamingAssets/ma`).
+    game_data: Option<PathBuf>,
 }
 
 /// Per-field text facts the scripted player needs.
@@ -503,8 +510,54 @@ fn chain(
         stats,
         text,
         choices,
+        game_data,
     } = options;
     let mut world = tantalus_game::FieldWorld::new();
+    // Movie frame counts for the FMV service: scan the Ogg container of
+    // `ma/FMV%03d.bytes` on first use. A failed or unknown file keeps the
+    // as-if-skipped behavior.
+    if let Some(game_data) = &game_data {
+        // Movies live at the install root (`StreamingAssets/ma`), two
+        // levels up from `x64/FF9_Data`.
+        let movies = game_data
+            .parent()
+            .and_then(|parent| parent.parent())
+            .map(|root| root.join("StreamingAssets/ma"))
+            .unwrap_or_else(|| game_data.join("StreamingAssets/ma"));
+        let cache = std::sync::Arc::new(std::sync::Mutex::new(std::collections::BTreeMap::<
+            (i32, i32),
+            Option<u32>,
+        >::new()));
+        world.fmv_frame_counts = Some(std::sync::Arc::new(move |disc, number| {
+            let key = (disc, number);
+            if let Some(hit) = cache.lock().unwrap().get(&key) {
+                return *hit;
+            }
+            let resolved = (0..4u8)
+                .map(|suffix| {
+                    if suffix == 0 {
+                        movies.join(format!("FMV{number:03}.bytes"))
+                    } else {
+                        movies.join(format!(
+                            "FMV{number:03}{}.bytes",
+                            (b'A' + suffix - 1) as char
+                        ))
+                    }
+                })
+                .find(|path| path.is_file())
+                .and_then(|path| {
+                    let report = tantalus_assets::pc::ogg::scan_ogg_file(&path, false).ok()?;
+                    report
+                        .streams
+                        .iter()
+                        .find(|stream| stream.codec.name() == "theora")?
+                        .frame_count
+                        .map(|count| u32::try_from(count).unwrap_or(u32::MAX))
+                });
+            cache.lock().unwrap().insert(key, resolved);
+            resolved
+        }));
+    }
     // FF9Play_Init: every character has a player record from new game on.
     world.character_stats = stats;
     if let Some(table) = atan {
