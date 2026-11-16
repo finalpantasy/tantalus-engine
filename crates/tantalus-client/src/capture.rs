@@ -61,7 +61,10 @@ pub fn capture_field(
     capture_with(output, config, |adapter, target| {
         let assets = crate::field_assets::resolve_field_assets(adapter, field)?;
         adapter.set_render_target(RenderTarget::Image(target.into()));
-        adapter.apply_field(&field.scene, &assets)
+        adapter.apply_field(&field.scene, &assets)?;
+        // The projection `view-field` uses, so a capture checks the window.
+        crate::window::fit_field_frame(adapter.app_mut().world_mut());
+        Ok(())
     })
 }
 

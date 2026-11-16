@@ -5,3 +5,4 @@ pub mod encounter_presentation;
 pub mod field_assets;
 pub mod legacy_compositor;
 pub mod scene_adapter;
+pub mod window;
