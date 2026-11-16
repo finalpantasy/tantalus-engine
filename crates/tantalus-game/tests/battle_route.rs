@@ -664,8 +664,8 @@ fn flee_ability_runs_the_escape_sequence_to_the_escape_outcome() {
 fn party_flee_key_escape_costs_nothing() {
     use std::collections::BTreeMap;
     use tantalus_contracts::EntityId;
-    use tantalus_game::battle::legacy::{LegacyBattleAdapter, unit_mappings};
     use tantalus_game::battle::BattleOutcome;
+    use tantalus_game::battle::legacy::{LegacyBattleAdapter, unit_mappings};
     use tantalus_legacy::battle::machine::{Battle as LegacyBattle, BattleConfig};
     use tantalus_legacy::battle::{BattleUnit, StatusDataRow, StatusTable};
 
