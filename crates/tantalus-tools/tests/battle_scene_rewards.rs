@@ -775,6 +775,47 @@ fn world_battle_distinguishes_early_failure_from_no_outcome() {
 }
 
 #[test]
+fn back_attack_flag_zeroes_the_partys_initial_atb() {
+    use tantalus_tools::battle_run::run_scene_battle;
+
+    // `SB2_FLG_BACK_ATTACK` (0x2) forces StartType BackAttack
+    // (btl_sys.cs:181-185), and BackAttack zeroes the players' initial ATB
+    // (btl_init.cs:289-291) -- the party acts strictly later than in a
+    // normal start, so the battle runs longer. Locks the start-type
+    // wiring into the regression suite.
+    let mut normal = scene();
+    for monster in &mut normal.monster_types {
+        monster.max_hp = 60;
+        monster.stats.spirit = 10;
+    }
+    let mut back = normal.clone();
+    back.header.flags |= 0x2;
+    let mut script = b"EV ".to_vec();
+    script.resize(128, 0);
+
+    for seed in [0x5EEDu64, 7] {
+        let a = run_scene_battle("EVT_BATTLE_TEST", &normal, 0, &script, seed, false, false);
+        let b = run_scene_battle("EVT_BATTLE_TEST", &back, 0, &script, seed, false, false);
+        assert_eq!(a.error, None, "seed {seed}: normal clean");
+        assert_eq!(b.error, None, "seed {seed}: back-attack clean");
+        assert_eq!(
+            a.outcome,
+            Some(tantalus_game::battle::BattleOutcome::Victory)
+        );
+        assert_eq!(
+            b.outcome,
+            Some(tantalus_game::battle::BattleOutcome::Victory)
+        );
+        assert!(
+            b.ticks > a.ticks,
+            "seed {seed}: back attack (b: {} ticks) must run longer than normal (a: {} ticks)",
+            b.ticks,
+            a.ticks
+        );
+    }
+}
+
+#[test]
 fn no_run_away_flag_blocks_the_flee_roll() {
     use tantalus_tools::battle_run::{run_scene_battle, run_world_battle_report};
 
