@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use tantalus_assets::pc::model_assembly::pose::Interpolation;
 use tantalus_assets::pc::model_assembly::{
     AssembleOptions, ModelCatalog, SerializedStore, assemble_all, assemble_model, clip_entries,
-    clip_report, embedded_clip_report,
+    clip_report, clip_sampling_report, embedded_clip_report,
 };
 use tantalus_assets::pc::serialized::SerializedFile;
 use tantalus_assets::pc::unity_raw::UnityRawBundle;
@@ -19,6 +19,8 @@ pub struct ModelRequest {
     /// Animation bundle for the clip check; defaults to a sibling
     /// `p0data5.bin`.
     pub clips: Option<PathBuf>,
+    /// Writes the start-and-end clip sampling report here (needs `all`).
+    pub clip_sampling_out: Option<PathBuf>,
     pub json: bool,
 }
 
@@ -154,7 +156,12 @@ fn run_all(
         .clone()
         .or_else(|| Some(path.with_file_name("p0data5.bin")).filter(|p| p.is_file()));
     let clips = match &clip_path {
-        Some(clip_path) => Some(run_clips(clip_path, catalog, &models)?),
+        Some(clip_path) => Some(run_clips(
+            clip_path,
+            catalog,
+            &models,
+            request.clip_sampling_out.as_deref(),
+        )?),
         None => None,
     };
     if request.json {
@@ -235,6 +242,7 @@ fn run_clips(
         tantalus_assets::pc::model_assembly::ModelDir,
         tantalus_assets::pc::model_assembly::AssembledModel,
     )],
+    sampling_out: Option<&Path>,
 ) -> Result<tantalus_assets::pc::model_assembly::ClipReport, String> {
     let source = clip_path.to_string_lossy().into_owned();
     let bundle = UnityRawBundle::open(clip_path).map_err(|error| error.to_string())?;
@@ -248,6 +256,25 @@ fn run_clips(
         eprintln!(
             "{} animation container entries did not match animations/<geo>/<name>.anim",
             other.len()
+        );
+    }
+    if let Some(out) = sampling_out {
+        let sampling =
+            clip_sampling_report(&store, &clips, catalog, models, Interpolation::Hermite);
+        let text = serde_json::to_string_pretty(&sampling).map_err(|e| e.to_string())?;
+        std::fs::write(
+            out,
+            text + "
+",
+        )
+        .map_err(|e| format!("{}: {e}", out.display()))?;
+        eprintln!(
+            "clip sampling: {} passed, {} failed, {} not checkable of {}; wrote {}",
+            sampling.passed,
+            sampling.failed,
+            sampling.not_checkable,
+            sampling.clips,
+            out.display()
         );
     }
     Ok(clip_report(

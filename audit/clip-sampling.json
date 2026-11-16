@@ -1,0 +1,90 @@
+{
+  "clips": 9278,
+  "tolerance": 1.0,
+  "tolerance_rule": "max over t=0 and last key time of bounds_deviation(bind, skinned) <= 1.0, where bounds_deviation is the largest min/max face difference divided by the bind-pose bounds diagonal",
+  "passed": 7719,
+  "failed": 1559,
+  "not_checkable": 0,
+  "causes": {
+    "no_model_in_p0data4": 1339,
+    "threshold_exceeded_scale_unit_mismatch": 27,
+    "threshold_exceeded_unknown": 184,
+    "wrong_bone_count": 9
+  },
+  "cause_samples": {
+    "no_model_in_p0data4": [
+      "139/9279",
+      "139/9281",
+      "140/9282",
+      "140/9284",
+      "167/11676",
+      "167/13228",
+      "167/13232",
+      "167/13236",
+      "167/3913",
+      "167/3917",
+      "167/8328",
+      "167/8331"
+    ],
+    "threshold_exceeded_scale_unit_mismatch": [
+      "339/5963 vs 3/339: 30.086",
+      "339/5965 vs 3/339: 38.758",
+      "339/5967 vs 3/339: 40.211",
+      "339/5969 vs 3/339: 39.505",
+      "339/5971 vs 3/339: 39.891",
+      "339/5974 vs 3/339: 38.221",
+      "339/5975 vs 3/339: 39.555",
+      "339/5977 vs 3/339: 38.389",
+      "339/5979 vs 3/339: 29.691",
+      "339/5981 vs 3/339: 39.497",
+      "339/5983 vs 3/339: 39.538",
+      "339/5985 vs 3/339: 39.531"
+    ],
+    "threshold_exceeded_unknown": [
+      "114/2229 vs 4/114: 1.174",
+      "114/2232 vs 4/114: 1.174",
+      "114/2233 vs 4/114: 1.163",
+      "121/1120 vs 4/121: 3.657",
+      "121/1121 vs 4/121: 1.002",
+      "121/12671 vs 4/121: 1.940",
+      "129/732 vs 4/129: 2.163",
+      "135/3834 vs 3/135: 1.401",
+      "144/1672 vs 3/144: 1.402",
+      "144/1674 vs 3/144: 1.143",
+      "144/1681 vs 3/144: 1.118",
+      "144/1683 vs 3/144: 1.086"
+    ],
+    "wrong_bone_count": [
+      "297/14689 vs 3/297: 29 animated paths, 32 model nodes, unmatched bone000/bone025 | bone000/bone025/bone026 | bone000/bone025/bone026/bone027 | bone000/bone025/bone026/bone027/bone028 | bone000/bone019 | bone000/bone019/bone021 | bone000/bone019/bone021/bone022 | bone000/bone019/bone021/bone022/bone023",
+      "297/14691 vs 3/297: 29 animated paths, 32 model nodes, unmatched bone000/bone025 | bone000/bone025/bone026 | bone000/bone025/bone026/bone027 | bone000/bone025/bone026/bone027/bone028 | bone000/bone019 | bone000/bone019/bone021 | bone000/bone019/bone021/bone022 | bone000/bone019/bone021/bone022/bone023",
+      "297/14693 vs 3/297: 29 animated paths, 32 model nodes, unmatched bone000/bone025 | bone000/bone025/bone026 | bone000/bone025/bone026/bone027 | bone000/bone025/bone026/bone027/bone028 | bone000/bone019 | bone000/bone019/bone021 | bone000/bone019/bone021/bone022 | bone000/bone019/bone021/bone022/bone023",
+      "297/14695 vs 3/297: 29 animated paths, 32 model nodes, unmatched bone000/bone025 | bone000/bone025/bone026 | bone000/bone025/bone026/bone027 | bone000/bone025/bone026/bone027/bone028 | bone000/bone019 | bone000/bone019/bone021 | bone000/bone019/bone021/bone022 | bone000/bone019/bone021/bone022/bone023",
+      "297/14697 vs 3/297: 29 animated paths, 32 model nodes, unmatched bone000/bone025 | bone000/bone025/bone026 | bone000/bone025/bone026/bone027 | bone000/bone025/bone026/bone027/bone028 | bone000/bone019 | bone000/bone019/bone021 | bone000/bone019/bone021/bone022 | bone000/bone019/bone021/bone022/bone023",
+      "297/14699 vs 3/297: 29 animated paths, 32 model nodes, unmatched bone000/bone025 | bone000/bone025/bone026 | bone000/bone025/bone026/bone027 | bone000/bone025/bone026/bone027/bone028 | bone000/bone019 | bone000/bone019/bone021 | bone000/bone019/bone021/bone022 | bone000/bone019/bone021/bone022/bone023",
+      "297/14701 vs 3/297: 29 animated paths, 32 model nodes, unmatched bone000/bone025 | bone000/bone025/bone026 | bone000/bone025/bone026/bone027 | bone000/bone025/bone026/bone027/bone028 | bone000/bone019 | bone000/bone019/bone021 | bone000/bone019/bone021/bone022 | bone000/bone019/bone021/bone022/bone023",
+      "297/14703 vs 3/297: 29 animated paths, 32 model nodes, unmatched bone000/bone025 | bone000/bone025/bone026 | bone000/bone025/bone026/bone027 | bone000/bone025/bone026/bone027/bone028 | bone000/bone019 | bone000/bone019/bone021 | bone000/bone019/bone021/bone022 | bone000/bone019/bone021/bone022/bone023",
+      "297/14705 vs 3/297: 29 animated paths, 32 model nodes, unmatched bone000/bone025 | bone000/bone025/bone026 | bone000/bone025/bone026/bone027 | bone000/bone025/bone026/bone027/bone028 | bone000/bone019 | bone000/bone019/bone021 | bone000/bone019/bone021/bone022 | bone000/bone019/bone021/bone022/bone023"
+    ]
+  },
+  "deviation_bins": {
+    "<=0.25": 3701,
+    "<=0.50": 2207,
+    "<=1.00": 1811,
+    "<=10.0": 20,
+    "<=2.00": 164,
+    ">10.0": 27
+  },
+  "max_deviation": 45.954575,
+  "worst_models": [
+    "3/339: 27 of 27",
+    "5/310: 17 of 18",
+    "3/356: 11 of 13",
+    "1/223: 9 of 12",
+    "1/626: 9 of 16",
+    "3/297: 9 of 9",
+    "3/357: 9 of 11",
+    "3/144: 8 of 20",
+    "3/401: 7 of 17",
+    "3/153: 6 of 19"
+  ]
+}
