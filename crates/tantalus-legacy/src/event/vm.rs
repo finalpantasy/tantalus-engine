@@ -1257,6 +1257,7 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetModelColor {
                         object,
+                        actor: self.entity,
                         red,
                         green,
                         blue,
@@ -2915,6 +2916,50 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetModelLight {
                         model,
+                        color: [red, green, blue],
+                        shadow_intensity,
+                        shadow_scale,
+                    });
+                }
+                InstructionKind::SetDefaultLight {
+                    kind,
+                    color,
+                    shadow_intensity,
+                    shadow_scale,
+                } => {
+                    let kind = self.evaluate(host, &kind, instruction.offset, opcode)? as i8;
+                    let red = self.evaluate(host, &color[0], instruction.offset, opcode)? as u8;
+                    let green = self.evaluate(host, &color[1], instruction.offset, opcode)? as u8;
+                    let blue = self.evaluate(host, &color[2], instruction.offset, opcode)? as u8;
+                    let shadow_intensity =
+                        self.evaluate(host, &shadow_intensity, instruction.offset, opcode)? as i8;
+                    let shadow_scale =
+                        self.evaluate(host, &shadow_scale, instruction.offset, opcode)? as i8;
+                    self.pc = next;
+                    events.push(HostEvent::SetDefaultLight {
+                        kind,
+                        color: [red, green, blue],
+                        shadow_intensity,
+                        shadow_scale,
+                    });
+                }
+                InstructionKind::SetFloorLight {
+                    floor,
+                    color,
+                    shadow_intensity,
+                    shadow_scale,
+                } => {
+                    let floor = self.evaluate(host, &floor, instruction.offset, opcode)? as i8;
+                    let red = self.evaluate(host, &color[0], instruction.offset, opcode)? as u8;
+                    let green = self.evaluate(host, &color[1], instruction.offset, opcode)? as u8;
+                    let blue = self.evaluate(host, &color[2], instruction.offset, opcode)? as u8;
+                    let shadow_intensity =
+                        self.evaluate(host, &shadow_intensity, instruction.offset, opcode)? as i8;
+                    let shadow_scale =
+                        self.evaluate(host, &shadow_scale, instruction.offset, opcode)? as i8;
+                    self.pc = next;
+                    events.push(HostEvent::SetFloorLight {
+                        floor,
                         color: [red, green, blue],
                         shadow_intensity,
                         shadow_scale,
@@ -4628,6 +4673,8 @@ fn opcode_for(kind: &InstructionKind) -> u32 {
         InstructionKind::SetBattleMusicContinuation { .. } => 0x1b,
         InstructionKind::RunModelCode { .. } => 0x88,
         InstructionKind::AddBattleStatus { .. } => 0x11d,
+        InstructionKind::SetDefaultLight { .. } => 0x11f,
+        InstructionKind::SetFloorLight { .. } => 0x120,
         InstructionKind::SetModelLight { .. } => 0x121,
         InstructionKind::ChangeElementalAffinity { .. } => 0x122,
         InstructionKind::SetRunEnabled { opcode, .. } => u32::from(*opcode),

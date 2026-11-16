@@ -566,6 +566,14 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     for problem in models.prepare_field(game.field_name()) {
         println!("!! field light: {problem}");
     }
+    if std::env::var_os("TANTALUS_PERF").is_some() {
+        println!(
+            "perf light scripts: {:?} {:?}",
+            game.world().actor_shadows,
+            game.world().light_changes
+        );
+    }
+    models.apply_light_changes(&game.world().light_changes);
     for problem in models.prepare(frame.poses.values()) {
         println!("!! actor models: {problem}");
     }

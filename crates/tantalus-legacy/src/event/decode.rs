@@ -211,6 +211,8 @@ const OP_RUN_BATTLE_CODE: u32 = 0x4a;
 const OP_SET_BATTLE_MUSIC_CONTINUATION: u32 = 0x1b;
 const OP_RUN_MODEL_CODE: u32 = 0x88;
 const OP_ADD_BATTLE_STATUS: u32 = 0x11d;
+const OP_SET_DEFAULT_LIGHT: u32 = 0x11f;
+const OP_SET_FLOOR_LIGHT: u32 = 0x120;
 const OP_SET_MODEL_LIGHT: u32 = 0x121;
 const OP_CHANGE_ELEMENTAL_AFFINITY: u32 = 0x122;
 const OP_DASH_ON: u32 = 0xf0;
@@ -3063,6 +3065,44 @@ impl Decoder<'_> {
                 };
                 InstructionKind::SetModelLight {
                     model: argument(1)?,
+                    color: [argument(2)?, argument(4)?, argument(8)?],
+                    shadow_intensity: argument(16)?,
+                    shadow_scale: argument(32)?,
+                }
+            }
+            OP_SET_DEFAULT_LIGHT => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(self.i24()?),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetDefaultLight {
+                    kind: argument(1)?,
+                    color: [argument(2)?, argument(4)?, argument(8)?],
+                    shadow_intensity: argument(16)?,
+                    shadow_scale: argument(32)?,
+                }
+            }
+            OP_SET_FLOOR_LIGHT => {
+                let flags = self.byte()?;
+                let mut argument = |bit: u8| {
+                    if flags & bit != 0 {
+                        self.expression()
+                    } else {
+                        Ok(Expression(vec![
+                            ExpressionOp::Constant(self.i24()?),
+                            ExpressionOp::End,
+                        ]))
+                    }
+                };
+                InstructionKind::SetFloorLight {
+                    floor: argument(1)?,
                     color: [argument(2)?, argument(4)?, argument(8)?],
                     shadow_intensity: argument(16)?,
                     shadow_scale: argument(32)?,

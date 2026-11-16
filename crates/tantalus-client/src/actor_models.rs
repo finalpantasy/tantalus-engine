@@ -51,6 +51,8 @@ pub struct ActorPose {
     pub hidden_meshes: u32,
     /// Walkmesh floor under the actor, for its floor light.
     pub floor: Option<i16>,
+    /// The field scripts' color and shadow changes for this actor.
+    pub script: tantalus_game::field::world::ActorShadowScript,
 }
 
 /// One projected vertex: raster space position, view depth and texture
@@ -325,10 +327,21 @@ impl ActorModels {
         problems
     }
 
+    /// Replays the field scripts' `MCF_*` light changes on the current
+    /// map config (after [`Self::prepare_field`], which resets it).
+    pub fn apply_light_changes(&mut self, changes: &[tantalus_game::field::world::LightChange]) {
+        crate::field_light::apply_light_changes(&mut self.config, changes);
+    }
+
     /// The current field's light for `pose`.
     pub fn light(&self, pose: &ActorPose) -> crate::field_light::ActorLight {
         pose.model.map_or_else(Default::default, |model| {
-            crate::field_light::actor_light(self.config.as_ref(), model, pose.floor)
+            crate::field_light::actor_light_scripted(
+                self.config.as_ref(),
+                model,
+                pose.floor,
+                &pose.script,
+            )
         })
     }
 
@@ -348,10 +361,12 @@ impl ActorModels {
             height: *height,
             rgba,
         };
+        // `FieldMapActor`: the shadow sits at the actor plus `xOffset`,
+        // `zOffset` (`SHADOWOFFSET`).
         let center = [
-            position[0],
+            position[0] + shadow.offset[0],
             position[1] + crate::field_light::SHADOW_HEIGHT_OFFSET,
-            position[2],
+            position[2] + shadow.offset[1],
         ];
         let corner = |x: f32, z: f32| {
             let field = [

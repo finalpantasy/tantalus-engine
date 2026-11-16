@@ -161,6 +161,102 @@ impl FieldHost<'_> {
         self.world.camera_log.push(request);
     }
 
+    /// Keeps the light and shadow scripts for the renderer.
+    fn record_light(&mut self, event: &HostEvent) {
+        use super::world::{
+            ActorShadowScript, CHAR_ATTR_SHADOW_LOCK, CHAR_ATTR_SHADOW_OFF, LightChange,
+        };
+        fn entry(world: &mut super::world::FieldWorld, actor: EntityId) -> &mut ActorShadowScript {
+            world.actor_shadows.entry(actor).or_default()
+        }
+        match *event {
+            HostEvent::SetShadowEnabled { actor, enabled } => {
+                let script = entry(self.world, actor);
+                if enabled {
+                    script.attr &= !CHAR_ATTR_SHADOW_OFF;
+                } else {
+                    script.attr |= CHAR_ATTR_SHADOW_OFF;
+                }
+            }
+            HostEvent::SetShadowSize { actor, x, z } => {
+                entry(self.world, actor).scale = Some([x, z])
+            }
+            HostEvent::SetShadowOffset { actor, x, z } => {
+                entry(self.world, actor).offset = Some([i32::from(x), i32::from(z)]);
+            }
+            HostEvent::LockShadowRotation { actor, rotation } => {
+                let script = entry(self.world, actor);
+                script.attr |= CHAR_ATTR_SHADOW_LOCK;
+                script.rotation = Some(rotation);
+            }
+            HostEvent::UnlockShadowRotation { actor } => {
+                entry(self.world, actor).attr &= !CHAR_ATTR_SHADOW_LOCK;
+            }
+            HostEvent::SetShadowAmplifier { actor, factor } => {
+                entry(self.world, actor).amp = Some(factor)
+            }
+            HostEvent::SetCharacterAttribute { actor, set, flags } => {
+                let script = entry(self.world, actor);
+                if set {
+                    script.attr |= flags as u32;
+                } else {
+                    script.attr &= !(flags as u32);
+                }
+            }
+            HostEvent::SetModelColor {
+                object,
+                actor,
+                red,
+                green,
+                blue,
+            } => {
+                let target = if object == 255 {
+                    actor
+                } else {
+                    self.world.resolve_uid(object)
+                };
+                if let Some(actor) = target {
+                    self.world.actor_shadows.entry(actor).or_default().color =
+                        Some([red, green, blue]);
+                }
+            }
+            HostEvent::SetDefaultLight {
+                kind,
+                color,
+                shadow_intensity,
+                shadow_scale,
+            } => self.world.light_changes.push(LightChange::Default {
+                kind,
+                color,
+                shadow_intensity,
+                shadow_scale,
+            }),
+            HostEvent::SetFloorLight {
+                floor,
+                color,
+                shadow_intensity,
+                shadow_scale,
+            } => self.world.light_changes.push(LightChange::Floor {
+                floor,
+                color,
+                shadow_intensity,
+                shadow_scale,
+            }),
+            HostEvent::SetModelLight {
+                model,
+                color,
+                shadow_intensity,
+                shadow_scale,
+            } => self.world.light_changes.push(LightChange::Model {
+                model,
+                color,
+                shadow_intensity,
+                shadow_scale,
+            }),
+            _ => {}
+        }
+    }
+
     /// Keeps the layer scroll scripts for the renderer's `FieldAnimation`.
     fn record_overlay_motion(&mut self, event: &HostEvent) {
         use super::world::OverlayMotion as Motion;
@@ -408,6 +504,7 @@ impl LegacyEventHost for FieldHost<'_> {
             self.record_look(event);
             self.record_overlay(event);
             self.record_overlay_motion(event);
+            self.record_light(event);
             self.record_camera(event);
             self.record_tile_animation(event);
             match event {

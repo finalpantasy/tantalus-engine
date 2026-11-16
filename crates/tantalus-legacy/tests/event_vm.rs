@@ -359,7 +359,9 @@ impl LegacyEventHost for Host {
                 HostEvent::SetHeadFocusFlags { .. } => {}
                 HostEvent::SetWalkTurnSpeed { .. } => {}
                 HostEvent::PreloadField { .. } => {}
-                HostEvent::SetModelLight { .. } => {}
+                HostEvent::SetModelLight { .. }
+                | HostEvent::SetDefaultLight { .. }
+                | HostEvent::SetFloorLight { .. } => {}
                 HostEvent::AddBattleStatus { .. } => {}
                 HostEvent::ChangeElementalAffinity { .. } => {}
                 HostEvent::SetRain { .. } => {}
@@ -1633,6 +1635,37 @@ fn model_light_decodes_signed_operands_and_wraps_colors_and_shadows() {
             shadow_scale: 2,
         }]
     );
+
+    // `MCF_DEFAULT` (0x11F) and `MCF_FLOOR` (0x120) take the same arguments.
+    for (opcode, expected) in [
+        (
+            0x1f,
+            HostEvent::SetDefaultLight {
+                kind: 2,
+                color: [10, 20, 30],
+                shadow_intensity: -1,
+                shadow_scale: 2,
+            },
+        ),
+        (
+            0x20,
+            HostEvent::SetFloorLight {
+                floor: 2,
+                color: [10, 20, 30],
+                shadow_intensity: -1,
+                shadow_scale: 2,
+            },
+        ),
+    ] {
+        let mut bytes = vec![0xff, opcode, 63];
+        for value in [2, 10, 20, 30, -1, 2] {
+            append_expression(&mut bytes, constant(value));
+        }
+        bytes.push(4);
+        let mut vm = EventVm::new(decode_program(&bytes).unwrap());
+        let report = vm.step(Tick::new(0), &mut host).unwrap();
+        assert_eq!(report.events, [expected]);
+    }
 
     let truncated = decode_program(&[0xff, 0x21, 0, 1]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
@@ -5160,6 +5193,7 @@ fn model_color_sets_the_color_then_yields_one_frame() {
         report.events,
         [HostEvent::SetModelColor {
             object: 9,
+            actor: None,
             red: 200,
             green: 100,
             blue: 50,

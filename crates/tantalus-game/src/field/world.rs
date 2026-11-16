@@ -103,6 +103,58 @@ pub enum OverlayMotion {
     },
 }
 
+/// What the scripts did to one actor's color and shadow
+/// (`fldmcf.SetCharColor`, `ff9shadow.FF9Shadow*Field`, `CHRSET`).
+/// `None` keeps what the field's map config gives.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct ActorShadowScript {
+    /// `CHRCOLOR`: the model color; it also stops the map config light from
+    /// coloring the actor (`FF9Char` attribute 0x400).
+    pub color: Option<[u8; 3]>,
+    /// `FF9Char.attr`: 4 uses a ladder, 16 hides the shadow
+    /// (`SHADOWOFF`/`CHRSET`), 32 locks its rotation.
+    pub attr: u32,
+    /// `SHADOWSCALE`: the x and z scale, in 1/16 of the plate.
+    pub scale: Option<[i32; 2]>,
+    /// `SHADOWOFFSET`: x and z offset from the actor.
+    pub offset: Option<[i32; 2]>,
+    /// `SHADOWAMP`: the shadow strength factor (a byte).
+    pub amp: Option<i32>,
+    /// `SHADOWLOCK`: the locked Y rotation, before the `<< 4`.
+    pub rotation: Option<i32>,
+}
+
+/// `FF9Char.attr` bits the field scripts set.
+pub const CHAR_ATTR_LADDER: u32 = 4;
+pub const CHAR_ATTR_SHADOW_OFF: u32 = 16;
+pub const CHAR_ATTR_SHADOW_LOCK: u32 = 32;
+
+/// One `fldmcf.SetMCF*Light` call on the field's map config.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LightChange {
+    /// `MCF_DEFAULT`: kind 1 default, 2 ladder; -1 is every model.
+    Default {
+        kind: i8,
+        color: [u8; 3],
+        shadow_intensity: i8,
+        shadow_scale: i8,
+    },
+    /// `MCF_FLOOR`.
+    Floor {
+        floor: i8,
+        color: [u8; 3],
+        shadow_intensity: i8,
+        shadow_scale: i8,
+    },
+    /// `MCF_MODEL`: -1 is every model.
+    Model {
+        model: i32,
+        color: [u8; 3],
+        shadow_intensity: i8,
+        shadow_scale: i8,
+    },
+}
+
 /// One field camera script, as `FieldMap` receives it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CameraRequest {
@@ -478,6 +530,12 @@ pub struct FieldWorld {
     /// The layer scroll scripts this field ran, in order (runtime-only).
     #[serde(skip)]
     pub overlay_motion: Vec<OverlayMotion>,
+    /// Per-actor color and shadow scripts (runtime-only).
+    #[serde(skip)]
+    pub actor_shadows: BTreeMap<EntityId, ActorShadowScript>,
+    /// The map config light changes this field made, in order (runtime-only).
+    #[serde(skip)]
+    pub light_changes: Vec<LightChange>,
     /// Experience-to-stats provider (runtime-only).
     #[serde(skip)]
     pub level_growth: Option<LevelGrowth>,
@@ -631,6 +689,8 @@ impl FieldWorld {
             field_camera: 0,
             camera_log: Vec::new(),
             overlay_motion: Vec::new(),
+            actor_shadows: BTreeMap::new(),
+            light_changes: Vec::new(),
             level_growth: None,
         }
     }
@@ -675,6 +735,8 @@ impl FieldWorld {
         self.overlays.clear();
         self.camera_log.clear();
         self.overlay_motion.clear();
+        self.actor_shadows.clear();
+        self.light_changes.clear();
         self.clear_tile_animations();
         self.control_actor = None;
         self.exit_arrivals.clear();

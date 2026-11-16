@@ -935,6 +935,20 @@ pub enum InstructionKind {
         shadow_intensity: Expression,
         shadow_scale: Expression,
     },
+    /// `MCF_DEFAULT` 0x11F: the field's default (1) or ladder (2) light.
+    SetDefaultLight {
+        kind: Expression,
+        color: [Expression; 3],
+        shadow_intensity: Expression,
+        shadow_scale: Expression,
+    },
+    /// `MCF_FLOOR` 0x120: the light of one walkmesh floor.
+    SetFloorLight {
+        floor: Expression,
+        color: [Expression; 3],
+        shadow_intensity: Expression,
+        shadow_scale: Expression,
+    },
     AddBattleStatus {
         target: Expression,
         status: Expression,
@@ -1201,6 +1215,8 @@ pub enum HostEvent {
     AimAtCamera,
     SetModelColor {
         object: i32,
+        /// The running object, for the entry 255 ("this object").
+        actor: Option<EntityId>,
         red: u8,
         green: u8,
         blue: u8,
@@ -1808,6 +1824,18 @@ pub enum HostEvent {
     },
     SetModelLight {
         model: i32,
+        color: [u8; 3],
+        shadow_intensity: i8,
+        shadow_scale: i8,
+    },
+    SetDefaultLight {
+        kind: i8,
+        color: [u8; 3],
+        shadow_intensity: i8,
+        shadow_scale: i8,
+    },
+    SetFloorLight {
+        floor: i8,
         color: [u8; 3],
         shadow_intensity: i8,
         shadow_scale: i8,
