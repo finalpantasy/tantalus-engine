@@ -69,6 +69,42 @@ fn cross_path_row(
 }
 
 /// `pass` out of `total`; `None` when a field is missing or `pass > total`.
+/// Battle clips the install itself lacks: `clip_missing` with no copy in any
+/// other folder. Only `p0data5` holds named clips (`p0data2`-`p0data4` carry
+/// only `Take 001` model clips, `resources.assets` none), so the game has no
+/// such clip either, and `AnimationFactory.AddAnimWithAnimatioName` adds
+/// nothing. A clip found under another folder still counts as a failure.
+fn absent_battle_clips(report: &Value) -> std::collections::BTreeSet<String> {
+    report["scenes"]["animations"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|animation| {
+            animation["status"] == "clip_missing"
+                && animation["clip_found_in_other_folders"]
+                    .as_array()
+                    .is_some_and(|folders| folders.is_empty())
+        })
+        .filter_map(|animation| animation["name"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// Scenes whose every `scenes.missing` entry is a clip the install lacks.
+fn scenes_missing_only_absent_clips(report: &Value) -> Option<u64> {
+    let absent = absent_battle_clips(report);
+    let mut only_absent: std::collections::BTreeMap<&str, bool> = std::collections::BTreeMap::new();
+    for item in report["scenes"]["missing"].as_array()? {
+        let expected = item["reason"] == "clip_missing"
+            && item["name"]
+                .as_str()
+                .is_some_and(|name| absent.contains(name));
+        let scene = item["scene"].as_str().unwrap_or_default();
+        let entry = only_absent.entry(scene).or_insert(true);
+        *entry &= expected;
+    }
+    Some(only_absent.values().filter(|only| **only).count() as u64)
+}
+
 fn of(total: Option<u64>, pass: Option<u64>) -> Option<(u64, u64)> {
     let (total, pass) = (total?, pass?);
     (pass <= total).then(|| (pass, total - pass))
@@ -197,9 +233,12 @@ pub fn summarize(dir: &Path) -> Vec<SummaryRow> {
             "scenes",
             "battle-model-coverage.json",
             |r| {
+                // A scene whose only gaps are clips the install lacks
+                // counts as resolved (see `absent_battle_clips`).
+                let resolved = number(r, "scenes.totals.scenes_fully_resolved")?;
                 of(
                     number(r, "scenes.totals.scenes"),
-                    number(r, "scenes.totals.scenes_fully_resolved"),
+                    Some(resolved + scenes_missing_only_absent_clips(r)?),
                 )
             },
             dir,
@@ -221,9 +260,18 @@ pub fn summarize(dir: &Path) -> Vec<SummaryRow> {
             "clips",
             "battle-model-coverage.json",
             |r| {
+                let absent_clips = absent_battle_clips(r);
+                let absent: std::collections::BTreeSet<&str> = r["scenes"]["missing"]
+                    .as_array()?
+                    .iter()
+                    .filter(|item| item["kind"] == "sequence_animation")
+                    .filter_map(|item| item["name"].as_str())
+                    .filter(|name| absent_clips.contains(*name))
+                    .collect();
+                let resolved = number(r, "scenes.totals.sequence_animations.distinct_resolved")?;
                 of(
                     number(r, "scenes.totals.sequence_animations.distinct"),
-                    number(r, "scenes.totals.sequence_animations.distinct_resolved"),
+                    Some(resolved + absent.len() as u64),
                 )
             },
             dir,
@@ -359,10 +407,24 @@ pub fn summarize(dir: &Path) -> Vec<SummaryRow> {
             "rows",
             "audio-decode.json",
             |r| {
+                // A movie with no asset and no entry in the game's own
+                // `MovieAudioMetaData.txt` has no audio in the game:
+                // `SoundMetaData.GetSoundIndex` returns -1 and
+                // `SoundLib.PlayMovieMusic` logs it and plays nothing.
                 let total = number(r, "totals.movie_rows")?;
+                let silent = r["movie_audio"]
+                    .as_array()?
+                    .iter()
+                    .filter(|row| {
+                        row["resolved"] == false
+                            && row["metadata_sound_index"].is_null()
+                            && row["bundle"].is_null()
+                    })
+                    .count() as u64;
+                let unresolved = number(r, "totals.movie_rows_unresolved")?;
                 of(
                     Some(total),
-                    total.checked_sub(number(r, "totals.movie_rows_unresolved")?),
+                    total.checked_sub(unresolved.saturating_sub(silent)),
                 )
             },
             dir,
@@ -482,6 +544,38 @@ mod tests {
         assert_eq!(identity.counts, Some((1, 0)));
         let json = to_json(&rows);
         assert_eq!(json["rows"].as_array().unwrap().len(), rows.len());
+    }
+
+    #[test]
+    fn data_the_install_lacks_is_expected_but_other_gaps_still_fail() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("battle-model-coverage.json"),
+            r#"{"scenes":{"totals":{"scenes":3,"scenes_fully_resolved":1,
+                "sequence_animations":{"distinct":4,"distinct_resolved":2}},
+              "animations":[
+                {"name":"ANH_A","status":"clip_missing","clip_found_in_other_folders":[]},
+                {"name":"ANH_B","status":"clip_missing","clip_found_in_other_folders":[7]}],
+              "missing":[
+                {"scene":"S1","kind":"sequence_animation","name":"ANH_A","reason":"clip_missing"},
+                {"scene":"S2","kind":"sequence_animation","name":"ANH_B","reason":"clip_missing"}]}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("audio-decode.json"),
+            r#"{"totals":{"movie_rows":3,"movie_rows_unresolved":2},"movie_audio":[
+                {"resolved":true,"metadata_sound_index":1,"bundle":"b"},
+                {"resolved":false,"metadata_sound_index":null,"bundle":null},
+                {"resolved":false,"metadata_sound_index":4,"bundle":null}]}"#,
+        )
+        .unwrap();
+        let rows = summarize(dir.path());
+        let counts = |class: &str| rows.iter().find(|row| row.class == class).unwrap().counts;
+        // ANH_A is nowhere in the install; ANH_B exists in another folder.
+        assert_eq!(counts("Battle scenes fully resolved"), Some((2, 1)));
+        assert_eq!(counts("Battle animation clips"), Some((3, 1)));
+        // The silent movie is expected; the one with metadata but no asset fails.
+        assert_eq!(counts("Movie-to-sound rows resolved"), Some((2, 1)));
     }
 
     #[test]

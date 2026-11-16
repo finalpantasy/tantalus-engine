@@ -660,7 +660,7 @@ pub fn build_report(
             "Background models are static meshes: their meshes and textures are decoded as objects, not assembled (the assembler only reads skinned prefabs).",
             "Texture animation tables (`TAM_B*.tab`) are checked for presence only, not parsed.",
             "Model directories follow `ModelFactory.CreateModel` (`model_factory`); a party member's `battle_model` child inside the shared field model is not inspected, and the texture swap for `GEO_MAIN_F3_ZDN` to `F5_ZDN` is not applied.",
-            "Two animation clips (`ANH_MON_B3_169_002`, `ANH_MON_B3_140_012`) are in no `p0data5` folder; what the game does without them is not shown by the pinned source.",
+            "Two animation clips (`ANH_MON_B3_169_002`, `ANH_MON_B3_140_012`) are in no `p0data5` folder, and no other bundle or `resources.assets` has them; `AnimationFactory.AddAnimWithAnimatioName` then adds no clip, so the game plays nothing for them. The summary counts them as expected.",
             "Player models, animation names and `AttackSequence` come from the pinned Memoria `BattleParameters.csv` (the reference's defaults); the installed assembly's own player table (`ff9play`, `btl_mot`) is not evaluated.",
             "Weapons: every row of the installed weapon table is checked; which weapon a given equipped item selects is not walked.",
             "`Vfx2` is checked as a reference; the conditions that pick `Vfx2` over `VfxIndex` are not evaluated.",
