@@ -454,12 +454,23 @@ pub fn run_world_battle(
     }
 
     if outcome == Some(BattleOutcome::Victory) {
-        let members: [Option<PartyMember>; 4] = [
-            Some(demo_member(500)),
-            Some(demo_member(500)),
-            Some(demo_member(500)),
-            Some(demo_member(500)),
-        ];
+        // Party members carry their learnable lists so AP shares form
+        // (`from_bonus` only awards AP to lines with learnable rows).
+        let mut members: [Option<PartyMember>; 4] = Default::default();
+        for (slot, member) in members.iter_mut().enumerate() {
+            let mut member_data = demo_member(500);
+            if let Some(&character) = world.party.get(slot) {
+                let base = base(character);
+                member_data.learnable = base
+                    .learnable
+                    .iter()
+                    .map(|&(id, max_ap)| tantalus_legacy::battle::rewards::PaEntry { id, max_ap })
+                    .collect();
+                member_data.pa = vec![0; member_data.learnable.len()];
+                member_data.equipped_abilities = base.equipped_abilities.clone();
+            }
+            *member = Some(member_data);
+        }
         let party = PartySnapshot {
             gil: world.gil,
             members,
@@ -467,6 +478,26 @@ pub fn run_world_battle(
             cards: Vec::new(),
         };
         let reward = BattleReward::from_bonus(&bonus, &party);
+
+        // AP: every party character with an AP share learns through their
+        // equipped abilities (`AddAp` per ability, reference semantics).
+        if !bonus.event {
+            for (slot, share) in reward.shares.iter().enumerate() {
+                let Some(ap) = share.ap else {
+                    continue;
+                };
+                if players.get(slot).is_none() {
+                    continue;
+                }
+                let base = base(world.party[slot]);
+                for &ability in &base.equipped_abilities {
+                    if let Some((_, max_ap)) = base.learnable.iter().find(|(id, _)| *id == ability)
+                    {
+                        world.apply_ap(world.party[slot], ability, *max_ap, i32::from(ap));
+                    }
+                }
+            }
+        }
         let lines: [Option<i32>; 4] = [
             world.party.first().copied(),
             world.party.get(1).copied(),

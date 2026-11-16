@@ -2921,6 +2921,8 @@ fn run_battle_world_run(
             category: WeaponStats::SHORT_RANGE,
             status: 0,
         }),
+        learnable: Vec::new(),
+        equipped_abilities: Vec::new(),
     };
     let outcome = run_world_battle(&mut world, &entities, scene, 0, bytes, &base, 0x5EED);
     let report = serde_json::json!({

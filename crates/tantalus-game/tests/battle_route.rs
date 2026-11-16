@@ -802,6 +802,8 @@ fn player_machine_units_build_from_world_state_and_equipment() {
             category: tantalus_legacy::battle::WeaponStats::SHORT_RANGE,
             status: 0,
         }),
+        learnable: Vec::new(),
+        equipped_abilities: Vec::new(),
     };
     let unit = player_machine_unit(&world, 0, 1, &base(0)).unwrap();
     assert!(unit.is_player && unit.id == 1 && unit.character_id == 0);

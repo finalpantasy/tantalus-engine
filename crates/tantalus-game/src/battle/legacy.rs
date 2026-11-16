@@ -435,6 +435,11 @@ pub struct PlayerBase {
     pub magic_defence: i32,
     pub magic_evade: i32,
     pub weapon: Option<tantalus_legacy::battle::WeaponStats>,
+    /// Learnable abilities `(ability id, max AP)` and the equipped ability
+    /// ids that earn AP after battle (the reference adds AP to every
+    /// equipped ability on the learnable list). Empty by default.
+    pub learnable: Vec<(i32, i32)>,
+    pub equipped_abilities: Vec<i32>,
 }
 
 /// Builds one machine battle unit for a party character from field world

@@ -509,6 +509,8 @@ fn run_world_battle_plays_a_scene_through_the_field_world() {
             category: WeaponStats::SHORT_RANGE,
             status: 0,
         }),
+        learnable: Vec::new(),
+        equipped_abilities: Vec::new(),
     };
 
     let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 7);
@@ -573,4 +575,63 @@ fn after_event_battles_pay_nothing() {
     assert_eq!(outcome, Some(tantalus_game::battle::BattleOutcome::Victory));
     assert_eq!(world.gil, 500, "after-event battles pay nothing");
     assert!(world.character_exp.is_empty(), "no EXP either");
+}
+
+#[test]
+fn run_world_battle_applies_ap_to_equipped_learnables() {
+    use tantalus_contracts::EntityId;
+    use tantalus_game::FieldWorld;
+    use tantalus_game::battle::legacy::PlayerBase;
+    use tantalus_legacy::battle::WeaponStats;
+    use tantalus_tools::battle_run::run_world_battle;
+
+    let mut scene = scene();
+    for monster in &mut scene.monster_types {
+        monster.max_hp = 60;
+        monster.stats.spirit = 10;
+    }
+    let mut script = b"EV\x02\x00".to_vec();
+    script.resize(128, 0);
+
+    let mut world = FieldWorld::new();
+    world.party = vec![0];
+    world.gil = 0;
+    world.character_stats.insert(
+        0,
+        tantalus_game::field::CharacterStats {
+            current_hp: 500,
+            max_hp: 500,
+            current_mp: 100,
+            max_mp: 100,
+        },
+    );
+    let entities = vec![EntityId::new(201)];
+    let base = |_| PlayerBase {
+        level: 20,
+        strength: 30,
+        magic: 30,
+        dexterity: 30,
+        will: 20,
+        physical_defence: 10,
+        physical_evade: 5,
+        magic_defence: 12,
+        magic_evade: 6,
+        weapon: Some(WeaponStats {
+            power: 25,
+            rate: 0,
+            elements: tantalus_legacy::battle::Elements::NONE,
+            category: WeaponStats::SHORT_RANGE,
+            status: 0,
+        }),
+        // Pattern AP is 3; ability 200 needs 2 -> learned by this battle.
+        learnable: vec![(200, 2)],
+        equipped_abilities: vec![200],
+    };
+    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 11);
+    assert_eq!(outcome, Some(tantalus_game::battle::BattleOutcome::Victory));
+    assert_eq!(world.ability_pa[&0][&200], 2, "AP reached max");
+    assert!(
+        world.learned_abilities[&0].contains(&200),
+        "ability learned through the battle"
+    );
 }
