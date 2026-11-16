@@ -23,4 +23,6 @@ pub mod scene_adapter;
 pub mod track;
 pub mod view_scroll;
 pub mod window;
+pub mod world_minimap;
 pub mod world_view;
+pub mod world_weather;

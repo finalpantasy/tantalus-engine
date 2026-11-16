@@ -12,7 +12,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use tantalus_legacy::world::{
-    EncounterRecord, FootWalker, FrameInputs, FriendlyBattleSetting, PadInput, Vec3, select_scene,
+    EncounterRecord, FootWalker, FrameInputs, FriendlyBattleSetting, PadInput, Vec3, WorldWalk,
+    select_scene, wrap_position,
 };
 
 use crate::world_data::WorldAssets;
@@ -60,6 +61,16 @@ pub struct WorldCamera {
 
 pub struct WorldPlay {
     pub assets: Arc<WorldAssets>,
+    /// The walk meshes with this play's block forms applied.
+    walk: WorldWalk,
+    /// Blocks in their second form (`WMBlock.SetForm(2)`).
+    pub forms: BTreeSet<(usize, usize)>,
+    /// Which minimap shows (`w_naviMapno`): 0 the first continent, 1 the world.
+    pub navi_map: u8,
+    /// Riding the yellow chocobo (`w_moveCHRControl` entry 1).
+    pub chocobo: bool,
+    /// Places visited, bit `n` for place `n + 1` (`gEventGlobal` 92 to 99).
+    pub visited: u64,
     pub walker: FootWalker,
     events: BTreeMap<u16, i32>,
     friendly: BTreeSet<u16>,
@@ -86,11 +97,17 @@ impl WorldPlay {
     ) -> Result<Self, String> {
         let start = Vec3::new(x, 0.0, z);
         let mut walker = FootWalker::new(0, start, 0.0).map_err(|error| error.to_string())?;
-        walker.place(&assets.walk, start);
+        let walk = assets.walk.clone();
+        walker.place(&walk, start);
         let friendly = assets.encounters.friendly_battles(&assets.special);
         let disc = u8::try_from(assets.disc()).unwrap_or(1);
         Ok(Self {
             assets,
+            walk,
+            forms: BTreeSet::new(),
+            navi_map: 0,
+            chocobo: false,
+            visited: 0,
             walker,
             events,
             friendly,
@@ -103,6 +120,44 @@ impl WorldPlay {
             rng: seed | 1,
             steps: 0,
         })
+    }
+
+    /// Puts the blocks in `forms` into their second form
+    /// (`ff9.w_worldChangeBlockSet`). Blocks without a second form stay as
+    /// they are.
+    pub fn set_forms(&mut self, blocks: &[(usize, usize)]) {
+        for &(x, z) in blocks {
+            if let Some(block) = self.walk.block_mut(x, z)
+                && !block.form2.is_empty()
+            {
+                block.form = 2;
+                self.forms.insert((x, z));
+            }
+        }
+    }
+
+    /// Takes the story point and the visited-places bits
+    /// (`ff9.w_worldSystemConstructor`: the whole-world map from story 5990).
+    pub fn set_progress(&mut self, scenario: i32, visited: u64) {
+        self.navi_map = u8::from(scenario >= 5990);
+        self.visited = visited;
+    }
+
+    /// Gets on or off the yellow chocobo: the same foot movement with the
+    /// chocobo's control entry (faster, other ground limits).
+    pub fn set_chocobo(&mut self, on: bool) {
+        if on == self.chocobo {
+            return;
+        }
+        let old = &self.walker;
+        let Ok(mut walker) = FootWalker::new(usize::from(on), old.pos, old.rot_y) else {
+            return;
+        };
+        walker.rot_true = old.rot_true;
+        walker.camera = old.camera.clone();
+        walker.place(&self.walk, old.pos);
+        self.walker = walker;
+        self.chocobo = on;
     }
 
     fn random8(&mut self) -> u8 {
@@ -144,7 +199,22 @@ impl WorldPlay {
             menu_open,
             ..FrameInputs::default()
         };
-        let report = self.walker.step(&self.assets.walk, &inputs);
+        let report = self.walker.step(&self.walk, &inputs);
+        // The world wraps at every edge (`WMWorld.Wrap`).
+        let wrapped = wrap_position(self.walker.pos);
+        if wrapped != self.walker.pos {
+            let shift = Vec3::new(
+                wrapped.x - self.walker.pos.x,
+                0.0,
+                wrapped.z - self.walker.pos.z,
+            );
+            self.walker.pos = wrapped;
+            self.walker.last = Vec3::new(
+                self.walker.last.x + shift.x,
+                self.walker.last.y,
+                self.walker.last.z + shift.z,
+            );
+        }
         let mut tick = WorldTick::default();
 
         self.place = report

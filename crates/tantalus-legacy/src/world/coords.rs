@@ -153,3 +153,18 @@ pub fn block_origin(column: usize, row: usize) -> Vec3 {
         (row as i32 * -ORIGINAL_BLOCK_DISTANCE) as f32 * 0.003_906_25,
     )
 }
+
+/// World width and depth in units (`WMWorld.Width`, 24 and 20 blocks).
+pub const WORLD_WIDTH: f32 = BLOCK_COLUMNS as f32 * BLOCK_DISTANCE;
+pub const WORLD_DEPTH: f32 = BLOCK_ROWS as f32 * BLOCK_DISTANCE;
+
+/// A position brought back inside the world: x in `[0, 1536)`, z in
+/// `(-1280, 0]`. The map wraps at every edge.
+pub fn wrap_position(pos: Vec3) -> Vec3 {
+    let mut wrapped = pos;
+    wrapped.x = pos.x.rem_euclid(WORLD_WIDTH);
+    // z runs 0 down to -1280; fold it onto (-1280, 0].
+    let z = (-pos.z).rem_euclid(WORLD_DEPTH);
+    wrapped.z = -z;
+    wrapped
+}

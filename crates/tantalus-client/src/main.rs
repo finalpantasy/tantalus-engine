@@ -899,6 +899,10 @@ fn run_world_capture(args: &[std::ffi::OsString]) -> ExitCode {
         "--world-at",
         "--arrive-from",
         "--shots",
+        "--scenario",
+        "--discovered",
+        "--visited",
+        "--ride",
     ]);
     let Some(values) = flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
@@ -940,6 +944,20 @@ fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<
         None => (1218.0, -747.0),
     };
     let mut game = load_game(values)?;
+    if values.contains_key("--scenario")
+        || values.contains_key("--visited")
+        || values.contains_key("--discovered")
+    {
+        let number = |flag: &str| -> Result<i32, String> {
+            values.get(flag).map_or(Ok(0), |value| {
+                value.parse().map_err(|_| format!("bad {flag}"))
+            })
+        };
+        let visited = values.get("--visited").map_or(Ok(0), |value| {
+            u64::from_str_radix(value.trim_start_matches("0x"), 16).map_err(|_| "bad --visited")
+        })?;
+        game.set_story(number("--scenario")?, number("--discovered")?, visited);
+    }
     if let Some(from) = values.get("--arrive-from") {
         // Arrive as if leaving field `from` for the world map.
         let from: i32 = from.parse().map_err(|_| "bad --arrive-from")?;
@@ -950,6 +968,11 @@ fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<
         }
     } else {
         game.begin_world(x, z)?;
+    }
+    if values.contains_key("--ride")
+        && let Some(play) = game.world_play.as_mut()
+    {
+        play.set_chocobo(true);
     }
     let mut renderer =
         tantalus_client::world_view::WorldRenderer::new(std::path::Path::new(&values["--assets"]));
@@ -992,7 +1015,8 @@ fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<
     render(&mut renderer, &game, &output)?;
     let pos = play.walker.pos;
     Ok(format!(
-        "world at ({:.1}, {:.1}, {:.1}) yaw {:.1} camera {:.1} block {:?} ground id {} place {:?} danger steps {}; {} problems; wrote {}",
+        "forms {:?}; world at ({:.1}, {:.1}, {:.1}) yaw {:.1} camera {:.1} block {:?} ground id {} place {:?} danger steps {}; {} problems; wrote {}",
+        play.forms,
         pos.x,
         pos.y,
         pos.z,

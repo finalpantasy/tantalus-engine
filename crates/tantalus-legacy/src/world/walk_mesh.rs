@@ -7,7 +7,7 @@
 //! event (bits 14-15), area (bits 8-13) and topograph (bits 2-7); the topograph
 //! decides walkability (see `movement`).
 
-use super::coords::{BLOCK_COLUMNS, BLOCK_ROWS, BlockLayout};
+use super::coords::{BLOCK_COLUMNS, BLOCK_ROWS, BlockLayout, wrap_position};
 use super::vec3::Vec3;
 
 /// Map ids `WMPhysics.Raycast` skips unless `IgnoreExceptions`
@@ -402,6 +402,11 @@ impl WorldWalk {
         self.blocks[column * BLOCK_ROWS + row] = Some(block);
     }
 
+    /// A loaded block to change, for its form.
+    pub fn block_mut(&mut self, column: usize, row: usize) -> Option<&mut BlockWalk> {
+        self.blocks.get_mut(column * BLOCK_ROWS + row)?.as_mut()
+    }
+
     pub fn block(&self, column: usize, row: usize) -> Option<&BlockWalk> {
         self.blocks.get(column * BLOCK_ROWS + row)?.as_ref()
     }
@@ -418,6 +423,9 @@ impl WorldWalk {
             walk_mesh: -1,
             triangle: -1,
         };
+        // The world wraps (`WMWorld.Wrap`): across an edge the ground is the
+        // far side's.
+        let pos = wrap_position(pos);
         let Some(key) = self.layout.absolute_block(pos) else {
             return miss;
         };

@@ -42,6 +42,59 @@ pub fn mesh_in_form1(name: &str) -> bool {
     !FORM2_ONLY.contains(&name)
 }
 
+/// Meshes only form 1 shows; form 2 swaps them for the `*2` ones.
+const FORM1_ONLY: [&str; 4] = ["Terrain", "Object", "VolcanoCrater", "VolcanoLava"];
+/// The block that swaps its seas as well (number 219, `WMWorld.LoadBlock`).
+const WATER_SHRINE_BLOCK: (usize, usize) = (3, 9);
+
+/// Whether a block in `form` draws the mesh called `name`.
+pub fn mesh_in_form(name: &str, form: u8, block: (usize, usize)) -> bool {
+    if form != 2 {
+        return mesh_in_form1(name);
+    }
+    if FORM1_ONLY.contains(&name) {
+        return false;
+    }
+    !(block == WATER_SHRINE_BLOCK && ["Sea3", "Sea4", "Sea5"].contains(&name))
+}
+
+/// The blocks that show their second form for the story point `scenario`
+/// (`Global` UInt16 0) and the discovery bits `event101` (`gEventGlobal(101)`)
+/// on disc 1 (`WorldConfiguration.UsePlaceAlternateForm`,
+/// `ff9.w_worldChangeBlockSet`).
+pub fn alternate_form_blocks(scenario: i32, event101: i32) -> Vec<(usize, usize)> {
+    let mut blocks = Vec::new();
+    let mut add = |places: &[(usize, usize)]| blocks.extend_from_slice(places);
+    if (2990..6990).contains(&scenario) {
+        add(&[(18, 14), (17, 12)]); // South Gate destroyed
+    }
+    if scenario >= 8800 {
+        add(&[(19, 10), (19, 11), (20, 10), (20, 11)]); // Alexandria
+    }
+    if (10600..10700).contains(&scenario) {
+        add(&[(7, 1), (8, 1), (14, 15)]); // Fire Shrine opened
+    }
+    if scenario >= 5598 {
+        add(&[(13, 16), (13, 17), (14, 16), (14, 17)]); // Lindblum
+    }
+    if scenario >= 4990 {
+        add(&[(13, 12), (14, 12)]); // Cleyra
+    }
+    if scenario >= 6200 {
+        add(&[(14, 6), (21, 10), (22, 14)]); // Black Mage Village
+    }
+    if (10600..10700).contains(&scenario) {
+        add(&[(3, 9), (9, 1)]); // Water Shrine opened
+    }
+    if event101 & 0x80 != 0 {
+        add(&[(16, 1), (13, 4), (14, 5)]); // Mognet Central
+    }
+    if event101 & 0x40 != 0 {
+        add(&[(0, 0), (16, 14), (9, 17)]); // Chocobo's Paradise
+    }
+    blocks
+}
+
 pub struct WorldAssets {
     disc: u32,
     bytes: Vec<u8>,

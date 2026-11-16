@@ -1342,6 +1342,26 @@ impl PlayGame {
 }
 
 impl PlayGame {
+    /// Sets the story counter (`Global` UInt16 0) and the discovery bits
+    /// (`gEventGlobal(101)`) the world map reads for its block forms.
+    pub fn set_story(&mut self, scenario: i32, discovered: i32, visited: u64) {
+        use tantalus_legacy::VariableType;
+        let mut worlds = vec![&mut self.world];
+        if let Some(session) = self.session.as_mut() {
+            worlds.push(session.director.world_mut());
+        }
+        for world in worlds {
+            world.global_memory.set(0, VariableType::UInt16, scenario);
+            world.global_memory.set(101, VariableType::Byte, discovered);
+            for (word, index) in [92u16, 94, 96, 98].into_iter().enumerate() {
+                let bits = (visited >> (16 * word)) as u16;
+                world
+                    .global_memory
+                    .set(index, VariableType::UInt16, i32::from(bits));
+            }
+        }
+    }
+
     /// The overworld assets, loaded on first use.
     pub fn world_assets(&mut self) -> Result<std::sync::Arc<WorldAssets>, String> {
         if let Some(assets) = &self.world_assets {
@@ -1364,7 +1384,32 @@ impl PlayGame {
         let places = crate::world_places::event_places(&self.data.bundle, &name)?;
         let exit = WorldExit::load(&self.data.bundle, &name)?;
         let seed = 0x9E37_79B9_u32 ^ (self.ticks as u32).wrapping_mul(2_654_435_761);
-        self.world_play = Some(WorldPlay::new(assets, places, x, z, seed)?);
+        let mut play = WorldPlay::new(assets, places, x, z, seed)?;
+        let globals = self
+            .session
+            .as_ref()
+            .map(|session| session.director.world().global_memory.clone())
+            .unwrap_or_else(|| self.world.global_memory.clone());
+        let scenario = globals
+            .get(0, tantalus_legacy::VariableType::UInt16)
+            .unwrap_or(0);
+        let discovered = globals
+            .get(101, tantalus_legacy::VariableType::Byte)
+            .unwrap_or(0);
+        let visited = [92u16, 94, 96, 98]
+            .iter()
+            .enumerate()
+            .fold(0u64, |bits, (word, index)| {
+                let value = globals
+                    .get(*index, tantalus_legacy::VariableType::UInt16)
+                    .unwrap_or(0);
+                bits | (u64::from(value as u16) << (16 * word))
+            });
+        play.set_progress(scenario, visited);
+        play.set_forms(&crate::world_data::alternate_form_blocks(
+            scenario, discovered,
+        ));
+        self.world_play = Some(play);
         self.world_exit = Some(exit);
         Ok(())
     }
@@ -1422,6 +1467,9 @@ impl PlayGame {
         let Some(play) = self.world_play.as_mut() else {
             return Ok(());
         };
+        if pressed & pad::SQUARE != 0 {
+            play.set_chocobo(!play.chocobo);
+        }
         let tick = play.tick(held, pressed, CONFIRM, false);
         if let Some(scene) = tick.battle {
             let request = tantalus_game::field::EncounterRequest {

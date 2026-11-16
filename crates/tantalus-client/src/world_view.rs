@@ -11,14 +11,15 @@ use std::sync::Arc;
 
 use bevy::math::{Quat, Vec3};
 use tantalus_assets::pc::battle_background::BattleBackground;
-use tantalus_legacy::world::block_origin;
-use tantalus_tools::world_data::mesh_in_form1;
+use tantalus_tools::world_data::mesh_in_form;
 use tantalus_tools::world_play::WorldPlay;
 
 use crate::actor_models::{ActorModels, ActorPose};
 use crate::battle_raster::{
     BattleCamera, Blend, DrawState, Frame, PSX_HEIGHT, Texture, ViewVertex,
 };
+use crate::world_minimap::Minimap;
+use crate::world_weather::Weather;
 
 /// Blocks drawn each side of the player's block.
 const RADIUS: i32 = 3;
@@ -33,8 +34,6 @@ enum Pass {
     Water,
 }
 
-/// Sky above the horizon.
-const SKY: [u8; 4] = [120, 165, 225, 255];
 /// Render layer of the live world sprite.
 pub const WORLD_LAYER: usize = 8;
 
@@ -43,11 +42,17 @@ pub const WORLD_LAYER: usize = 8;
 const ZIDANE_MODEL: u16 = 310;
 const ZIDANE_IDLE: u16 = 4719;
 const ZIDANE_RUN: u16 = 4722;
+/// `GEO_SUB_W0_003`, the chocobo, with `ANH_SUB_W0_003_IDLE1_CHO` and
+/// `_RUN_CHO` (`WMAnimationBank`).
+const CHOCOBO_MODEL: u16 = 308;
+const CHOCOBO_IDLE: u16 = 4707;
+const CHOCOBO_RUN: u16 = 4710;
 /// `WMActor.SetScale(67, 67, 67)`: 67 / 64 of 1/256.
 const MODEL_SCALE: f32 = 67.0 / 64.0 / 256.0;
 
 pub struct WorldRenderer {
     models: ActorModels,
+    minimap: Minimap,
     blocks: HashMap<(usize, usize), Option<Arc<BattleBackground>>>,
     /// Blocks that failed, for reports.
     pub problems: Vec<String>,
@@ -57,14 +62,21 @@ impl WorldRenderer {
     /// `streaming` is the `StreamingAssets` folder.
     pub fn new(streaming: &std::path::Path) -> Self {
         let mut models = ActorModels::new(streaming);
-        let poses = [ZIDANE_IDLE, ZIDANE_RUN].map(|animation| ActorPose {
-            model: Some(ZIDANE_MODEL),
+        let poses = [
+            (ZIDANE_MODEL, ZIDANE_IDLE),
+            (ZIDANE_MODEL, ZIDANE_RUN),
+            (CHOCOBO_MODEL, CHOCOBO_IDLE),
+            (CHOCOBO_MODEL, CHOCOBO_RUN),
+        ]
+        .map(|(model, animation)| ActorPose {
+            model: Some(model),
             animation: Some(animation),
             ..ActorPose::default()
         });
         let problems = models.prepare(&poses);
         Self {
             models,
+            minimap: Minimap::default(),
             blocks: HashMap::new(),
             problems,
         }
@@ -105,40 +117,62 @@ impl WorldRenderer {
     /// Draws the world around `play`.
     pub fn render(&mut self, play: &WorldPlay, width: u32, height: u32) -> Frame {
         let camera = camera_for(play);
-        let mut frame = Frame::new(width, height, SKY);
+        let weather = Weather::at(play.walker.pos.x, play.walker.pos.z);
+        let mut frame = Frame::new(
+            width,
+            height,
+            [weather.sky[0], weather.sky[1], weather.sky[2], 255],
+        );
         let pos = play.walker.pos;
         let here = (
             (pos.x / 64.0).floor() as i32,
             (pos.z.abs() / 64.0).floor() as i32,
         );
+        let apart = |a: i32, b: i32, size: i32| {
+            let d = (a - b).rem_euclid(size);
+            d.min(size - d)
+        };
         self.blocks.retain(|&(x, y), _| {
-            (x as i32 - here.0).abs() <= KEEP && (y as i32 - here.1).abs() <= KEEP
+            apart(x as i32, here.0, 24) <= KEEP && apart(y as i32, here.1, 20) <= KEEP
         });
-        let mut drawn: Vec<(Arc<BattleBackground>, [f32; 3])> = Vec::new();
+        let mut drawn: Vec<Drawn> = Vec::new();
         for dy in -RADIUS..=RADIUS {
             for dx in -RADIUS..=RADIUS {
-                let (x, y) = (here.0 + dx, here.1 + dy);
-                if !(0..24).contains(&x) || !(0..20).contains(&y) {
-                    continue;
-                }
+                // The world wraps: past an edge the far side's blocks follow.
+                let (ux, uy) = (here.0 + dx, here.1 + dy);
+                let (x, y) = (ux.rem_euclid(24), uy.rem_euclid(20));
                 if let Some(block) = self.block(play, x as usize, y as usize) {
-                    let origin = block_origin(x as usize, y as usize);
-                    drawn.push((block, [origin.x, origin.y, origin.z]));
+                    drawn.push(Drawn {
+                        block,
+                        origin: [ux as f32 * 64.0, 0.0, -(uy as f32) * 64.0],
+                        key: (x as usize, y as usize),
+                        form: if play.forms.contains(&(x as usize, y as usize)) {
+                            2
+                        } else {
+                            1
+                        },
+                    });
                 }
             }
         }
         for pass in [Pass::Land, Pass::Water] {
-            for (block, origin) in &drawn {
-                draw_block(&mut frame, &camera, block, *origin, pass);
+            for item in &drawn {
+                draw_block(&mut frame, &camera, item, pass);
             }
         }
         let moving = play.walker.moved;
         let time = play.frames as f32 / 30.0;
-        let animation = if moving { ZIDANE_RUN } else { ZIDANE_IDLE };
+        let (model, animation) = match (play.chocobo, moving) {
+            (false, true) => (ZIDANE_MODEL, ZIDANE_RUN),
+            (false, false) => (ZIDANE_MODEL, ZIDANE_IDLE),
+            (true, true) => (CHOCOBO_MODEL, CHOCOBO_RUN),
+            (true, false) => (CHOCOBO_MODEL, CHOCOBO_IDLE),
+        };
         if !draw_character(
             &mut frame,
             &camera,
             &self.models,
+            model,
             [pos.x, pos.y, pos.z],
             play.walker.rot_y,
             animation,
@@ -151,19 +185,35 @@ impl WorldRenderer {
                 play.walker.rot_y,
             );
         }
+        let view = play.camera();
+        let (dx, dz) = (view.aim[0] - view.eye[0], view.aim[2] - view.eye[2]);
+        let flat = dx.hypot(dz).max(1e-3);
+        let far = [
+            view.eye[0] + dx / flat * 5000.0,
+            view.eye[1],
+            view.eye[2] + dz / flat * 5000.0,
+        ];
+        let horizon = frame
+            .project(&camera, camera.to_view(far))
+            .map_or(height as f32 * 0.4, |p| p[1]);
+        weather.apply(&mut frame, horizon);
+        self.minimap.draw(&mut frame, play);
         frame
     }
 }
 
-fn draw_block(
-    frame: &mut Frame,
-    camera: &BattleCamera,
-    block: &BattleBackground,
+/// A block to draw where it stands this frame.
+struct Drawn {
+    block: Arc<BattleBackground>,
     origin: [f32; 3],
-    pass: Pass,
-) {
+    key: (usize, usize),
+    form: u8,
+}
+
+fn draw_block(frame: &mut Frame, camera: &BattleCamera, item: &Drawn, pass: Pass) {
+    let (block, origin) = (&item.block, item.origin);
     for mesh in &block.meshes {
-        if !mesh_in_form1(&mesh.name) {
+        if !mesh_in_form(&mesh.name, item.form, item.key) {
             continue;
         }
         let view: Vec<Vec3> = mesh
@@ -230,12 +280,13 @@ fn draw_character(
     frame: &mut Frame,
     camera: &BattleCamera,
     models: &ActorModels,
+    model_id: u16,
     at: [f32; 3],
     yaw: f32,
     animation: u16,
     time: f32,
 ) -> bool {
-    let Some((model, skinned)) = models.skinned(ZIDANE_MODEL, Some(animation), time) else {
+    let Some((model, skinned)) = models.skinned(model_id, Some(animation), time) else {
         return false;
     };
     // The model space is y-down: turn it upright, then about the up axis.

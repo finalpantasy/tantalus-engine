@@ -110,3 +110,57 @@ fn every_foot_place_on_the_world_leads_to_a_field() {
     assert_eq!(fields[&50], 2954);
     assert_eq!(fields[&2], 1856);
 }
+
+#[test]
+fn the_world_wraps_and_blocks_take_their_second_form() {
+    use tantalus_legacy::world::{RaycastMode, Vec3, wrap_position};
+    use tantalus_tools::world_data::{alternate_form_blocks, mesh_in_form};
+    let wrapped = wrap_position(Vec3::new(-10.0, 5.0, 20.0));
+    assert_eq!((wrapped.x, wrapped.z), (1526.0, -1260.0));
+    let inside = wrap_position(Vec3::new(1264.0, 5.0, -688.0));
+    assert_eq!((inside.x, inside.z), (1264.0, -688.0));
+
+    assert!(alternate_form_blocks(2000, 0).is_empty());
+    assert!(alternate_form_blocks(3000, 0).contains(&(18, 14)));
+    assert!(alternate_form_blocks(9000, 0x40).contains(&(19, 10)));
+    assert!(alternate_form_blocks(9000, 0x40).contains(&(16, 14)));
+    assert!(mesh_in_form("Terrain", 1, (3, 9)) && !mesh_in_form("Terrain2", 1, (3, 9)));
+    assert!(mesh_in_form("Terrain2", 2, (3, 9)) && !mesh_in_form("Terrain", 2, (3, 9)));
+    assert!(!mesh_in_form("Sea3", 2, (3, 9)) && mesh_in_form("Sea3", 2, (4, 4)));
+
+    let Some(dir) = streaming() else {
+        eprintln!("install not found; skipping");
+        return;
+    };
+    let assets = Arc::new(WorldAssets::load(&dir, 1).expect("world assets"));
+    let mode = RaycastMode::default();
+    let at = |x: f32| assets.walk.nwp_hit(Vec3::new(x, 30.0, -688.0), &mode, None);
+    let (home, far) = (at(1264.0), at(1264.0 - 1536.0));
+    assert_eq!(home.pno, 1000);
+    assert_eq!((far.pno, far.height), (home.pno, home.height));
+    // A block with a second form walks on it once switched.
+    let mut play = WorldPlay::new(assets.clone(), BTreeMap::new(), 1264.0, -688.0, 1).unwrap();
+    play.set_forms(&[(18, 14), (0, 0)]);
+    assert!(play.forms.contains(&(18, 14)));
+}
+
+#[test]
+fn riding_the_chocobo_is_faster_than_walking() {
+    let Some(dir) = streaming() else {
+        eprintln!("install not found; skipping");
+        return;
+    };
+    let assets = Arc::new(WorldAssets::load(&dir, 1).expect("world assets"));
+    let run = |ride: bool| {
+        let mut play = WorldPlay::new(assets.clone(), BTreeMap::new(), 1100.0, -800.0, 1).unwrap();
+        play.set_chocobo(ride);
+        assert_eq!(play.chocobo, ride);
+        let start = play.walker.pos;
+        for _ in 0..60 {
+            play.tick(UP, 0, CONFIRM, false);
+        }
+        (play.walker.pos.z - start.z).abs()
+    };
+    let (foot, chocobo) = (run(false), run(true));
+    assert!(chocobo > foot * 1.3, "foot {foot} chocobo {chocobo}");
+}
