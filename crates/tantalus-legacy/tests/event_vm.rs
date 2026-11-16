@@ -8507,3 +8507,41 @@ fn member_comparison_accepts_slot_invariant_middle_operands() {
     vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(vm.variable(VariableScope::Global, 64), 0);
 }
+
+#[test]
+fn member_assignment_accepts_slot_invariant_member_operands() {
+    // `OperatorExtractLet` matches `OperatorExtract`: a non-member member
+    // operand is slot-invariant and broadcast. mask 0b101 selects slots 0
+    // and 2; the value 9 is nonzero, so bits for both slots set: 5.
+    let target = variable(VariableScope::Global, VariableType::Int16, 64);
+    let expression = [target, constant(0b101), constant(9), vec![46]].concat();
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.slots.insert(0, EntityId::new(10));
+    host.slots.insert(2, EntityId::new(12));
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 64), 5);
+
+    // The combining Or variant folds the lvalue's current value in:
+    // member bits 5 | current 2 = 7.
+    let preset = assign(
+        variable(VariableScope::Global, VariableType::Int16, 64),
+        constant(2),
+    );
+    let expression = [
+        variable(VariableScope::Global, VariableType::Int16, 64),
+        constant(0b101),
+        constant(9),
+        vec![69],
+    ]
+    .concat();
+    let program =
+        decode_program(&[evaluate(preset), evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.slots.insert(0, EntityId::new(10));
+    host.slots.insert(2, EntityId::new(12));
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 64), 7);
+}

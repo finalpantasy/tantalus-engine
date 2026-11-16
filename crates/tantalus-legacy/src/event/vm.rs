@@ -3959,23 +3959,32 @@ impl EventVm {
                             "member extraction requires a mask and a member input",
                         ));
                     }
-                    let Some(StackTarget::Member(_)) = stack[stack.len() - 1].target else {
-                        return Err(expression_error(
-                            offset,
-                            opcode,
-                            "member extraction input is not a selected member",
-                        ));
-                    };
+                    // `OperatorExtractLet` reads the member operand per
+                    // selected slot; as in `OperatorExtract`, only the
+                    // member pseudo-read varies per slot — a mask that is
+                    // not a list, or an operand that is a member, reads the
+                    // member target left by the last extraction, and any
+                    // other operand is slot-invariant and broadcast.
+                    let member_targeted =
+                        matches!(stack[stack.len() - 1].target, Some(StackTarget::Member(_)));
                     let mask = read_value(host, stack[stack.len() - 2], offset, opcode)?;
                     let member = stack[stack.len() - 1];
+                    let fixed_member = if member_targeted {
+                        None
+                    } else {
+                        Some(read_value(host, member, offset, opcode)?)
+                    };
                     let mut result = 0i32;
                     for slot in 0..8 {
                         result >>= 1;
                         if mask & (1 << slot) != 0 {
                             host.select_object_member_target(Some(slot))
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
-                            result |=
-                                i32::from(read_value(host, member, offset, opcode)? != 0) << 7;
+                            let value = match fixed_member {
+                                Some(fixed) => fixed,
+                                None => read_value(host, member, offset, opcode)?,
+                            };
+                            result |= i32::from(value != 0) << 7;
                         }
                     }
                     stack.truncate(stack.len() - 2);
