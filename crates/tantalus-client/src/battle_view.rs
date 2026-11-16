@@ -1171,7 +1171,11 @@ impl FightView {
         if let Some(fight) = game.battle()
             && self.pending.is_none()
         {
+            let before = menu_snapshot(&self.menu);
             self.pending = self.menu.update(fight, pressed);
+            let after = menu_snapshot(&self.menu);
+            let sent = self.pending.is_some();
+            game.battle_menu_sound(before, after, pressed, sent);
         }
         // Holding L1 and R1 runs: a flee roll each second held
         // (`BattleHUD.Update`, `btl_sys.CheckEscape(true)`).
@@ -1269,6 +1273,22 @@ impl FightView {
 }
 
 /// The menu as the HUD draws it.
+/// The command menu's place, for [`tantalus_tools::battle_sound::menu_cue`].
+fn menu_snapshot(
+    menu: &crate::battle_menu::BattleMenu,
+) -> tantalus_tools::battle_sound::MenuSnapshot {
+    let (depth, cursor) = match menu.level {
+        crate::battle_menu::MenuLevel::Commands => (0, menu.command),
+        crate::battle_menu::MenuLevel::List { .. } => (1, menu.list),
+        crate::battle_menu::MenuLevel::Target { .. } => (2, menu.target),
+    };
+    tantalus_tools::battle_sound::MenuSnapshot {
+        unit: menu.unit,
+        depth,
+        cursor,
+    }
+}
+
 pub fn menu_overlay(
     fight: &tantalus_tools::field_battle::LiveFight,
     menu: &crate::battle_menu::BattleMenu,

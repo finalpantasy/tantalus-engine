@@ -74,12 +74,18 @@ pub enum AudioCue {
     SoundPosition { pos: i32, vol: i32, volume: i32 },
     /// `btl_util.SetBattleSfx`: a battle sound effect by id at `volume` (0 to 127).
     BattleEffect { id: i32, volume: i32 },
+    /// A sound effect by resource name (a spell effect's own sounds, `SFX.SoundPlay`).
+    EffectSound { resource: String },
     /// A movie's sound starts (`Some`: the sound resource) or stops (`None`).
     Movie { resource: Option<String> },
 }
 
 /// The song id a movie's sound is registered under (above every real song id).
 const MOVIE_STREAM_ID: i32 = 9000;
+/// The first sound effect id handed out to an effect sound known by resource name.
+const EFFECT_SOUND_BASE: i32 = 20_000;
+/// `SoundLib.PlaySfxSound(.., 1f, ..)`: full volume.
+const FULL_EFFECT_VOLUME: u8 = 127;
 
 /// One line of the `--audio-log`: what the cue means in the reference's terms.
 pub fn describe_cue(cue: &AudioCue, bank: &SoundBank) -> String {
@@ -142,6 +148,7 @@ pub fn describe_cue(cue: &AudioCue, bank: &SoundBank) -> String {
         },
         AudioCue::BattleLeft => "back on the field: the field song returns".to_owned(),
         AudioCue::Effect { id } => format!("play {}", effect(*id)),
+        AudioCue::EffectSound { resource } => format!("effect sound {resource}"),
         AudioCue::BattleEffect { id, volume } => {
             format!("battle {} at volume {volume}", effect(*id))
         }
@@ -211,6 +218,8 @@ pub struct AudioDirector {
     end_song: Option<i32>,
     /// The battle view closed; the field song returns when the end song is over.
     returning: bool,
+    /// Sound ids handed out to effect sounds by resource name.
+    effect_sounds: Vec<(i32, String)>,
 }
 
 impl AudioDirector {
@@ -233,6 +242,7 @@ impl AudioDirector {
             pending: None,
             end_song: None,
             returning: false,
+            effect_sounds: Vec::new(),
         }
     }
 
@@ -252,6 +262,29 @@ impl AudioDirector {
             AudioCue::BattleStarted { map, battle } => self.battle_started(*map, *battle),
             AudioCue::BattleEnded { end } => self.battle_ended(*end),
             AudioCue::BattleLeft => self.battle_left(),
+            AudioCue::EffectSound { resource } => {
+                let known = self
+                    .effect_sounds
+                    .iter()
+                    .find(|(_, name)| name == resource)
+                    .map(|(id, _)| *id);
+                let id = known.unwrap_or_else(|| {
+                    let id = EFFECT_SOUND_BASE + self.effect_sounds.len() as i32;
+                    self.system
+                        .metadata
+                        .sound_effect
+                        .insert(id, resource.clone());
+                    self.effect_sounds.push((id, resource.clone()));
+                    id
+                });
+                self.system.ff9_sound(
+                    code::SNDEFFECT_PLAY,
+                    id,
+                    0,
+                    0,
+                    i32::from(FULL_EFFECT_VOLUME),
+                );
+            }
             AudioCue::BattleEffect { id, volume } => {
                 // `ff9btlsnd_sndeffect_play(id, 0, volume, S_SeGetPos)`: no attribute bits; the
                 // dispatcher takes no pan for it.
@@ -490,5 +523,52 @@ mod tests {
         d.apply(&AudioCue::BattleStarted { map: 7, battle: 99 });
         assert_eq!(d.system.current_music_id(), 10);
         assert_eq!(d.system.suspend_song_id(), -1);
+    }
+
+    #[test]
+    fn an_effect_sound_by_resource_name_plays_and_is_reused() {
+        let mut d = director();
+        d.system
+            .clips
+            .insert("spell".into(), clip(9000, 400, false));
+        let cue = AudioCue::EffectSound {
+            resource: "spell".to_owned(),
+        };
+        d.apply(&cue);
+        assert!(d.render(1).iter().any(|sample| sample.abs() > 0.0));
+        d.apply(&cue);
+        assert_eq!(d.effect_sounds.len(), 1);
+    }
+
+    /// Runs only with `FFIX_ASSETS` and `FFIX_GAME_DATA` set: a real spell sound decodes and plays.
+    #[test]
+    fn a_real_spell_sound_is_heard() {
+        let (Some(assets), Some(data)) = (
+            std::env::var_os("FFIX_ASSETS"),
+            std::env::var_os("FFIX_GAME_DATA"),
+        ) else {
+            return;
+        };
+        let bank =
+            SoundBank::open(std::path::Path::new(&assets), std::path::Path::new(&data)).unwrap();
+        let mut d = AudioDirector::new(bank, 48_000).unwrap();
+        d.apply(&AudioCue::EffectSound {
+            resource: "Sounds02/SE02/se020036".to_owned(),
+        });
+        let peak = d
+            .render(30)
+            .iter()
+            .fold(0.0_f32, |peak, sample| peak.max(sample.abs()));
+        println!("PEAK {peak}");
+        assert!(peak > 0.01);
+        // A weapon swing (Zidane's dagger) and an enemy death effect.
+        for id in [899, 21, 121] {
+            d.apply(&AudioCue::BattleEffect { id, volume: 127 });
+            let peak = d
+                .render(30)
+                .iter()
+                .fold(0.0_f32, |peak, sample| peak.max(sample.abs()));
+            assert!(peak > 0.005, "sound effect {id} is silent");
+        }
     }
 }

@@ -97,6 +97,10 @@ pub struct PlayData {
     new_game: FieldWorld,
     menu: crate::field_menu::MenuTables,
     streaming_assets: PathBuf,
+    /// `Actions.csv`, for the ability to effect map of the spell sounds.
+    actions_csv: PathBuf,
+    /// The spell and ability sounds, read from the game files on the first battle.
+    effect_sounds: std::sync::OnceLock<Option<crate::battle_sound::EffectSounds>>,
     /// `MBG.MBGDiscTable`: `(disc, fmv)` to movie name; empty without `MBG.cs`.
     movies: BTreeMap<(i32, i32), String>,
 }
@@ -166,6 +170,8 @@ impl PlayData {
             new_game,
             menu,
             streaming_assets: sa.clone(),
+            actions_csv: memoria.join("Memoria.Patcher/StreamingAssets/Data/Battle/Actions.csv"),
+            effect_sounds: std::sync::OnceLock::new(),
             movies: std::fs::read_to_string(memoria.join("Assembly-CSharp/Global/MBG.cs"))
                 .map(|source| crate::movie::parse_disc_table(&source))
                 .unwrap_or_default(),
@@ -902,6 +908,21 @@ impl PlayGame {
         Some(AudioCue::SoundPosition { pos, vol, volume })
     }
 
+    /// The command menu's sound for one frame of input ([`crate::battle_sound::menu_cue`]).
+    pub fn battle_menu_sound(
+        &mut self,
+        before: crate::battle_sound::MenuSnapshot,
+        after: crate::battle_sound::MenuSnapshot,
+        pressed: i32,
+        sent: bool,
+    ) {
+        let confirm = pressed & pad::CONFIRM != 0;
+        let cancel = pressed & pad::CANCEL != 0;
+        if let Some(cue) = crate::battle_sound::menu_cue(before, after, confirm, cancel, sent) {
+            self.audio.push((self.ticks, cue));
+        }
+    }
+
     /// Queues the sound of the movie that starts (`Some`) or stops (`None`) in the window.
     pub fn movie_sound(&mut self, resource: Option<String>) {
         self.audio.push((self.ticks, AudioCue::Movie { resource }));
@@ -1244,7 +1265,14 @@ impl PlayGame {
             return events;
         };
         let more = fight.step(FightControl::Player(command));
-        let cues = self.battle_sounds.step(fight.stage(), fight.party_len());
+        let effects = self.data.effect_sounds.get_or_init(|| {
+            crate::battle_sound::EffectSounds::load(&self.data.game_data, &self.data.actions_csv)
+                .map_err(|error| eprintln!("battle sounds: no spell sounds: {error}"))
+                .ok()
+        });
+        let cues = self
+            .battle_sounds
+            .step(fight.stage(), fight.party_len(), effects.as_ref());
         self.audio
             .extend(cues.into_iter().map(|cue| (self.ticks, cue)));
         if more {
