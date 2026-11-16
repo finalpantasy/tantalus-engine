@@ -51,6 +51,31 @@ fn length(value: &Value, path: &str) -> Option<u64> {
     node.as_array().map(|items| items.len() as u64)
 }
 
+/// Cross-path identity: compares a report-path sweep audit against its
+/// world-hand-off twin. One matching pair = pass; any delta (or a missing
+/// twin) = fail, so `--deny-fail` catches regeneration skew, not just errors.
+fn cross_path_row(
+    dir: &Path,
+    class: &'static str,
+    report_file: &'static str,
+    world_file: &'static str,
+) -> SummaryRow {
+    let counts = match (load(dir, report_file), load(dir, world_file)) {
+        (Some(report), Some(world)) => {
+            let result = crate::sweep_compare::compare(&report, &world);
+            let identical = result["identical"].as_bool() == Some(true);
+            Some((u64::from(identical), u64::from(!identical)))
+        }
+        _ => None,
+    };
+    SummaryRow {
+        class,
+        unit: "pairs",
+        source: "cross-path compare",
+        counts,
+    }
+}
+
 /// `pass` out of `total`; `None` when a field is missing or `pass > total`.
 fn of(total: Option<u64>, pass: Option<u64>) -> Option<(u64, u64)> {
     let (total, pass) = (total?, pass?);
@@ -286,6 +311,24 @@ pub fn summarize(dir: &Path) -> Vec<SummaryRow> {
                 of(Some(total), total.checked_sub(number(r, "errors")?))
             },
             dir,
+        ),
+        cross_path_row(
+            dir,
+            "Cross-path identity, armed pair",
+            "battle-run-all-patterns.json",
+            "battle-world-run-all-patterns.json",
+        ),
+        cross_path_row(
+            dir,
+            "Cross-path identity, weak pair",
+            "battle-run-all-patterns-weak.json",
+            "battle-world-run-all-patterns-weak.json",
+        ),
+        cross_path_row(
+            dir,
+            "Cross-path identity, flee-first pair",
+            "battle-run-all-patterns-flee.json",
+            "battle-world-run-all-patterns-flee.json",
         ),
         row(
             "Sound asset decode",
