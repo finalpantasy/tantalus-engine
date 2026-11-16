@@ -20,6 +20,12 @@ use tantalus_contracts::EntityId;
 use tantalus_legacy::{
     EventBinary, EventProgram, Expression, ExpressionOp, InstructionKind, VmStatus,
 };
+use tantalus_tools::field_data::{
+    FieldText, load_navigation, parse_background_map, parse_event_db,
+};
+use tantalus_tools::field_session::{
+    EntryScheduler, decode_pool, function_entity, load_event, register,
+};
 
 fn main() -> ExitCode {
     match run(std::env::args().skip(1).collect()) {
@@ -351,41 +357,6 @@ where
 
 /// Finds a TextAsset by exact name in a UnityRaw bundle and parses it as an
 /// event archive.
-fn load_event(bundle_path: &Path, name: &str) -> Result<EventBinary, String> {
-    let script = find_text_asset(bundle_path, name)?
-        .ok_or_else(|| format!("event asset `{name}` was not found"))?;
-    EventBinary::parse(&script).map_err(|error| error.to_string())
-}
-
-fn find_text_asset(bundle_path: &Path, name: &str) -> Result<Option<Vec<u8>>, String> {
-    let bundle = tantalus_assets::pc::unity_raw::UnityRawBundle::open(bundle_path)
-        .map_err(|error| error.to_string())?;
-    let bytes = bundle
-        .read_entry(0, 300 * 1024 * 1024)
-        .map_err(|error| error.to_string())?;
-    let serialized = tantalus_assets::pc::serialized::SerializedFile::parse(
-        &bytes,
-        &bundle_path.to_string_lossy(),
-    )
-    .map_err(|error| error.to_string())?;
-    for (index, object) in serialized.report().objects.iter().enumerate() {
-        if object.class_id != 49 {
-            continue;
-        }
-        let asset = tantalus_assets::pc::text_asset::TextAsset::parse(
-            serialized
-                .object_data(index)
-                .map_err(|error| error.to_string())?,
-            name,
-        )
-        .map_err(|error| error.to_string())?;
-        if asset.name == name {
-            return Ok(Some(asset.script));
-        }
-    }
-    Ok(None)
-}
-
 fn disassemble(binary: &EventBinary, only_entry: Option<usize>) -> Result<(), String> {
     for entry in &binary.entries {
         if only_entry.is_some_and(|wanted| wanted != entry.index) {
@@ -418,170 +389,6 @@ fn disassemble(binary: &EventBinary, only_entry: Option<usize>) -> Result<(), St
         }
     }
     Ok(())
-}
-
-/// Parses `{id, "EVT_NAME"},` rows of Memoria's `FF9DBAll.EventDB`.
-fn parse_event_db(source: &str) -> BTreeMap<i32, String> {
-    let mut table = BTreeMap::new();
-    for line in source.lines() {
-        let Some(body) = line.trim().strip_prefix('{') else {
-            continue;
-        };
-        let Some((id, rest)) = body.split_once(',') else {
-            continue;
-        };
-        let Ok(id) = id.trim().parse::<i32>() else {
-            continue;
-        };
-        let mut quoted = rest.split('"');
-        let (Some(_), Some(name)) = (quoted.next(), quoted.next()) else {
-            continue;
-        };
-        table.insert(id, name.to_owned());
-    }
-    table
-}
-
-type Pool = Vec<Vec<(u16, EventProgram)>>;
-
-/// Registers one function of `entry` as a scene VM (key = entry * 256 +
-/// function ordinal) acting on the entry's object. Returns `None` when the tag is absent or the VM is
-/// already registered.
-/// The world map stand-in. The world script (`EVT_WORLD_WORLD00` for map
-/// 9000) leaves for a field through one `JumpSwitch` on the location the
-/// party stands at (map variable 29, copied from 24) whose cases end in
-/// `ChangeField`. This runs that code with the real VM: it sets the
-/// location, starts after the exit fade (`ApplyFadeFilter`) that precedes
-/// the switch, and returns the field the script changes to. Walking the
-/// world, encounters and the other world opcodes are not modeled.
-fn world_exit(
-    bundle: &Path,
-    name: &str,
-    location: i32,
-    world: &mut tantalus_game::field::FieldWorld,
-) -> Result<Option<i32>, String> {
-    use tantalus_legacy::{InstructionKind, VariableType};
-    let binary = load_event(bundle, &format!("{name}.eb"))?;
-    let (pool, _) = decode_pool(&binary)?;
-    let program = pool
-        .iter()
-        .flatten()
-        .map(|(_, program)| program)
-        .find(|program| {
-            let has_switch = program
-                .instructions
-                .values()
-                .any(|i| matches!(i.kind, InstructionKind::JumpSwitch { .. }));
-            let changes = program
-                .instructions
-                .values()
-                .filter(|i| matches!(i.kind, InstructionKind::ChangeField(_)))
-                .count();
-            has_switch && changes > 8
-        })
-        .ok_or("no world exit switch in the world script")?;
-    let switch = program
-        .instructions
-        .values()
-        .filter(|i| matches!(i.kind, InstructionKind::JumpSwitch { .. }))
-        .max_by_key(|i| match &i.kind {
-            InstructionKind::JumpSwitch { case_relative, .. } => case_relative.len(),
-            _ => 0,
-        })
-        .ok_or("no switch")?;
-    let start = program
-        .instructions
-        .range(..switch.offset)
-        .rev()
-        .find(|(_, i)| matches!(i.kind, InstructionKind::ApplyFadeFilter { .. }))
-        .and_then(|(offset, _)| program.instructions.range(offset + 1..).next())
-        .map_or(switch.offset, |(offset, _)| *offset);
-    world
-        .map_memory
-        .set(29, VariableType::Byte, location)
-        .ok_or("map variable 29 out of range")?;
-    world
-        .map_memory
-        .set(24, VariableType::Byte, location)
-        .ok_or("map variable 24 out of range")?;
-    let mut vm = tantalus_legacy::EventVm::resume(
-        program.clone(),
-        EntityId::new(0),
-        start,
-        VmStatus::Running,
-        None,
-    )
-    .map_err(|error| error.to_string())?;
-    let mut host = tantalus_game::field::FieldHost::new(world);
-    for tick in 0..600u64 {
-        let report = vm
-            .step(tantalus_contracts::Tick::new(tick), &mut host)
-            .map_err(|error| error.to_string())?;
-        for event in &report.events {
-            if let tantalus_legacy::HostEvent::ChangeField { field } = event {
-                return Ok(Some(i32::from(*field)));
-            }
-        }
-        if report.status == VmStatus::Completed {
-            return Ok(None);
-        }
-    }
-    Err("world exit code did not reach ChangeField in 600 ticks".to_owned())
-}
-
-fn register(
-    director: &mut tantalus_game::FieldDirector,
-    pool: &Pool,
-    entry: usize,
-    tag: Option<u16>,
-) -> Result<Option<EntityId>, String> {
-    let functions = &pool[entry];
-    let position = match tag {
-        Some(tag) => functions.iter().position(|(t, _)| *t == tag),
-        None => (!functions.is_empty()).then_some(0),
-    };
-    let Some(position) = position else {
-        return Ok(None);
-    };
-    let entity = EntityId::new(entry as u64 * 256 + position as u64);
-    if director
-        .entry_states()
-        .iter()
-        .any(|(existing, _, _, _)| *existing == entity)
-    {
-        return Ok(None);
-    }
-    // Every function of an entry acts on the entry's object (one `Obj` in
-    // the reference), registered per field as `EntityId(entry)` with uid
-    // `entry`.
-    director
-        .add_object_function(
-            entity,
-            EntityId::new(entry as u64),
-            functions[position].1.clone(),
-        )
-        .map_err(|error| error.to_string())?;
-    Ok(Some(entity))
-}
-
-fn decode_pool(binary: &EventBinary) -> Result<(Pool, usize), String> {
-    let mut pool: Pool = Vec::new();
-    let mut decode_errors = 0usize;
-    for entry in &binary.entries {
-        let decoded = binary
-            .decode_entry_with_diagnostics(entry.index)
-            .map_err(|error| error.to_string())?;
-        decode_errors += decoded.errors.len();
-        pool.push(
-            decoded
-                .functions
-                .into_iter()
-                .filter(|function| !function.program.instructions.is_empty())
-                .map(|function| (function.tag, function.program))
-                .collect(),
-        );
-    }
-    Ok((pool, decode_errors))
 }
 
 /// Nonzero bytes as `{offset: value}` for compact memory dumps.
@@ -635,16 +442,8 @@ const WAYPOINT_DWELL: u64 = 60;
 const TALK_OFFSET: f32 = 48.0;
 /// Ticks of continuous user control before the explorer moves the player.
 const CONTROL_SETTLE: u64 = 30;
-/// VM key base for shared scripts (`UID_OFFSET_SEQ`): above every
-/// `entry * 256 + function` key.
-const SHARED_SCRIPT_KEY: u64 = 0x1_0000;
 
 /// Entity `register` uses for an entry's function with `tag`.
-fn function_entity(pool: &Pool, entry: usize, tag: u16) -> Option<EntityId> {
-    let position = pool[entry].iter().position(|(t, _)| *t == tag)?;
-    Some(EntityId::new(entry as u64 * 256 + position as u64))
-}
-
 /// A floor point (x, z) kept on the walkmesh: the point itself when a
 /// triangle contains it, else the nearest triangle centroid, so walkmesh
 /// queries (`BGI` triangle polls) keep answering for the placed player.
@@ -1053,217 +852,6 @@ fn exit_destinations(functions: &[(u16, EventProgram)]) -> Vec<i32> {
     destinations
 }
 
-/// Per-field text facts the scripted player needs.
-#[derive(Default)]
-struct FieldTextInfo {
-    signals: BTreeMap<u16, Vec<i32>>,
-    /// Text ids that contain a `[CHOO]` choice list.
-    choices: BTreeSet<u16>,
-    /// Literal text of each entry (tags dropped), for the trace record.
-    plain: BTreeMap<u16, String>,
-}
-
-/// Field dialog text, for the `[SIGL=n]` signals windows raise.
-///
-/// Memoria loads `EmbeddedAsset/Text/<lang>/Field/<zone>.mes`, where the zone
-/// is `EventEngineUtils.eventIDToMESID[fldMapNo]` (`HonoluluFieldMain`,
-/// `FF9TextTool.UpdateFieldText`). The path resolves through the Unity
-/// `ResourceManager` container in `mainData`. The map table is read at run
-/// time from the pinned Memoria source, not copied here.
-struct FieldText {
-    data_dir: PathBuf,
-    language: String,
-    zones: BTreeMap<i32, i32>,
-    /// Lower-case resource path -> (file name, path id).
-    container: BTreeMap<String, (String, i64)>,
-}
-
-impl FieldText {
-    fn open(data_dir: &Path, map_source: &str, language: String) -> Result<Self, String> {
-        use tantalus_assets::pc::resource_container::{
-            RESOURCE_MANAGER_CLASS_ID, parse_resource_container,
-        };
-        use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
-        let main = data_dir.join("mainData");
-        let mut file = StandaloneSerialized::open(&main).map_err(|error| error.to_string())?;
-        let manager = file
-            .objects()
-            .iter()
-            .find(|object| object.class_id == RESOURCE_MANAGER_CLASS_ID)
-            .cloned()
-            .ok_or("mainData has no ResourceManager")?;
-        let bytes = file
-            .read_object(&manager)
-            .map_err(|error| error.to_string())?;
-        let externals = file.inventory().external_paths.clone();
-        let mut container = BTreeMap::new();
-        for entry in parse_resource_container(&bytes, &main.display().to_string())
-            .map_err(|error| error.to_string())?
-        {
-            let file_name = match usize::try_from(entry.file_id) {
-                Ok(0) => "mainData".to_owned(),
-                Ok(index) => match externals.get(index - 1) {
-                    Some(path) => path.rsplit(['/', '\\']).next().unwrap_or(path).to_owned(),
-                    None => continue,
-                },
-                Err(_) => continue,
-            };
-            container.insert(entry.path.to_lowercase(), (file_name, entry.path_id));
-        }
-        Ok(Self {
-            data_dir: data_dir.to_path_buf(),
-            language,
-            zones: parse_mes_map(map_source),
-            container,
-        })
-    }
-
-    /// `[SIGL]` values and choice texts for one field map, or why none were
-    /// loaded.
-    fn info(&self, map: i32) -> Result<FieldTextInfo, String> {
-        use tantalus_assets::pc::mes::{MesToken, parse_mes_bytes};
-        use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
-        let zone = self
-            .zones
-            .get(&map)
-            .ok_or_else(|| format!("map {map} has no eventIDToMESID entry"))?;
-        let key = format!("embeddedasset/text/{}/field/{zone}", self.language);
-        let (file_name, path_id) = self
-            .container
-            .get(&key)
-            .or_else(|| self.container.get(&format!("{key}.mes")))
-            .ok_or_else(|| format!("resource `{key}` not in the container"))?;
-        let path = self.data_dir.join(file_name);
-        let mut file = StandaloneSerialized::open(&path).map_err(|error| error.to_string())?;
-        let object = file
-            .objects()
-            .iter()
-            .find(|object| object.path_id == *path_id)
-            .cloned()
-            .ok_or_else(|| format!("{file_name} has no object {path_id}"))?;
-        let asset = file
-            .read_text_asset(&object)
-            .map_err(|error| error.to_string())?;
-        let mes = parse_mes_bytes(&asset.script, &key).map_err(|error| error.to_string())?;
-        let mut info = FieldTextInfo::default();
-        for entry in &mes.entries {
-            let Ok(id) = u16::try_from(entry.id) else {
-                continue;
-            };
-            let plain: String = entry
-                .tokens
-                .iter()
-                .filter_map(|token| match token {
-                    MesToken::Text { text } => Some(text.as_str()),
-                    _ => None,
-                })
-                .collect::<String>()
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ");
-            info.plain.insert(id, plain);
-            if entry
-                .tokens
-                .iter()
-                .any(|token| matches!(token, MesToken::Tag(tag) if tag.code == "Choice"))
-            {
-                info.choices.insert(id);
-            }
-            let values: Vec<i32> = entry
-                .tokens
-                .iter()
-                .filter_map(|token| match token {
-                    MesToken::Tag(tag) if tag.code == "Signal" => tag.params.first()?.parse().ok(),
-                    // `DialogBoxSymbols`: both increase tags raise
-                    // `OnSignal(-1)`, which adds one to `gMesSignal`.
-                    MesToken::Tag(tag)
-                        if tag.code == "IncreaseSignal" || tag.code == "IncreaseSignalEx" =>
-                    {
-                        Some(-1)
-                    }
-                    _ => None,
-                })
-                .collect();
-            if !values.is_empty() {
-                info.signals.insert(id, values);
-            }
-        }
-        Ok(info)
-    }
-}
-
-/// `EventEngineUtils.eventIDToMESID` entries (`{map, zone},`), read from the
-/// Memoria source after the dictionary's declaration.
-fn parse_mes_map(source: &str) -> BTreeMap<i32, i32> {
-    let Some(start) = source.find("eventIDToMESID") else {
-        return BTreeMap::new();
-    };
-    let mut map = BTreeMap::new();
-    for line in source[start..].lines().skip(1) {
-        let line = line.trim();
-        if line.starts_with("};") {
-            break;
-        }
-        let Some(body) = line.strip_prefix('{') else {
-            continue;
-        };
-        let mut parts = body.trim_end_matches(',').trim_end_matches('}').split(',');
-        if let (Some(Ok(map_no)), Some(Ok(zone))) = (
-            parts.next().map(|part| part.trim().parse()),
-            parts.next().map(|part| part.trim().parse()),
-        ) {
-            map.insert(map_no, zone);
-        }
-    }
-    map
-}
-
-/// `EventEngineUtils.eventIDToFBGID` entries (`{map, "FBG_..."},`), read
-/// from the Memoria source after the dictionary's declaration.
-fn parse_background_map(source: &str) -> BTreeMap<i32, String> {
-    let Some(start) = source.find("eventIDToFBGID") else {
-        return BTreeMap::new();
-    };
-    let mut map = BTreeMap::new();
-    for line in source[start..].lines().skip(1) {
-        let line = line.trim();
-        if line.starts_with("};") {
-            break;
-        }
-        let Some(body) = line.strip_prefix('{') else {
-            continue;
-        };
-        let Some((id, rest)) = body.split_once(',') else {
-            continue;
-        };
-        let Ok(id) = id.trim().parse::<i32>() else {
-            continue;
-        };
-        if let Some(name) = rest.split('"').nth(1) {
-            map.insert(id, name.to_owned());
-        }
-    }
-    map
-}
-
-/// Finds the field bundle that registers `name` and loads its walkmesh.
-fn load_navigation(
-    bundles: &[PathBuf],
-    name: &str,
-) -> Result<tantalus_contracts::FieldNavigationMesh, String> {
-    for bundle in bundles {
-        if !bundle.exists() {
-            continue;
-        }
-        match tantalus_assets::pc::bundled_field::load_field_navigation(bundle, name) {
-            Ok(Some(mesh)) => return Ok(mesh),
-            Ok(None) => {}
-            Err(error) => return Err(format!("{}: {error}", bundle.display())),
-        }
-    }
-    Err(format!("no field bundle registers `{name}`"))
-}
-
 fn chain(
     bundle: &Path,
     db: &BTreeMap<i32, String>,
@@ -1472,35 +1060,9 @@ fn chain(
             },
             None => "not loaded".to_owned(),
         };
-        world.take_field_transitions();
-        // Field load closes every window.
-        world.windows.clear();
-        world.window_texts.clear();
-        let mut director = tantalus_game::FieldDirector::new(world.clone());
-        director.world_mut().set_input(held);
-        for entry in 0..pool.len() {
-            let base = EntityId::new(entry as u64);
-            director.world_mut().add_actor(base, [0.0; 3]);
-            director.world_mut().map_uid(entry as i32, base);
-        }
-        for slot in 251u64..256 {
-            let entity = EntityId::new(slot);
-            director.world_mut().add_actor(entity, [0.0; 3]);
-            director.world_mut().map_uid(slot as i32, entity);
-        }
-        // Objects still in their init function (tag 0). When it returns,
-        // EventEngine.Return (EventEngine.cs:1178) moves the object to
-        // stateRunning and starts its loop function (tag 1) at level 7.
-        let mut initializing: Vec<(EntityId, usize)> = Vec::new();
-        let mut shared_running: BTreeMap<EntityId, EntityId> = BTreeMap::new();
-        let mut shared_scripts_run = 0usize;
-        // Field load starts entry 0 only (`EventEngine.ProcessEvents` runs
-        // the main object's init); the rest start when a script creates
-        // them (`DirectorStep::initialized`).
-        if let Some(entity) = register(&mut director, &pool, 0, Some(0))? {
-            initializing.push((entity, 0));
-        }
-        let mut loops_started = 0usize;
+        let mut director =
+            tantalus_tools::field_session::new_director(world.clone(), pool.len(), held);
+        let mut scheduler = EntryScheduler::start(&mut director, &pool)?;
         // Scripted player: with --confirm-after N, a window open for N ticks
         // is closed as if confirm were pressed (0 disables).
         let mut open_since: BTreeMap<u8, u64> = BTreeMap::new();
@@ -1558,8 +1120,6 @@ fn chain(
         let mut error = None;
         let mut transition = None;
         let mut world_map: Option<i32> = None;
-        let mut spawned: Vec<(EntityId, u64)> = Vec::new();
-        let mut unspawned = 0usize;
         let mut encounters = 0usize;
         let mut battles: Vec<i32> = Vec::new();
         let mut fights: Vec<tantalus_tools::field_battle::FightReport> = Vec::new();
@@ -1634,24 +1194,7 @@ fn chain(
                 Ok(step) => {
                     ticks_run += 1;
                     operations += step.operations;
-                    for source in &step.initialized {
-                        let entry = usize::from(*source);
-                        if entry >= pool.len() {
-                            continue;
-                        }
-                        let first = if pool[entry].iter().any(|(tag, _)| *tag == 0) {
-                            Some(0)
-                        } else {
-                            Some(1)
-                        };
-                        if let Some(entity) = register(&mut director, &pool, entry, first)? {
-                            if first == Some(0) {
-                                initializing.push((entity, entry));
-                            } else {
-                                loops_started += 1;
-                            }
-                        }
-                    }
+                    scheduler.start_created(&mut director, &pool, &step)?;
                     encounters += step.encounters.len();
                     // No battle engine yet: each scripted battle is skipped
                     // and the field resumes on the next tick, as after a win.
@@ -1693,15 +1236,11 @@ fn chain(
                         // context and requests the main object's function 10
                         // at level 0 (`EventEngine.cs:598`): map 202 sets
                         // scenario 2200 there after Baku's fight.
-                        if !step.encounters.is_empty() && !pool.is_empty() {
-                            if let Some(entity) = function_entity(&pool, 0, 10)
-                                && director.entry_states().iter().any(|(e, _, status, _)| {
-                                    *e == entity && *status == VmStatus::Completed
-                                })
-                            {
-                                director.remove_entry(entity);
-                            }
-                            register(&mut director, &pool, 0, Some(10))?;
+                        if !step.encounters.is_empty() {
+                            tantalus_tools::field_session::resume_after_battle(
+                                &mut director,
+                                &pool,
+                            )?;
                         }
                     }
                     // Talk (EventCollision): confirm next to an object starts
@@ -1752,111 +1291,14 @@ fn chain(
                             }
                         }
                     }
-                    // STARTSEQ: a new shared script replaces the object's
-                    // previous one (`DisposeObj` of uid + UID_OFFSET_SEQ).
-                    for (object, entry) in &step.shared_scripts {
-                        let Ok(entry) = usize::try_from(*entry) else {
-                            continue;
-                        };
-                        let Some((_, program)) = pool.get(entry).and_then(|f| f.first()) else {
-                            continue;
-                        };
-                        let key = EntityId::new(SHARED_SCRIPT_KEY + object.get());
-                        director.remove_entry(key);
-                        director
-                            .add_shared_script(key, *object, program.clone())
-                            .map_err(|error| error.to_string())?;
-                        shared_running.insert(key, *object);
-                        shared_scripts_run += 1;
-                    }
-                    // DRET: the object's running functions all return.
-                    for object in &step.returned {
-                        spawned.retain(|(entity, base)| {
-                            let keep = *base != object.get();
-                            if !keep {
-                                director.remove_entry(*entity);
-                            }
-                            keep
-                        });
-                    }
-                    for request in &step.requests {
-                        let target = request.target.get() as usize;
-                        if target >= pool.len() {
-                            unspawned += 1;
-                            continue;
-                        }
-                        let tag = u16::from(request.tag);
-                        let tag = pool[target].iter().any(|(t, _)| *t == tag).then_some(tag);
-                        // A function that already ran to its end runs again
-                        // from its start (each request is a fresh call).
-                        if let Some(entity) =
-                            tag.and_then(|tag| function_entity(&pool, target, tag))
-                            && director.entry_states().iter().any(|(e, _, status, _)| {
-                                *e == entity && *status == VmStatus::Completed
-                            })
-                        {
-                            director.remove_entry(entity);
-                        }
-                        match register(&mut director, &pool, target, tag)? {
-                            Some(entity) => spawned.push((entity, target as u64)),
-                            None => {
-                                // Nothing will run, so nothing would ever
-                                // clear the pend: release a waiting caller.
-                                unspawned += 1;
-                                if !spawned.iter().any(|(_, base)| *base == target as u64) {
-                                    director
-                                        .world_mut()
-                                        .complete_request(EntityId::new(target as u64));
-                                }
-                            }
-                        }
-                    }
+                    scheduler.run_step_scripts(&mut director, &pool, &step)?;
                 }
                 Err(failure) => {
                     error = Some(failure.to_string());
                     break;
                 }
             }
-            let states = director.entry_states();
-            shared_running.retain(|key, object| {
-                let complete = states
-                    .iter()
-                    .any(|(e, _, status, _)| e == key && *status == VmStatus::Completed);
-                if complete {
-                    director.world_mut().finish_shared_script(*object);
-                }
-                !complete
-            });
-            let mut done = Vec::new();
-            spawned.retain(|(entity, base)| {
-                let complete = states
-                    .iter()
-                    .any(|(e, _, status, _)| e == entity && *status == VmStatus::Completed);
-                if complete {
-                    done.push(*base);
-                }
-                !complete
-            });
-            for base in done {
-                director.world_mut().complete_request(EntityId::new(base));
-            }
-            let mut ready = Vec::new();
-            initializing.retain(|(entity, entry)| {
-                let complete = states
-                    .iter()
-                    .any(|(e, _, status, _)| e == entity && *status == VmStatus::Completed);
-                if complete {
-                    ready.push(*entry);
-                }
-                !complete
-            });
-            for entry in ready {
-                if pool[entry].iter().any(|(tag, _)| *tag == 1)
-                    && register(&mut director, &pool, entry, Some(1))?.is_some()
-                {
-                    loops_started += 1;
-                }
-            }
+            scheduler.settle(&mut director, &pool)?;
             // A confirm press lasts one tick.
             if pressed {
                 director.world_mut().set_input(held);
@@ -2205,7 +1647,7 @@ fn chain(
                 "decode_errors": decode_errors,
                 "ticks": ticks_run,
                 "operations": operations,
-                "loops_started": loops_started,
+                "loops_started": scheduler.loops_started,
                 "map_memory": nonzero(director.world().map_memory.bytes()),
                 "global_memory": nonzero(director.world().global_memory.bytes()),
                 "confirms": confirms,
@@ -2218,9 +1660,9 @@ fn chain(
                 "region_triggers": region_triggers,
                 "confirm_presses": presses,
                 "vms": states.len(),
-                "spawned_pending": spawned.len(),
-                "shared_scripts_run": shared_scripts_run,
-                "unspawned_requests": unspawned,
+                "spawned_pending": scheduler.spawned_pending(),
+                "shared_scripts_run": scheduler.shared_scripts_run,
+                "unspawned_requests": scheduler.unspawned,
                 "encounters": encounters,
                 "not_completed": not_completed,
                 "error": error,
@@ -2269,7 +1711,9 @@ fn chain(
                 world_exits_used[index] = true;
                 let location = world_exits[index].1;
                 let outcome = match db.get(&world_map) {
-                    Some(name) => world_exit(bundle, name, location, &mut world),
+                    Some(name) => tantalus_tools::field_session::world_exit(
+                        bundle, name, location, &mut world,
+                    ),
                     None => Err(format!("world map {world_map} not in EventDB")),
                 };
                 println!(
@@ -2294,7 +1738,7 @@ fn chain(
 
 #[cfg(test)]
 mod tests {
-    use super::parse_event_db;
+    use tantalus_tools::field_data::parse_event_db;
 
     #[test]
     fn event_db_rows_parse_and_other_lines_are_ignored() {

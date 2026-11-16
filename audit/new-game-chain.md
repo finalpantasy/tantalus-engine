@@ -433,3 +433,40 @@ policy:
 | --- | --- | --- | --- |
 | 335 | TH_E004 | defeat at tick 2368 | Enemy HP starts at 10033, 10167 and 10038; the first falls to 8347 before the party dies. The script's scripted win (code 33, value 1) never runs. |
 | 302 | EF_E006 | no result after 20000 ticks | Enemy HP stays at 10513 and 10068; the party never damages them. |
+
+## Playing it
+
+The chain's field loop now lives in the library (`tantalus_tools::field_session`
+for one field, `tantalus_tools::play::PlayGame` for a whole run), and a person
+can drive it:
+
+```
+tantalus-client play --assets <StreamingAssets> --game-data <x64/FF9_Data> \
+  --memoria <Memoria root> --atan <ratan_tbl.bin> \
+  [--battles audit/battle-scene-ids.tsv] [--world-exits 4] [--scale 3]
+```
+
+Arrows or WASD walk, Enter, Space or Z confirm (and close the open window;
+in a choice window, up and down pick the answer first), Backspace or X
+cancel, Q and E are triangle and square, Tab is select and P is start. The
+window shows the field background and a marker per actor (amber for the
+player). Dialog lines, battles and field changes print to the console, and
+the open line shows in the title bar, since the client has no font yet.
+
+What the play loop does that the chain's scripted player did not:
+
+- Input walking stays on the walkmesh. A step that lands inside a triangle
+  of the current floor, or of another floor where two meet, is kept; any
+  other step slides to the nearest edge of the current floor. Field 50's
+  doorway is floor 0 and the room is floor 2.
+- Region functions run every tick the player stands in the region, as
+  `EventCollision.CollisionRequest` does (`TreadQuad`, then
+  `Request(quad, 1, 2)`). Field 50's candle needs this: region 7 sets map
+  variable 38 each tick, and the main loop shows the "Light the candle"
+  choice when confirm is pressed while it is set.
+
+Two headless checks cover the same loop without a window:
+`tantalus-play` prints each event as JSON, and `tantalus-client capture-play`
+renders the field the run ends on. With Down held for ticks 300-356 and one
+confirm at 380, both reach field 50, the candle choice, battle 336
+(victory) and the meeting in field 52.

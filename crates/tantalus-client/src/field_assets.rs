@@ -9,6 +9,15 @@ pub fn resolve_field_assets(
     adapter: &mut ClientSceneAdapter,
     field: &BundledField,
 ) -> Result<ResolvedAssets, ClientError> {
+    resolve_field_assets_in(adapter.app_mut().world_mut(), field)
+}
+
+/// [`resolve_field_assets`] on a bare `World` (the live window reloads
+/// fields from inside a system).
+pub fn resolve_field_assets_in(
+    world: &mut World,
+    field: &BundledField,
+) -> Result<ResolvedAssets, ClientError> {
     let rgba = field.atlas.rgba_bytes().map_err(|error| {
         ClientError::new(format!(
             "could not decode atlas {} for `{}`: {error}",
@@ -16,11 +25,7 @@ pub fn resolve_field_assets(
         ))
     })?;
     let image = rgba_image(field.atlas.width, field.atlas.height, rgba)?;
-    let handle = adapter
-        .app_mut()
-        .world_mut()
-        .resource_mut::<Assets<Image>>()
-        .add(image);
+    let handle = world.resource_mut::<Assets<Image>>().add(image);
     Ok(ResolvedAssets {
         content_revision: ContentRevision::default(),
         images: [(field.atlas_id.clone(), handle)].into(),

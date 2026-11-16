@@ -15,6 +15,8 @@ serde_json.workspace = true
 tantalus-assets = { path = "../tantalus-assets" }
 tantalus-contracts = { path = "../tantalus-contracts" }
 tantalus-core = { path = "../tantalus-core" }
+tantalus-game = { path = "../tantalus-game" }
+tantalus-tools = { path = "../tantalus-tools" }
 
 [dev-dependencies]
 image = "0.25"

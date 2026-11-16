@@ -5712,6 +5712,8 @@ dependencies = [
  "tantalus-assets",
  "tantalus-contracts",
  "tantalus-core",
+ "tantalus-game",
+ "tantalus-tools",
  "tempfile",
 ]
 

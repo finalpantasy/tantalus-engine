@@ -108,55 +108,12 @@ impl ClientSceneAdapter {
         scene: &FieldSceneDescription,
         assets: &ResolvedAssets,
     ) -> Result<(), ClientError> {
-        if scene.camera.size.contains(&0) {
-            return Err(ClientError::new("field camera dimensions must be positive"));
-        }
-        let mut sprites = Vec::new();
-        let mut identities = BTreeSet::new();
-        for overlay in &scene.overlays {
-            for sprite in &overlay.sprites {
-                if !identities.insert((sprite.overlay_index, sprite.sprite_index)) {
-                    return Err(ClientError::new("duplicate field sprite identity"));
-                }
-                if sprite.atlas_rect[2] <= sprite.atlas_rect[0]
-                    || sprite.atlas_rect[3] <= sprite.atlas_rect[1]
-                {
-                    return Err(ClientError::new(
-                        "field sprite has an empty atlas rectangle",
-                    ));
-                }
-                if !assets.images.contains_key(&sprite.atlas) {
-                    return Err(ClientError::new(format!(
-                        "field sprite atlas `{}` is not resolved",
-                        sprite.atlas
-                    )));
-                }
-                if sprite.active && overlay.camera_index == scene.camera_index as u8 {
-                    sprites.push(sprite);
-                }
-            }
-        }
-        sprites.sort_by_key(|sprite| (sprite.depth, sprite.overlay_index, sprite.sprite_index));
-
+        let sprites = field_sprites(scene, assets)?;
         self.clear_scene();
         self.mode = ScenePresentationMode::Layered2d;
-        for sprite in sprites {
-            self.spawn_field_sprite(sprite, assets);
-        }
-        let transform = Transform::from_xyz(
-            f32::from(scene.camera.center_offset[0]),
-            f32::from(scene.camera.center_offset[1]),
-            500.0,
-        );
-        let camera = match &self.render_target {
-            Some(target) => self
-                .app
-                .world_mut()
-                .spawn((Camera2d, transform, target.clone()))
-                .id(),
-            None => self.app.world_mut().spawn((Camera2d, transform)).id(),
-        };
-        self.scene_entities.push(camera);
+        let target = self.render_target.clone();
+        let entities = spawn_field_scene(self.app.world_mut(), scene, &sprites, assets, target);
+        self.scene_entities.extend(entities);
         Ok(())
     }
 
@@ -258,40 +215,6 @@ impl ClientSceneAdapter {
         if let Some(animation) = AnimationAdapter::map(animation, snapshot.tick) {
             self.app.world_mut().entity_mut(entity).insert(animation);
         }
-    }
-
-    fn spawn_field_sprite(&mut self, sprite: &FieldSpritePresentation, assets: &ResolvedAssets) {
-        let image = assets.images[&sprite.atlas].clone();
-        let entity = self
-            .app
-            .world_mut()
-            .spawn((
-                Sprite {
-                    image,
-                    rect: Some(Rect::new(
-                        sprite.atlas_rect[0] as f32,
-                        sprite.atlas_rect[1] as f32,
-                        sprite.atlas_rect[2] as f32,
-                        sprite.atlas_rect[3] as f32,
-                    )),
-                    custom_size: Some(Vec2::new(
-                        sprite.pixel_size[0] as f32,
-                        sprite.pixel_size[1] as f32,
-                    )),
-                    ..Sprite::default()
-                },
-                Transform::from_xyz(
-                    sprite.pixel_offset[0] as f32 + sprite.pixel_size[0] as f32 / 2.0,
-                    -(sprite.pixel_offset[1] as f32 + sprite.pixel_size[1] as f32 / 2.0),
-                    to_units(sprite.depth as i32),
-                ),
-                FieldSpriteIdentity {
-                    overlay: sprite.overlay_index,
-                    sprite: sprite.sprite_index,
-                },
-            ))
-            .id();
-        self.scene_entities.push(entity);
     }
 
     fn spawn_camera(&mut self, snapshot: &PresentationSnapshot) {
@@ -407,3 +330,97 @@ pub struct LayerIdentity(pub ContentId);
 
 #[derive(Component)]
 pub struct ActorIdentity(pub EntityId);
+
+/// The active sprites of the scene's camera, depth sorted, after checking
+/// the scene: positive camera size, unique sprite identities, non-empty
+/// atlas rectangles, resolved atlases.
+pub fn field_sprites<'a>(
+    scene: &'a FieldSceneDescription,
+    assets: &ResolvedAssets,
+) -> Result<Vec<&'a FieldSpritePresentation>, ClientError> {
+    if scene.camera.size.contains(&0) {
+        return Err(ClientError::new("field camera dimensions must be positive"));
+    }
+    let mut sprites = Vec::new();
+    let mut identities = BTreeSet::new();
+    for overlay in &scene.overlays {
+        for sprite in &overlay.sprites {
+            if !identities.insert((sprite.overlay_index, sprite.sprite_index)) {
+                return Err(ClientError::new("duplicate field sprite identity"));
+            }
+            if sprite.atlas_rect[2] <= sprite.atlas_rect[0]
+                || sprite.atlas_rect[3] <= sprite.atlas_rect[1]
+            {
+                return Err(ClientError::new(
+                    "field sprite has an empty atlas rectangle",
+                ));
+            }
+            if !assets.images.contains_key(&sprite.atlas) {
+                return Err(ClientError::new(format!(
+                    "field sprite atlas `{}` is not resolved",
+                    sprite.atlas
+                )));
+            }
+            if sprite.active && overlay.camera_index == scene.camera_index as u8 {
+                sprites.push(sprite);
+            }
+        }
+    }
+    sprites.sort_by_key(|sprite| (sprite.depth, sprite.overlay_index, sprite.sprite_index));
+    Ok(sprites)
+}
+
+/// Spawns the background sprites and a 2D camera at the field camera's
+/// center offset; returns every entity spawned.
+pub fn spawn_field_scene(
+    world: &mut World,
+    scene: &FieldSceneDescription,
+    sprites: &[&FieldSpritePresentation],
+    assets: &ResolvedAssets,
+    target: Option<RenderTarget>,
+) -> Vec<Entity> {
+    let mut entities = Vec::with_capacity(sprites.len() + 1);
+    for sprite in sprites {
+        let image = assets.images[&sprite.atlas].clone();
+        entities.push(
+            world
+                .spawn((
+                    Sprite {
+                        image,
+                        rect: Some(Rect::new(
+                            sprite.atlas_rect[0] as f32,
+                            sprite.atlas_rect[1] as f32,
+                            sprite.atlas_rect[2] as f32,
+                            sprite.atlas_rect[3] as f32,
+                        )),
+                        custom_size: Some(Vec2::new(
+                            sprite.pixel_size[0] as f32,
+                            sprite.pixel_size[1] as f32,
+                        )),
+                        ..Sprite::default()
+                    },
+                    Transform::from_xyz(
+                        sprite.pixel_offset[0] as f32 + sprite.pixel_size[0] as f32 / 2.0,
+                        -(sprite.pixel_offset[1] as f32 + sprite.pixel_size[1] as f32 / 2.0),
+                        to_units(sprite.depth as i32),
+                    ),
+                    FieldSpriteIdentity {
+                        overlay: sprite.overlay_index,
+                        sprite: sprite.sprite_index,
+                    },
+                ))
+                .id(),
+        );
+    }
+    let transform = Transform::from_xyz(
+        f32::from(scene.camera.center_offset[0]),
+        f32::from(scene.camera.center_offset[1]),
+        500.0,
+    );
+    let camera = match target {
+        Some(target) => world.spawn((Camera2d, transform, target)).id(),
+        None => world.spawn((Camera2d, transform)).id(),
+    };
+    entities.push(camera);
+    entities
+}

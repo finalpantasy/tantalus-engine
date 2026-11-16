@@ -10,7 +10,7 @@ fn main() -> ExitCode {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]"
+            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--scale N]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] --output <png> [--size WxH]"
         );
         return ExitCode::SUCCESS;
     }
@@ -20,9 +20,11 @@ fn main() -> ExitCode {
         Some("view-field") => run_field_view(&args[1..]),
         Some("view-track") => run_track_view(&args[1..]),
         Some("capture-track") => run_track_capture(&args[1..]),
+        Some("play") => run_play(&args[1..]),
+        Some("capture-play") => run_play_capture(&args[1..]),
         _ => {
             eprintln!(
-                "expected `capture`, `capture-field` `view-field`, `view-track` or `capture-track` (see --help)"
+                "expected `capture`, `capture-field` `view-field`, `view-track`, `capture-track`, `play` or `capture-play` (see --help)"
             );
             ExitCode::FAILURE
         }
@@ -330,4 +332,207 @@ fn run_track_capture(args: &[std::ffi::OsString]) -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+const PLAY_FLAGS: [&str; 8] = [
+    "--assets",
+    "--game-data",
+    "--memoria",
+    "--atan",
+    "--battles",
+    "--start",
+    "--world-exits",
+    "--language",
+];
+
+/// New game from the `play` flags, on its first field (events printed).
+fn load_game(
+    values: &std::collections::BTreeMap<String, String>,
+) -> Result<tantalus_tools::play::PlayGame, String> {
+    let path = |flag: &str| {
+        values
+            .get(flag)
+            .map(PathBuf::from)
+            .ok_or_else(|| format!("requires {flag}"))
+    };
+    let paths = tantalus_tools::play::PlayPaths {
+        streaming_assets: path("--assets")?,
+        game_data: path("--game-data")?,
+        memoria: path("--memoria")?,
+        atan_table: path("--atan")?,
+        battles: values.get("--battles").map(PathBuf::from),
+        language: values
+            .get("--language")
+            .cloned()
+            .unwrap_or_else(|| "us".to_owned()),
+    };
+    let start = values
+        .get("--start")
+        .map_or(Ok(70), |value| value.parse().map_err(|_| "bad --start"))?;
+    let data = tantalus_tools::play::PlayData::load(&paths)?;
+    let (mut game, events) = tantalus_tools::play::PlayGame::new(data, start)?;
+    for event in &events {
+        println!("{}", tantalus_client::live::describe(event));
+    }
+    if let Some(list) = values.get("--world-exits") {
+        game.world_exits = list
+            .split(',')
+            .map(|value| {
+                value
+                    .trim()
+                    .parse()
+                    .map_err(|_| format!("bad world exit `{value}`"))
+            })
+            .collect::<Result<_, _>>()?;
+    }
+    Ok(game)
+}
+
+fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
+    let mut allowed = PLAY_FLAGS.to_vec();
+    allowed.push("--scale");
+    let Some(values) = flag_values(args, &allowed) else {
+        return ExitCode::FAILURE;
+    };
+    let scale = values
+        .get("--scale")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(3);
+    let result = load_game(&values).and_then(|game| {
+        let assets = PathBuf::from(&values["--assets"]);
+        tantalus_client::live::play(game, assets, scale).map_err(|error| error.to_string())
+    });
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("play failed: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// `--hold FROM-TO:HEXMASK,...` ranges of held pad bits.
+fn parse_holds(list: Option<&String>) -> Result<Vec<(u64, u64, i32)>, String> {
+    let Some(list) = list else {
+        return Ok(Vec::new());
+    };
+    list.split(',')
+        .map(|part| {
+            part.split_once(':')
+                .and_then(|(range, mask)| {
+                    let (from, to) = range.split_once('-')?;
+                    Some((
+                        from.parse().ok()?,
+                        to.parse().ok()?,
+                        i32::from_str_radix(mask.trim_start_matches("0x"), 16).ok()?,
+                    ))
+                })
+                .ok_or_else(|| format!("bad --hold entry `{part}`, want FROM-TO:HEXMASK"))
+        })
+        .collect()
+}
+
+/// Headless check of the play window: runs the game with scripted input
+/// (held ranges, plus a confirm press once a window has been open
+/// `--auto-confirm` ticks), then renders the field it ends on with its
+/// actors to a PNG.
+fn run_play_capture(args: &[std::ffi::OsString]) -> ExitCode {
+    let mut allowed = PLAY_FLAGS.to_vec();
+    allowed.extend(["--ticks", "--hold", "--auto-confirm", "--output", "--size"]);
+    let Some(values) = flag_values(args, &allowed) else {
+        return ExitCode::FAILURE;
+    };
+    match play_capture(&values) {
+        Ok(line) => {
+            println!("{line}");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("capture-play failed: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<String, String> {
+    use tantalus_tools::play::pad;
+    let output = values
+        .get("--output")
+        .map(PathBuf::from)
+        .ok_or("requires --output")?;
+    let ticks: u64 = values
+        .get("--ticks")
+        .map_or(Ok(600), |value| value.parse().map_err(|_| "bad --ticks"))?;
+    let auto_confirm: u64 = values.get("--auto-confirm").map_or(Ok(0), |value| {
+        value.parse().map_err(|_| "bad --auto-confirm")
+    })?;
+    let (width, height) = match values.get("--size") {
+        None => (320, 240),
+        Some(size) => parse_size(std::path::Path::new(size)).ok_or("--size must be WxH")?,
+    };
+    let holds = parse_holds(values.get("--hold"))?;
+    let mut game = load_game(values)?;
+    let mut open_for = 0u64;
+    let mut last_confirm = false;
+    for tick in 0..ticks {
+        let mut held = holds
+            .iter()
+            .filter(|(from, to, _)| (*from..*to).contains(&tick))
+            .fold(0, |mask, (_, _, bits)| mask | bits);
+        open_for = if game.open_text().is_empty() {
+            0
+        } else {
+            open_for + 1
+        };
+        // Release between presses so each one is a new press.
+        if auto_confirm > 0 && open_for >= auto_confirm && !last_confirm {
+            held |= pad::CONFIRM;
+            open_for = 0;
+        }
+        last_confirm = held & pad::CONFIRM != 0;
+        for event in game.tick(held)? {
+            println!("{}", tantalus_client::live::describe(&event));
+        }
+        if game.stopped.is_some() {
+            break;
+        }
+    }
+    let background = game
+        .background()
+        .ok_or("the run ended on no field background")?;
+    let field =
+        tantalus_client::window::find_field(std::path::Path::new(&values["--assets"]), background)
+            .map_err(|error| error.to_string())?;
+    let (frame, placed) = tantalus_client::live::world_frame(game.world(), game.ticks);
+    let mut drawn = 0;
+    tantalus_client::capture::capture_field_scene(
+        &field,
+        &output,
+        CaptureConfig {
+            width,
+            height,
+            ..CaptureConfig::default()
+        },
+        |world| {
+            drawn = tantalus_client::track::spawn_frame_markers(
+                world,
+                &field.scene.camera,
+                &frame,
+                &placed,
+            );
+        },
+    )
+    .map_err(|error| error.to_string())?;
+    let player = game
+        .world()
+        .player()
+        .and_then(|player| game.world().actors.get(&player))
+        .map(|actor| actor.position);
+    Ok(format!(
+        "saved field {} ({}) after {} ticks with {drawn} actors, player at {player:?}, to {}",
+        game.map().unwrap_or(-1),
+        game.field_name().unwrap_or("-"),
+        game.ticks,
+        output.display()
+    ))
 }
