@@ -97,6 +97,16 @@ const OP_SET_NAVIGATION_ATTRIBUTE_MASK: u32 = 0x27;
 const OP_YIELD: u32 = 0x0e;
 const OP_PADDING15: u32 = 0x0f;
 const OP_PADDING17: u32 = 0x17;
+/// `rsv0c`, `pad11`, `pad13`, `pad15` and `pad19` have no handler in
+/// `commandCodeFlow` or `DoEventCode` either: `DoEventCode`'s `default`
+/// returns `FLOW_STATE_WAIT` with `gArgUsed = 0`, so `commandDefault` leaves
+/// `ip` one byte past the opcode. Like the pads above, each is a one-byte
+/// yield.
+const OP_UNUSED0C: u32 = 0x0c;
+const OP_PADDING11: u32 = 0x11;
+const OP_PADDING13: u32 = 0x13;
+const OP_PADDING19: u32 = 0x19;
+const OP_PAD15_HEX: u32 = 0x15;
 const OP_SHADOW_ON: u32 = 0x7f;
 const OP_SHADOW_OFF: u32 = 0x80;
 const OP_SET_TEXT_VARIABLE: u32 = 0x66;
@@ -258,6 +268,7 @@ const OP_RUN_SPS_CODE: u32 = 0xda;
 const OP_SETUP_JUMP: u32 = 0xe2;
 
 const EXPR_POST_INCREMENT_MEMBERS: u8 = 8;
+const EXPR_UNARY_PLUS: u8 = 12;
 const EXPR_NEGATE: u8 = 13;
 const EXPR_NOT: u8 = 14;
 const EXPR_MULTIPLY: u8 = 17;
@@ -1093,9 +1104,8 @@ impl Decoder<'_> {
                 };
                 InstructionKind::SetNavigationAttributeMask(mask)
             }
-            OP_YIELD | OP_PADDING10 | OP_PADDING15 | OP_PADDING17 => {
-                InstructionKind::Yield(opcode as u8)
-            }
+            OP_YIELD | OP_PADDING10 | OP_PADDING15 | OP_PADDING17 | OP_UNUSED0C | OP_PADDING11
+            | OP_PADDING13 | OP_PADDING19 | OP_PAD15_HEX => InstructionKind::Yield(opcode as u8),
             OP_SHADOW_ON | OP_SHADOW_OFF => InstructionKind::SetShadowEnabled {
                 enabled: opcode == OP_SHADOW_ON,
                 opcode: opcode as u8,
@@ -3348,6 +3358,7 @@ impl Decoder<'_> {
                 EXPR_CONST_I16 => ExpressionOp::Constant(i32::from(self.i16()?)),
                 EXPR_CONST_I32 => ExpressionOp::Constant(self.i32()?),
                 EXPR_POST_INCREMENT_MEMBERS => ExpressionOp::PostIncrementMembers,
+                EXPR_UNARY_PLUS => ExpressionOp::UnaryPlus,
                 EXPR_NEGATE => ExpressionOp::Negate,
                 EXPR_NOT => ExpressionOp::Not,
                 EXPR_ADD => ExpressionOp::Add,

@@ -56,6 +56,9 @@ pub enum ExpressionOp {
     KeyState(KeyState),
     Constant(i32),
     Variable(VariableRef),
+    /// `B_SINGLE_PLUS` (12): pushes `_calcValue` again without popping, a
+    /// copy of the value the previous operation pushed.
+    UnaryPlus,
     Negate,
     Not,
     Complement,

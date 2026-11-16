@@ -5,7 +5,7 @@ Scope: the owned PC install at `E:/SteamLibrary/steamapps/common/FINAL FANTASY I
 | Domain | Where | Count in install | Rust status today |
 |---|---|---|---|
 | Fields (background, walkmesh, atlas) | `p0data11`-`p0data19` (mirrors `p0data101`-`p0data181`) | 674 field directories | all 674 load: scene, navigation and atlas parse and the navigation mesh builds. Rendering and play proven on one field only |
-| Field, battle and world scripts | `p0data7` `eventengine/eventbinary`, 7 languages | 1395 scripts (818 field, 562 battle, 15 world) | 42,581 functions decode; 1 fails (expression operation 12). Dry-run: 35,300 complete, 6,956 wait on host state, 36 stop at the instruction budget, 2 stop on the unsupported WATCH opcode |
+| Field, battle and world scripts | `p0data7` `eventengine/eventbinary`, 7 languages | 1395 scripts (818 field, 562 battle, 15 world) | 42,582 functions decode, none fail. Dry-run: 35,282 complete, 7,010 wait on host state, 6 stop at the instruction budget (zero-state artifacts), 10 functions in 2 unreachable world scripts stop on the unsupported WATCH opcode |
 | Field and movie config | `p0data7` `mapconfigdata`, `mbgdata` | 818 map configs, 56 movie backgrounds | all parse (`--map-config-all`, `--mbg-all`); unread bytes kept raw |
 | Battle scenes and models | `p0data2` | 562 scenes, 178 info files, 6,243 model files | scenes, info files and sequence headers parse (`--battle-scenes`); each scene has an unread tail; `.raw17` enemy action sequences decode (3,814 slots, 0 unknown opcodes, `--battle-sequences`); 560 of 562 scenes resolve every model, clip and background (`--battle-model-coverage`); 372 `ef<id>` spell-effect blobs parse as containers, script bodies are native MIPS code (`--special-effects`) |
 | World map | `p0data3` | 3,439 assets | all classified; 2,178 block meshes decode; raw `wmap` packs account for every byte (`--world-map`); `.hed`/`.nwp` tables kept raw; encounter table (355 records) and special groups of both `discmr.img` files drive the ported zone and scene choice (`world::encounter`) |
@@ -18,15 +18,22 @@ Scope: the owned PC install at `E:/SteamLibrary/steamapps/common/FINAL FANTASY I
 
 ## Event decode gaps
 
-1 function in 1 event fails to decode:
+Every function decodes. The last gap was expression operation 12 (`B_SINGLE_PLUS`) in `EVT_GARGAN_GR_GGT_0`. Memoria pushes `_calcValue` again without popping. Every value-producing operation leaves its result in `_calcValue` and pushes it, so the effect is a copy of the top of the stack (`ExpressionOp::UnaryPlus`). The one use follows `B_SIN`.
 
-- expression operation 12 (`B_SINGLE_PLUS`): `EVT_GARGAN_GR_GGT_0`; Memoria pushes a stale value for it, so it stays unknown.
+Statement opcodes with no handler in `commandCodeFlow` or `DoEventCode` (`pad0a`, `rsv0c`, `pad0e`, `pad0f`, `pad11`, `pad13`, `pad15`, `pad17`, `pad19`) all reach `DoEventCode`'s `default`. It returns `FLOW_STATE_WAIT` with `gArgUsed = 0`, so each one is a one-byte yield.
 
-Two opcodes were closed in this pass. `BSACTIVE` (`0x102`) now decodes and emits a host event. `WATCH` (`0x4E`) decodes as a label plus one variable expression, but it refuses to run: the pinned source does not define its behavior. The dry run reaches that refusal in 2 world events (`EVT_WORLD_WORLDSV`, `EVT_WORLD_WORLDTS`).
+`WATCH` (`0x4E`) decodes as a label plus one variable expression, but it refuses to run. Its handler skips the label, then `SetVariableSpec` reads the label's NUL byte and sets `ip` to 1, a jump into the entry header rather than an instruction. It appears only in `EVT_WORLD_WORLDSV` (9101) and `EVT_WORLD_WORLDTS` (9100), in 10 functions. Those ids appear only in Memoria's event-name table; the world maps the game loads are 9001 to 9012.
+
+The dry run stops 6 functions at the instruction budget, and each is a zero-state artifact:
+
+- `EVT_ALEX3_AT_CENTER`, 5 functions: a retry loop draws `random & 7` until it finds a free slot. The zero-state host's random is always 0.
+- `EVT_PATA_M_CM_MP0_0` entry 2 tag 12: a turn loop reads its own facing (member 3) back. The zero-state host does not store facing; the field host does.
+
+The step budget is 65,536 instructions. `EBin` itself has no cap; the old budget of 1,024 stopped two finite collection-count loops in `EVT_DAG_DG_SRH_0` and `EVT_TRENO2_TR_BAR_0` (about 77 global bytes times 8 bits in one frame) in the field host as well as in the dry run.
 
 Two extended opcodes stay recorded as unknown: entry 13 function 1 `0x180` and entry 16 function 1 `0x1C8`.
 
-447 names in Memoria's event table are not present in this bundle (294 battle, 57 startup, 20 SPS and others); they are listed in the JSON. The dry run has no other runtime errors.
+447 names in Memoria's event table are not present in this bundle (294 battle, 57 startup, 20 SPS and others); they are listed in the JSON. The dry run has no other runtime errors. The numbers above were recomputed on 2026-11-16 by decoding and dry-running every `EVT_*` asset of `p0data7` once (3,031 names across languages, 64 ticks each).
 
 ## Reproduce
 

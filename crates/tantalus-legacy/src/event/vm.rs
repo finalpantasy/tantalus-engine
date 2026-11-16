@@ -2,7 +2,13 @@ use super::*;
 use std::collections::{BTreeMap, VecDeque};
 use tantalus_contracts::{EntityId, Tick};
 
-const DEFAULT_INSTRUCTION_BUDGET: u32 = 1024;
+/// Instructions one step may run before it stops with `InstructionLimit`.
+/// `EBin`'s code loop has no such cap: a frame runs until a function waits
+/// or returns. This is only a guard against true infinite loops, sized
+/// above the longest finite loop in the game's scripts (the
+/// collection-count loops of `EVT_DAG_DG_SRH_0` and `EVT_TRENO2_TR_BAR_0`,
+/// several thousand instructions in one frame).
+const DEFAULT_INSTRUCTION_BUDGET: u32 = 65_536;
 const TRACE_CAPACITY: usize = 256;
 /// Local object uid that names the running object (`EventEngine.GetUIDFromLocalUID`).
 const SELF_OBJECT_UID: u64 = 255;
@@ -3272,6 +3278,12 @@ impl EventVm {
                     value: 0,
                     target: Some(StackTarget::Member(*member)),
                 }),
+                ExpressionOp::UnaryPlus => {
+                    let top = *stack
+                        .last()
+                        .ok_or_else(|| expression_error(offset, opcode, "missing operand"))?;
+                    stack.push(top);
+                }
                 ExpressionOp::Negate => {
                     let value = stack
                         .pop()
@@ -4790,7 +4802,9 @@ fn operand_start(
         | ExpressionOp::ObjectPointer(_)
         | ExpressionOp::ObjectSpecial
         | ExpressionOp::CastList
-        | ExpressionOp::Pad => Ok(index),
+        | ExpressionOp::Pad
+        // Pops nothing: it repeats the value before it.
+        | ExpressionOp::UnaryPlus => Ok(index),
         ExpressionOp::Negate
         | ExpressionOp::Not
         | ExpressionOp::Complement

@@ -51,19 +51,14 @@
    "field": 818,
    "world": 15
   },
-  "functions_decoded": 42581,
-  "decode_errors": 1,
-  "decode_error_opcodes": {
-   "12": {
-    "count": 1,
-    "first_event": "EVT_GARGAN_GR_GGT_0"
-   }
-  },
+  "functions_decoded": 42582,
+  "decode_errors": 0,
+  "decode_error_opcodes": {},
   "probe": {
-   "functions": 42307,
-   "completed": 35300,
-   "waiting_on_host": 6956,
-   "instruction_budget_stops": 36,
+   "functions": 42308,
+   "completed": 35282,
+   "waiting_on_host": 7010,
+   "instruction_budget_stops": 6,
    "other_runtime_errors": [
     {
      "event": "EVT_WORLD_WORLDSV",
@@ -72,6 +67,18 @@
     {
      "event": "EVT_WORLD_WORLDTS",
      "error": "UnsupportedOpcode opcode Some(78): WATCH behavior is not proven by the pinned source"
+    }
+   ],
+   "instruction_budget_stop_causes": [
+    {
+     "event": "EVT_ALEX3_AT_CENTER",
+     "functions": 5,
+     "cause": "random retry loop (SystemVariable 0 & 7 picks a free slot); the zero-state host's random is always 0, so the slot is never free"
+    },
+    {
+     "event": "EVT_PATA_M_CM_MP0_0",
+     "functions": 1,
+     "cause": "turn loop reads its own facing (member 3) back; the zero-state host does not store facing, the field host does"
     }
    ]
   },

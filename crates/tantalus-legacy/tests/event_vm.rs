@@ -918,10 +918,21 @@ fn close_window_and_actor_movement_reach_the_host_once() {
 
 #[test]
 fn unsupported_and_truncated_programs_report_the_byte_offset() {
-    let unsupported = decode_program(&[0x0c]).unwrap_err();
+    let unsupported = decode_program(&[0x46]).unwrap_err();
     assert_eq!(unsupported.kind, VmErrorKind::UnsupportedOpcode);
     assert_eq!(unsupported.offset, 0);
-    assert_eq!(unsupported.opcode, Some(0x0c));
+    assert_eq!(unsupported.opcode, Some(0x46));
+
+    // Opcodes with no reference handler fall to `DoEventCode`'s default:
+    // a one-byte yield.
+    for opcode in [0x0a, 0x0c, 0x0e, 0x0f, 0x11, 0x13, 0x15, 0x17, 0x19] {
+        let program = decode_program(&[opcode, 0x04]).unwrap();
+        assert!(matches!(
+            program.instructions[&0].kind,
+            InstructionKind::Yield(code) if code == opcode
+        ));
+        assert_eq!(program.instructions[&0].length, 1);
+    }
 
     let truncated = decode_program(&[5, 126, 1]).unwrap_err();
     assert_eq!(truncated.kind, VmErrorKind::Decode);
@@ -2495,6 +2506,28 @@ fn expression_padding_produces_zero() {
         vm.step(Tick::new(0), &mut host).unwrap();
         assert_eq!(vm.status(), VmStatus::Completed);
     }
+}
+
+#[test]
+fn unary_plus_pushes_the_previous_value_again() {
+    // `B_SINGLE_PLUS` repeats `_calcValue`: 7, +, * -> 7 * 7.
+    let squared = [constant(7), vec![12, 17]].concat();
+    let program = decode_program(
+        &[
+            evaluate(assign(
+                variable(VariableScope::Map, VariableType::Int24, 3),
+                squared,
+            )),
+            vec![4],
+        ]
+        .concat(),
+    )
+    .unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.status(), VmStatus::Completed);
+    assert_eq!(vm.variable(VariableScope::Map, 3), 49);
 }
 
 #[test]
