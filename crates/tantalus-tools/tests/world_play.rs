@@ -75,3 +75,38 @@ fn walking_turning_and_entering_a_place_on_the_real_world() {
     let entered = play.tick(CONFIRM, CONFIRM, CONFIRM, false);
     assert_eq!(entered.enter, Some(2));
 }
+
+#[test]
+fn every_foot_place_on_the_world_leads_to_a_field() {
+    use tantalus_tools::field_session::WorldExit;
+    use tantalus_tools::world_places::event_place_options;
+    let Some(dir) = streaming() else {
+        eprintln!("install not found; skipping");
+        return;
+    };
+    let bundle = dir.join("p0data7.bin");
+    let options = event_place_options(&bundle, "EVT_WORLD_WORLD00").expect("places");
+    assert_eq!(options.len(), 27, "handlers that name a place");
+    assert_eq!(options[&0x976d], vec![93, 19]);
+    let exit = WorldExit::load(&bundle, "EVT_WORLD_WORLD00").expect("exit");
+    let mut fieldless = Vec::new();
+    let mut fields = BTreeMap::new();
+    for (code, places) in &options {
+        for place in places {
+            let mut world = tantalus_game::field::FieldWorld::default();
+            match exit.run(*place, &mut world) {
+                Ok(Some(field)) => {
+                    fields.insert(*place, field);
+                }
+                _ => fieldless.push((*code, *place)),
+            }
+        }
+    }
+    // Places 92 and 93 start scripted scenes on the world map and name no field.
+    assert_eq!(fieldless, vec![(0x976d, 93), (0x9799, 92)]);
+    assert_eq!(fields.len(), 26);
+    // The chocobo grounds and the corner site come from the later branches.
+    assert_eq!(fields[&20], 2950);
+    assert_eq!(fields[&50], 2954);
+    assert_eq!(fields[&2], 1856);
+}

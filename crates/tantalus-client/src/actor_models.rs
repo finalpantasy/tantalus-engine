@@ -485,6 +485,37 @@ impl ActorModels {
         problems
     }
 
+    /// The skinned vertices of `model` at `time` seconds into clip
+    /// `animation` (the rest pose without a clip), per part.
+    pub fn skinned(
+        &self,
+        model: u16,
+        animation: Option<u16>,
+        time: f32,
+    ) -> Option<(&AssembledModel, Vec<Vec<[f32; 3]>>)> {
+        let assembled = self.models.get(&model)?.as_ref()?;
+        let clip = animation.and_then(|animation| self.clips.get(&animation)?.as_ref());
+        let poses = match clip {
+            Some(clip) => {
+                let length = clip_length(clip);
+                let time = if length > 0.0 {
+                    time.rem_euclid(length)
+                } else {
+                    0.0
+                };
+                sample_clip(
+                    assembled,
+                    clip,
+                    &bind_clip(assembled, clip),
+                    time,
+                    Interpolation::Hermite,
+                )
+            }
+            None => rest_pose(assembled),
+        };
+        Some((assembled, skin_model(assembled, &poses)))
+    }
+
     /// Whether `model` is loaded and assembled.
     pub fn has_model(&self, model: u16) -> bool {
         self.models.get(&model).is_some_and(Option::is_some)

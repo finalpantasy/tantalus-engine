@@ -533,7 +533,7 @@ pub fn world_exit(
 /// The world script's place-to-field switch, ready to run for any place.
 pub struct WorldExit {
     program: EventProgram,
-    start: u32,
+    starts: Vec<u32>,
 }
 
 impl WorldExit {
@@ -567,26 +567,66 @@ impl WorldExit {
                 _ => 0,
             })
             .ok_or("no switch")?;
-        let start = program
+        let first = program
             .instructions
             .range(..switch.offset)
             .rev()
             .find(|(_, i)| matches!(i.kind, InstructionKind::ApplyFadeFilter { .. }))
             .and_then(|(offset, _)| program.instructions.range(offset + 1..).next())
             .map_or(switch.offset, |(offset, _)| *offset);
+        // The script repeats its enter-the-place tail for the places the main
+        // switch leaves to other branches (the chocobo grounds and the
+        // late-game sites); each one begins after its own fade filter.
+        let mut starts = vec![first];
+        for (offset, instruction) in &program.instructions {
+            if matches!(instruction.kind, InstructionKind::ApplyFadeFilter { .. })
+                && let Some((next, _)) = program.instructions.range(offset + 1..).next()
+                && !starts.contains(next)
+            {
+                starts.push(*next);
+            }
+        }
         Ok(Self {
             program: program.clone(),
-            start,
+            starts,
         })
     }
 
+    /// The field the place leads to, trying each enter-the-place branch of
+    /// the script until one reaches a field change.
     pub fn run(
         &self,
         location: i32,
         world: &mut tantalus_game::field::FieldWorld,
     ) -> Result<Option<i32>, String> {
+        let mut first = None;
+        for start in &self.starts {
+            let mut attempt = world.clone();
+            match self.run_from(*start, location, &mut attempt) {
+                Ok(Some(field)) => {
+                    *world = attempt;
+                    return Ok(Some(field));
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    first.get_or_insert(error);
+                }
+            }
+        }
+        match first {
+            Some(error) => Err(error),
+            None => Ok(None),
+        }
+    }
+
+    fn run_from(
+        &self,
+        start: u32,
+        location: i32,
+        world: &mut tantalus_game::field::FieldWorld,
+    ) -> Result<Option<i32>, String> {
         use tantalus_legacy::VariableType;
-        let (program, start) = (&self.program, self.start);
+        let program = &self.program;
         world
             .map_memory
             .set(29, VariableType::Byte, location)

@@ -1309,7 +1309,7 @@ impl PlayGame {
             .get(&9000)
             .cloned()
             .ok_or("no world script in the event db")?;
-        let places = crate::world_places::event_places(&self.data.bundle, &name)?;
+        let places = crate::world_places::event_place_options(&self.data.bundle, &name)?;
         let exit = WorldExit::load(&self.data.bundle, &name)?;
         let from = from.or(self.map());
         let world = self
@@ -1318,10 +1318,13 @@ impl PlayGame {
             .map(|session| session.director.world().clone())
             .unwrap_or_else(|| self.world.clone());
         let mut arrival = None;
-        for (code, place) in &places {
-            let mut probe = world.clone();
+        for (code, options) in &places {
             // Places whose exit needs state this world lacks are skipped.
-            if exit.run(*place, &mut probe).ok().flatten() == from {
+            let leads_back = options.iter().any(|place| {
+                let mut probe = world.clone();
+                exit.run(*place, &mut probe).ok().flatten() == from
+            });
+            if leads_back {
                 arrival = Some(*code);
                 break;
             }
@@ -1329,7 +1332,7 @@ impl PlayGame {
         let code = arrival
             .or_else(|| places.keys().next().copied())
             .ok_or("the world script has no places")?;
-        let place = places[&code];
+        let place = places[&code].first().copied().unwrap_or_default();
         let (cell_x, cell_z) = (i32::from((code & 0xFC) >> 2), i32::from((code >> 8) & 0x3F));
         self.begin_world(cell_x as f32 * 32.0 + 16.0, -(cell_z as f32 * 32.0 + 16.0))?;
         events.push(PlayEvent::WorldWalk { place });

@@ -641,7 +641,9 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     }
     audio.finish()?;
     if let Some(play) = game.world_play.as_ref() {
-        let mut renderer = tantalus_client::world_view::WorldRenderer::default();
+        let mut renderer = tantalus_client::world_view::WorldRenderer::new(std::path::Path::new(
+            &values["--assets"],
+        ));
         let frame = renderer.render(play, width, height);
         tantalus_client::battle_view::save_png(&frame, &output)?;
         return Ok(format!(
@@ -949,7 +951,8 @@ fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<
     } else {
         game.begin_world(x, z)?;
     }
-    let mut renderer = tantalus_client::world_view::WorldRenderer::default();
+    let mut renderer =
+        tantalus_client::world_view::WorldRenderer::new(std::path::Path::new(&values["--assets"]));
     let render = |renderer: &mut tantalus_client::world_view::WorldRenderer,
                   game: &tantalus_tools::play::PlayGame,
                   path: &std::path::Path| {

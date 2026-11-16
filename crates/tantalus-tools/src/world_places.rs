@@ -22,6 +22,16 @@ pub fn event_code(x: i32, z: i32, id: i32) -> u16 {
 /// Event function id to the place number it hands to the enter script
 /// (the first constant its handler writes to map variable 39).
 pub fn event_places(bundle: &Path, name: &str) -> Result<BTreeMap<u16, i32>, String> {
+    Ok(event_place_options(bundle, name)?
+        .into_iter()
+        .filter_map(|(code, places)| Some((code, *places.first()?)))
+        .collect())
+}
+
+/// Event function id to every place its handler can write to map variable
+/// 39, in script order. Most handlers write one; a few pick by story
+/// progress (`976d` leads to place 93 early and place 19 later).
+pub fn event_place_options(bundle: &Path, name: &str) -> Result<BTreeMap<u16, Vec<i32>>, String> {
     let binary = load_event(bundle, &format!("{name}.eb"))?;
     let (pool, _) = decode_pool(&binary)?;
     let mut places = BTreeMap::new();
@@ -33,22 +43,26 @@ pub fn event_places(bundle: &Path, name: &str) -> Result<BTreeMap<u16, i32>, Str
         if code < 0x8000 {
             continue;
         }
-        let place = program.instructions.values().find_map(|instruction| {
+        let mut options: Vec<i32> = Vec::new();
+        for instruction in program.instructions.values() {
             let InstructionKind::Evaluate(expression) = &instruction.kind else {
-                return None;
+                continue;
             };
-            match expression.0.as_slice() {
-                [
-                    ExpressionOp::Variable(variable),
-                    ExpressionOp::Constant(value),
-                    ExpressionOp::Assign,
-                    ..,
-                ] if variable.scope == VariableScope::Map && variable.index == 39 => Some(*value),
-                _ => None,
+            if let [
+                ExpressionOp::Variable(variable),
+                ExpressionOp::Constant(value),
+                ExpressionOp::Assign,
+                ..,
+            ] = expression.0.as_slice()
+                && variable.scope == VariableScope::Map
+                && variable.index == 39
+                && !options.contains(value)
+            {
+                options.push(*value);
             }
-        });
-        if let Some(place) = place {
-            places.insert(code, place);
+        }
+        if !options.is_empty() {
+            places.insert(code, options);
         }
     }
     Ok(places)

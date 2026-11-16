@@ -504,7 +504,13 @@ fn live_tick(world: &mut World) {
         if let Some(play) = game.world_play.as_ref() {
             match live.world_view.as_mut() {
                 Some(view) => view.update(world, play),
-                None => live.world_view = Some(crate::world_view::LiveWorld::start(world, play)),
+                None => {
+                    live.world_view = Some(crate::world_view::LiveWorld::start(
+                        world,
+                        play,
+                        &live.streaming_assets,
+                    ))
+                }
             }
             drop(game);
             world.insert_resource(live);

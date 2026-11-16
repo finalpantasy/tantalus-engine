@@ -9,12 +9,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use bevy::math::Vec3;
+use bevy::math::{Quat, Vec3};
 use tantalus_assets::pc::battle_background::BattleBackground;
 use tantalus_legacy::world::block_origin;
 use tantalus_tools::world_data::mesh_in_form1;
 use tantalus_tools::world_play::WorldPlay;
 
+use crate::actor_models::{ActorModels, ActorPose};
 use crate::battle_raster::{
     BattleCamera, Blend, DrawState, Frame, PSX_HEIGHT, Texture, ViewVertex,
 };
@@ -37,11 +38,37 @@ const SKY: [u8; 4] = [120, 165, 225, 255];
 /// Render layer of the live world sprite.
 pub const WORLD_LAYER: usize = 8;
 
-#[derive(Default)]
+/// `GEO_SUB_W0_001`, Zidane's world model, and its `ANH_SUB_W0_001_STAND`
+/// and `_RUN` clips (`WMAnimationBank`).
+const ZIDANE_MODEL: u16 = 310;
+const ZIDANE_IDLE: u16 = 4719;
+const ZIDANE_RUN: u16 = 4722;
+/// `WMActor.SetScale(67, 67, 67)`: 67 / 64 of 1/256.
+const MODEL_SCALE: f32 = 67.0 / 64.0 / 256.0;
+
 pub struct WorldRenderer {
+    models: ActorModels,
     blocks: HashMap<(usize, usize), Option<Arc<BattleBackground>>>,
     /// Blocks that failed, for reports.
     pub problems: Vec<String>,
+}
+
+impl WorldRenderer {
+    /// `streaming` is the `StreamingAssets` folder.
+    pub fn new(streaming: &std::path::Path) -> Self {
+        let mut models = ActorModels::new(streaming);
+        let poses = [ZIDANE_IDLE, ZIDANE_RUN].map(|animation| ActorPose {
+            model: Some(ZIDANE_MODEL),
+            animation: Some(animation),
+            ..ActorPose::default()
+        });
+        let problems = models.prepare(&poses);
+        Self {
+            models,
+            blocks: HashMap::new(),
+            problems,
+        }
+    }
 }
 
 fn camera_for(play: &WorldPlay) -> BattleCamera {
@@ -105,12 +132,25 @@ impl WorldRenderer {
                 draw_block(&mut frame, &camera, block, *origin, pass);
             }
         }
-        draw_marker(
+        let moving = play.walker.moved;
+        let time = play.frames as f32 / 30.0;
+        let animation = if moving { ZIDANE_RUN } else { ZIDANE_IDLE };
+        if !draw_character(
             &mut frame,
             &camera,
+            &self.models,
             [pos.x, pos.y, pos.z],
             play.walker.rot_y,
-        );
+            animation,
+            time,
+        ) {
+            draw_marker(
+                &mut frame,
+                &camera,
+                [pos.x, pos.y, pos.z],
+                play.walker.rot_y,
+            );
+        }
         frame
     }
 }
@@ -184,6 +224,80 @@ fn draw_block(
     }
 }
 
+/// Zidane's skinned model at `at`, turned to `yaw` degrees. False when the
+/// model did not load.
+fn draw_character(
+    frame: &mut Frame,
+    camera: &BattleCamera,
+    models: &ActorModels,
+    at: [f32; 3],
+    yaw: f32,
+    animation: u16,
+    time: f32,
+) -> bool {
+    let Some((model, skinned)) = models.skinned(ZIDANE_MODEL, Some(animation), time) else {
+        return false;
+    };
+    // The model space is y-down: turn it upright, then about the up axis.
+    let rotation =
+        Quat::from_rotation_y(yaw.to_radians()) * Quat::from_rotation_z(std::f32::consts::PI);
+    let origin = Vec3::from_array(at);
+    let state = DrawState {
+        blend: Blend::Opaque,
+        depth_test: true,
+        depth_write: true,
+        cull_back: true,
+    };
+    for (part, vertices) in model.parts.iter().zip(&skinned) {
+        let view: Vec<Vec3> = vertices
+            .iter()
+            .map(|vertex| {
+                let world = origin + rotation * (Vec3::from_array(*vertex) * MODEL_SCALE);
+                camera.to_view(world.to_array())
+            })
+            .collect();
+        for submesh in &part.submeshes {
+            if submesh.topology != 0 {
+                continue;
+            }
+            let texture = submesh.material.as_ref().and_then(|material| {
+                material.textures.iter().find_map(|texture| {
+                    let rgba = texture.rgba.as_deref()?;
+                    let width = usize::try_from(texture.width).ok()?;
+                    let height = usize::try_from(texture.height).ok()?;
+                    (width > 0 && height > 0 && rgba.len() >= width * height * 4).then_some(
+                        Texture {
+                            width,
+                            height,
+                            rgba,
+                            clamp: false,
+                        },
+                    )
+                })
+            });
+            let first = submesh.first_index as usize;
+            let end = first + submesh.index_count as usize;
+            let Some(indices) = part.indices.get(first..end) else {
+                continue;
+            };
+            for corner in indices.chunks_exact(3) {
+                let vertex = |index: u32| {
+                    Some(ViewVertex {
+                        position: *view.get(index as usize)?,
+                        uv: part.uvs.get(index as usize).copied().unwrap_or_default(),
+                    })
+                };
+                if let (Some(a), Some(b), Some(c)) =
+                    (vertex(corner[0]), vertex(corner[1]), vertex(corner[2]))
+                {
+                    frame.draw(camera, [a, b, c], texture, state);
+                }
+            }
+        }
+    }
+    true
+}
+
 /// A small pyramid standing on the actor, turned to its yaw.
 fn draw_marker(frame: &mut Frame, camera: &BattleCamera, at: [f32; 3], yaw_degrees: f32) {
     const TEXEL: [u8; 4] = [255, 210, 40, 255];
@@ -234,11 +348,15 @@ pub struct LiveWorld {
 pub const LIVE_SIZE: (u32, u32) = (640, 480);
 
 impl LiveWorld {
-    pub fn start(world: &mut bevy::ecs::world::World, play: &WorldPlay) -> Self {
+    pub fn start(
+        world: &mut bevy::ecs::world::World,
+        play: &WorldPlay,
+        streaming: &std::path::Path,
+    ) -> Self {
         use bevy::camera::visibility::RenderLayers;
         use bevy::camera::{RenderTarget, ScalingMode};
         use bevy::prelude::*;
-        let mut renderer = WorldRenderer::default();
+        let mut renderer = WorldRenderer::new(streaming);
         let frame = renderer.render(play, LIVE_SIZE.0, LIVE_SIZE.1);
         let image = world
             .resource_mut::<Assets<Image>>()

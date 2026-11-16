@@ -115,6 +115,11 @@ impl WalkMesh {
         self.tangent_x[self.triangles[triangle * 3] as usize] as i32
     }
 
+    /// The block-local corners of a triangle.
+    pub fn triangle_corners(&self, triangle: usize) -> [Vec3; 3] {
+        [0, 1, 2].map(|corner| self.vertices[self.triangles[triangle * 3 + corner] as usize])
+    }
+
     pub fn triangle_normal(&self, triangle: usize) -> Vec3 {
         self.triangle_normals[triangle]
     }
