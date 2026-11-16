@@ -330,6 +330,12 @@ impl LegacyEventHost for FieldHost<'_> {
                 HostEvent::AddGil { amount } => {
                     self.world.add_gil(*amount);
                 }
+                HostEvent::SetPartyHp { character, hp } => {
+                    set_party_points(self.world, *character, *hp, 9999, true);
+                }
+                HostEvent::SetPartyMp { character, mp } => {
+                    set_party_points(self.world, *character, *mp, 999, false);
+                }
                 HostEvent::RemoveGil { amount } => {
                     self.world.gil = self.world.gil.saturating_sub(*amount);
                 }
@@ -771,4 +777,108 @@ const CONTROL_OBJECT_UID: u64 = 250;
 /// read returns `fixed >> 4 & 255` (0 south, 64 west, 128 north, 192 east).
 fn facing_from_fixed_point(angle: i16) -> i16 {
     (angle >> 4) & 0xFF
+}
+
+/// `ff9play.CharacterOldIndexToID`: scripts name characters by the old
+/// index (Beatrix 8, Cinna 9, Marcus 10, Blank 11); the player records are
+/// keyed by `CharacterId` (Cinna 8, Marcus 9, Blank 10, Beatrix 11).
+fn character_old_index_to_id(old: i32) -> i32 {
+    match old {
+        8 => 11,
+        9 => 8,
+        10 => 9,
+        11 => 10,
+        other => other,
+    }
+}
+
+/// Field `SETHP` (0xF1) and `SETMP` (0xF2) from `EventEngine.DoEventCode`:
+/// the new value is clamped to the maximum, and `full` (9999 HP, 999 MP)
+/// restores fully. A field heal named on Beatrix also heals Cinna, Marcus
+/// and Blank by the same share of their maximum (tents, inns, water).
+fn set_party_points(
+    world: &mut super::world::FieldWorld,
+    old: i32,
+    value: i32,
+    full: i32,
+    hp: bool,
+) {
+    const BEATRIX: i32 = 11;
+    const AMARANT: i32 = 7;
+    let character = character_old_index_to_id(old);
+    let Some(record) = world.character_stats.get_mut(&character) else {
+        return;
+    };
+    let (current, max) = if hp {
+        (record.current_hp, record.max_hp)
+    } else {
+        (record.current_mp, record.max_mp)
+    };
+    let share = if value <= current {
+        -1.0
+    } else if value == full {
+        1.0
+    } else if max > 0 {
+        (value - current) as f32 / max as f32
+    } else {
+        0.0
+    };
+    let value = if value == full { i32::MAX } else { value };
+    let set = value.min(max).max(0);
+    if hp {
+        record.current_hp = set;
+    } else {
+        record.current_mp = set;
+    }
+    if character == BEATRIX && share >= 0.0 {
+        for (&id, other) in world.character_stats.iter_mut() {
+            if id > AMARANT && id != BEATRIX {
+                let (current, max) = if hp {
+                    (&mut other.current_hp, other.max_hp)
+                } else {
+                    (&mut other.current_mp, other.max_mp)
+                };
+                *current = ((*current as f32 + share * max as f32) as i32).min(max);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::field::world::CharacterStats;
+
+    fn stats(hp: i32, max_hp: i32) -> CharacterStats {
+        CharacterStats {
+            current_hp: hp,
+            max_hp,
+            current_mp: 0,
+            max_mp: 20,
+        }
+    }
+
+    #[test]
+    fn set_party_points_maps_old_index_clamps_and_spreads_beatrix_heals() {
+        let mut world = FieldWorld::new();
+        for id in [0, 8, 9, 10, 11] {
+            world.character_stats.insert(id, stats(10, 100));
+        }
+        // Old index 11 is Blank (id 10); 9999 is a full heal.
+        set_party_points(&mut world, 11, 9999, 9999, true);
+        assert_eq!(world.character_stats[&10].current_hp, 100);
+        // Values above the maximum clamp.
+        set_party_points(&mut world, 0, 500, 9999, true);
+        assert_eq!(world.character_stats[&0].current_hp, 100);
+        // Old index 8 is Beatrix (id 11): a field heal of half her maximum
+        // also gives Cinna and Marcus half of theirs.
+        set_party_points(&mut world, 8, 60, 9999, true);
+        assert_eq!(world.character_stats[&11].current_hp, 60);
+        assert_eq!(world.character_stats[&8].current_hp, 60);
+        assert_eq!(world.character_stats[&9].current_hp, 60);
+        assert_eq!(world.character_stats[&10].current_hp, 100);
+        // 999 MP is a full restore.
+        set_party_points(&mut world, 0, 999, 999, false);
+        assert_eq!(world.character_stats[&0].current_mp, 20);
+    }
 }

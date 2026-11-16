@@ -1510,7 +1510,12 @@ fn chain(
                             })
                             .collect();
                         for request in &step.encounters {
-                            fights.push(field_battles.fight(request, &party));
+                            let report = field_battles.fight(request, &party);
+                            tantalus_tools::field_battle::save_party(
+                                &report,
+                                &mut director.world_mut().character_stats,
+                            );
+                            fights.push(report);
                         }
                     }
                     // Talk (EventCollision): confirm next to an object starts

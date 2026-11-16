@@ -21,7 +21,7 @@ use tantalus_game::battle::legacy::{LegacyBattleAdapter, NoEnemyAi, unit_mapping
 use tantalus_game::battle::{
     BattleCommand, BattleOutcome, CombatEvent, CombatInput, WorldGameServices,
 };
-use tantalus_game::field::world::EncounterRequest;
+use tantalus_game::field::world::{CharacterStats, EncounterRequest};
 use tantalus_game::new_game::BaseStats;
 use tantalus_legacy::EventBinary;
 use tantalus_legacy::battle::host::{apply_unit_views, battle_views};
@@ -40,7 +40,7 @@ use crate::battle_scene_rewards::pattern_machine_units;
 pub const BATTLE_TICK_LIMIT: u64 = 20_000;
 
 /// One fought battle, as the chain reports it.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct FightReport {
     pub battle: i32,
     pub scene: Option<String>,
@@ -50,6 +50,8 @@ pub struct FightReport {
     pub enemies: usize,
     pub enemies_defeated: usize,
     pub party_hp: Vec<(i32, u32, u32)>,
+    /// Party MP at the end: character id, current, max.
+    pub party_mp: Vec<(i32, u32, u32)>,
     pub enemy_hp: Vec<(u32, u32)>,
     /// Machine phase changes: tick, `phase/menu-off sequence`, enemy HP.
     pub phase_log: Vec<(u64, String, Vec<u32>)>,
@@ -224,6 +226,7 @@ impl FieldBattles {
             enemies: 0,
             enemies_defeated: 0,
             party_hp: Vec::new(),
+            party_mp: Vec::new(),
             enemy_hp: Vec::new(),
             phase_log: Vec::new(),
             result_code: None,
@@ -427,6 +430,11 @@ impl FieldBattles {
             .zip(&machine.units)
             .map(|(fighter, unit)| (fighter.character, unit.cur_hp, unit.max_hp))
             .collect();
+        report.party_mp = party
+            .iter()
+            .zip(&machine.units)
+            .map(|(fighter, unit)| (fighter.character, unit.cur_mp, unit.max_mp))
+            .collect();
         report.enemy_hp = machine.units[party.len()..]
             .iter()
             .map(|unit| (unit.cur_hp, unit.max_hp))
@@ -496,6 +504,25 @@ impl FieldBattles {
     }
 }
 
+/// `btl_sys.SavePlayerData`: each party member's battle HP and MP go back
+/// to the player record, clamped to the record's maximum. A fight that
+/// failed to run leaves the records alone.
+pub fn save_party(report: &FightReport, stats: &mut BTreeMap<i32, CharacterStats>) {
+    if report.error.is_some() || report.outcome.is_none() {
+        return;
+    }
+    for &(character, hp, _) in &report.party_hp {
+        if let Some(record) = stats.get_mut(&character) {
+            record.current_hp = (hp as i32).min(record.max_hp);
+        }
+    }
+    for &(character, mp, _) in &report.party_mp {
+        if let Some(record) = stats.get_mut(&character) {
+            record.current_mp = (mp as i32).min(record.max_mp);
+        }
+    }
+}
+
 fn outcome_name(outcome: BattleOutcome) -> &'static str {
     match outcome {
         BattleOutcome::Victory => "victory",
@@ -532,4 +559,40 @@ fn party_unit(slot: usize, fighter: &PartyFighter, equipment: &Equipment) -> Bat
         status: 0,
     }));
     unit
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn save_party_copies_battle_hp_and_mp_clamped_to_max() {
+        let mut stats = BTreeMap::from([(
+            0,
+            CharacterStats {
+                current_hp: 105,
+                max_hp: 105,
+                current_mp: 36,
+                max_mp: 36,
+            },
+        )]);
+        let report = FightReport {
+            outcome: Some("victory".to_owned()),
+            party_hp: vec![(0, 40, 105)],
+            party_mp: vec![(0, 99, 36)],
+            ..FightReport::default()
+        };
+        save_party(&report, &mut stats);
+        assert_eq!(stats[&0].current_hp, 40);
+        assert_eq!(stats[&0].current_mp, 36);
+
+        // A fight that did not run leaves the record alone.
+        let failed = FightReport {
+            error: Some("no scene".to_owned()),
+            party_hp: vec![(0, 1, 105)],
+            ..FightReport::default()
+        };
+        save_party(&failed, &mut stats);
+        assert_eq!(stats[&0].current_hp, 40);
+    }
 }

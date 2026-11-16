@@ -233,3 +233,26 @@ Before the movie service, field 70 polled `SyncCinematic` (system variable 15) f
 ## Blocker for field 50: shared variables (milestone G1)
 
 Field 50's entries talk through Map-scope variables, and later fields branch on Global variables (Global Int16 2 is assigned in field 70). Memoria stores Global variables in one 2048-byte `gEventGlobal` and Map variables in one 80-byte `mapvar` shared by every entry and zeroed per field (`EventContext.cs:9`, `EventEngine.cs:556`), with typed, overlapping reads and writes (`EBin.GetVariableValueInternal` / `SetVariableValueInternal`). The Rust VM keeps a private `(scope, index) -> i32` map per VM, so a write in one entry is invisible to the others and to the next field. Field 50 also contains the first battle (`StartBattle` 336, entry 13) and the exit `ChangeField(52)` (entry 15).
+
+## Result on 2026-11-18, tenth run (HP carried between fights)
+
+The chain now carries battle HP and MP back to the field and applies the
+field heals the story scripts issue.
+
+1. `field_battle::save_party` ports `btl_sys.SavePlayerData`: each party
+   member's HP and MP at the end of a fight go back to the player record,
+   clamped to the maximum. A fight that failed to run changes nothing.
+2. The field host handles `SetPartyHp` (0xF1) and `SetPartyMp` (0xF2) as
+   `EventEngine.DoEventCode` does: the script's old character index maps to
+   `CharacterId`, values clamp to the maximum, 9999 HP and 999 MP restore
+   fully, and a field heal on Beatrix also heals Cinna, Marcus and Blank by
+   the same share.
+
+Before the field heals, the party wiped from TH_E004 onward (chain67). With
+them (chain68), every chain battle is a victory except TH_E003, which ends in
+its scripted interruption (result 5). The party ends the run at 97/105,
+90/90 and 105/105.
+
+Open: `read_character_stat` still reads the record by the script's character
+operand directly; it needs the same old-index mapping once a script reads
+Beatrix, Cinna, Marcus or Blank.
