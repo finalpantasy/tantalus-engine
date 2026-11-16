@@ -126,3 +126,55 @@ pub fn pattern_machine_units(scene: &BattleScene, pattern: usize) -> Option<Vec<
     }
     Some(units)
 }
+
+/// One-call battle assembly from decoded scene data: machine units for the
+/// pattern's enemies appended to the caller's party, an adapter with entity
+/// mappings wired, and the reward rows/AP the death-driven reward loop pays.
+/// `players` are `(field entity, machine unit)` in party order; enemy
+/// entities are `EntityId::new(btl_id)` and returned for target maps and
+/// death events.
+pub struct BattleSetup {
+    pub adapter: tantalus_game::battle::legacy::LegacyBattleAdapter,
+    pub reward_rows: Vec<EnemyRewardData>,
+    pub pattern_ap: u32,
+    pub enemy_entities: Vec<tantalus_contracts::EntityId>,
+}
+
+pub fn assemble_legacy_battle(
+    scene: &BattleScene,
+    pattern: usize,
+    config: &tantalus_legacy::battle::machine::BattleConfig,
+    table: &tantalus_legacy::battle::StatusTable,
+    players: &[(tantalus_contracts::EntityId, BattleUnit)],
+    action_map: std::collections::BTreeMap<tantalus_contracts::ContentId, (u32, i32)>,
+) -> Option<BattleSetup> {
+    let row = scene.patterns.get(pattern)?;
+    let mut units: Vec<BattleUnit> = players.iter().map(|(_, unit)| unit.clone()).collect();
+    let mut entity_pairs: Vec<(tantalus_contracts::EntityId, u16)> = players
+        .iter()
+        .map(|(entity, unit)| (*entity, unit.id))
+        .collect();
+    for unit in pattern_machine_units(scene, pattern)? {
+        entity_pairs.push((
+            tantalus_contracts::EntityId::new(u64::from(unit.id)),
+            unit.id,
+        ));
+        units.push(unit);
+    }
+    let (unit_map, target_bits) = tantalus_game::battle::legacy::unit_mappings(&entity_pairs);
+    let adapter = tantalus_game::battle::legacy::LegacyBattleAdapter::new(
+        tantalus_legacy::battle::machine::Battle::new(units, config.clone(), table.clone()),
+        action_map,
+        unit_map,
+        target_bits,
+    );
+    Some(BattleSetup {
+        adapter,
+        reward_rows: pattern_rewards(scene, pattern)?,
+        pattern_ap: row.ap,
+        enemy_entities: entity_pairs[players.len()..]
+            .iter()
+            .map(|(entity, _)| *entity)
+            .collect(),
+    })
+}
