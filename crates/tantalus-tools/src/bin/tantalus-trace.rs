@@ -419,6 +419,22 @@ const CANCEL_SPECIAL: i32 = 0x90000;
 /// Cancel and Special to Confirm.
 const STALL_TICKS: u64 = 300;
 const CONFIRM_PERIOD: u64 = 15;
+/// Button prompts the explorer answers: (map, text id, `KeyOn` mask). Map
+/// 64's sword fight (`EVT_ALEX1_TS_SWD_BTL` entry 3) shows "Press [n]!"
+/// as text 112 + n for byte 46 = n and checks one key per n: Left, Right,
+/// Triangle, Down, Cross, Up, Circle, Square. Map 206's ATE tutorial
+/// (`EVT_DOWNSHIP_BT_FRT_0` entry 0) holds text 352 until Select (1) is held.
+const PROMPT_KEYS: [(i32, u16, i32); 9] = [
+    (206, 352, 0x1),
+    (64, 112, 0x80),
+    (64, 113, 0x20),
+    (64, 114, 0x1000),
+    (64, 115, 0x40),
+    (64, 116, 0x4000),
+    (64, 117, 0x10),
+    (64, 118, 0x2000),
+    (64, 119, 0x8000),
+];
 /// Ticks the scripted player stays in one region before moving on.
 const REGION_DWELL: u64 = 120;
 /// Ticks the explorer waits next to an object for its talk to start.
@@ -1263,10 +1279,11 @@ fn chain(
         let mut initializing: Vec<(EntityId, usize)> = Vec::new();
         let mut shared_running: BTreeMap<EntityId, EntityId> = BTreeMap::new();
         let mut shared_scripts_run = 0usize;
-        for entry in 0..pool.len() {
-            if let Some(entity) = register(&mut director, &pool, entry, Some(0))? {
-                initializing.push((entity, entry));
-            }
+        // Field load starts entry 0 only (`EventEngine.ProcessEvents` runs
+        // the main object's init); the rest start when a script creates
+        // them (`DirectorStep::initialized`).
+        if let Some(entity) = register(&mut director, &pool, 0, Some(0))? {
+            initializing.push((entity, 0));
         }
         let mut loops_started = 0usize;
         // Scripted player: with --confirm-after N, a window open for N ticks
@@ -1355,6 +1372,24 @@ fn chain(
                 Ok(step) => {
                     ticks_run += 1;
                     operations += step.operations;
+                    for source in &step.initialized {
+                        let entry = usize::from(*source);
+                        if entry >= pool.len() {
+                            continue;
+                        }
+                        let first = if pool[entry].iter().any(|(tag, _)| *tag == 0) {
+                            Some(0)
+                        } else {
+                            Some(1)
+                        };
+                        if let Some(entity) = register(&mut director, &pool, entry, first)? {
+                            if first == Some(0) {
+                                initializing.push((entity, entry));
+                            } else {
+                                loops_started += 1;
+                            }
+                        }
+                    }
                     encounters += step.encounters.len();
                     // No battle engine yet: each scripted battle is skipped
                     // and the field resumes on the next tick, as after a win.
@@ -1517,7 +1552,20 @@ fn chain(
             {
                 let quiet_since = texts_shown.last().map_or(0, |(tick, _)| *tick);
                 let stalled = ticks_run.saturating_sub(quiet_since) >= STALL_TICKS;
-                let keys = if stalled {
+                let prompt = director
+                    .world()
+                    .window_texts
+                    .values()
+                    .filter_map(|text| {
+                        PROMPT_KEYS
+                            .iter()
+                            .find(|(on, id, _)| *on == map && id == text)
+                            .map(|(_, _, mask)| *mask)
+                    })
+                    .fold(0, |keys, mask| keys | mask);
+                let keys = if prompt != 0 {
+                    prompt
+                } else if stalled {
                     CONFIRM | CANCEL_SPECIAL
                 } else {
                     CONFIRM
@@ -1539,6 +1587,17 @@ fn chain(
                     let since = *open_since.entry(window).or_insert(ticks_run);
                     if ticks_run - since >= confirm_after {
                         let shown = director.world().window_texts.get(&window).copied();
+                        // A button prompt closes itself once its key is
+                        // pressed (map 64 entry 3); answer it instead.
+                        let prompt = PROMPT_KEYS
+                            .iter()
+                            .find(|(on, id, _)| *on == map && Some(*id) == shown)
+                            .map(|(_, _, mask)| *mask);
+                        if let Some(mask) = prompt {
+                            director.world_mut().set_input(mask | held);
+                            pressed = true;
+                            continue;
+                        }
                         if let Some(text) = shown.filter(|text| choice_texts.contains(text)) {
                             let answer = choices.get(&(map, text)).copied().unwrap_or(0);
                             director.world_mut().dialog_choice = answer;

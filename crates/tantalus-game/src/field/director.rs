@@ -45,6 +45,13 @@ pub struct DirectorStep {
     /// script when it returns.
     #[serde(default)]
     pub shared_scripts: Vec<(EntityId, i32)>,
+    /// Entries created this tick by `NEW`/`NEW2`/`NEW3` (InitializeCode,
+    /// InitializeRegion, InitializeObject), in order. The reference starts
+    /// only entry 0 at field load; every other object starts its init
+    /// function (tag 0) when one of these creates it (`NewThread`,
+    /// `new Quad`, `new Actor`, EventEngine.DoEventCode.cs:114-140).
+    #[serde(default)]
+    pub initialized: Vec<u8>,
 }
 
 #[derive(Debug)]
@@ -203,9 +210,14 @@ impl FieldDirector {
             )
         })?;
         // `NEW` appends the object at the tail of the active list.
+        let mut initialized = Vec::new();
         for event in steps.iter().flat_map(|step| step.report.events.iter()) {
-            if let HostEvent::InitializeObject { source, .. } = event {
+            if let HostEvent::InitializeObject { source, .. }
+            | HostEvent::InitializeRegion { source, .. }
+            | HostEvent::InitializeCode { source, .. } = event
+            {
                 self.scene.requeue_object(EntityId::new(u64::from(*source)));
+                initialized.push(*source);
             }
         }
         self.world.advance();
@@ -270,6 +282,7 @@ impl FieldDirector {
             talk_triggers,
             region_occupancy,
             shared_scripts,
+            initialized,
         })
     }
 

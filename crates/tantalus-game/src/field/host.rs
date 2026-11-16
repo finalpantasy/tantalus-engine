@@ -512,6 +512,8 @@ impl LegacyEventHost for FieldHost<'_> {
         // 14 GetCinematicFrame and 15 SyncCinematic come from the movie
         // service (`GetSysvar.cs`, `fldfmv.FF9FieldFMVDispatch` 4 and 3).
         match variable {
+            // 0 GetRandom: `Comn.random8()`, 0..=255.
+            0 => return Ok(i32::from(self.world.next_random_u8())),
             // 2 IsMovementEnabled: `EventContext.usercontrol`.
             2 => return Ok(i32::from(self.world.user_control)),
             // 8 GetDialogProgression: `ETb.gMesSignal`.
