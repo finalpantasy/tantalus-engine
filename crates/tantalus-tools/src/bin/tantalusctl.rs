@@ -548,6 +548,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut battle_run = false;
     let mut scripts_bundle: Option<PathBuf> = None;
     let mut battle_run_out: Option<PathBuf> = None;
+    let mut battle_world_run = false;
     let mut world_map = false;
     let mut world_map_audit = None;
     let mut world_walk: Option<PathBuf> = None;
@@ -827,6 +828,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     "--battle-run-all requires an output path",
                 )?))
             }
+            Some("--battle-world-run") => battle_world_run = true,
             Some("--scripts-bundle") => {
                 index += 1;
                 let value = args
@@ -990,6 +992,14 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         return run_battle_run_all(&path, scripts_bundle.as_deref(), out);
     }
     if battle_scenes || battle_scene.is_some() {
+        if battle_world_run {
+            return run_battle_world_run(
+                &path,
+                battle_scene.as_deref(),
+                scripts_bundle.as_deref(),
+                json,
+            );
+        }
         if battle_run {
             return run_battle_run(&path, battle_scene.as_deref(), scripts_bundle.as_deref());
         }
@@ -2766,6 +2776,92 @@ fn run_battle_run_all(
         summary["errors"],
         out.display()
     );
+    Ok(())
+}
+
+/// Runs one real scene battle through a scratch field world (armed level-20
+/// party) and prints the outcome with the world state deltas. Requires
+/// `--battle-scene <name>` and `--scripts-bundle <p0data7.bin>`.
+fn run_battle_world_run(
+    path: &std::path::Path,
+    one: Option<&str>,
+    scripts: Option<&std::path::Path>,
+    json: bool,
+) -> Result<(), String> {
+    use tantalus_assets::pc::battle_scene::BattleBundleData;
+    use tantalus_contracts::EntityId;
+    use tantalus_game::FieldWorld;
+    use tantalus_legacy::battle::WeaponStats;
+    use tantalus_tools::battle_ai_demo::load_battle_scripts;
+    use tantalus_tools::battle_run::run_world_battle;
+    let name = one.ok_or("`--battle-world-run` requires `--battle-scene <name>`")?;
+    let scripts_path =
+        scripts.ok_or("`--battle-world-run` requires `--scripts-bundle <p0data7.bin>`")?;
+    let data = BattleBundleData::load(path).map_err(|error| error.to_string())?;
+    let (key, scene) = data
+        .scene(name)
+        .ok_or_else(|| format!("battle scene `{name}` was not found"))?;
+    let scene = scene.as_ref().map_err(|error| error.to_string())?;
+    let table = load_battle_scripts(scripts_path)?;
+    let bytes = table
+        .get(key)
+        .ok_or_else(|| format!("battle script `{key}` was not found"))?;
+
+    let mut world = FieldWorld::new();
+    world.party = vec![0, 1, 2, 3];
+    world.gil = 500;
+    let entities: Vec<EntityId> = (0..4).map(|index| EntityId::new(101 + index)).collect();
+    for character in world.party.clone() {
+        world.character_stats.insert(
+            character,
+            tantalus_game::field::CharacterStats {
+                current_hp: 500,
+                max_hp: 500,
+                current_mp: 100,
+                max_mp: 100,
+            },
+        );
+    }
+    let base = |_| tantalus_game::battle::legacy::PlayerBase {
+        level: 20,
+        strength: 30,
+        magic: 30,
+        dexterity: 30,
+        will: 20,
+        physical_defence: 10,
+        physical_evade: 5,
+        magic_defence: 12,
+        magic_evade: 6,
+        weapon: Some(WeaponStats {
+            power: 25,
+            rate: 0,
+            elements: tantalus_legacy::battle::Elements::NONE,
+            category: WeaponStats::SHORT_RANGE,
+            status: 0,
+        }),
+    };
+    let outcome = run_world_battle(&mut world, &entities, scene, 0, bytes, &base, 0x5EED);
+    let report = serde_json::json!({
+        "scene": key,
+        "outcome": outcome,
+        "gil": world.gil,
+        "gil_delta": world.gil as i64 - 500,
+        "character_exp": world.character_exp,
+        "items": world.items,
+    });
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+    } else {
+        println!(
+            "{}: {:?} -> gil {} (delta {}), exp {:?}, items {:?}",
+            key,
+            outcome,
+            report["gil"],
+            report["gil_delta"],
+            report["character_exp"],
+            report["items"]
+        );
+    }
     Ok(())
 }
 
