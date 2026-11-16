@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use tantalus_assets::pc::bundled_field::BundledField;
 use tantalus_client::capture::{
-    CaptureConfig, capture_field, capture_snapshot, synthetic_snapshot,
+    CaptureConfig, capture_field_with, capture_snapshot, synthetic_snapshot,
 };
 use tantalus_contracts::ScenePresentationMode;
 
@@ -73,8 +73,14 @@ fn run_field_capture(args: &[std::ffi::OsString]) -> ExitCode {
     let mut field = None;
     let mut output = None;
     let mut size = None;
+    let mut walkmesh = false;
     let mut index = 0;
     while index < args.len() {
+        if args[index] == "--walkmesh" {
+            walkmesh = true;
+            index += 1;
+            continue;
+        }
         let destination = match args[index].to_str() {
             Some("--bundle") => &mut bundle,
             Some("--field") => &mut field,
@@ -125,7 +131,7 @@ fn run_field_capture(args: &[std::ffi::OsString]) -> ExitCode {
         height,
         ..CaptureConfig::default()
     };
-    match capture_field(&loaded, &output, config) {
+    match capture_field_with(&loaded, &output, config, walkmesh) {
         Ok(()) => {
             println!("saved headless field capture to {}", output.display());
             ExitCode::SUCCESS

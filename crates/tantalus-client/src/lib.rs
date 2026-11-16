@@ -4,5 +4,6 @@ pub mod effects;
 pub mod encounter_presentation;
 pub mod field_assets;
 pub mod legacy_compositor;
+pub mod projection;
 pub mod scene_adapter;
 pub mod window;
