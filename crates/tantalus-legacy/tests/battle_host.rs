@@ -176,3 +176,123 @@ fn sysvar_zero_draws_from_the_battle_random() {
     let value = LegacyEventHost::read_system_variable(&mut host, 0).unwrap();
     assert_eq!(value, 200);
 }
+
+#[test]
+fn object_members_answer_getcharacterdata() {
+    use std::collections::BTreeMap;
+    use tantalus_contracts::EntityId;
+    use tantalus_legacy::battle::host::UnitView;
+
+    let mut unit = UnitView {
+        max_hp: 300,
+        hp: 120,
+        max_mp: 40,
+        mp: 9,
+        max_atb: 3000,
+        atb: 1500,
+        level: 12,
+        status_invalid: 0xABCD_EF12_3456,
+        status_permanent: 0x0000FF_000001,
+        status_current: 0x00AA00_000055,
+        element_weak: 8,
+        targetable: 1,
+        model: 4,
+        row: 1,
+        column: 2,
+        category: 3,
+        class: 2,
+        is_player: false,
+        enemy_id: 7,
+        strength: 18,
+        physical_defence: 10,
+        steal_items: [11, 12, 13, 14],
+        bonus_items: [21, 22, 255, 24],
+        bonus_card: 33,
+        flags: 0b101,
+        out_of_reach: true,
+        die_fade_rate: 32,
+        motion: 9,
+        current_attack: 0x56,
+        pos: [10, -20, 30],
+        rot: [0, 90, 0],
+        bonus_exp: 640,
+        bonus_gil: 250,
+        trance: 100,
+        trance_gauge: 0,
+        ..UnitView::default()
+    };
+    let mut units = BTreeMap::new();
+    units.insert(EntityId::new(1), unit.clone());
+    let data = BattleDataView::default();
+    let mut host = tantalus_legacy::battle::host::BattleScriptHost::with_units(&data, &units);
+    let read = |host: &mut tantalus_legacy::battle::host::BattleScriptHost, member: u8| {
+        tantalus_legacy::LegacyEventHost::read_object_member(
+            host,
+            tantalus_legacy::ObjectMemberRef {
+                object: EntityId::new(1),
+                member,
+            },
+        )
+        .unwrap()
+    };
+    assert_eq!(read(&mut host, 35), 300);
+    assert_eq!(read(&mut host, 36), 120);
+    assert_eq!(read(&mut host, 37), 40);
+    assert_eq!(read(&mut host, 38), 9);
+    assert_eq!(read(&mut host, 39), 3000);
+    assert_eq!(read(&mut host, 40), 1500);
+    assert_eq!(read(&mut host, 41), 12);
+    assert_eq!(read(&mut host, 42), 0xAB_CDEF);
+    assert_eq!(read(&mut host, 43), 0x12_3456);
+    assert_eq!(read(&mut host, 45), 1, "low24 of permanent");
+    assert_eq!(read(&mut host, 46), 0xAA00, "high24 of current");
+    assert_eq!(read(&mut host, 51), 8, "weak element");
+    assert_eq!(read(&mut host, 52), 1);
+    assert_eq!(read(&mut host, 57), 4);
+    assert_eq!(read(&mut host, 64), 1);
+    assert_eq!(read(&mut host, 65), 2);
+    assert_eq!(read(&mut host, 67), 3);
+    assert_eq!(read(&mut host, 68), 2, "enemy class byte");
+    assert_eq!(read(&mut host, 70), 7);
+    assert_eq!(read(&mut host, 72), 18);
+    assert_eq!(read(&mut host, 74), 10);
+    assert_eq!(read(&mut host, 100), 11);
+    assert_eq!(read(&mut host, 103), 14);
+    assert_eq!(read(&mut host, 105), 22);
+    assert_eq!(read(&mut host, 106), 255);
+    assert_eq!(read(&mut host, 108), 33);
+    assert_eq!(read(&mut host, 109), 0b101);
+    assert_eq!(read(&mut host, 110), 1);
+    assert_eq!(read(&mut host, 111), 32);
+    assert_eq!(read(&mut host, 112), 9);
+    assert_eq!(read(&mut host, 113), 2, "enemy category");
+    assert_eq!(read(&mut host, 114), 0x56);
+    assert_eq!(read(&mut host, 140), 10);
+    assert_eq!(read(&mut host, 141), -20, "negated y");
+    assert_eq!(read(&mut host, 142), 30);
+    assert_eq!(read(&mut host, 146), 640);
+    assert_eq!(read(&mut host, 147), 250);
+    assert_eq!(read(&mut host, 148), 0, "trance hidden without gauge");
+    assert_eq!(read(&mut host, 149), 0);
+    assert_eq!(read(&mut host, 34), 0xFF_FFFF, "unknown member default");
+
+    // Member 113 is Humanoid for players; trance reads need the gauge.
+    unit.is_player = true;
+    unit.trance_gauge = 50;
+    unit.trance = 77;
+    units.insert(EntityId::new(1), unit);
+    let mut host = tantalus_legacy::battle::host::BattleScriptHost::with_units(&data, &units);
+    assert_eq!(read(&mut host, 113), 1, "players read Humanoid");
+    assert_eq!(read(&mut host, 148), 77);
+
+    // Unknown objects read 0 like an unmapped script object.
+    let value = tantalus_legacy::LegacyEventHost::read_object_member(
+        &mut host,
+        tantalus_legacy::ObjectMemberRef {
+            object: EntityId::new(99),
+            member: 36,
+        },
+    )
+    .unwrap();
+    assert_eq!(value, 0);
+}

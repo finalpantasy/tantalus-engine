@@ -21,8 +21,9 @@
 //! * System-list element 6 (`GetCurrentCommandData`/`SetCurrentCommandData`,
 //!   spell-stat access) stores through element 5 but does not mutate a
 //!   command; it reads back 0.
-//! * Object-member reads (`GetBattleCharData`) are not modeled; they use the
-//!   probe default.
+//! * Object-member reads answer `GetCharacterData` over caller-keyed
+//!   [`UnitView`]s; writes (`SetCharacterData`) are accepted but do not
+//!   mutate units yet.
 
 use super::rng::BattleRandom;
 use crate::event::probe::ProbeHost;
@@ -47,6 +48,141 @@ pub struct CurrentCommandView {
     /// `curCmd.info.effect_counter` (sysvar 43).
     pub effect_counter: u32,
 }
+
+/// One battle unit's script-visible state: the `GetCharacterData` read table
+/// (`btl_scrp.cs`, ids 35-149). Callers key units by the entity id the
+/// script object runs as; enemy-only members read the enemy fields (players
+/// leave them defaulted).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct UnitView {
+    pub max_hp: i32,
+    pub hp: i32,
+    pub max_mp: i32,
+    pub mp: i32,
+    pub max_atb: i32,
+    pub atb: i32,
+    pub level: i32,
+    /// `btl.stat.invalid`: members 42/43 read the high/low 24 bits.
+    pub status_invalid: u64,
+    /// `btl.stat.permanent` (auto-status): members 44/45.
+    pub status_permanent: u64,
+    /// `btl.stat.cur`: members 46/47.
+    pub status_current: u64,
+    pub element_invalid: u8,
+    pub element_absorb: u8,
+    pub element_half: u8,
+    pub element_weak: u8,
+    pub targetable: i32,
+    pub disappear: i32,
+    pub model: i32,
+    pub model_visible: i32,
+    pub row: i32,
+    pub column: i32,
+    pub model_type: i32,
+    /// Player `category` (member 67).
+    pub category: i32,
+    /// `EnemyCategory` byte (member 68); member 113 returns this for enemies
+    /// and `1` (Humanoid) for players.
+    pub class: u8,
+    pub is_player: bool,
+    pub stand_animation: i32,
+    pub enemy_id: i32,
+    pub strength: i32,
+    pub magic: i32,
+    pub physical_defence: i32,
+    pub physical_evade: i32,
+    pub magical_defence: i32,
+    pub magical_evade: i32,
+    pub steal_items: [i32; 4],
+    pub bonus_items: [i32; 4],
+    pub bonus_card: i32,
+    pub flags: i32,
+    pub out_of_reach: bool,
+    pub die_fade_rate: i32,
+    pub motion: i32,
+    /// Current attack ability id while acting (member 114).
+    pub current_attack: i32,
+    pub pos: [i32; 3],
+    pub rot: [i32; 3],
+    pub bonus_exp: i32,
+    pub bonus_gil: i32,
+    pub trance: i32,
+    pub trance_gauge: i32,
+}
+
+/// `btl_scrp.GetCharacterData` (btl_scrp.cs): unknown ids return the
+/// `16777215` (0xFFFFFF) default.
+fn character_data(unit: &UnitView, id: u8) -> i32 {
+    let low24 = |value: u64| (value & 0xFF_FFFF) as i32;
+    let high24 = |value: u64| ((value >> 24) & 0xFF_FFFF) as i32;
+    match id {
+        35 => unit.max_hp,
+        36 => unit.hp,
+        37 => unit.max_mp,
+        38 => unit.mp,
+        39 => unit.max_atb,
+        40 => unit.atb,
+        41 => unit.level,
+        42 => high24(unit.status_invalid),
+        43 => low24(unit.status_invalid),
+        44 => high24(unit.status_permanent),
+        45 => low24(unit.status_permanent),
+        46 => high24(unit.status_current),
+        47 => low24(unit.status_current),
+        48 => i32::from(unit.element_invalid),
+        49 => i32::from(unit.element_absorb),
+        50 => i32::from(unit.element_half),
+        51 => i32::from(unit.element_weak),
+        52 => unit.targetable,
+        53 => unit.disappear,
+        57 => unit.model,
+        58 => unit.model_visible,
+        64 => unit.row,
+        65 => unit.column,
+        66 => unit.model_type,
+        67 => unit.category,
+        68 => i32::from(unit.class),
+        69 => unit.stand_animation,
+        70 => unit.enemy_id,
+        72 => unit.strength,
+        73 => unit.magic,
+        74 => unit.physical_defence,
+        75 => unit.physical_evade,
+        76 => unit.magical_defence,
+        77 => unit.magical_evade,
+        100..=103 => unit.steal_items[usize::from(id - 100)],
+        104..=107 => unit.bonus_items[usize::from(id - 104)],
+        108 => unit.bonus_card,
+        109 => unit.flags,
+        110 => i32::from(unit.out_of_reach),
+        111 => unit.die_fade_rate,
+        112 => unit.motion,
+        113 => {
+            if unit.is_player {
+                1 // EnemyCategory::Humanoid
+            } else {
+                i32::from(unit.class)
+            }
+        }
+        114 => unit.current_attack,
+        140..=142 => unit.pos[usize::from(id - 140)],
+        143..=145 => unit.rot[usize::from(id - 143)],
+        146 => unit.bonus_exp,
+        147 => unit.bonus_gil,
+        148 => {
+            if unit.trance_gauge != 0 {
+                unit.trance
+            } else {
+                0
+            }
+        }
+        149 => unit.trance_gauge,
+        _ => 0xFF_FFFF,
+    }
+}
+
+static EMPTY_UNITS: std::collections::BTreeMap<EntityId, UnitView> =
+    std::collections::BTreeMap::new();
 
 /// Battle state the sysvar and system-list reads answer.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -95,6 +231,7 @@ pub struct BattleDataView {
 /// the read returns 0.
 pub struct BattleScriptHost<'a> {
     data: &'a BattleDataView,
+    units: &'a std::collections::BTreeMap<EntityId, UnitView>,
     sys_list: [u16; 8],
     rng: Option<&'a mut dyn BattleRandom>,
     probe: ProbeHost,
@@ -102,8 +239,16 @@ pub struct BattleScriptHost<'a> {
 
 impl<'a> BattleScriptHost<'a> {
     pub fn new(data: &'a BattleDataView) -> Self {
+        Self::with_units(data, &EMPTY_UNITS)
+    }
+
+    pub fn with_units(
+        data: &'a BattleDataView,
+        units: &'a std::collections::BTreeMap<EntityId, UnitView>,
+    ) -> Self {
         Self {
             data,
+            units,
             sys_list: [0; 8],
             rng: None,
             probe: ProbeHost,
@@ -113,6 +258,7 @@ impl<'a> BattleScriptHost<'a> {
     pub fn with_random(data: &'a BattleDataView, rng: &'a mut dyn BattleRandom) -> Self {
         Self {
             data,
+            units: &EMPTY_UNITS,
             sys_list: [0; 8],
             rng: Some(rng),
             probe: ProbeHost,
@@ -134,8 +280,14 @@ impl LegacyEventHost for BattleScriptHost<'_> {
         self.probe.window_is_open(window)
     }
 
+    /// `GetBattleCharData` (`btl_scrp.GetCharacterData`): the unit keyed by
+    /// the running object's entity; unknown objects and members read 0 and
+    /// 0xFFFFFF respectively, mirroring the reference defaults.
     fn read_object_member(&mut self, reference: ObjectMemberRef) -> Result<i32, EngineError> {
-        self.probe.read_object_member(reference)
+        Ok(self
+            .units
+            .get(&reference.object)
+            .map_or(0, |unit| character_data(unit, reference.member)))
     }
 
     fn select_object_member_target(&mut self, slot: Option<u8>) -> Result<EntityId, EngineError> {
