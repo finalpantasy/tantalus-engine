@@ -36,6 +36,7 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
         (Some("assets"), Some("inspect-serialized")) => run_assets_inspect_serialized(args),
         (Some("assets"), Some("inspect-movie")) => run_assets_inspect_movie(args),
         (Some("scenario"), Some("run")) => run_scenario(args),
+        (Some("field"), Some("actor-placement")) => run_field_actor_placement(args),
         _ => Err(usage().to_owned()),
     }
 }
@@ -2481,8 +2482,70 @@ fn run_audit_summary(args: Vec<OsString>) -> Result<(), String> {
     Ok(())
 }
 
+/// `field actor-placement`: W6 sweep of actors off the walkmesh.
+fn run_field_actor_placement(args: Vec<OsString>) -> Result<(), String> {
+    const FLAGS: &str = "`field actor-placement --assets <StreamingAssets> --game-data <FF9_Data> --memoria <root> --atan <ratan_tbl.bin> [--ticks N] [--field <map>] [--out <json>]`";
+    let mut values = std::collections::BTreeMap::new();
+    let mut index = 2;
+    while index < args.len() {
+        let flag = args[index]
+            .to_str()
+            .ok_or_else(|| format!("expected {FLAGS}"))?
+            .to_owned();
+        let value = args
+            .get(index + 1)
+            .ok_or_else(|| format!("`{flag}` needs a value; expected {FLAGS}"))?;
+        values.insert(flag, PathBuf::from(value));
+        index += 2;
+    }
+    let path = |flag: &str| {
+        values
+            .get(flag)
+            .cloned()
+            .ok_or_else(|| format!("missing `{flag}`; expected {FLAGS}"))
+    };
+    let number = |flag: &str| -> Result<Option<i64>, String> {
+        values
+            .get(flag)
+            .map(|value| {
+                value
+                    .to_str()
+                    .and_then(|text| text.parse().ok())
+                    .ok_or_else(|| format!("bad `{flag}`"))
+            })
+            .transpose()
+    };
+    let paths = tantalus_tools::play::PlayPaths {
+        streaming_assets: path("--assets")?,
+        game_data: path("--game-data")?,
+        memoria: path("--memoria")?,
+        atan_table: path("--atan")?,
+        battles: None,
+        language: "us".into(),
+    };
+    let ticks = number("--ticks")?.unwrap_or(120) as u64;
+    let only = number("--field")?.map(|map| map as i32);
+    let data = tantalus_tools::play::PlayData::load(&paths)?;
+    let report = tantalus_tools::actor_placement::sweep_all(&data, ticks, only);
+    let text = serde_json::to_string(&report).map_err(|e| e.to_string())?;
+    match values.get("--out") {
+        Some(out) => std::fs::write(
+            out,
+            text + "
+",
+        )
+        .map_err(|e| e.to_string())?,
+        None => println!("{text}"),
+    }
+    eprintln!(
+        "{} fields swept, {} model actors, {} on the walkmesh, off: {:?}",
+        report.fields_swept, report.model_actors, report.on_mesh, report.off_mesh_by_class
+    );
+    Ok(())
+}
+
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `audit summary [--audit-dir <dir>] [--json] [--deny-fail] | audit compare-sweeps <before.json> <after.json> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--decode-frames <name> <n|all> [--png <dir>]] [--out <path>] [--json]`, `assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--field-animation-check [--animation-out <json>]] [--field-animation-frames <field> <tick> <out.png> [--animation-camera <n>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--clip-sampling <out json>] [--clip-durations <out json> --clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--world-walk <out json>] [--battle-sequences <out json>] [--battle-model-coverage <out json> [--models <p0data4.bin>] [--clips <p0data5.bin>] [--dll <Assembly-CSharp.dll>] [--resources-assets <path>]] [--special-effects <out json> [--dll <Assembly-CSharp.dll>] [--resources-assets <path>]] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name> [--battle-ai-demo <scene|first-random> <out json>] [--battle-rewards] [--battle-run --scripts-bundle <p0data7.bin>] [--battle-run-all <out json> --scripts-bundle <p0data7.bin>] [--battle-world-run-all <out json> --scripts-bundle <p0data7.bin>] [--battle-seed <u64>] [--battle-weak-party] [--battle-flee-first] [--battle-run-everything <out dir>]] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `audit summary [--audit-dir <dir>] [--json] [--deny-fail] | audit compare-sweeps <before.json> <after.json> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--decode-frames <name> <n|all> [--png <dir>]] [--out <path>] [--json]`, `assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--field-animation-check [--animation-out <json>]] [--field-animation-frames <field> <tick> <out.png> [--animation-camera <n>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--clip-sampling <out json>] [--clip-durations <out json> --clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--world-walk <out json>] [--battle-sequences <out json>] [--battle-model-coverage <out json> [--models <p0data4.bin>] [--clips <p0data5.bin>] [--dll <Assembly-CSharp.dll>] [--resources-assets <path>]] [--special-effects <out json> [--dll <Assembly-CSharp.dll>] [--resources-assets <path>]] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name> [--battle-ai-demo <scene|first-random> <out json>] [--battle-rewards] [--battle-run --scripts-bundle <p0data7.bin>] [--battle-run-all <out json> --scripts-bundle <p0data7.bin>] [--battle-world-run-all <out json> --scripts-bundle <p0data7.bin>] [--battle-seed <u64>] [--battle-weak-party] [--battle-flee-first] [--battle-run-everything <out dir>]] [--field <name>] [--atlas-for <field>] [--json]`, `scenario run --case <path> [--bundle <path>] [--json]`, or `field actor-placement --assets <dir> --game-data <dir> --memoria <root> --atan <file> [--ticks N] [--field <map>] [--out <json>]`"
 }
 
 fn print_help() {

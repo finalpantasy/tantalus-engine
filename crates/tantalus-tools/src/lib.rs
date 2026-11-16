@@ -1,3 +1,4 @@
+pub mod actor_placement;
 pub mod audit_summary;
 pub mod battle_ai_demo;
 pub mod battle_models_cli;

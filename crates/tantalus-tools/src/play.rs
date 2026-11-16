@@ -136,6 +136,40 @@ impl PlayData {
         })
     }
 
+    /// Every field map number the event DB names, in order.
+    pub fn field_ids(&self) -> Vec<i32> {
+        self.db.keys().copied().collect()
+    }
+
+    /// The field's parsed event binary, when the DB names it and the bundle has it.
+    pub fn field_binary(&self, map: i32) -> Option<tantalus_legacy::EventBinary> {
+        let name = self.db.get(&map)?;
+        load_event(&self.bundle, &format!("{name}.eb")).ok()
+    }
+
+    /// Starts field `map` on the new-game world the way entering it does:
+    /// event pool, walkmesh and dialog signals. `Ok(None)` when the map has
+    /// no event binary.
+    pub fn start_field(&self, map: i32) -> Result<Option<FieldSession>, String> {
+        let Some(binary) = self.field_binary(map) else {
+            return Ok(None);
+        };
+        let (pool, _) = decode_pool(&binary)?;
+        let mut world = self.new_game.clone();
+        prepare_field_world(&mut world, map);
+        match self.backgrounds.get(&map) {
+            Some(background) => match load_navigation(&self.field_bundles, background) {
+                Ok(mesh) => world.provide_navigation(mesh),
+                Err(_) => world.clear_navigation(),
+            },
+            None => world.clear_navigation(),
+        }
+        if let Ok(info) = self.text.info(map) {
+            world.dialog_signals = info.signals;
+        }
+        FieldSession::start(map, world, pool).map(Some)
+    }
+
     pub fn field_name(&self, map: i32) -> Option<&str> {
         self.db.get(&map).map(String::as_str)
     }
