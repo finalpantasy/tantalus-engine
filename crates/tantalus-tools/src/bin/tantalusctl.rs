@@ -550,6 +550,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut scripts_bundle: Option<PathBuf> = None;
     let mut battle_run_out: Option<PathBuf> = None;
     let mut battle_world_run = false;
+    let mut all_patterns = false;
     let mut world_map = false;
     let mut world_map_audit = None;
     let mut world_walk: Option<PathBuf> = None;
@@ -831,6 +832,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 )?))
             }
             Some("--battle-world-run") => battle_world_run = true,
+            Some("--all-patterns") => all_patterns = true,
             Some("--scripts-bundle") => {
                 index += 1;
                 let value = args
@@ -1000,7 +1002,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
         });
     }
     if let Some(out) = battle_run_out.as_deref() {
-        return run_battle_run_all(&path, scripts_bundle.as_deref(), out);
+        return run_battle_run_all(&path, scripts_bundle.as_deref(), out, all_patterns);
     }
     if battle_scenes || battle_scene.is_some() {
         if battle_world_run {
@@ -2771,6 +2773,7 @@ fn run_battle_run_all(
     path: &std::path::Path,
     scripts: Option<&std::path::Path>,
     out: &std::path::Path,
+    all_patterns: bool,
 ) -> Result<(), String> {
     use tantalus_assets::pc::battle_scene::BattleBundleData;
     use tantalus_tools::battle_ai_demo::load_battle_scripts;
@@ -2789,24 +2792,44 @@ fn run_battle_run_all(
                 None => serde_json::json!({"scene": name, "error": "no battle script"}),
                 Some(bytes) => {
                     use tantalus_tools::battle_scene_rewards::choose_pattern;
-                    let pattern = choose_pattern(scene, None, 50);
-                    let report = run_scene_battle_caught(name, scene, pattern, bytes, 0x5EED);
-                    serde_json::to_value(report).map_err(|error| error.to_string())?
+                    if all_patterns {
+                        let mut reports = Vec::new();
+                        for pattern in 0..scene.patterns.len() {
+                            let report =
+                                run_scene_battle_caught(name, scene, pattern, bytes, 0x5EED);
+                            reports.push(serde_json::to_value(report).map_err(|e| e.to_string())?);
+                        }
+                        serde_json::json!({"scene": name, "patterns": reports})
+                    } else {
+                        let pattern = choose_pattern(scene, None, 50);
+                        let report = run_scene_battle_caught(name, scene, pattern, bytes, 0x5EED);
+                        serde_json::to_value(report).map_err(|error| error.to_string())?
+                    }
                 }
             },
         };
         results.push(entry);
     }
+    // Flatten per-pattern entries for counting.
+    let mut flat = Vec::new();
+    for result in &results {
+        if let Some(reports) = result.get("patterns").and_then(|p| p.as_array()) {
+            flat.extend(reports.iter().cloned());
+        } else {
+            flat.push(result.clone());
+        }
+    }
+    let count = |outcome: &str| flat.iter().filter(|r| r["outcome"] == outcome).count();
     let summary = serde_json::json!({
         "scenes": results.len(),
-        "victories": results.iter().filter(|r| r["outcome"] == "victory").count(),
-        "defeats": results.iter().filter(|r| r["outcome"] == "defeat").count(),
-        "escapes": results.iter().filter(|r| r["outcome"] == "escape").count(),
-        "errors": results
+        "battles": flat.len(),
+        "victories": count("victory"),
+        "defeats": count("defeat"),
+        "escapes": count("escape"),
+        "errors": flat
             .iter()
             .filter(|r| r.get("error").is_some_and(|e| !e.is_null()))
             .count(),
-        "unfinished": results.iter().filter(|r| r.get("outcome").is_none() && r.get("error").is_none_or(|e| e.is_null())).count(),
         "results": results,
     });
     let text = serde_json::to_string_pretty(&summary).map_err(|error| error.to_string())?;
@@ -2824,8 +2847,9 @@ fn run_battle_run_all(
     )
     .map_err(|error| error.to_string())?;
     println!(
-        "{} scenes: {} victories, {} defeats, {} escapes, {} errors -> {}",
+        "{} scenes ({} battles): {} victories, {} defeats, {} escapes, {} errors -> {}",
         results.len(),
+        flat.len(),
         summary["victories"],
         summary["defeats"],
         summary["escapes"],
