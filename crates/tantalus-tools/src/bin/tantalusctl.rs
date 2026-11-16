@@ -27,6 +27,7 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
     match (args[0].to_str(), args[1].to_str()) {
         (Some("install"), Some("inspect")) => run_install_inspect(args),
         (Some("audit"), Some("summary")) => run_audit_summary(args),
+        (Some("audit"), Some("compare-sweeps")) => run_compare_sweeps(args),
         (Some("assets"), Some("import")) => run_assets_import(args),
         (Some("assets"), Some("inspect-bundle")) => run_assets_inspect_bundle(args),
         (Some("assets"), Some("extract-resource")) => run_assets_extract_resource(args),
@@ -2318,6 +2319,59 @@ fn run_field_composition(
 
 /// `audit summary [--audit-dir <dir>] [--json] [--deny-fail]`: pass and fail counts per asset class
 /// from the committed audit reports (milestone W9).
+/// `audit compare-sweeps <before.json> <after.json> [--json]`: which battles
+/// changed outcome, spoils, or errors between two sweep reports.
+fn run_compare_sweeps(args: Vec<OsString>) -> Result<(), String> {
+    let mut json = false;
+    let mut paths = Vec::new();
+    let mut index = 2;
+    while index < args.len() {
+        match args[index].to_str() {
+            Some("--json") => json = true,
+            Some(other) if other.starts_with("--") => return Err(usage().to_owned()),
+            Some(other) => paths.push(other.to_owned()),
+            None => return Err("paths must be UTF-8".to_owned()),
+        }
+        index += 1;
+    }
+    if paths.len() != 2 {
+        return Err("compare-sweeps requires exactly two report paths".to_owned());
+    }
+    let read = |path: &str| -> Result<serde_json::Value, String> {
+        let text = std::fs::read_to_string(path)
+            .map_err(|error| format!("cannot read {path}: {error}"))?;
+        serde_json::from_str(&text).map_err(|error| format!("{path}: {error}"))
+    };
+    let report = tantalus_tools::sweep_compare::compare(&read(&paths[0])?, &read(&paths[1])?);
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+    } else if report["identical"].as_bool() == Some(true) {
+        println!(
+            "{} battles: identical",
+            report["battles"].as_u64().unwrap_or(0)
+        );
+    } else {
+        println!(
+            "{} battles: {} outcome, {} spoils, {} error changes",
+            report["battles"].as_u64().unwrap_or(0),
+            report["outcome_changes"].as_u64().unwrap_or(0),
+            report["spoils_changes"].as_u64().unwrap_or(0),
+            report["error_changes"].as_u64().unwrap_or(0),
+        );
+        for delta in report["deltas"].as_array().cloned().unwrap_or_default() {
+            println!(
+                "  {} p{} {:?}: {:?} -> {:?}",
+                delta["scene"],
+                delta["pattern"],
+                delta["kinds"],
+                delta["before"]["outcome"],
+                delta["after"]["outcome"]
+            );
+        }
+    }
+    Ok(())
+}
+
 fn run_audit_summary(args: Vec<OsString>) -> Result<(), String> {
     let mut dir = PathBuf::from("audit");
     let mut json = false;

@@ -9,4 +9,5 @@ pub mod field_models_cli;
 pub mod model_cli;
 pub mod scenario;
 pub mod special_effects_cli;
+pub mod sweep_compare;
 pub mod world_walk_cli;

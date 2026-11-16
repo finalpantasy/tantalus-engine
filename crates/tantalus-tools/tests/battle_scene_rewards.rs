@@ -703,3 +703,44 @@ fn run_world_battle_defeat_pays_nothing_and_carries_back_the_wipe() {
         "the wipe carries back to the field"
     );
 }
+
+#[test]
+fn sweep_compare_classifies_outcome_spoils_and_error_changes() {
+    use tantalus_tools::sweep_compare::compare;
+
+    let row = |outcome: &str, gil: i64, exp: i64, error: &str| {
+        serde_json::json!({
+            "scene": "S", "outcome": outcome,
+            "bonus_gil": gil, "bonus_exp": exp, "error": error,
+        })
+    };
+    let flat = |rows: &[serde_json::Value]| serde_json::json!({"results": rows});
+    let patterned = |rows: &[serde_json::Value]| serde_json::json!({"results": [{"scene": "S", "patterns": rows}]});
+
+    // Identical reports: no deltas, both shapes.
+    let a = flat(&[row("victory", 100, 50, "")]);
+    assert_eq!(compare(&a, &a)["identical"], true);
+
+    // Outcome + spoils + error changes classified.
+    let before = flat(&[row("victory", 100, 50, "")]);
+    let after = flat(&[row("defeat", 0, 0, "tick 7: boom")]);
+    let report = compare(&before, &after);
+    assert_eq!(report["outcome_changes"], 1);
+    assert_eq!(report["spoils_changes"], 1);
+    assert_eq!(report["error_changes"], 1);
+    assert_eq!(report["deltas"][0]["scene"], "S");
+
+    // Per-pattern shapes compare pattern by pattern.
+    let before = patterned(&[row("victory", 10, 5, ""), row("victory", 20, 5, "")]);
+    let after = patterned(&[row("victory", 10, 5, ""), row("escape", 0, 0, "")]);
+    let report = compare(&before, &after);
+    assert_eq!(report["outcome_changes"], 1);
+    assert_eq!(report["deltas"][0]["pattern"], 1);
+
+    // Shape mismatch is explicit, not a crash.
+    let report = compare(
+        &flat(&[row("victory", 0, 0, "")]),
+        &patterned(&[row("victory", 0, 0, ""), row("victory", 0, 0, "")]),
+    );
+    assert_eq!(report["same_shape"], false);
+}
