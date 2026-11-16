@@ -33,7 +33,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST,...] [--skip-talk MAP:ENTRY,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -56,7 +56,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut language = String::from("us");
     // (map, text, first scenario) -> answer.
     let mut choices: BTreeMap<(i32, u16, i32), i32> = BTreeMap::new();
-    let mut route: Vec<(i32, i32)> = Vec::new();
+    let mut route: Vec<(i32, i32, i32)> = Vec::new();
     let mut skip_talk: BTreeSet<(i32, usize)> = BTreeSet::new();
     let mut hold: BTreeMap<i32, i32> = BTreeMap::new();
     let mut fight_battle: Option<i32> = None;
@@ -107,14 +107,16 @@ fn run(args: Vec<String>) -> Result<(), String> {
             }
             "--route" => {
                 for part in value()?.split(',') {
-                    let parsed = part
-                        .trim()
-                        .split_once('>')
-                        .and_then(|(map, dest)| Some((map.parse().ok()?, dest.parse().ok()?)));
-                    route.push(
-                        parsed
-                            .ok_or_else(|| format!("bad --route entry `{part}`, want MAP>DEST"))?,
-                    );
+                    let (step, from) = match part.trim().split_once('@') {
+                        Some((step, from)) => (step, from.parse().ok()),
+                        None => (part.trim(), Some(i32::MIN)),
+                    };
+                    let parsed = step.split_once('>').and_then(|(map, dest)| {
+                        Some((map.parse().ok()?, dest.parse().ok()?, from?))
+                    });
+                    route.push(parsed.ok_or_else(|| {
+                        format!("bad --route entry `{part}`, want MAP>DEST[@SCENARIO]")
+                    })?);
                 }
             }
             "--skip-talk" => {
@@ -878,8 +880,9 @@ struct ChainOptions {
     /// Free-roam route: while MAP's first unused entry is DEST, the explorer
     /// only enters exit regions that lead to DEST; the entry is used up when
     /// the field leaves for DEST. Regions whose tag 2 holds no
-    /// constant `ChangeField` stay allowed.
-    route: Vec<(i32, i32)>,
+    /// constant `ChangeField` stay allowed. An entry with `@SCENARIO` waits
+    /// until the scenario counter reaches that value.
+    route: Vec<(i32, i32, i32)>,
     /// Objects the explorer never talks to, by (field map, entry): optional
     /// minigames that hold the field until played (map 103 entry 8, jump rope).
     skip_talk: BTreeSet<(i32, usize)>,
@@ -1300,10 +1303,13 @@ fn chain(
             .collect();
         // The first unused route entry for this map; it is used up when the
         // field leaves through its destination.
+        let scenario_now = scenario_counter(&world);
         let route_index = route
             .iter()
             .enumerate()
-            .position(|(index, (from, _))| *from == map && !route_used[index]);
+            .position(|(index, (from, _, after))| {
+                *from == map && !route_used[index] && scenario_now >= *after
+            });
         let route_target = route_index.map(|index| route[index].1);
         *visits.entry(map).or_default() += 1;
         world.field_map_no = map;
@@ -1520,6 +1526,21 @@ fn chain(
                                 director.world_mut(),
                             );
                             fights.push(report);
+                        }
+                        // Back on the same field after a battle,
+                        // `EventEngine.StartEvents` restores the saved
+                        // context and requests the main object's function 10
+                        // at level 0 (`EventEngine.cs:598`): map 202 sets
+                        // scenario 2200 there after Baku's fight.
+                        if !step.encounters.is_empty() && !pool.is_empty() {
+                            if let Some(entity) = function_entity(&pool, 0, 10)
+                                && director.entry_states().iter().any(|(e, _, status, _)| {
+                                    *e == entity && *status == VmStatus::Completed
+                                })
+                            {
+                                director.remove_entry(entity);
+                            }
+                            register(&mut director, &pool, 0, Some(10))?;
                         }
                     }
                     // Talk (EventCollision): confirm next to an object starts

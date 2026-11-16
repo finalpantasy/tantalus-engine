@@ -282,3 +282,46 @@ five slots and capped at 99. The Evil Forest party (Zidane, Marcus, Blank)
 has no bonuses on its default gear, so chain71 matches chain70. Freya, Eiko,
 Amarant and Beatrix do get them (Beatrix: +1 speed, +2 strength, +3 magic,
 +8 spirit).
+
+## Result on 2026-11-18, eleventh run (past Baku, into the Evil Forest)
+
+Command: the tenth run's, with `--max-fields 160`, three more route entries
+and one more choice:
+
+```
+--route '100>101,101>102,102>103,103>105,105>106,106>115,153>150,204>205@2250,205>202@2250,202>200@2250'
+--choices 52:66=1,64:127=1,202:242=1,202:242=0@2100,202:242=1@2200
+```
+
+Two changes got the chain past Baku's fight:
+
+1. **Battle return runs main function 10.** Back on the same field after a
+   battle, `EventEngine.StartEvents` restores the saved context and requests
+   the main object's function 10 at level 0 (`EventEngine.cs:598`). The chain
+   now does the same after each fight. On map 202 that function sets the
+   scenario to 2200 and starts the scene after Baku's fight; before this, the
+   chain stayed at 2100 and wandered the ship until the field cap.
+2. **Route entries can wait for a story step.** `--route MAP>DEST@SCENARIO`
+   applies only from that scenario on, like `--choices`. The three new entries
+   send the explorer from the Gargant room to map 200 once Vivi's magic sword
+   scene (2250) is done. `202:242=1@2200` answers "Hold on" to Baku after the
+   fight. At 2250, "Anytime!" sets map var 31, but the main loop no longer
+   waits on it. Control stays off.
+
+The story then runs 2100, 2200 (Baku's post-fight scene), 2225 (Steiner in
+storage), 2250 (magic sword), 2260 (map 200), out through map 206 into the
+Evil Forest (maps 250 to 257), 2270, 2280 and 2300. EF_E009 (Plant Brain,
+battle 303) is a victory and pays 468 gil.
+
+| Battle | Scene | Result | Party HP after |
+|---|---|---|---|
+| 303 | EF_E009 | victory | 44/105, 41/90, 16/105 |
+
+Open:
+
+- Map 257 (`EVT_EFOREST1_EF_DEP_0`) stops at text 154 ("What are you
+  waitin' for!?") after the Plant Brain fight and holds the field for the
+  whole tick budget.
+- The battle party is still Zidane, Marcus and Blank. The script's party
+  changes (Vivi and Steiner join for Plant Brain) do not reach the list the
+  chain builds fighters from.
