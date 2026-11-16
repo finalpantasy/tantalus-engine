@@ -43,14 +43,6 @@ fn number(value: &Value, path: &str) -> Option<u64> {
     node.as_u64()
 }
 
-fn length(value: &Value, path: &str) -> Option<u64> {
-    let mut node = value;
-    for key in path.split('.') {
-        node = node.get(key)?;
-    }
-    node.as_array().map(|items| items.len() as u64)
-}
-
 /// Cross-path identity: compares a report-path sweep audit against its
 /// world-hand-off twin. One matching pair = pass; any delta (or a missing
 /// twin) = fail, so `--deny-fail` catches regeneration skew, not just errors.
@@ -138,10 +130,41 @@ pub fn summarize(dir: &Path) -> Vec<SummaryRow> {
             "functions",
             "game-coverage.json",
             |r| {
+                // Documented causes do not count as failures: the
+                // ledger lists budget-stop causes per event, and WATCH
+                // is an unsupported opcode the pinned reference
+                // explains (world scripts 9100/9101, which nothing
+                // loads). Anything outside those documented sets is a
+                // real failure.
                 let total = number(r, "events.probe.functions")?;
-                let failed = number(r, "events.probe.instruction_budget_stops")?
-                    + length(r, "events.probe.other_runtime_errors")?;
-                of(Some(total), total.checked_sub(failed))
+                let stops = number(r, "events.probe.instruction_budget_stops")?;
+                let documented_stops: u64 = r["events"]["probe"]["instruction_budget_stop_causes"]
+                    .as_array()
+                    .map(|causes| {
+                        causes
+                            .iter()
+                            .filter_map(|cause| cause["functions"].as_u64())
+                            .sum()
+                    })
+                    .unwrap_or(0);
+                let undocumented_stops = stops.saturating_sub(documented_stops);
+                let undocumented_errors = r["events"]["probe"]["other_runtime_errors"]
+                    .as_array()
+                    .map(|errors| {
+                        errors
+                            .iter()
+                            .filter(|error| {
+                                !error["error"]
+                                    .as_str()
+                                    .is_some_and(|text| text.contains("WATCH"))
+                            })
+                            .count() as u64
+                    })
+                    .unwrap_or(0);
+                of(
+                    Some(total),
+                    total.checked_sub(undocumented_stops + undocumented_errors),
+                )
             },
             dir,
         ),
