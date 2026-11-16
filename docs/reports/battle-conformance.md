@@ -25,6 +25,8 @@ Three independent engine paths execute real battles from the owned install
 | `audit/battle-world-run-all-patterns.json` (world hand-off, seed 0x5EED) | 1054 | 1002 / 38 / 0 |
 | `audit/battle-run-all-patterns-weak.json` (report path, unarmed level-8 party) | 1054 | 460 / 544 / 0 |
 | `audit/battle-world-run-all-patterns-weak.json` (world hand-off, weak party) | 1054 | 460 / 544 / 0 |
+| `audit/battle-run-all-patterns-flee.json` (report path, flee-key at tick 0) | 1054 | 3 / 387 / 593 escapes |
+| `audit/battle-world-run-all-patterns-flee.json` (world hand-off, flee-first) | 1054 | 3 / 387 / 593 escapes |
 
 The 38 armed defeats are the endgame superboss set (the armed level-20 demo
 party wipes). The weak pair deliberately loses most battles (544 defeats) so
@@ -45,7 +47,10 @@ the reward channels are deterministic where the reference says they should
 be.
 
 The weak pair is also cross-path identical (zero deltas over 1054
-mass-defeat battles). Getting there required fixing two real divergences
+mass-defeat battles), and the flee-first pair is cross-path identical over
+593 escapes + 387 defeats — the escape family (flee-key roll, SysEscape
+fade, escape-pays-nothing economics, no HP/MP loss beyond battle damage) is
+covered at corpus scale. Getting there required fixing two real divergences
 the weak mode exposed: (1) the two paths passed different battle-script
 party lists (`&[0]` vs `&[]`) so enemy scripts saw different player
 objects — both now pass the machine units' character ids (Zidane..Steiner,
@@ -61,8 +66,9 @@ is exactly why the weak gate exists).
 
 - `cargo test --workspace` — 0 failures (cross-path conformance, seed loops,
   exactly-once rewards, flee economics, save/reload ledger, error fidelity).
-- `tantalusctl audit summary --deny-fail` — all four battle corpora gated
-  (armed + weak, both paths); any sweep error or stale audit fails.
+- `tantalusctl audit summary --deny-fail` — all six battle corpora gated
+  (armed / weak / flee-first × both paths); any sweep error or stale audit
+  fails.
 - `tantalusctl audit compare-sweeps <a> <b>` — the standard regression
   check after any behavioral landing.
 

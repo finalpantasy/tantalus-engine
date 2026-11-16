@@ -408,7 +408,7 @@ fn run_scene_battle_drives_a_full_battle_with_empty_ai() {
     let mut script = b"EV\x02\x00".to_vec();
     script.resize(128, 0);
 
-    let report = run_scene_battle("SYNTHETIC", &scene, 0, &script, 42, false);
+    let report = run_scene_battle("SYNTHETIC", &scene, 0, &script, 42, false, false);
     assert_eq!(report.error, None);
     assert_eq!(
         report.outcome,
@@ -513,7 +513,7 @@ fn run_world_battle_plays_a_scene_through_the_field_world() {
         equipped_abilities: Vec::new(),
     };
 
-    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 7)
+    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 7, false)
         .expect("world battle runs clean");
     assert_eq!(outcome, Some(tantalus_game::battle::BattleOutcome::Victory));
     assert_eq!(world.gil, 10 + 300, "scene spoils committed to the world");
@@ -572,7 +572,7 @@ fn after_event_battles_pay_nothing() {
         }),
         ..PlayerBase::default()
     };
-    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 3)
+    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 3, false)
         .expect("world battle runs clean");
     assert_eq!(outcome, Some(tantalus_game::battle::BattleOutcome::Victory));
     assert_eq!(world.gil, 500, "after-event battles pay nothing");
@@ -629,7 +629,7 @@ fn run_world_battle_applies_ap_to_equipped_learnables() {
         learnable: vec![(200, 2)],
         equipped_abilities: vec![200],
     };
-    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 11)
+    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 11, false)
         .expect("world battle runs clean");
     assert_eq!(outcome, Some(tantalus_game::battle::BattleOutcome::Victory));
     assert_eq!(world.ability_pa[&0][&200], 2, "AP reached max");
@@ -691,7 +691,7 @@ fn run_world_battle_applies_the_field_min_hp_rule() {
         learnable: Vec::new(),
         equipped_abilities: Vec::new(),
     };
-    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 5)
+    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 5, false)
         .expect("world battle runs clean");
     assert_eq!(
         outcome,
@@ -754,7 +754,15 @@ fn world_battle_distinguishes_early_failure_from_no_outcome() {
 
     let scene = scene();
     // Undecodable script: a genuine early failure, reported as an error.
-    let report = run_world_battle_report("EVT_BATTLE_TEST", &scene, 0, b"garbage!", 0x5EED, false);
+    let report = run_world_battle_report(
+        "EVT_BATTLE_TEST",
+        &scene,
+        0,
+        b"garbage!",
+        0x5EED,
+        false,
+        false,
+    );
     assert!(
         report
             .error
@@ -782,8 +790,9 @@ fn report_paths_agree_on_outcome_gil_and_exp() {
     // the world hand-off must agree on outcome, gil, and EXP. Item/card
     // draws are independent streams and stay un-compared.
     for seed in [0x5EEDu64, 1, 7] {
-        let report = run_scene_battle("EVT_BATTLE_TEST", &scene, 0, &script, seed, false);
-        let world = run_world_battle_report("EVT_BATTLE_TEST", &scene, 0, &script, seed, false);
+        let report = run_scene_battle("EVT_BATTLE_TEST", &scene, 0, &script, seed, false, false);
+        let world =
+            run_world_battle_report("EVT_BATTLE_TEST", &scene, 0, &script, seed, false, false);
         assert_eq!(report.error, None, "seed {seed}: report path clean");
         assert_eq!(world.error, None, "seed {seed}: world path clean");
         assert_eq!(report.outcome, world.outcome, "seed {seed}: outcome");
@@ -901,6 +910,7 @@ fn chain_and_handoff_paths_agree_on_the_same_scene() {
                 equipped_abilities: Vec::new(),
             },
             u64::from(seed),
+            false,
         )
         .expect("world battle runs clean");
         assert_eq!(

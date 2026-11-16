@@ -151,9 +151,12 @@ pub fn run_scene_battle_caught(
     script: &[u8],
     seed: u64,
     weak_party: bool,
+    flee_first: bool,
 ) -> BattleRunReport {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        run_scene_battle(scene_name, scene, pattern, script, seed, weak_party)
+        run_scene_battle(
+            scene_name, scene, pattern, script, seed, weak_party, flee_first,
+        )
     }))
     .unwrap_or_else(|_| BattleRunReport {
         scene: scene_name.to_owned(),
@@ -180,6 +183,7 @@ pub fn run_scene_battle(
     script: &[u8],
     seed: u64,
     weak_party: bool,
+    flee_first: bool,
 ) -> BattleRunReport {
     let mut report = BattleRunReport {
         scene: scene_name.to_owned(),
@@ -249,25 +253,34 @@ pub fn run_scene_battle(
     let mut draw_rng: Box<dyn BattleRandom> = Box::new(SplitMix64Random::new(seed ^ 0xD1AA));
     let attack = ContentId::parse(ATTACK_ACTION).unwrap();
 
+    let mut fled = false;
     for tick in 0..MAX_TICKS {
         let mut input = tantalus_game::battle::CombatInput::new(Tick::new(tick));
-        // Player policy: the first ready party member attacks the first
-        // living enemy.
-        let ready = adapter.battle().ready_players.first().copied();
-        if let Some(unit_index) = ready {
-            let target = adapter
-                .battle()
-                .units
-                .iter()
-                .enumerate()
-                .find(|(_, unit)| !unit.is_player && unit.cur_hp > 0)
-                .map(|(index, _)| EntityId::new(u64::from(adapter.battle().units[index].id)));
-            if let Some(target) = target {
-                input.command = Some(tantalus_game::battle::BattleCommand {
-                    actor: player_entities[unit_index],
-                    action: attack.clone(),
-                    targets: vec![target],
-                });
+        if flee_first && !fled {
+            fled = true;
+            let mut services = WorldGameServices::new(&mut world);
+            let _ = adapter.flee_attempt(&mut services);
+        }
+        // Escape policy: once the flee key is tried the party never attacks.
+        if !(flee_first && fled) {
+            // Player policy: the first ready party member attacks the first
+            // living enemy.
+            let ready = adapter.battle().ready_players.first().copied();
+            if let Some(unit_index) = ready {
+                let target = adapter
+                    .battle()
+                    .units
+                    .iter()
+                    .enumerate()
+                    .find(|(_, unit)| !unit.is_player && unit.cur_hp > 0)
+                    .map(|(index, _)| EntityId::new(u64::from(adapter.battle().units[index].id)));
+                if let Some(target) = target {
+                    input.command = Some(tantalus_game::battle::BattleCommand {
+                        actor: player_entities[unit_index],
+                        action: attack.clone(),
+                        targets: vec![target],
+                    });
+                }
             }
         }
         {
@@ -365,6 +378,7 @@ pub fn run_scene_battle(
 /// script, tick advance error). `Ok(None)` means the battle ran the full tick
 /// budget without reaching an outcome — a legitimate shared shape with the
 /// report path (the fog battles), not an error.
+#[allow(clippy::too_many_arguments)] // battle runner: policy knobs mirror the report path.
 pub fn run_world_battle(
     world: &mut tantalus_game::FieldWorld,
     entities: &[tantalus_contracts::EntityId],
@@ -373,6 +387,7 @@ pub fn run_world_battle(
     script: &[u8],
     base: &dyn Fn(i32) -> tantalus_game::battle::legacy::PlayerBase,
     seed: u64,
+    flee_first: bool,
 ) -> Result<Option<BattleOutcome>, String> {
     use tantalus_game::battle::GameServices;
     use tantalus_game::battle::legacy::{NoEnemyAi, party_machine_units};
@@ -428,9 +443,18 @@ pub fn run_world_battle(
     let attack = tantalus_contracts::ContentId::parse(ATTACK_ACTION).unwrap();
     let mut outcome = None;
 
+    let mut fled = false;
     for tick in 0..MAX_TICKS {
         let mut input = tantalus_game::battle::CombatInput::new(Tick::new(tick));
-        if let Some(unit_index) = adapter.battle().ready_players.first().copied() {
+        if flee_first && !fled {
+            fled = true;
+            let mut services = WorldGameServices::new(world);
+            let _ = adapter.flee_attempt(&mut services);
+        }
+        // Escape policy: once the flee key is tried the party never attacks.
+        if !(flee_first && fled)
+            && let Some(unit_index) = adapter.battle().ready_players.first().copied()
+        {
             let target = adapter
                 .battle()
                 .units
@@ -592,6 +616,7 @@ pub fn run_world_battle_report(
     script: &[u8],
     seed: u64,
     weak_party: bool,
+    flee_first: bool,
 ) -> BattleRunReport {
     let mut report = BattleRunReport {
         scene: scene_name.to_owned(),
@@ -668,7 +693,9 @@ pub fn run_world_battle_report(
     // `Ok(None)` mirrors the report path's "ran but reached no outcome"
     // rows (e.g. the fog battles, which assemble clean and simply never
     // end): not an error. `Err` is a genuine early failure and is reported.
-    match run_world_battle(&mut world, &entities, scene, pattern, script, &base, seed) {
+    match run_world_battle(
+        &mut world, &entities, scene, pattern, script, &base, seed, flee_first,
+    ) {
         Ok(Some(outcome)) => {
             report.outcome = Some(outcome);
             report.bonus_gil = world.gil;
@@ -694,9 +721,12 @@ pub fn run_world_battle_caught(
     script: &[u8],
     seed: u64,
     weak_party: bool,
+    flee_first: bool,
 ) -> BattleRunReport {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        run_world_battle_report(scene_name, scene, pattern, script, seed, weak_party)
+        run_world_battle_report(
+            scene_name, scene, pattern, script, seed, weak_party, flee_first,
+        )
     }))
     .unwrap_or_else(|_| BattleRunReport {
         scene: scene_name.to_owned(),
