@@ -827,3 +827,102 @@ fn player_machine_units_build_from_world_state_and_equipment() {
     let (_, restored) = tantalus_game::restore_scene(&decoded).unwrap();
     assert_eq!(restored.equipped(0), world.equipped(0));
 }
+
+#[test]
+fn save_reload_after_battle_preserves_state_and_the_reward_ledger() {
+    use std::collections::BTreeMap;
+    use tantalus_game::battle::bridge::bundle_from_battle_reward;
+    use tantalus_game::battle::{GameServices, WorldGameServices};
+    use tantalus_game::field::world::default_item_id_map;
+    use tantalus_legacy::battle::rewards::{
+        BattleBonus, BattleReward, EnemyRewardData, PartyMember, PartySnapshot,
+    };
+    use tantalus_legacy::battle::rng::{Draw, SequenceRandom};
+
+    // A battle pays: gil 100, EXP 80 (one eligible line), one drawn item.
+    let mut world = FieldWorld::new();
+    world.party = vec![0];
+    world.gil = 50;
+    world.item_id_map = Some(default_item_id_map([12]));
+    world.character_stats.insert(
+        0,
+        tantalus_game::field::CharacterStats {
+            current_hp: 500,
+            max_hp: 500,
+            current_mp: 100,
+            max_mp: 100,
+        },
+    );
+    let mut bonus = BattleBonus::new(2, 0b0001, false);
+    let mut rows = vec![EnemyRewardData {
+        type_id: 0,
+        present: true,
+        gil: 100,
+        exp: 80,
+        items: [12, 255, 255, 255],
+        item_rates: [256, 0, 0, 0],
+        card: 255,
+        card_rate: 0,
+        bonus_given: false,
+    }];
+    let mut rng = SequenceRandom::with_kinds(&[(Draw::Random8, 0)]);
+    assert!(bonus.set_bonus(&mut rows, 0, &mut rng));
+    let member = PartyMember {
+        in_battle: true,
+        cur_hp: 500,
+        cur_mp: 100,
+        rewards_disabled: false,
+        level: 1,
+        exp: 0,
+        base: tantalus_legacy::battle::rewards::BaseStats {
+            dex: 23,
+            str_: 21,
+            mgc: 18,
+            wpr: 23,
+            gems: 18,
+        },
+        bonus: Default::default(),
+        basis: [23, 21, 18, 23],
+        max_hp: 500,
+        max_mp: 100,
+        max_capa: 18,
+        cur_capa: 18,
+        elem: [23, 21, 18, 23],
+        equip_stat_bonus: [0; 4],
+        equipped_abilities: vec![],
+        learnable: vec![],
+        pa: vec![],
+    };
+    let party = PartySnapshot {
+        gil: 50,
+        members: [Some(member), None, None, None],
+        items: vec![],
+        cards: vec![],
+    };
+    let reward = BattleReward::from_bonus(&bonus, &party);
+    let bundle = bundle_from_battle_reward(&reward, [Some(0), None, None, None], 42);
+    {
+        let mut services = WorldGameServices::new(&mut world);
+        services.commit_rewards(&bundle).unwrap();
+    }
+    assert_eq!(world.gil, 150);
+    assert_eq!(world.character_exp[&0], 80);
+    assert_eq!(world.items[&12], 1);
+
+    // Save and reload the post-battle world.
+    let scene = tantalus_game::FieldScene::new();
+    let snapshot = tantalus_game::snapshot_scene(&scene, &world, &BTreeMap::new()).unwrap();
+    let decoded = tantalus_game::FieldSnapshot::from_json(&snapshot.to_json().unwrap()).unwrap();
+    let (_, mut restored) = tantalus_game::restore_scene(&decoded).unwrap();
+    assert_eq!(restored, world, "post-battle state round trips exactly");
+
+    // The resolution ledger survived: re-committing the same bundle pays
+    // nothing after the reload.
+    {
+        let mut services = WorldGameServices::new(&mut restored);
+        services.commit_rewards(&bundle).unwrap();
+    }
+    assert_eq!(restored.gil, 150, "no double pay across save/reload");
+    assert_eq!(restored.character_exp[&0], 80);
+    assert_eq!(restored.items[&12], 1);
+}
