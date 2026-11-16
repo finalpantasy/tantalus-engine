@@ -43,12 +43,15 @@ impl BundledField {
             )
         })?;
 
-        let scene_name = format!("{field_name}.bgs");
-        let navigation_name = format!("{field_name}.bgi");
-        let scene_asset = load_text_asset(&serialized, &scene_name, &source)?;
-        let navigation_asset = load_text_asset(&serialized, &navigation_name, &source)?;
-        let scene = BgsFile::parse(&scene_asset.script, &scene_name)?;
-        let navigation = BgiFile::parse(&navigation_asset.script, &navigation_name)?;
+        let scene_candidates = scene_asset_candidates(field_name);
+        let scene_asset = load_text_asset(&serialized, &scene_candidates, &source)?;
+        let navigation_candidates = vec![
+            format!("{field_name}.bgi"),
+            format!("{}.bgi", field_name.to_uppercase()),
+        ];
+        let navigation_asset = load_text_asset(&serialized, &navigation_candidates, &source)?;
+        let scene = BgsFile::parse(&scene_asset.script, field_name)?;
+        let navigation = BgiFile::parse(&navigation_asset.script, field_name)?;
         let atlas_id = ContentId::parse(&format!("ffix:field/{}/atlas", field_name.to_lowercase()))
             .map_err(|error| ImportError::invalid(&source, error.to_string()))?;
         let atlas_index = serialized
@@ -90,23 +93,37 @@ impl BundledField {
     }
 }
 
+/// Real field bundles name scene TextAssets per language, in uppercase:
+/// `FBG_..._0.bgs` (the base, English) plus `FBG_..._0_FR.bgs`, `_JP`, `_ES`,
+/// `_IT`, `_GR` variants. The bare base is preferred; a language variant is
+/// only taken when the base is absent. An explicit language knob belongs to
+/// the caller and is not part of this loader yet.
+fn scene_asset_candidates(field_name: &str) -> Vec<String> {
+    let upper = field_name.to_uppercase();
+    let mut candidates = vec![format!("{upper}.bgs"), format!("{field_name}.bgs")];
+    for language in ["FR", "JP", "ES", "IT", "GR"] {
+        candidates.push(format!("{upper}_{language}.bgs"));
+    }
+    candidates
+}
+
 fn load_text_asset(
     serialized: &SerializedFile<'_>,
-    name: &str,
+    names: &[String],
     source: &str,
 ) -> Result<TextAsset, ImportError> {
     for (index, object) in serialized.report().objects.iter().enumerate() {
         if object.class_id != 49 {
             continue;
         }
-        let asset = TextAsset::parse(serialized.object_data(index)?, name)?;
-        if asset.name == name {
+        let asset = TextAsset::parse(serialized.object_data(index)?, source)?;
+        if names.iter().any(|name| &asset.name == name) {
             return Ok(asset);
         }
     }
     Err(ImportError::invalid(
         source,
-        format!("field TextAsset `{name}` was not found"),
+        format!("field TextAsset matching {names:?} was not found"),
     ))
 }
 
@@ -136,8 +153,11 @@ pub fn load_field_navigation(
     if metadata.atlas_for(field_name).is_none() {
         return Ok(None);
     }
-    let navigation_name = format!("{field_name}.bgi");
-    let asset = load_text_asset(&serialized, &navigation_name, &source)?;
-    let navigation = BgiFile::parse(&asset.script, &navigation_name)?;
+    let navigation_candidates = vec![
+        format!("{field_name}.bgi"),
+        format!("{}.bgi", field_name.to_uppercase()),
+    ];
+    let asset = load_text_asset(&serialized, &navigation_candidates, &source)?;
+    let navigation = BgiFile::parse(&asset.script, field_name)?;
     crate::pc::field::bgi_to_navigation_mesh(&navigation).map(Some)
 }
