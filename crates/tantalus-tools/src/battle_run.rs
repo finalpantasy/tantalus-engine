@@ -313,9 +313,14 @@ pub fn run_scene_battle(
 /// The definitive field hand-off: runs a battle for `scene`/`pattern`
 /// against `world` with the party built from world state, script-driven
 /// enemy AI, death-driven `set_bonus`, and the reference split committed
-/// exactly once. Returns the outcome. (Drives the typed adapter directly;
-/// the coordinator wrapper around the default-typed adapter is exercised in
-/// the tantalus-game integration tests.)
+/// exactly once. (Drives the typed adapter directly; the coordinator wrapper
+/// around the default-typed adapter is exercised in the tantalus-game
+/// integration tests.)
+///
+/// `Err` reports an early failure (no party, unassemblable scene, undecodable
+/// script, tick advance error). `Ok(None)` means the battle ran the full tick
+/// budget without reaching an outcome — a legitimate shared shape with the
+/// report path (the fog battles), not an error.
 pub fn run_world_battle(
     world: &mut tantalus_game::FieldWorld,
     entities: &[tantalus_contracts::EntityId],
@@ -324,7 +329,7 @@ pub fn run_world_battle(
     script: &[u8],
     base: &dyn Fn(i32) -> tantalus_game::battle::legacy::PlayerBase,
     seed: u64,
-) -> Option<BattleOutcome> {
+) -> Result<Option<BattleOutcome>, String> {
     use tantalus_game::battle::GameServices;
     use tantalus_game::battle::legacy::{NoEnemyAi, party_machine_units};
     use tantalus_legacy::EventBinary;
@@ -338,7 +343,7 @@ pub fn run_world_battle(
 
     let players = party_machine_units(world, entities, base);
     if players.is_empty() {
-        return None;
+        return Err("no party units assembled from world state".to_owned());
     }
     let setup = crate::battle_scene_rewards::assemble_legacy_battle(
         scene,
@@ -353,9 +358,11 @@ pub fn run_world_battle(
             tantalus_contracts::ContentId::parse(ATTACK_ACTION).unwrap(),
             (cmd::ATTACK, ABILITY_ATTACK),
         )]),
-    )?;
+    )
+    .ok_or_else(|| "scene/pattern did not assemble".to_owned())?;
     let (data, units) = battle_views(setup.adapter.battle());
-    let binary = EventBinary::parse(script).ok()?;
+    let binary =
+        EventBinary::parse(script).map_err(|error| format!("script decode failed: {error}"))?;
     let driver = BattleScriptDriver::new(
         ScriptTable::from_binary(&binary),
         BattleScriptState::new(data, units),
@@ -399,8 +406,7 @@ pub fn run_world_battle(
         {
             let mut services = WorldGameServices::new(world);
             if let Err(error) = adapter.advance(&input, &mut services) {
-                eprintln!("run_world_battle tick {tick}: {error}");
-                return None;
+                return Err(format!("tick {tick}: {error}"));
             }
         }
         let dirty = adapter.hooks_mut().take_dirty_views();
@@ -525,7 +531,7 @@ pub fn run_world_battle(
         let mut services = WorldGameServices::new(world);
         let _ = services.commit_rewards(&bundle);
     }
-    outcome
+    Ok(outcome)
 }
 
 /// World-hand-off twin of [`run_scene_battle`]: a fresh scratch world whose
@@ -593,23 +599,18 @@ pub fn run_world_battle_report(
         learnable: Vec::new(),
         equipped_abilities: Vec::new(),
     };
-    // `None` mirrors the report path's "ran but reached no outcome" rows
-    // (e.g. the fog battles, which assemble clean and simply never end):
-    // not an error. Early-failure distinction inside `run_world_battle`
-    // would need a `Result` refactor; flagged as a follow-up.
-    let Some(outcome) =
-        run_world_battle(&mut world, &entities, scene, pattern, script, &base, seed)
-    else {
-        report.players_alive = world
-            .character_stats
-            .values()
-            .filter(|stats| stats.current_hp > 0)
-            .count();
-        return report;
-    };
-    report.outcome = Some(outcome);
-    report.bonus_gil = world.gil;
-    report.bonus_exp = world.character_exp.values().copied().sum::<u64>() as u32;
+    // `Ok(None)` mirrors the report path's "ran but reached no outcome"
+    // rows (e.g. the fog battles, which assemble clean and simply never
+    // end): not an error. `Err` is a genuine early failure and is reported.
+    match run_world_battle(&mut world, &entities, scene, pattern, script, &base, seed) {
+        Ok(Some(outcome)) => {
+            report.outcome = Some(outcome);
+            report.bonus_gil = world.gil;
+            report.bonus_exp = world.character_exp.values().copied().sum::<u64>() as u32;
+        }
+        Ok(None) => {}
+        Err(error) => report.error = Some(error),
+    }
     report.players_alive = world
         .character_stats
         .values()
