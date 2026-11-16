@@ -28,6 +28,7 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
         (Some("install"), Some("inspect")) => run_install_inspect(args),
         (Some("audit"), Some("summary")) => run_audit_summary(args),
         (Some("audit"), Some("compare-sweeps")) => run_compare_sweeps(args),
+        (Some("audit"), Some("merge-sweeps")) => run_merge_sweeps(args),
         (Some("assets"), Some("import")) => run_assets_import(args),
         (Some("assets"), Some("inspect-bundle")) => run_assets_inspect_bundle(args),
         (Some("assets"), Some("extract-resource")) => run_assets_extract_resource(args),
@@ -557,6 +558,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut battle_seed: Option<u64> = None;
     let mut battle_weak_party = false;
     let mut battle_flee_first = false;
+    let mut battle_shard = Shard::default();
     let mut battle_everything_out: Option<PathBuf> = None;
     let mut world_map = false;
     let mut world_map_audit = None;
@@ -857,6 +859,14 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             }
             Some("--battle-weak-party") => battle_weak_party = true,
             Some("--battle-flee-first") => battle_flee_first = true,
+            Some("--battle-shard") => {
+                index += 1;
+                battle_shard = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .and_then(Shard::parse)
+                    .ok_or("`--battle-shard` takes K/N with K < N, for example 0/4")?;
+            }
             Some("--battle-run-everything") => {
                 battle_everything_out = Some(PathBuf::from(value_next(
                     &args,
@@ -1054,6 +1064,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             battle_seed,
             battle_weak_party,
             battle_flee_first,
+            battle_shard,
         );
     }
     if let Some(out) = battle_world_run_out.as_deref() {
@@ -1065,6 +1076,7 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             battle_seed,
             battle_weak_party,
             battle_flee_first,
+            battle_shard,
         );
     }
     if battle_scenes || battle_scene.is_some() {
@@ -2385,6 +2397,63 @@ fn run_field_composition(
     Ok(())
 }
 
+/// `audit merge-sweeps <out.json> <part.json>...`: joins the parts of a
+/// sweep run with `--battle-shard K/N` (in K order) into one report shaped
+/// like a whole run, counts recomputed.
+fn run_merge_sweeps(args: Vec<OsString>) -> Result<(), String> {
+    let paths: Vec<String> = args[2..]
+        .iter()
+        .map(|arg| arg.to_str().map(str::to_owned))
+        .collect::<Option<_>>()
+        .ok_or("paths must be UTF-8")?;
+    let [out, parts @ ..] = paths.as_slice() else {
+        return Err("merge-sweeps requires <out.json> <part.json>...".to_owned());
+    };
+    if parts.is_empty() {
+        return Err("merge-sweeps requires at least one part".to_owned());
+    }
+    let mut results = Vec::new();
+    for part in parts {
+        let text = std::fs::read_to_string(part)
+            .map_err(|error| format!("cannot read {part}: {error}"))?;
+        let value: serde_json::Value =
+            serde_json::from_str(&text).map_err(|error| format!("{part}: {error}"))?;
+        results.extend(value["results"].as_array().cloned().unwrap_or_default());
+    }
+    let summary = sweep_summary(results);
+    let text = serde_json::to_string_pretty(&summary).map_err(|error| error.to_string())?;
+    std::fs::write(out, format!("{text}\n")).map_err(|error| error.to_string())?;
+    println!(
+        "{} scenes ({} battles) from {} parts -> {out}",
+        summary["scenes"],
+        summary["battles"],
+        parts.len()
+    );
+    Ok(())
+}
+
+/// The report a sweep writes: counts over every pattern, then the results.
+fn sweep_summary(results: Vec<serde_json::Value>) -> serde_json::Value {
+    let mut flat = Vec::new();
+    for result in &results {
+        if let Some(reports) = result.get("patterns").and_then(|p| p.as_array()) {
+            flat.extend(reports.iter().cloned());
+        } else {
+            flat.push(result.clone());
+        }
+    }
+    let count = |outcome: &str| flat.iter().filter(|r| r["outcome"] == outcome).count();
+    serde_json::json!({
+        "scenes": results.len(),
+        "battles": flat.len(),
+        "victories": count("victory"),
+        "defeats": count("defeat"),
+        "escapes": count("escape"),
+        "errors": flat.iter().filter(|r| r.get("error").is_some_and(|e| !e.is_null())).count(),
+        "results": results,
+    })
+}
+
 /// `audit summary [--audit-dir <dir>] [--json] [--deny-fail] | audit compare-sweeps <before.json> <after.json> [--json]`: pass and fail counts per asset class
 /// from the committed audit reports (milestone W9).
 /// `audit compare-sweeps <before.json> <after.json> [--json]`: which battles
@@ -2545,12 +2614,12 @@ fn run_field_actor_placement(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `audit summary [--audit-dir <dir>] [--json] [--deny-fail] | audit compare-sweeps <before.json> <after.json> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--decode-frames <name> <n|all> [--png <dir>]] [--out <path>] [--json]`, `assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--field-animation-check [--animation-out <json>]] [--field-animation-frames <field> <tick> <out.png> [--animation-camera <n>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--clip-sampling <out json>] [--clip-durations <out json> --clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--world-walk <out json>] [--battle-sequences <out json>] [--battle-model-coverage <out json> [--models <p0data4.bin>] [--clips <p0data5.bin>] [--dll <Assembly-CSharp.dll>] [--resources-assets <path>]] [--special-effects <out json> [--dll <Assembly-CSharp.dll>] [--resources-assets <path>]] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name> [--battle-ai-demo <scene|first-random> <out json>] [--battle-rewards] [--battle-run --scripts-bundle <p0data7.bin>] [--battle-run-all <out json> --scripts-bundle <p0data7.bin>] [--battle-world-run-all <out json> --scripts-bundle <p0data7.bin>] [--battle-seed <u64>] [--battle-weak-party] [--battle-flee-first] [--battle-run-everything <out dir>]] [--field <name>] [--atlas-for <field>] [--json]`, `scenario run --case <path> [--bundle <path>] [--json]`, or `field actor-placement --assets <dir> --game-data <dir> --memoria <root> --atan <file> [--ticks N] [--field <map>] [--out <json>]`"
+    "expected `install inspect --root <path> [--json]`, `audit summary [--audit-dir <dir>] [--json] [--deny-fail] | audit compare-sweeps <before.json> <after.json> [--json] | audit merge-sweeps <out.json> <part.json>...`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--decode-frames <name> <n|all> [--png <dir>]] [--out <path>] [--json]`, `assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--field-animation-check [--animation-out <json>]] [--field-animation-frames <field> <tick> <out.png> [--animation-camera <n>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--clip-sampling <out json>] [--clip-durations <out json> --clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--world-walk <out json>] [--battle-sequences <out json>] [--battle-model-coverage <out json> [--models <p0data4.bin>] [--clips <p0data5.bin>] [--dll <Assembly-CSharp.dll>] [--resources-assets <path>]] [--special-effects <out json> [--dll <Assembly-CSharp.dll>] [--resources-assets <path>]] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name> [--battle-ai-demo <scene|first-random> <out json>] [--battle-rewards] [--battle-run --scripts-bundle <p0data7.bin>] [--battle-run-all <out json> --scripts-bundle <p0data7.bin>] [--battle-world-run-all <out json> --scripts-bundle <p0data7.bin>] [--battle-seed <u64>] [--battle-weak-party] [--battle-flee-first] [--battle-shard K/N] [--battle-run-everything <out dir>]] [--field <name>] [--atlas-for <field>] [--json]`, `scenario run --case <path> [--bundle <path>] [--json]`, or `field actor-placement --assets <dir> --game-data <dir> --memoria <root> --atan <file> [--ticks N] [--field <map>] [--out <json>]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl audit summary [--audit-dir <dir>] [--json] [--deny-fail] | audit compare-sweeps <before.json> <after.json> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--decode-frames <name> <n|all> [--png <dir>]] [--out <path>] [--json]\n    tantalusctl assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--field-animation-check [--animation-out <json>]] [--field-animation-frames <field> <tick> <out.png> [--animation-camera <n>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--clip-sampling <out json>] [--clip-durations <out json> --clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--world-walk <out json>] [--battle-sequences <out json>] [--battle-model-coverage <out json> [--models <p0data4.bin>] [--clips <p0data5.bin>] [--dll <Assembly-CSharp.dll>] [--resources-assets <path>]] [--special-effects <out json> [--dll <Assembly-CSharp.dll>] [--resources-assets <path>]] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name> [--battle-ai-demo <scene|first-random> <out json>] [--battle-rewards] [--battle-run --scripts-bundle <p0data7.bin>] [--battle-run-all <out json> --scripts-bundle <p0data7.bin>] [--battle-world-run-all <out json> --scripts-bundle <p0data7.bin>] [--battle-seed <u64>] [--battle-weak-party] [--battle-flee-first] [--battle-run-everything <out dir>]] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl audit summary [--audit-dir <dir>] [--json] [--deny-fail] | audit compare-sweeps <before.json> <after.json> [--json] | audit merge-sweeps <out.json> <part.json>...\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--decode-frames <name> <n|all> [--png <dir>]] [--out <path>] [--json]\n    tantalusctl assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--field-animation-check [--animation-out <json>]] [--field-animation-frames <field> <tick> <out.png> [--animation-camera <n>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--clip-sampling <out json>] [--clip-durations <out json> --clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--world-walk <out json>] [--battle-sequences <out json>] [--battle-model-coverage <out json> [--models <p0data4.bin>] [--clips <p0data5.bin>] [--dll <Assembly-CSharp.dll>] [--resources-assets <path>]] [--special-effects <out json> [--dll <Assembly-CSharp.dll>] [--resources-assets <path>]] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name> [--battle-ai-demo <scene|first-random> <out json>] [--battle-rewards] [--battle-run --scripts-bundle <p0data7.bin>] [--battle-run-all <out json> --scripts-bundle <p0data7.bin>] [--battle-world-run-all <out json> --scripts-bundle <p0data7.bin>] [--battle-seed <u64>] [--battle-weak-party] [--battle-flee-first] [--battle-shard K/N] [--battle-run-everything <out dir>]] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 
@@ -2953,6 +3022,7 @@ fn run_battle_scene_report(
 /// `--scripts-bundle <p0data7.bin>` (battle event scripts live there).
 /// Runs every battle scene in the bundle to completion and writes a JSON
 /// report. Requires `--scripts-bundle <p0data7.bin>`.
+#[allow(clippy::too_many_arguments)] // CLI plumbing.
 fn run_battle_run_all(
     path: &std::path::Path,
     scripts: Option<&std::path::Path>,
@@ -2961,6 +3031,7 @@ fn run_battle_run_all(
     seed: u64,
     weak_party: bool,
     flee_first: bool,
+    shard: Shard,
 ) -> Result<(), String> {
     run_battle_sweep(
         path,
@@ -2970,6 +3041,7 @@ fn run_battle_run_all(
         seed,
         weak_party,
         flee_first,
+        shard,
         "--battle-run-all",
         tantalus_tools::battle_run::run_scene_battle_caught,
     )
@@ -3032,7 +3104,16 @@ fn run_battle_run_everything(
     ];
     std::fs::create_dir_all(out_dir).map_err(|error| error.to_string())?;
     for (file, weak, flee, runner) in combos {
-        let results = sweep_corpus(&data, &table, true, seed, weak, flee, runner)?;
+        let results = sweep_corpus(
+            &data,
+            &table,
+            true,
+            seed,
+            weak,
+            flee,
+            Shard::default(),
+            runner,
+        )?;
         let mut flat = Vec::new();
         for result in &results {
             if let Some(reports) = result.get("patterns").and_then(|p| p.as_array()) {
@@ -3094,6 +3175,7 @@ fn run_battle_run_everything(
 /// through `run_world_battle` (party from a scratch field world, exactly-once
 /// reward commit, HP/MP carry-back) so both engine paths can be cross-checked
 /// over the whole encounter corpus with `audit compare-sweeps`.
+#[allow(clippy::too_many_arguments)] // CLI plumbing.
 fn run_battle_world_run_all(
     path: &std::path::Path,
     scripts: Option<&std::path::Path>,
@@ -3102,6 +3184,7 @@ fn run_battle_world_run_all(
     seed: u64,
     weak_party: bool,
     flee_first: bool,
+    shard: Shard,
 ) -> Result<(), String> {
     run_battle_sweep(
         path,
@@ -3111,6 +3194,7 @@ fn run_battle_world_run_all(
         seed,
         weak_party,
         flee_first,
+        shard,
         "--battle-world-run-all",
         tantalus_tools::battle_run::run_world_battle_caught,
     )
@@ -3127,8 +3211,40 @@ type SweepRunner = fn(
     flee_first: bool,
 ) -> tantalus_tools::battle_run::BattleRunReport;
 
+/// One contiguous part of the scene list (`--battle-shard K/N`), so a long
+/// sweep can run in pieces and be joined with `audit merge-sweeps`.
+#[derive(Clone, Copy, Debug)]
+struct Shard {
+    index: usize,
+    count: usize,
+}
+
+impl Default for Shard {
+    fn default() -> Self {
+        Self { index: 0, count: 1 }
+    }
+}
+
+impl Shard {
+    fn parse(text: &str) -> Option<Self> {
+        let (index, count) = text.split_once('/')?;
+        let shard = Self {
+            index: index.trim().parse().ok()?,
+            count: count.trim().parse().ok()?,
+        };
+        (shard.index < shard.count).then_some(shard)
+    }
+
+    /// Whether scene `position` of `total` falls in this part. Parts are
+    /// contiguous and in order, so joining them restores the full list.
+    fn contains(self, position: usize, total: usize) -> bool {
+        position * self.count / total.max(1) == self.index
+    }
+}
+
 /// Runs the full corpus once over preloaded bundle data. Shared by the
 /// single-mode sweeps and `--battle-run-everything`.
+#[allow(clippy::too_many_arguments)] // CLI plumbing.
 fn sweep_corpus(
     data: &tantalus_assets::pc::battle_scene::BattleBundleData,
     table: &std::collections::BTreeMap<String, Vec<u8>>,
@@ -3136,10 +3252,15 @@ fn sweep_corpus(
     seed: u64,
     weak_party: bool,
     flee_first: bool,
+    shard: Shard,
     run: SweepRunner,
 ) -> Result<Vec<serde_json::Value>, String> {
     let mut results = Vec::new();
-    for (name, scene) in &data.scenes {
+    let total = data.scenes.len();
+    for (position, (name, scene)) in data.scenes.iter().enumerate() {
+        if !shard.contains(position, total) {
+            continue;
+        }
         let entry = match scene {
             Err(error) => {
                 serde_json::json!({"scene": name, "error": format!("scene parse: {error}")})
@@ -3178,6 +3299,7 @@ fn run_battle_sweep(
     seed: u64,
     weak_party: bool,
     flee_first: bool,
+    shard: Shard,
     flag: &str,
     run: SweepRunner,
 ) -> Result<(), String> {
@@ -3194,6 +3316,7 @@ fn run_battle_sweep(
         seed,
         weak_party,
         flee_first,
+        shard,
         run,
     )?;
     // Flatten per-pattern entries for counting.
