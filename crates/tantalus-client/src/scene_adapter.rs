@@ -361,14 +361,8 @@ pub fn field_sprites<'a>(
                     sprite.atlas
                 )));
             }
-            // PSX blend modes 1-3 (B+F, B-F, B+F/4; the `abr_1`..`abr_3`
-            // shaders) need a custom blend state; they are left out
-            // rather than drawn opaque over the scene.
-            let unsupported_blend = sprite.transparency != 0 && sprite.alpha != 0;
-            if sprite.active
-                && !unsupported_blend
-                && overlay.camera_index == scene.camera_index as u8
-            {
+            // Inactive blocks are kept (hidden) for `BGLACTIVE` to show.
+            if overlay.camera_index == scene.camera_index as u8 {
                 sprites.push(sprite);
             }
         }
@@ -384,6 +378,237 @@ pub fn field_sprites<'a>(
     Ok(sprites)
 }
 
+/// Where the import put a background sprite, so the scripts' tile-block
+/// changes apply over it each frame.
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+pub struct FieldSpriteBase {
+    pub translation: Vec3,
+    pub active: bool,
+}
+
+impl FieldSpriteBase {
+    fn visibility(&self) -> Visibility {
+        if self.active {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        }
+    }
+}
+
+/// `FieldMap.charAimHeight`: `BgAttachService` aims at this height above
+/// the player's position.
+pub const CHAR_AIM_HEIGHT: f32 = 324.0;
+
+/// The pixel offset of each changed tile block from its imported
+/// position, and whether it shows. `player` is the player's position;
+/// without one an attached block stays where it is.
+pub fn overlay_placements(
+    scene: &FieldSceneDescription,
+    changes: &BTreeMap<u16, tantalus_game::field::world::OverlayChange>,
+    player: Option<[f32; 3]>,
+) -> BTreeMap<u32, (Option<bool>, [f32; 2])> {
+    let mut placements = BTreeMap::new();
+    for (index, change) in changes {
+        let Some(overlay) = scene
+            .overlays
+            .iter()
+            .find(|overlay| overlay.overlay_index == u32::from(*index))
+        else {
+            continue;
+        };
+        let imported = overlay.current_offset.map(f32::from);
+        let mut current = change
+            .origin
+            .map(|origin| origin.map(f32::from))
+            .unwrap_or(imported);
+        let active = change.active.unwrap_or(overlay.flags & 2 != 0);
+        // `BgAttachService`: an active attached block of this camera sits
+        // at the player's projected aim point, less the scene offset and
+        // the attach offset, plus the camera's view minimum.
+        if let (Some([x, y]), Some(position), true) = (change.attached, player, active)
+            && let Some([screen_x, screen_y]) = crate::projection::project_field_point(
+                &scene.camera,
+                [position[0], position[1] + CHAR_AIM_HEIGHT, position[2]],
+            )
+        {
+            current = [
+                (screen_x - f32::from(scene.scene_offset[0]) - f32::from(x)
+                    + f32::from(scene.camera.viewport_x[0]))
+                .trunc(),
+                (-screen_y - f32::from(scene.scene_offset[1]) - f32::from(y)
+                    + f32::from(scene.camera.viewport_y[0]))
+                .trunc(),
+            ];
+        }
+        placements.insert(
+            overlay.overlay_index,
+            (
+                change.active,
+                [current[0] - imported[0], current[1] - imported[1]],
+            ),
+        );
+    }
+    placements
+}
+
+/// Moves and shows or hides the background sprites as the scripts left
+/// their tile blocks (see [`overlay_placements`]).
+pub fn apply_overlay_changes(
+    world: &mut World,
+    scene: &FieldSceneDescription,
+    changes: &BTreeMap<u16, tantalus_game::field::world::OverlayChange>,
+    player: Option<[f32; 3]>,
+) {
+    let placements = overlay_placements(scene, changes, player);
+    spawn_borders(world, scene, changes);
+    let mut sprites = world.query::<(
+        &FieldSpriteIdentity,
+        &FieldSpriteBase,
+        &mut Transform,
+        &mut Visibility,
+    )>();
+    for (identity, base, mut transform, mut visibility) in sprites.iter_mut(world) {
+        let (active, offset) = placements
+            .get(&identity.overlay)
+            .copied()
+            .unwrap_or((None, [0.0, 0.0]));
+        // Pixel offsets grow down; Bevy y grows up.
+        transform.translation = base.translation + Vec3::new(offset[0], -offset[1], 0.0);
+        let shown = active.unwrap_or(base.active);
+        *visibility = if shown {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+    }
+}
+
+/// Marks the sprite that carries a tile block's border quads.
+#[derive(Component)]
+pub struct OverlayBorder;
+
+/// `FieldMap.CreateBorder`: four opaque quads of the attach color around
+/// the block, `vrpMinX` wide at the sides and `vrpMinY` tall above and
+/// below, moving with it. They are children of the block's first sprite,
+/// so they follow it, hide with it and go when the field does.
+fn spawn_borders(
+    world: &mut World,
+    scene: &FieldSceneDescription,
+    changes: &BTreeMap<u16, tantalus_game::field::world::OverlayChange>,
+) {
+    for (index, change) in changes {
+        let Some(color) = change.border else {
+            continue;
+        };
+        let Some(overlay) = scene
+            .overlays
+            .iter()
+            .find(|overlay| overlay.overlay_index == u32::from(*index))
+        else {
+            continue;
+        };
+        let mut sprites = world.query::<(Entity, &FieldSpriteIdentity, Has<OverlayBorder>)>();
+        let Some((parent, placed, bordered)) = sprites
+            .iter(world)
+            .filter(|(_, identity, _)| identity.overlay == overlay.overlay_index)
+            .min_by_key(|(_, identity, _)| identity.sprite)
+            .and_then(|(entity, identity, bordered)| {
+                let sprite = overlay.sprites.get(identity.sprite as usize)?;
+                Some((entity, (sprite.pixel_offset, sprite.pixel_size), bordered))
+            })
+        else {
+            continue;
+        };
+        if bordered {
+            continue;
+        }
+        let (sprite_offset, sprite_size) = placed;
+        // The block's top-left in pixels, as the importer places sprites:
+        // scene offset less half the PSX frame plus the block's offset.
+        let left = f32::from(scene.scene_offset[0]) - crate::projection::HALF_FIELD[0]
+            + f32::from(overlay.current_offset[0]);
+        let top = f32::from(scene.scene_offset[1]) - crate::projection::HALF_FIELD[1]
+            + f32::from(overlay.current_offset[1]);
+        let [width, height] = overlay.pixel_size.map(f32::from);
+        let side = f32::from(scene.camera.viewport_x[0].unsigned_abs());
+        let cap = f32::from(scene.camera.viewport_y[0].unsigned_abs());
+        // (x0, y0, x1, y1) in pixels, y down.
+        let quads = [
+            [left - side, top, left, top + height],
+            [left + width, top, left + width + side, top + height],
+            [left, top - cap, left + width, top],
+            [left, top + height, left + width, top + height + cap],
+        ];
+        // The parent sprite's center in pixels, which child offsets are
+        // measured from.
+        let center = [
+            sprite_offset[0] as f32 + sprite_size[0] as f32 / 2.0,
+            sprite_offset[1] as f32 + sprite_size[1] as f32 / 2.0,
+        ];
+        let fill = Color::srgb_u8(color[0], color[1], color[2]);
+        let children: Vec<Entity> = quads
+            .iter()
+            .filter(|quad| quad[2] > quad[0] && quad[3] > quad[1])
+            .map(|quad| {
+                world
+                    .spawn((
+                        Sprite::from_color(fill, Vec2::new(quad[2] - quad[0], quad[3] - quad[1])),
+                        Transform::from_xyz(
+                            (quad[0] + quad[2]) / 2.0 - center[0],
+                            -((quad[1] + quad[3]) / 2.0 - center[1]),
+                            0.0,
+                        ),
+                    ))
+                    .id()
+            })
+            .collect();
+        world
+            .entity_mut(parent)
+            .insert(OverlayBorder)
+            .add_children(&children);
+    }
+}
+
+/// A blend-mode 1-3 sprite as a quad with `PsxBlendMaterial`; `None` when
+/// the plugin is missing or the atlas is not loaded.
+fn spawn_blended(
+    world: &mut World,
+    sprite: &FieldSpritePresentation,
+    image: Handle<Image>,
+    base: FieldSpriteBase,
+    identity: FieldSpriteIdentity,
+) -> Option<Entity> {
+    use crate::psx_blend::PsxBlendMaterial;
+    let size = world
+        .get_resource::<Assets<Image>>()?
+        .get(&image)?
+        .size_f32();
+    let rect = sprite.atlas_rect.map(|value| value as f32);
+    let material = PsxBlendMaterial::new(image, rect, [size.x, size.y], sprite.alpha)?;
+    let material = world
+        .get_resource_mut::<Assets<PsxBlendMaterial>>()?
+        .add(material);
+    let mesh = world
+        .get_resource_mut::<Assets<Mesh>>()?
+        .add(Rectangle::new(
+            sprite.pixel_size[0] as f32,
+            sprite.pixel_size[1] as f32,
+        ));
+    Some(
+        world
+            .spawn((
+                Mesh2d(mesh),
+                MeshMaterial2d(material),
+                Transform::from_translation(base.translation),
+                base.visibility(),
+                base,
+                identity,
+            ))
+            .id(),
+    )
+}
+
 /// Spawns the background sprites and a 2D camera at the start of the field
 /// camera's scroll range; returns every entity spawned.
 pub fn spawn_field_scene(
@@ -396,6 +621,28 @@ pub fn spawn_field_scene(
     let mut entities = Vec::with_capacity(sprites.len() + 1);
     for sprite in sprites {
         let image = assets.images[&sprite.atlas].clone();
+        let translation = Vec3::new(
+            sprite.pixel_offset[0] as f32 + sprite.pixel_size[0] as f32 / 2.0,
+            -(sprite.pixel_offset[1] as f32 + sprite.pixel_size[1] as f32 / 2.0),
+            crate::projection::layer_z(sprite.depth as f32),
+        );
+        let identity = FieldSpriteIdentity {
+            overlay: sprite.overlay_index,
+            sprite: sprite.sprite_index,
+        };
+        let base = FieldSpriteBase {
+            translation,
+            active: sprite.active,
+        };
+        // Blend modes 1-3 (add, subtract, add) go through their own
+        // blend state; without the plugin they are left out rather than
+        // drawn opaque over the scene.
+        if sprite.transparency != 0 && sprite.alpha != 0 {
+            if let Some(entity) = spawn_blended(world, sprite, image, base, identity) {
+                entities.push(entity);
+            }
+            continue;
+        }
         entities.push(
             world
                 .spawn((
@@ -420,15 +667,10 @@ pub fn spawn_field_scene(
                         )),
                         ..Sprite::default()
                     },
-                    Transform::from_xyz(
-                        sprite.pixel_offset[0] as f32 + sprite.pixel_size[0] as f32 / 2.0,
-                        -(sprite.pixel_offset[1] as f32 + sprite.pixel_size[1] as f32 / 2.0),
-                        crate::projection::layer_z(sprite.depth as f32),
-                    ),
-                    FieldSpriteIdentity {
-                        overlay: sprite.overlay_index,
-                        sprite: sprite.sprite_index,
-                    },
+                    Transform::from_translation(translation),
+                    base.visibility(),
+                    base,
+                    identity,
                 ))
                 .id(),
         );

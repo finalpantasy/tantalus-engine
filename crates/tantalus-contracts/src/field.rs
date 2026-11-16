@@ -67,4 +67,8 @@ pub struct FieldSceneDescription {
     pub actor_anchor: Point3,
     pub navigation: FieldNavigationMesh,
     pub overlays: Vec<FieldOverlayPresentation>,
+    /// `BGSCENE_DEF.curX`/`curY`, which `BgAttachService` subtracts when a
+    /// tile block follows the player.
+    #[serde(default)]
+    pub scene_offset: [i16; 2],
 }

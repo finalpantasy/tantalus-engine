@@ -119,7 +119,8 @@ fn capture_with(
         .add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_secs_f64(
             1.0 / 60.0,
         )))
-        .add_plugins(ImageCopyPlugin);
+        .add_plugins(ImageCopyPlugin)
+        .add_plugins(crate::psx_blend::PsxBlendPlugin);
 
     let mut adapter = ClientSceneAdapter::with_app(app);
     let target = adapter

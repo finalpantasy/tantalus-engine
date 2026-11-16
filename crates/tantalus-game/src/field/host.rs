@@ -120,6 +120,34 @@ impl FieldHost<'_> {
     /// Keeps the model, animation and visibility state the renderer needs.
     /// Events for an actor that does not exist are ignored here; the
     /// handlers below report them where the reference does.
+    /// Keeps the background tile-block changes the renderer needs.
+    fn record_overlay(&mut self, event: &HostEvent) {
+        let (block, change): (i32, &dyn Fn(&mut super::world::OverlayChange)) = match event {
+            HostEvent::SetTileBlockActive { block, active } => {
+                (*block, &|overlay| overlay.active = Some(*active))
+            }
+            HostEvent::SetTileOrigin { block, x, y } => {
+                (*block, &|overlay| overlay.origin = Some([*x, *y]))
+            }
+            HostEvent::AttachTile {
+                overlay,
+                x,
+                y,
+                filter_mode,
+                color,
+            } => (*overlay, &|tile| {
+                tile.attached = Some([*x, *y]);
+                if *filter_mode >= 0 {
+                    tile.border = Some(*color);
+                }
+            }),
+            _ => return,
+        };
+        if let Ok(block) = u16::try_from(block) {
+            change(self.world.overlays.entry(block).or_default());
+        }
+    }
+
     fn record_look(&mut self, event: &HostEvent) {
         // `PUSHHIDE` (0xD5) saves every object's flags and clears "show
         // model" (bit 1) unless "don't hide all" (32) is set; `POPSHOW`
@@ -206,6 +234,7 @@ impl LegacyEventHost for FieldHost<'_> {
                 _ => {}
             }
             self.record_look(event);
+            self.record_overlay(event);
             match event {
                 HostEvent::ShowWindow { window, text, .. } => {
                     self.world.windows.insert(*window, true);
@@ -1067,5 +1096,45 @@ mod tests {
         .unwrap();
         assert_eq!(world.actors[&shown].flags & 1, 1);
         assert_eq!(world.actors[&shown].look.hidden_meshes, 0);
+    }
+
+    #[test]
+    fn tile_block_events_are_kept_for_the_renderer_until_the_field_ends() {
+        let mut world = FieldWorld::new();
+        let mut host = FieldHost::new(&mut world);
+        host.apply(&[
+            HostEvent::SetTileBlockActive {
+                block: 16,
+                active: false,
+            },
+            HostEvent::AttachTile {
+                overlay: 17,
+                x: 240,
+                y: 136,
+                filter_mode: 0,
+                color: [0, 0, 0],
+            },
+            HostEvent::SetTileOrigin {
+                block: 3,
+                x: -8,
+                y: 4,
+            },
+            HostEvent::AttachTile {
+                overlay: 5,
+                x: 1,
+                y: 2,
+                filter_mode: -1,
+                color: [9, 9, 9],
+            },
+        ])
+        .unwrap();
+        assert_eq!(world.overlays[&16].active, Some(false));
+        assert_eq!(world.overlays[&17].attached, Some([240, 136]));
+        assert_eq!(world.overlays[&17].border, Some([0, 0, 0]));
+        assert_eq!(world.overlays[&3].origin, Some([-8, 4]));
+        // Filter mode -1: no border.
+        assert_eq!(world.overlays[&5].border, None);
+        world.begin_field();
+        assert!(world.overlays.is_empty());
     }
 }

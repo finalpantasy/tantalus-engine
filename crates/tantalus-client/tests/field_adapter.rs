@@ -57,6 +57,7 @@ fn field(atlas: &ContentId) -> FieldSceneDescription {
                 sprite(0, 2, atlas, 0, false),
             ],
         }],
+        scene_offset: [0; 2],
     }
 }
 
@@ -83,11 +84,13 @@ fn field_adapter_spawns_active_textured_sprites_in_depth_order() {
     let mut sprites = adapter
         .app_mut()
         .world_mut()
-        .query::<(&FieldSpriteIdentity, &Sprite, &Transform)>()
+        .query::<(&FieldSpriteIdentity, &Sprite, &Transform, &Visibility)>()
         .iter(adapter.app().world())
+        .filter(|(.., visibility)| **visibility != Visibility::Hidden)
         .collect::<Vec<_>>();
     // Farther sprites (larger depth) get lower z and draw first.
     sprites.sort_by(|a, b| a.2.translation.z.total_cmp(&b.2.translation.z));
+    // The inactive sprite is spawned hidden, for `BGLACTIVE` to show.
     assert_eq!(sprites.len(), 2);
     assert_eq!(sprites[0].0.sprite, 0);
     assert_eq!(sprites[1].0.sprite, 1);
@@ -122,8 +125,9 @@ fn missing_atlas_does_not_clear_the_previous_field() {
         adapter
             .app_mut()
             .world_mut()
-            .query::<&FieldSpriteIdentity>()
+            .query::<(&FieldSpriteIdentity, &Visibility)>()
             .iter(adapter.app().world())
+            .filter(|(_, visibility)| **visibility != Visibility::Hidden)
             .count(),
         2
     );
@@ -170,9 +174,45 @@ fn inactive_cameras_do_not_contribute_field_sprites() {
         adapter
             .app_mut()
             .world_mut()
-            .query::<&FieldSpriteIdentity>()
+            .query::<(&FieldSpriteIdentity, &Visibility)>()
             .iter(adapter.app().world())
+            .filter(|(_, visibility)| **visibility != Visibility::Hidden)
             .count(),
         2
     );
+}
+
+#[test]
+fn an_attached_tile_block_follows_the_player_aim_point() {
+    use tantalus_game::field::world::OverlayChange;
+    let atlas = ContentId::parse("fixture:texture/atlas").unwrap();
+    let mut scene = field(&atlas);
+    scene.camera.rotation = [4096, 0, 0, 0, 4096, 0, 0, 0, 4096];
+    scene.camera.translation = Point3 {
+        x: 0,
+        y: 0,
+        z: 1000,
+    };
+    scene.camera.projection = 1000;
+    scene.camera.viewport_x = [160, 320];
+    scene.camera.viewport_y = [112, 208];
+    let changes = [(
+        0u16,
+        OverlayChange {
+            attached: Some([240, 136]),
+            ..OverlayChange::default()
+        },
+    )]
+    .into();
+    // Aimed 324 above [10, -324, 0], the player projects to (10, 0).
+    let placements = tantalus_client::scene_adapter::overlay_placements(
+        &scene,
+        &changes,
+        Some([10.0, -324.0, 0.0]),
+    );
+    // `BgAttachService`: 10 - 0 - 240 + 160 and -0 - 0 - 136 + 112.
+    assert_eq!(placements[&0], (None, [-70.0, -24.0]));
+    // With no player the block stays put.
+    let still = tantalus_client::scene_adapter::overlay_placements(&scene, &changes, None);
+    assert_eq!(still[&0], (None, [0.0, 0.0]));
 }

@@ -204,6 +204,22 @@ pub fn default_item_id_map(legacy_ids: impl IntoIterator<Item = i32>) -> ItemIdM
     })
 }
 
+/// What the scripts did to one background tile block (`BGOVERLAY_DEF`);
+/// `None` keeps the imported value.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OverlayChange {
+    /// `BGLACTIVE` (`EBG_overlaySetActive`).
+    pub active: Option<bool>,
+    /// `BGLORIGIN` (`EBG_overlaySetOrigin`): the block's position.
+    pub origin: Option<[i16; 2]>,
+    /// `BGLATTACH` (`EBG_charAttachOverlay`): the block follows the
+    /// player, offset by these pixels (`BgAttachService`).
+    pub attached: Option<[i16; 2]>,
+    /// The `BGLATTACH` filter color when its mode is 0 or more: the block
+    /// gets an opaque frame of it (`FieldMap.CreateBorder`).
+    pub border: Option<[u8; 3]>,
+}
+
 /// Computes a character's stats for a total experience amount; the
 /// provider owns the level tables. Runtime-only.
 pub type LevelGrowth = std::sync::Arc<dyn Fn(i32, u64) -> Option<CharacterStats> + Send + Sync>;
@@ -342,6 +358,10 @@ pub struct FieldWorld {
     /// (`QuadMistDatabase.MiniGame_SetCard`).
     #[serde(default)]
     pub cards: Vec<u32>,
+    /// Background tile blocks the scripts changed on this field, by
+    /// overlay index; the renderer applies them over the imported scene.
+    #[serde(default)]
+    pub overlays: BTreeMap<u16, OverlayChange>,
     /// Experience-to-stats provider (runtime-only).
     #[serde(skip)]
     pub level_growth: Option<LevelGrowth>,
@@ -411,6 +431,7 @@ impl PartialEq for FieldWorld {
             && self.ability_pa == other.ability_pa
             && self.learned_abilities == other.learned_abilities
             && self.equipment == other.equipment
+            && self.overlays == other.overlays
     }
 }
 
@@ -480,6 +501,7 @@ impl FieldWorld {
             learned_abilities: BTreeMap::new(),
             equipment: BTreeMap::new(),
             cards: Vec::new(),
+            overlays: BTreeMap::new(),
             level_growth: None,
         }
     }
@@ -518,6 +540,7 @@ impl FieldWorld {
         self.object_members.clear();
         self.deleted_objects.clear();
         self.actors.clear();
+        self.overlays.clear();
         self.control_actor = None;
         self.exit_arrivals.clear();
         self.control_twist = 0.0;

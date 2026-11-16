@@ -119,6 +119,16 @@ pub fn world_frame(world: &FieldWorld, tick: u64) -> (TrackFrame, BTreeSet<u64>)
 
 /// Moves the 2D camera to follow the player (the frame's controlled
 /// actor), kept inside the field camera's scroll range.
+/// The player's position in `frame`, if it has one.
+pub fn player_position(frame: &TrackFrame) -> Option<[f32; 3]> {
+    let player = frame.player?;
+    frame
+        .actors
+        .iter()
+        .find(|(id, _)| *id == player)
+        .map(|(_, position)| *position)
+}
+
 pub fn follow_player(world: &mut World, camera: &LegacyFieldCamera, frame: &TrackFrame) {
     let target = frame
         .player
@@ -162,7 +172,7 @@ struct Live {
     game: std::sync::Mutex<PlayGame>,
     streaming_assets: std::path::PathBuf,
     background: Option<String>,
-    camera: Option<LegacyFieldCamera>,
+    field: Option<tantalus_contracts::FieldSceneDescription>,
     scene: Vec<Entity>,
     elapsed: f64,
     models: crate::actor_models::ActorModels,
@@ -193,11 +203,12 @@ pub fn play(
                     ..default()
                 }),
         )
+        .add_plugins(crate::psx_blend::PsxBlendPlugin)
         .insert_resource(Live {
             game: std::sync::Mutex::new(game),
             streaming_assets,
             background: None,
-            camera: None,
+            field: None,
             scene: Vec::new(),
             elapsed: 0.0,
             models,
@@ -263,7 +274,7 @@ fn live_tick(world: &mut World) {
     let background = game.background().map(str::to_owned);
     if background != live.background {
         live.background = background.clone();
-        live.camera = None;
+        live.field = None;
         if let Some(name) = &background {
             match find_field(&live.streaming_assets, name) {
                 Ok(field) => {
@@ -272,19 +283,25 @@ fn live_tick(world: &mut World) {
                         println!("!! cannot show {name}: {error}");
                     }
                     live.scene = scene;
-                    live.camera = Some(field.scene.camera.clone());
+                    live.field = Some(field.scene.clone());
                 }
                 Err(error) => println!("!! no background {name}: {error}"),
             }
         }
     }
-    if let Some(camera) = &live.camera {
+    if let Some(scene) = &live.field {
         let (frame, placed) = world_frame(game.world(), game.ticks);
         for problem in live.models.prepare(frame.poses.values()) {
             println!("!! actor models: {problem}");
         }
-        spawn_frame_markers(world, camera, &frame, &placed, Some(&live.models));
-        follow_player(world, camera, &frame);
+        spawn_frame_markers(world, &scene.camera, &frame, &placed, Some(&live.models));
+        crate::scene_adapter::apply_overlay_changes(
+            world,
+            scene,
+            &game.world().overlays,
+            player_position(&frame),
+        );
+        follow_player(world, &scene.camera, &frame);
     }
     let mut title = format!(
         "Tantalus Engine: {} ({})",

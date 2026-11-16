@@ -7,6 +7,7 @@ pub mod field_assets;
 pub mod legacy_compositor;
 pub mod live;
 pub mod projection;
+pub mod psx_blend;
 pub mod scene_adapter;
 pub mod track;
 pub mod window;

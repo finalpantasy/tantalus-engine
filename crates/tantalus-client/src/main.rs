@@ -528,6 +528,12 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                 &placed,
                 Some(&models),
             );
+            tantalus_client::scene_adapter::apply_overlay_changes(
+                world,
+                &field.scene,
+                &game.world().overlays,
+                tantalus_client::live::player_position(&frame),
+            );
             tantalus_client::live::follow_player(world, &field.scene.camera, &frame);
         },
     )

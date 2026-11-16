@@ -167,6 +167,7 @@ impl FieldMapper {
             },
             navigation: map_navigation(navigation)?,
             overlays,
+            scene_offset: scene.current,
         })
     }
 }
