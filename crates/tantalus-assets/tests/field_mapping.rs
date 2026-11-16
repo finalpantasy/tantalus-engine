@@ -127,12 +127,13 @@ fn field_mapping_preserves_atlas_offsets_depth_camera_and_navigation_anchor() {
     let sprite = &mapped.overlays[0].sprites[0];
     assert_eq!(sprite.atlas_rect, [40, 50, 56, 58]);
     assert_eq!(sprite.pixel_offset, [-137, -80]);
-    assert_eq!(sprite.depth, 23);
+    // scene 0 + overlay 4 + sprite 7; the depth shift does not apply.
+    assert_eq!(sprite.depth, 11);
     assert!(sprite.active && sprite.screen_anchored);
 }
 
 #[test]
-fn invalid_camera_and_depth_overflow_are_rejected() {
+fn invalid_camera_and_negative_depth_are_rejected() {
     assert!(
         FieldMapper::map(
             &scene(0),
@@ -142,9 +143,11 @@ fn invalid_camera_and_depth_overflow_are_rejected() {
         )
         .is_err()
     );
+    let mut behind = scene(2);
+    behind.current_z = -100;
     assert!(
         FieldMapper::map(
-            &scene(32),
+            &behind,
             &navigation(),
             ContentId::parse("fixture:texture/atlas").unwrap(),
             0

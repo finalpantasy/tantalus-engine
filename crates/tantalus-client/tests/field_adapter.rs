@@ -86,17 +86,18 @@ fn field_adapter_spawns_active_textured_sprites_in_depth_order() {
         .query::<(&FieldSpriteIdentity, &Sprite, &Transform)>()
         .iter(adapter.app().world())
         .collect::<Vec<_>>();
-    sprites.sort_by_key(|(_, _, transform)| transform.translation.z as i32);
+    // Farther sprites (larger depth) get lower z and draw first.
+    sprites.sort_by(|a, b| a.2.translation.z.total_cmp(&b.2.translation.z));
     assert_eq!(sprites.len(), 2);
-    assert_eq!(sprites[0].0.sprite, 1);
-    assert_eq!(sprites[1].0.sprite, 0);
+    assert_eq!(sprites[0].0.sprite, 0);
+    assert_eq!(sprites[1].0.sprite, 1);
     assert_eq!(
-        sprites[0].1.rect.unwrap(),
+        sprites[1].1.rect.unwrap(),
         Rect::new(10.0, 20.0, 26.0, 28.0)
     );
-    assert_eq!(sprites[0].1.custom_size, Some(Vec2::new(16.0, 8.0)));
-    assert_eq!(sprites[0].2.translation.x, 108.0);
-    assert_eq!(sprites[0].2.translation.y, -54.0);
+    assert_eq!(sprites[1].1.custom_size, Some(Vec2::new(16.0, 8.0)));
+    assert_eq!(sprites[1].2.translation.x, 108.0);
+    assert_eq!(sprites[1].2.translation.y, -54.0);
 
     let mut cameras = adapter
         .app_mut()

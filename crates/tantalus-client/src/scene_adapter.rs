@@ -361,12 +361,26 @@ pub fn field_sprites<'a>(
                     sprite.atlas
                 )));
             }
-            if sprite.active && overlay.camera_index == scene.camera_index as u8 {
+            // PSX blend modes 1-3 (B+F, B-F, B+F/4; the `abr_1`..`abr_3`
+            // shaders) need a custom blend state; they are left out
+            // rather than drawn opaque over the scene.
+            let unsupported_blend = sprite.transparency != 0 && sprite.alpha != 0;
+            if sprite.active
+                && !unsupported_blend
+                && overlay.camera_index == scene.camera_index as u8
+            {
                 sprites.push(sprite);
             }
         }
     }
-    sprites.sort_by_key(|sprite| (sprite.depth, sprite.overlay_index, sprite.sprite_index));
+    // Farthest first, as `field_composition` composes them.
+    sprites.sort_by_key(|sprite| {
+        (
+            std::cmp::Reverse(sprite.depth),
+            sprite.overlay_index,
+            sprite.sprite_index,
+        )
+    });
     Ok(sprites)
 }
 
@@ -387,6 +401,13 @@ pub fn spawn_field_scene(
                 .spawn((
                     Sprite {
                         image,
+                        // Blend mode 0 (`abr_0`) is half background, half
+                        // sprite.
+                        color: if sprite.transparency != 0 {
+                            Color::srgba(1.0, 1.0, 1.0, 0.5)
+                        } else {
+                            Color::WHITE
+                        },
                         rect: Some(Rect::new(
                             sprite.atlas_rect[0] as f32,
                             sprite.atlas_rect[1] as f32,
@@ -402,7 +423,7 @@ pub fn spawn_field_scene(
                     Transform::from_xyz(
                         sprite.pixel_offset[0] as f32 + sprite.pixel_size[0] as f32 / 2.0,
                         -(sprite.pixel_offset[1] as f32 + sprite.pixel_size[1] as f32 / 2.0),
-                        to_units(sprite.depth as i32),
+                        crate::projection::layer_z(sprite.depth as f32),
                     ),
                     FieldSpriteIdentity {
                         overlay: sprite.overlay_index,

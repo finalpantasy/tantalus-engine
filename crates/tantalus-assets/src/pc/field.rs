@@ -100,10 +100,16 @@ impl FieldMapper {
                     ],
                 };
                 sprite_ordinal += 1;
-                let depth = (overlay.current_z as u32)
-                    .checked_shl(scene.depth_bit_shift as u32)
-                    .and_then(|depth| depth.checked_add(sprite.depth as u32))
-                    .ok_or_else(|| ImportError::invalid("field-mapper", "sprite depth overflow"))?;
+                // `BGSCENE_DEF.CreateScene_*`: a sprite sits at depth
+                // `scene.curZ + overlay.curZ + sprite.depth`, the scale
+                // `FieldMapActor` compares characters against
+                // (`depthBitShift` is read but never used).
+                let depth = u32::try_from(
+                    i32::from(scene.current_z)
+                        + i32::from(overlay.current_z)
+                        + i32::from(sprite.depth),
+                )
+                .map_err(|_| ImportError::invalid("field-mapper", "negative sprite depth"))?;
                 sprites.push(FieldSpritePresentation {
                     overlay_index: overlay_index as u32,
                     sprite_index: sprite_index as u32,

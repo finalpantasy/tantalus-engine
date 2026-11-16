@@ -153,8 +153,17 @@ pub fn spawn_frame_markers(
                 bevy::asset::RenderAssetUsages::default(),
             );
             let handle = world.resource_mut::<Assets<Image>>().add(image);
-            // Nearer actors draw over farther ones, all above the background.
-            let z = 460.0 + 10.0 / (1.0 + raster.depth.max(0.0) / 1024.0);
+            // One depth per character, from its root position, on the
+            // background's depth scale; ties between characters go to
+            // the nearer raster. `FieldMapActor` turns the character off
+            // outside depths 100..=3996.
+            let Some(depth) = crate::projection::actor_depth(camera, *position) else {
+                continue;
+            };
+            if !(100.0..=3996.0).contains(&depth) {
+                continue;
+            }
+            let z = crate::projection::layer_z(depth) + 0.01 / (1.0 + raster.depth.max(0.0));
             world.spawn((
                 Sprite {
                     image: handle,

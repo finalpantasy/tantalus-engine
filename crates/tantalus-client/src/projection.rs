@@ -49,6 +49,21 @@ pub fn project_field_point_depth(
     ))
 }
 
+/// Bevy z for a field depth (`BGSCENE_DEF` sprite depth or
+/// [`actor_depth`]): larger depths are farther, so they get lower z and
+/// draw first. Depths run 0 to about 8,000; the result stays in 100..=420.
+pub fn layer_z(depth: f32) -> f32 {
+    420.0 - depth.clamp(0.0, 8000.0) * 0.04
+}
+
+/// A character's depth on the background's scale (`FieldMapActor`:
+/// `psxZ / 4 + charOTOffset`, with `charOTOffset` the camera's
+/// `depthOffset`), or `None` when its position is on the camera plane.
+pub fn actor_depth(camera: &LegacyFieldCamera, position: [f32; 3]) -> Option<f32> {
+    let (_, view_depth) = project_field_point_depth(camera, position)?;
+    Some((view_depth / 4.0).trunc() + camera.depth_offset as f32)
+}
+
 /// Half the PSX field frame (`FieldMap.HalfFieldWidth`/`HalfFieldHeight`).
 pub const HALF_FIELD: [f32; 2] = [160.0, 112.0];
 
@@ -185,5 +200,24 @@ mod tests {
             "{near:?}"
         );
         assert!(near[1] < far[1]);
+    }
+
+    #[test]
+    fn nearer_depths_draw_on_top_and_actors_share_the_background_scale() {
+        assert!(layer_z(100.0) > layer_z(900.0));
+        assert_eq!(layer_z(-5.0), layer_z(0.0));
+        let camera = LegacyFieldCamera {
+            depth_offset: 40,
+            ..camera()
+        };
+        let point = [0.0, 0.0, 0.0];
+        let (_, view) = project_field_point_depth(&camera, point).unwrap();
+        assert_eq!(
+            actor_depth(&camera, point),
+            Some((view / 4.0).trunc() + 40.0)
+        );
+        // This camera sits at view z -1876 from the origin; moving the point
+        // to -z takes it farther away.
+        assert!(actor_depth(&camera, [0.0, 0.0, -2000.0]) > actor_depth(&camera, point));
     }
 }
