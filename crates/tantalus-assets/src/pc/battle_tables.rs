@@ -36,6 +36,10 @@ use serde::{Deserialize, Serialize};
 
 use super::managed_il::{Assembly, Tree};
 
+mod player;
+mod player_known;
+pub use player::*;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableError {
     pub table: String,
@@ -243,6 +247,10 @@ pub struct BattleTables {
     pub level_base: Vec<LevelBaseRow>,
     pub level_hp_mp: Vec<LevelHpMpRow>,
     pub level_exp: Vec<u64>,
+    /// Party, equipment, command menus, names and text bindings (method-body
+    /// literals, see `player`).
+    #[serde(default)]
+    pub player: PlayerTables,
 }
 
 // ---------------------------------------------------------------------------
@@ -763,6 +771,7 @@ pub fn extract_battle_tables(assembly: &Assembly<'_>) -> Result<BattleTables> {
         level_base: parse_level_base(field(&level, "ff9level", "_FF9Level_Base")?)?,
         level_hp_mp: parse_level_hp_mp(field(&level, "ff9level", "_FF9Level_HpMp")?)?,
         level_exp: parse_level_exp(field(&level, "ff9level", "_FF9Level_Exp")?)?,
+        player: extract_player_tables(assembly)?,
     })
 }
 
@@ -783,6 +792,7 @@ pub struct KnownRowCheck {
 pub fn verify_known_rows(tables: &BattleTables) -> Vec<KnownRowCheck> {
     let mut checks = Vec::new();
     known_rows::run(tables, &mut checks);
+    player_known::run(tables, &mut checks);
     checks
 }
 
@@ -909,6 +919,60 @@ pub fn summarize(
             &tables.level_exp,
             &[0, 1, 98],
         ),
+        entry(
+            "command_menus",
+            "rdata._FF9BMenu_MenuNormal [20,2] and _FF9BMenu_MenuTrance [20,3] (rank-2 arrays)",
+            &tables.player.command_menus,
+            &[0, 1, 8, 19],
+        ),
+        entry(
+            "command_slots",
+            "BattleHUD.GetCommandFromCommandIndex (integer control flow)",
+            &tables.player.command_slots,
+            &[0, 1, 2, 3, 4, 5],
+        ),
+        entry(
+            "player_slots",
+            "ff9play.FF9Play_New PLAYER_INFO[9] literal plus GetCharID, GetCategory, GetCharID3",
+            &tables.player.player_slots,
+            &[0, 4, 5, 8],
+        ),
+        entry(
+            "default_equipment",
+            "ff9play.FF9Play_SetDefEquips byte[16][5] literal",
+            &tables.player.default_equipment,
+            &[0, 1, 11, 15],
+        ),
+        entry(
+            "initial_items",
+            "ff9item.FF9Item_Init FF9ITEM[] literal",
+            &tables.player.initial_items,
+            &[0, 1, 6, 7],
+        ),
+        entry(
+            "default_names",
+            "FF9TextTool.CharacterDefaultName string[20] per language",
+            &tables.player.default_names,
+            &[0, 2],
+        ),
+        entry(
+            "text_bindings",
+            "FF9TextTool accessors and Initialize*Text iterators",
+            &tables.player.text_bindings,
+            &[0, 1, 6, 10],
+        ),
+        serde_json::json!({
+            "name": "new_game",
+            "source": "ff9play.FF9Play_Init run with integer loop counters",
+            "count": 1,
+            "value": &tables.player.new_game,
+            "equipment_set_by_slot": &tables.player.equipment_set_by_slot,
+            "menu_type_char_ids": &tables.player.menu_type_char_ids,
+            "categories": &tables.player.categories,
+            "ff9play_constants": &tables.player.ff9play_constants,
+            "player_constants": &tables.player.player_constants,
+            "text_root": &tables.player.text_root,
+        }),
         serde_json::json!({
             "name": "learnable_abilities",
             "source": "ff9abil._FF9Abil_PaData (PA_DATA[][])",
@@ -921,7 +985,7 @@ pub fn summarize(
         "schema": "tantalus.battle-tables.v1",
         "assembly": "x64/FF9_Data/Managed/Assembly-CSharp.dll",
         "assembly_sha256": assembly_sha256,
-        "method": "static constructors evaluated as constant-only IL (managed_il); no game code run",
+        "method": "static constructors evaluated as constant-only IL, plus method-body literals and integer control flow (managed_il::run_method); no game code run",
         "tables": tables_json,
         "known_row_checks": {
             "total": checks.len(),
@@ -934,13 +998,15 @@ pub fn summarize(
 
 /// Items this reader cannot or does not extract, with the reason.
 pub const UNRESOLVED: &[&str] = &[
-    "rdata._FF9BMenu_MenuNormal and _FF9BMenu_MenuTrance: multi-dimensional arrays (command_tags[20,2], byte[20,3]); the evaluator does not model rank-2 arrays, so the per-character command menu layout is not read.",
-    "ff9play.FF9Play_New PLAYER_INFO[9] and ff9play.FF9Play_SetDefEquips byte[16][5]: arrays built inside method bodies, not static initializers; not evaluated. Starting party, starting equipment and default-equipment rows remain unread.",
+    "ff9play.FF9Play_GetSerialID: the model/serial number a player ends up with depends on the equipped weapon shape and event state (gEventGlobal); not evaluated. `serial_no` in player_slots is the literal's constructor argument, which FF9Play_New overwrites.",
+    "ff9play.FF9Play_Build and FF9Play_Update (level 1 stats, HP/MP, equipment sums) are not evaluated; the typed level tables feed them.",
+    "BattleHUD.GetCommandFromCommandIndex indexes 2 and 3 branch on Status.checkCurStat (trance); the source shows MenuNormal/MenuTrance columns 0 and 1, but the evaluator stops at the branch, so those two slots are recorded as stopped.",
+    "MenuTrance column 2 (`trance_third`): read raw; BattleHUD.SetAbilityTrance compares it with 1 and subtracts 1, its meaning is not stated by the source.",
     "Enemy stat and attack tables are not in the assembly; they are per-scene battle data (see battle_scene.rs).",
-    "Item, ability, command and status display names and help text: the tables hold text ids only; text lives in the localized message resources.",
+    "Display names: the `name` and `help` fields of FF9ITEM_DATA, FF9COMMAND and SA_DATA are read only by their own constructors (no other method touches them), and AA_DATA.Name is never stored by the table constructor; the shown text comes from FF9TextTool arrays indexed by the table row index (see text_bindings). Sampled callers (ItemName, ActionAbilityName) pass ids, not those fields; all callers were not enumerated. Whether each `.mes` entry position equals the row index in the install's text files was not checked here.",
     "Base stats per character: _FF9Level_Base is indexed by the equipment/character id (0..11); Memoria's BaseStats.csv names rows by character but the installed table carries no names.",
     "ITEM_DATA (item_use) holds the battle-use effect for items 224..255 (FF9ITEM_INFO_START); the mapping from FF9ITEM_DATA.bonus/ability fields to Memoria's ItemEffects.csv is not decoded here.",
-    "AA_DATA.Name: the constructor takes a name id but the installed constructor body does not store it; kept as `name_arg` only.",
+    "AA_DATA.Name: the constructor takes a name id but the installed constructor body does not store it; kept as `name_arg` only (the values are legacy text offsets, not entry indexes).",
 ];
 
 #[cfg(test)]

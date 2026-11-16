@@ -3,10 +3,10 @@
   "assembly_sha256": "2fd5a4b7300a2806b875a9913e9001ed970c2ce4e449938a00d142fd1339b8d2",
   "known_row_checks": {
     "failed": [],
-    "passed": 98,
-    "total": 98
+    "passed": 189,
+    "total": 189
   },
-  "method": "static constructors evaluated as constant-only IL (managed_il); no game code run",
+  "method": "static constructors evaluated as constant-only IL, plus method-body literals and integer control flow (managed_il::run_method); no game code run",
   "schema": "tantalus.battle-tables.v1",
   "tables": [
     {
@@ -785,6 +785,553 @@
       "source": "ff9level._FF9Level_Exp (ulong[])"
     },
     {
+      "count": 20,
+      "name": "command_menus",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "menu_type": 0,
+            "normal": [
+              2,
+              25
+            ],
+            "trance": [
+              2,
+              26
+            ],
+            "trance_third": 2
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "menu_type": 1,
+            "normal": [
+              22,
+              13
+            ],
+            "trance": [
+              23,
+              13
+            ],
+            "trance_third": 1
+          }
+        },
+        {
+          "index": 8,
+          "row": {
+            "menu_type": 8,
+            "normal": [
+              2,
+              0
+            ],
+            "trance": [
+              2,
+              0
+            ],
+            "trance_third": 255
+          }
+        },
+        {
+          "index": 19,
+          "row": {
+            "menu_type": 19,
+            "normal": [
+              42,
+              0
+            ],
+            "trance": [
+              42,
+              0
+            ],
+            "trance_third": 255
+          }
+        }
+      ],
+      "source": "rdata._FF9BMenu_MenuNormal [20,2] and _FF9BMenu_MenuTrance [20,3] (rank-2 arrays)"
+    },
+    {
+      "count": 6,
+      "name": "command_slots",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "command": 1,
+            "index": 0,
+            "stopped": null
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "command": 4,
+            "index": 1,
+            "stopped": null
+          }
+        },
+        {
+          "index": 2,
+          "row": {
+            "command": null,
+            "index": 2,
+            "stopped": "at 0x71: branch on a value that is not constant"
+          }
+        },
+        {
+          "index": 3,
+          "row": {
+            "command": null,
+            "index": 3,
+            "stopped": "at 0x9b: branch on a value that is not constant"
+          }
+        },
+        {
+          "index": 4,
+          "row": {
+            "command": 14,
+            "index": 4,
+            "stopped": null
+          }
+        },
+        {
+          "index": 5,
+          "row": {
+            "command": 7,
+            "index": 5,
+            "stopped": null
+          }
+        }
+      ],
+      "source": "BattleHUD.GetCommandFromCommandIndex (integer control flow)"
+    },
+    {
+      "count": 9,
+      "name": "player_slots",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "category": 9,
+            "char_id": 0,
+            "default_name_en_us": "Zidane",
+            "equipment_set": 0,
+            "menu_type": 0,
+            "party": 0,
+            "row": 1,
+            "serial_no": 1,
+            "slot_no": 0,
+            "win_pose": 1
+          }
+        },
+        {
+          "index": 4,
+          "row": {
+            "category": 6,
+            "char_id": 4,
+            "default_name_en_us": "Freya",
+            "equipment_set": 4,
+            "menu_type": 4,
+            "party": 0,
+            "row": 0,
+            "serial_no": 12,
+            "slot_no": 4,
+            "win_pose": 1
+          }
+        },
+        {
+          "index": 5,
+          "row": {
+            "category": 21,
+            "char_id": 8,
+            "default_name_en_us": "Cinna",
+            "equipment_set": 8,
+            "menu_type": 8,
+            "party": 0,
+            "row": 1,
+            "serial_no": 14,
+            "slot_no": 5,
+            "win_pose": 1
+          }
+        },
+        {
+          "index": 8,
+          "row": {
+            "category": 22,
+            "char_id": 11,
+            "default_name_en_us": "Beatrix",
+            "equipment_set": 11,
+            "menu_type": 14,
+            "party": 0,
+            "row": 1,
+            "serial_no": 18,
+            "slot_no": 8,
+            "win_pose": 1
+          }
+        }
+      ],
+      "source": "ff9play.FF9Play_New PLAYER_INFO[9] literal plus GetCharID, GetCategory, GetCharID3"
+    },
+    {
+      "count": 16,
+      "name": "default_equipment",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "accessory": 255,
+            "armor": 149,
+            "head": 112,
+            "id": 0,
+            "weapon": 1,
+            "wrist": 88
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "accessory": 255,
+            "armor": 149,
+            "head": 112,
+            "id": 1,
+            "weapon": 70,
+            "wrist": 255
+          }
+        },
+        {
+          "index": 11,
+          "row": {
+            "accessory": 192,
+            "armor": 179,
+            "head": 138,
+            "id": 11,
+            "weapon": 26,
+            "wrist": 104
+          }
+        },
+        {
+          "index": 15,
+          "row": {
+            "accessory": 255,
+            "armor": 255,
+            "head": 255,
+            "id": 15,
+            "weapon": 255,
+            "wrist": 255
+          }
+        }
+      ],
+      "source": "ff9play.FF9Play_SetDefEquips byte[16][5] literal"
+    },
+    {
+      "count": 8,
+      "name": "initial_items",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "count": 7,
+            "id": 236
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "count": 2,
+            "id": 237
+          }
+        },
+        {
+          "index": 6,
+          "row": {
+            "count": 1,
+            "id": 253
+          }
+        },
+        {
+          "index": 7,
+          "row": {
+            "count": 0,
+            "id": 255
+          }
+        }
+      ],
+      "source": "ff9item.FF9Item_Init FF9ITEM[] literal"
+    },
+    {
+      "count": 7,
+      "name": "default_names",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "index": 0,
+            "language": "English(US)",
+            "names": [
+              "Zidane",
+              "Vivi",
+              "Dagger",
+              "Steiner",
+              "Freya",
+              "Quina",
+              "Eiko",
+              "Amarant",
+              "Cinna",
+              "Cinna",
+              "Marcus",
+              "Marcus",
+              "Blank",
+              "Blank",
+              "Beatrix",
+              "Beatrix",
+              "Zidane",
+              "Cinna",
+              "Marcus",
+              "Blank"
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "row": {
+            "index": 2,
+            "language": "Japanese",
+            "names": [
+              "ジタン",
+              "ビビ",
+              "ダガー",
+              "スタイナー",
+              "フライヤ",
+              "クイナ",
+              "エーコ",
+              "サラマンダー",
+              "シナ",
+              "シナ",
+              "マーカス",
+              "マーカス",
+              "ブランク",
+              "ブランク",
+              "ベアトリクス",
+              "ベアトリクス",
+              "ジタン",
+              "シナ",
+              "マーカス",
+              "ブランク"
+            ]
+          }
+        }
+      ],
+      "source": "FF9TextTool.CharacterDefaultName string[20] per language"
+    },
+    {
+      "count": 12,
+      "name": "text_bindings",
+      "sample_rows": [
+        {
+          "index": 0,
+          "row": {
+            "accessor": "ItemName",
+            "array_field": "itemName",
+            "mes": "/Item/itm_name.mes"
+          }
+        },
+        {
+          "index": 1,
+          "row": {
+            "accessor": "ItemHelpDescription",
+            "array_field": "itemHelpDesc",
+            "mes": "/Item/itm_help.mes"
+          }
+        },
+        {
+          "index": 6,
+          "row": {
+            "accessor": "ActionAbilityName",
+            "array_field": "actionAbilityName",
+            "mes": "/Ability/aa_name.mes"
+          }
+        },
+        {
+          "index": 10,
+          "row": {
+            "accessor": "CommandName",
+            "array_field": "commandName",
+            "mes": "/Command/com_name.mes"
+          }
+        }
+      ],
+      "source": "FF9TextTool accessors and Initialize*Text iterators"
+    },
+    {
+      "categories": [
+        9,
+        5,
+        6,
+        5,
+        6,
+        5,
+        6,
+        5,
+        21,
+        21,
+        21,
+        22
+      ],
+      "count": 1,
+      "equipment_set_by_slot": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          4,
+          4
+        ],
+        [
+          5,
+          8
+        ],
+        [
+          6,
+          9
+        ],
+        [
+          7,
+          10
+        ],
+        [
+          11,
+          11
+        ]
+      ],
+      "ff9play_constants": {
+        "FF9PLAY_DEF_AT": 10,
+        "FF9PLAY_DEF_GIL": 500,
+        "FF9PLAY_DEF_LEVEL": 1,
+        "FF9PLAY_EQUIP_ID_NONE": 255,
+        "FF9PLAY_FLD_STATUS_MAX": 7,
+        "FF9PLAY_HP_MAX": 9999,
+        "FF9PLAY_MP_MAX": 999,
+        "FF9PLAY_NAME_MAX": 10,
+        "FF9PLAY_WEAPON_VAL_MAX": 999
+      },
+      "menu_type_char_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        8,
+        9,
+        9,
+        10,
+        10,
+        11,
+        11,
+        0,
+        8,
+        9,
+        10
+      ],
+      "name": "new_game",
+      "player_constants": {
+        "ADVANCED_GUARD": 1,
+        "BEATRIX": 8,
+        "BLANK": 7,
+        "CINNA": 5,
+        "EIKO": 6,
+        "EQUIP_ACCESSORY": 4,
+        "EQUIP_ARMOR_BODY": 3,
+        "EQUIP_ARMOR_HEAD": 1,
+        "EQUIP_ARMOR_WRIST": 2,
+        "EQUIP_MAX": 5,
+        "EQUIP_WEAPON": 0,
+        "FREIJA": 4,
+        "GARNET": 2,
+        "KUINA": 5,
+        "MARCUS": 6,
+        "PARTY_MAX": 4,
+        "PLAYER_CATEGORY_FEMALE": 2,
+        "PLAYER_CATEGORY_GAIA": 4,
+        "PLAYER_CATEGORY_MALE": 1,
+        "PLAYER_CATEGORY_RESERVE1": 32,
+        "PLAYER_CATEGORY_RESERVE2": 64,
+        "PLAYER_CATEGORY_RESERVE3": 128,
+        "PLAYER_CATEGORY_SUBPC": 16,
+        "PLAYER_CATEGORY_TERRA": 8,
+        "PLAYER_NAME_MAX": 10,
+        "REAR_GUARD": 0,
+        "SALAMANDER": 7,
+        "SLOT_MAX": 9,
+        "STEINER": 3,
+        "TRANCE_MODEL_ID_OFS": 19,
+        "VIVI": 1,
+        "ZIDANE": 0
+      },
+      "source": "ff9play.FF9Play_Init run with integer loop counters",
+      "text_root": "EmbeddedAsset/Text/",
+      "value": {
+        "gil": 500,
+        "party": [
+          {
+            "party_slot": 0,
+            "player_slot": 0
+          },
+          {
+            "party_slot": 1,
+            "player_slot": 1
+          },
+          {
+            "party_slot": 2,
+            "player_slot": 2
+          },
+          {
+            "party_slot": 3,
+            "player_slot": 3
+          }
+        ],
+        "players_added": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          7,
+          6
+        ],
+        "players_built": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "summon_flag": 0
+      }
+    },
+    {
       "count": 16,
       "name": "learnable_abilities",
       "sample_rows": [
@@ -828,12 +1375,14 @@
     }
   ],
   "unresolved": [
-    "rdata._FF9BMenu_MenuNormal and _FF9BMenu_MenuTrance: multi-dimensional arrays (command_tags[20,2], byte[20,3]); the evaluator does not model rank-2 arrays, so the per-character command menu layout is not read.",
-    "ff9play.FF9Play_New PLAYER_INFO[9] and ff9play.FF9Play_SetDefEquips byte[16][5]: arrays built inside method bodies, not static initializers; not evaluated. Starting party, starting equipment and default-equipment rows remain unread.",
+    "ff9play.FF9Play_GetSerialID: the model/serial number a player ends up with depends on the equipped weapon shape and event state (gEventGlobal); not evaluated. `serial_no` in player_slots is the literal's constructor argument, which FF9Play_New overwrites.",
+    "ff9play.FF9Play_Build and FF9Play_Update (level 1 stats, HP/MP, equipment sums) are not evaluated; the typed level tables feed them.",
+    "BattleHUD.GetCommandFromCommandIndex indexes 2 and 3 branch on Status.checkCurStat (trance); the source shows MenuNormal/MenuTrance columns 0 and 1, but the evaluator stops at the branch, so those two slots are recorded as stopped.",
+    "MenuTrance column 2 (`trance_third`): read raw; BattleHUD.SetAbilityTrance compares it with 1 and subtracts 1, its meaning is not stated by the source.",
     "Enemy stat and attack tables are not in the assembly; they are per-scene battle data (see battle_scene.rs).",
-    "Item, ability, command and status display names and help text: the tables hold text ids only; text lives in the localized message resources.",
+    "Display names: the `name` and `help` fields of FF9ITEM_DATA, FF9COMMAND and SA_DATA are read only by their own constructors (no other method touches them), and AA_DATA.Name is never stored by the table constructor; the shown text comes from FF9TextTool arrays indexed by the table row index (see text_bindings). Sampled callers (ItemName, ActionAbilityName) pass ids, not those fields; all callers were not enumerated. Whether each `.mes` entry position equals the row index in the install's text files was not checked here.",
     "Base stats per character: _FF9Level_Base is indexed by the equipment/character id (0..11); Memoria's BaseStats.csv names rows by character but the installed table carries no names.",
     "ITEM_DATA (item_use) holds the battle-use effect for items 224..255 (FF9ITEM_INFO_START); the mapping from FF9ITEM_DATA.bonus/ability fields to Memoria's ItemEffects.csv is not decoded here.",
-    "AA_DATA.Name: the constructor takes a name id but the installed constructor body does not store it; kept as `name_arg` only."
+    "AA_DATA.Name: the constructor takes a name id but the installed constructor body does not store it; kept as `name_arg` only (the values are legacy text offsets, not entry indexes)."
   ]
 }

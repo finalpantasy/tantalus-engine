@@ -346,7 +346,14 @@ fn real_install_matches_known_rows() {
     assert_eq!(tables.actions.len(), 192);
     assert_eq!(tables.items.len(), 256);
     let checks = verify_known_rows(&tables);
-    assert!(checks.len() >= 90);
+    assert!(checks.len() >= 180);
+    let player = &tables.player;
+    assert_eq!(player.command_menus.len(), 20);
+    assert_eq!(player.player_slots.len(), 9);
+    assert_eq!(player.default_equipment.len(), 16);
+    assert_eq!(player.default_names.len(), 7);
+    assert_eq!(player.text_bindings.len(), 12);
+    assert_eq!(player.new_game.party.len(), 4);
     assert!(
         checks.iter().all(|c| c.passed),
         "{:?}",

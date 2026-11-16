@@ -36,6 +36,7 @@ impl Resolver for Fake {
             param_codes: codes.to_vec(),
             has_this: this,
             returns_void: void,
+            array: None,
         };
         Ok(match token {
             CTOR_STAT => info(
