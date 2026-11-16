@@ -174,3 +174,34 @@ fn missing_monster_type_invalidates_the_pattern() {
     assert!(pattern_rewards(&scene, 0).is_none());
     assert!(pattern_bonus(&scene, 0, 0b0001, false).is_none());
 }
+
+#[test]
+fn pattern_machine_units_build_enemy_units_from_monster_types() {
+    use tantalus_tools::battle_scene_rewards::pattern_machine_units;
+
+    let mut scene = scene();
+    // Type 0: guard element 3, category Undead|Beast (2 | 16), resist bit 40.
+    scene.monster_types[0].guard_element = ByteOrTokens::Byte(3);
+    scene.monster_types[0].category = ByteOrTokens::Byte(18);
+    scene.monster_types[0].resist_status = 1 << 40;
+    scene.monster_types[0].stats.spirit = 15;
+    scene.monster_types[0].stats.speed = 12;
+    let units = pattern_machine_units(&scene, 0).unwrap();
+    assert_eq!(units.len(), 2);
+    assert_eq!(units[0].id, 16);
+    assert_eq!(units[1].id, 32);
+    assert_eq!(units[0].max_hp, 1000);
+    assert!(!units[0].is_player);
+    assert_eq!(units[0].will, 15, "spirit feeds the calculator's Will");
+    assert_eq!(units[0].dexterity, 12);
+    assert_eq!(units[0].guard_elements.0, 3);
+    assert!(units[0].is_undead, "category bit 16 is Undead");
+    assert!(!units[0].is_flight);
+    assert_eq!(units[0].status_resist, 1 << 40);
+    // Type 1 (default category byte 0): neither undead nor flight.
+    assert!(!units[1].is_undead && !units[1].is_flight);
+
+    assert!(pattern_machine_units(&scene, 9).is_none());
+    scene.patterns[0].monsters[1].type_no = 7;
+    assert!(pattern_machine_units(&scene, 0).is_none());
+}

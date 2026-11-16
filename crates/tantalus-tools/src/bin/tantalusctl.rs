@@ -2549,7 +2549,7 @@ fn run_battle_scene_report(
                     .enumerate()
                     .map(|(index, pattern)| {
                         use tantalus_tools::battle_scene_rewards::{
-                            pattern_rewards, reward_totals,
+                            pattern_machine_units, pattern_rewards, reward_totals,
                         };
                         let rows = pattern_rewards(scene, index)
                             .unwrap_or_default()
@@ -2569,11 +2569,19 @@ fn run_battle_scene_report(
                             .collect::<Vec<_>>();
                         let (gil, exp) =
                             reward_totals(&pattern_rewards(scene, index).unwrap_or_default());
+                        let units = pattern_machine_units(scene, index).unwrap_or_default();
+                        let zero_will = units.iter().filter(|unit| unit.will == 0).count();
+                        let zero_hp = units.iter().filter(|unit| unit.max_hp == 0).count();
                         serde_json::json!({
                             "pattern": index,
                             "ap": pattern.ap,
                             "enemies": rows,
                             "totals": {"gil": gil, "exp": exp},
+                            "machine_units": {
+                                "count": units.len(),
+                                "zero_will": zero_will,
+                                "zero_hp": zero_hp,
+                            },
                         })
                     })
                     .collect::<Vec<_>>(),
