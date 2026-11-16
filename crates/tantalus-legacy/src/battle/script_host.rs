@@ -145,6 +145,12 @@ pub enum AiEvent {
     },
     /// `BEND`.
     TerminateBattle,
+    /// Member 71 write (`btl_scrp.SetCharacterData` case 71):
+    /// `btl_sys.SetBonus(btl)` pays the unit's gil, EXP and drops, as its
+    /// death would. Scripted bosses that never reach 0 HP pay this way.
+    SetBonus {
+        unit: EntityId,
+    },
     /// A read or write the port does not model; the value read was 0.
     UnmodeledRead {
         what: &'static str,
@@ -463,6 +469,11 @@ impl LegacyEventHost for BattleScriptHost<'_> {
     ) -> Result<(), EngineError> {
         if let Some(unit) = self.state.units.get_mut(&reference.object) {
             set_character_data(unit, reference.member, value);
+            if reference.member == 71 {
+                self.state.events.push(AiEvent::SetBonus {
+                    unit: reference.object,
+                });
+            }
         }
         Ok(())
     }

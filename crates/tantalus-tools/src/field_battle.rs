@@ -7,7 +7,8 @@
 //! units come from base stats and the field HP/MP at level 1; equipment is
 //! each character's default set (`CharacterParameters.csv` ->
 //! `DefaultEquipment.csv`), since the field side does not track equipment
-//! yet, and equipment stat bonuses are not applied. Every party member uses
+//! yet, and equipment stat bonuses are not applied. Victories pay gil, items
+//! and EXP into the field world; AP and cards are reported only. Every party member uses
 //! Attack on the first living enemy, the status table is empty, and the
 //! first pattern is used when the request names no group.
 
@@ -34,7 +35,11 @@ use tantalus_legacy::battle::script_host::{
 use tantalus_legacy::battle::status::DEATH;
 use tantalus_legacy::battle::{BattleUnit, Elements, StatusDataRow, StatusTable, WeaponStats};
 
-use crate::battle_scene_rewards::pattern_machine_units;
+use tantalus_legacy::battle::rewards::{
+    BattleBonus, BattleReward, LevelBonus, PartyMember, PartySnapshot,
+};
+
+use crate::battle_scene_rewards::{pattern_machine_units, pattern_rewards};
 
 /// Ticks a battle may run before the chain gives up on it.
 pub const BATTLE_TICK_LIMIT: u64 = 20_000;
@@ -66,6 +71,13 @@ pub struct FightReport {
     pub phase: Option<String>,
     pub ai_script: bool,
     pub error: Option<String>,
+    /// Victory pay (`BattleResultUI`): gil, EXP per character, AP per
+    /// participating line, item stacks `(id, count)`, card.
+    pub reward_gil: u32,
+    pub reward_exp: Vec<(i32, u32)>,
+    pub reward_ap: u16,
+    pub reward_items: Vec<(u32, u32)>,
+    pub reward_card: Option<u32>,
 }
 
 /// One party member going into battle.
@@ -214,7 +226,8 @@ impl FieldBattles {
         })
     }
 
-    /// Fights `request` with `party`; the field world pays nothing yet.
+    /// Fights `request` with `party`. [`save_party`] and [`pay_rewards`] carry
+    /// the result back to the field.
     pub fn fight(&self, request: &EncounterRequest, party: &[PartyFighter]) -> FightReport {
         let pattern = request.group.and_then(|group| usize::try_from(group).ok());
         let mut report = FightReport {
@@ -235,6 +248,7 @@ impl FieldBattles {
             phase: None,
             ai_script: false,
             error: None,
+            ..FightReport::default()
         };
         if let Err(error) = self.run(request, party, &mut report) {
             report.error = Some(error);
@@ -347,6 +361,14 @@ impl FieldBattles {
         let mut adapter = adapter.with_hooks(hooks);
         let mut world = FieldWorld::new();
         let mut defeated: Vec<EntityId> = Vec::new();
+        // `btl_sys.SetBonus` on each enemy death; `Info.AfterEvent` scenes
+        // pay nothing (`battle.cs:72`).
+        let mut rows = pattern_rewards(scene, pattern).unwrap_or_default();
+        let pattern_ap = scene.patterns.get(pattern).map_or(0, |row| row.ap);
+        let member_flag = (1u8 << party.len().min(4)) - 1;
+        let mut bonus = BattleBonus::new(pattern_ap, member_flag, scene.header.flags & 2048 != 0);
+        let mut draws = SplitMix64Random::new(u64::from(report.battle as u32) ^ 0xD1AA);
+        let mut events_seen = 0usize;
         let mut sent = 0u32;
         for tick in 0..BATTLE_TICK_LIMIT {
             report.ticks = tick + 1;
@@ -406,12 +428,26 @@ impl FieldBattles {
             }
             for event in adapter.take_events() {
                 if let CombatEvent::UnitDefeated { unit, .. } = event
-                    && entities[party.len()..].contains(&unit)
+                    && let Some(enemy) = entities[party.len()..].iter().position(|e| *e == unit)
                     && !defeated.contains(&unit)
                 {
                     defeated.push(unit);
+                    if enemy < rows.len() {
+                        bonus.set_bonus(&mut rows, enemy, &mut draws);
+                    }
                 }
             }
+            // Script-paid bonuses (member 71) for units that never die.
+            let events = &adapter.hooks().driver.state.events;
+            for event in &events[events_seen.min(events.len())..] {
+                if let AiEvent::SetBonus { unit } = event
+                    && let Some(enemy) = entities[party.len()..].iter().position(|e| e == unit)
+                    && enemy < rows.len()
+                {
+                    bonus.set_bonus(&mut rows, enemy, &mut draws);
+                }
+            }
+            events_seen = events.len();
             if let Some(outcome) = adapter.outcome() {
                 report.outcome = Some(outcome_name(outcome).to_owned());
                 break;
@@ -440,6 +476,29 @@ impl FieldBattles {
             .map(|unit| (unit.cur_hp, unit.max_hp))
             .collect();
         report.phase = Some(format!("{:?}/{:?}", machine.phase, machine.menu_off_seq));
+        if report.outcome.as_deref() == Some("victory") {
+            let mut members: [Option<PartyMember>; 4] = Default::default();
+            for (slot, (fighter, unit)) in party.iter().zip(&machine.units).take(4).enumerate() {
+                members[slot] = Some(reward_member(fighter, unit.cur_hp, unit.cur_mp));
+            }
+            let snapshot = PartySnapshot {
+                gil: 0,
+                members,
+                items: Vec::new(),
+                cards: Vec::new(),
+            };
+            let reward = BattleReward::from_bonus(&bonus, &snapshot);
+            report.reward_gil = reward.gil;
+            report.reward_exp = party
+                .iter()
+                .zip(reward.shares)
+                .filter_map(|(fighter, share)| share.exp.map(|exp| (fighter.character, exp)))
+                .collect();
+            // `AfterEvent` scenes show no result screen and pay no AP.
+            report.reward_ap = if bonus.event { 0 } else { bonus.ap };
+            report.reward_items = reward.items;
+            report.reward_card = reward.card;
+        }
         let describe = |id: &usize| {
             let slot = &machine.cmds.slots[*id];
             format!("{}:{}", slot.cmd_no, slot.sub_no)
@@ -523,6 +582,59 @@ pub fn save_party(report: &FightReport, stats: &mut BTreeMap<i32, CharacterStats
     }
 }
 
+/// The `PLAYER` fields `BattleReward::from_bonus` reads: who is enabled
+/// (alive) and still below the EXP cap. The field does not track EXP per
+/// level yet, so every line counts as under the cap.
+fn reward_member(fighter: &PartyFighter, hp: u32, mp: u32) -> PartyMember {
+    let stats = fighter.base;
+    let base = tantalus_legacy::battle::rewards::BaseStats {
+        dex: stats.speed,
+        str_: stats.strength,
+        mgc: stats.magic,
+        wpr: stats.spirit,
+        gems: u8::try_from(stats.gems).unwrap_or(u8::MAX),
+    };
+    let basis = [base.dex, base.str_, base.mgc, base.wpr];
+    PartyMember {
+        in_battle: true,
+        cur_hp: hp,
+        cur_mp: mp,
+        rewards_disabled: false,
+        level: 1,
+        exp: 0,
+        base,
+        bonus: LevelBonus::default(),
+        basis,
+        max_hp: fighter.max_hp,
+        max_mp: fighter.max_mp,
+        max_capa: u32::from(base.gems),
+        cur_capa: u32::from(base.gems),
+        elem: basis,
+        equip_stat_bonus: [0; 4],
+        equipped_abilities: Vec::new(),
+        learnable: Vec::new(),
+        pa: Vec::new(),
+    }
+}
+
+/// `BattleResultUI` pay-out into the field world: gil (`UpdateGil`), item
+/// stacks (`UpdateItem`, legacy ids), and each line's EXP share. AP and
+/// cards are reported but not applied (no ability or card state yet).
+pub fn pay_rewards(report: &FightReport, world: &mut FieldWorld) {
+    if report.outcome.as_deref() != Some("victory") {
+        return;
+    }
+    world.add_gil(report.reward_gil);
+    for &(item, count) in &report.reward_items {
+        if let (Ok(item), Ok(count)) = (i32::try_from(item), i32::try_from(count)) {
+            world.add_item_amount(item, count);
+        }
+    }
+    for &(character, exp) in &report.reward_exp {
+        world.apply_experience(character, u64::from(exp));
+    }
+}
+
 fn outcome_name(outcome: BattleOutcome) -> &'static str {
     match outcome {
         BattleOutcome::Victory => "victory",
@@ -564,6 +676,25 @@ fn party_unit(slot: usize, fighter: &PartyFighter, equipment: &Equipment) -> Bat
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pay_rewards_adds_gil_items_and_exp_on_victory_only() {
+        let mut world = FieldWorld::new();
+        let mut report = FightReport {
+            outcome: Some("defeat".to_owned()),
+            reward_gil: 436,
+            reward_items: vec![(240, 2)],
+            reward_exp: vec![(0, 12)],
+            ..FightReport::default()
+        };
+        pay_rewards(&report, &mut world);
+        assert_eq!(world.gil, 0);
+        report.outcome = Some("victory".to_owned());
+        pay_rewards(&report, &mut world);
+        assert_eq!(world.gil, 436);
+        assert_eq!(world.items.get(&240), Some(&2));
+        assert_eq!(world.character_exp.get(&0), Some(&12));
+    }
 
     #[test]
     fn save_party_copies_battle_hp_and_mp_clamped_to_max() {

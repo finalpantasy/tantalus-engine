@@ -1515,6 +1515,10 @@ fn chain(
                                 &report,
                                 &mut director.world_mut().character_stats,
                             );
+                            tantalus_tools::field_battle::pay_rewards(
+                                &report,
+                                director.world_mut(),
+                            );
                             fights.push(report);
                         }
                     }

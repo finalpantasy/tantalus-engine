@@ -256,3 +256,19 @@ its scripted interruption (result 5). The party ends the run at 97/105,
 Open: `read_character_stat` still reads the record by the script's character
 operand directly; it needs the same old-index mapping once a script reads
 Beatrix, Cinna, Marcus or Blank.
+
+### Rewards
+
+Victories now pay into the field world (`field_battle::pay_rewards`). Each
+enemy death runs `BattleBonus::set_bonus` for that enemy's row
+(`btl_sys.SetBonus`), and so does a script write to character member 71
+(`btl_scrp.SetCharacterData` case 71), which is how bosses that never reach
+0 HP pay. `BattleReward::from_bonus` then gives the gil, the item stacks and
+each line's EXP share. Scenes flagged `AfterEvent` (flag 2048) pay nothing,
+as in `battle.cs:72`.
+
+In chain70 the TH_E001 to TH_E005, EF_E006 and BR_E008 fights pay nothing:
+the party is alive at the end but gets no EXP share, which only an
+`AfterEvent` scene gives. EF_E007, the second Prison Cage fight, pays 436 gil and items 240
+and 244 through member 71. AP and cards are reported but not applied: the
+field world has no ability or card state yet.
