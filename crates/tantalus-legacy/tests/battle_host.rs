@@ -224,7 +224,8 @@ fn object_members_answer_getcharacterdata() {
     let mut units = BTreeMap::new();
     units.insert(EntityId::new(1), unit.clone());
     let data = BattleDataView::default();
-    let mut host = tantalus_legacy::battle::host::BattleScriptHost::with_units(&data, &units);
+    let mut host =
+        tantalus_legacy::battle::host::BattleScriptHost::with_units(&data, units.clone());
     let read = |host: &mut tantalus_legacy::battle::host::BattleScriptHost, member: u8| {
         tantalus_legacy::LegacyEventHost::read_object_member(
             host,
@@ -281,7 +282,7 @@ fn object_members_answer_getcharacterdata() {
     unit.trance_gauge = 50;
     unit.trance = 77;
     units.insert(EntityId::new(1), unit);
-    let mut host = tantalus_legacy::battle::host::BattleScriptHost::with_units(&data, &units);
+    let mut host = tantalus_legacy::battle::host::BattleScriptHost::with_units(&data, units);
     assert_eq!(read(&mut host, 113), 1, "players read Humanoid");
     assert_eq!(read(&mut host, 148), 77);
 
@@ -295,4 +296,179 @@ fn object_members_answer_getcharacterdata() {
     )
     .unwrap();
     assert_eq!(value, 0);
+}
+
+#[test]
+fn object_member_writes_apply_setcharacterdata() {
+    use std::collections::BTreeMap;
+    use tantalus_contracts::EntityId;
+    use tantalus_legacy::battle::host::UnitView;
+
+    let mut units = BTreeMap::new();
+    units.insert(
+        EntityId::new(1),
+        UnitView {
+            is_player: true,
+            status_invalid: 0xAAAA_BBBB_CCCC_DDDD,
+            status_permanent: 0x1111_2222_3333_4444,
+            status_current: 0x5555_6666_7777_8888,
+            model_visible: 0b0011,
+            ..UnitView::default()
+        },
+    );
+    let data = BattleDataView::default();
+    let mut host = tantalus_legacy::battle::host::BattleScriptHost::with_units(&data, units);
+    let write =
+        |host: &mut tantalus_legacy::battle::host::BattleScriptHost, member: u8, value: i32| {
+            tantalus_legacy::LegacyEventHost::write_object_member(
+                host,
+                tantalus_legacy::ObjectMemberRef {
+                    object: EntityId::new(1),
+                    member,
+                },
+                value,
+            )
+            .unwrap()
+        };
+    let read = |host: &mut tantalus_legacy::battle::host::BattleScriptHost, member: u8| {
+        tantalus_legacy::LegacyEventHost::read_object_member(
+            host,
+            tantalus_legacy::ObjectMemberRef {
+                object: EntityId::new(1),
+                member,
+            },
+        )
+        .unwrap()
+    };
+
+    write(&mut host, 36, 400);
+    write(&mut host, 38, 25);
+    write(&mut host, 35, 999);
+    write(&mut host, 40, 1234);
+    assert_eq!(read(&mut host, 36), 400);
+    assert_eq!(read(&mut host, 38), 25);
+    assert_eq!(read(&mut host, 35), 999);
+    assert_eq!(read(&mut host, 40), 1234);
+
+    // Member 42 sign-extends into bits 24-63; member 43 truncates and
+    // clears bits 32-39 (the reference masks are ported exactly).
+    write(&mut host, 42, -1);
+    assert_eq!(
+        host.units()[&EntityId::new(1)].status_invalid,
+        0xFFFF_FFFF_FFCC_DDDD,
+        "member 42 sign-extends: bits 24-63 set, low 24 kept"
+    );
+    write(&mut host, 43, -1);
+    assert_eq!(
+        host.units()[&EntityId::new(1)].status_invalid,
+        0xFFFF_FFFF_FFFF_FFFF,
+        "member 43 fills bits 0-31 after the 42 write"
+    );
+
+    // 44-47 replace the addressed 24-bit half and keep the other half.
+    write(&mut host, 44, 0xAB_CDEF);
+    assert_eq!(
+        host.units()[&EntityId::new(1)].status_permanent,
+        0x1111_ABCD_EF33_4444,
+        "high half replaced, low half kept"
+    );
+    write(&mut host, 45, 0x12_3456);
+    assert_eq!(
+        host.units()[&EntityId::new(1)].status_permanent,
+        0x1111_ABCD_EF12_3456
+    );
+    write(&mut host, 47, 0x000001);
+    assert_eq!(
+        host.units()[&EntityId::new(1)].status_current & 0xFF_FFFF,
+        1,
+        "low half of current status"
+    );
+
+    // Elements, stats, and positions; 141 negates.
+    write(&mut host, 48, 3);
+    write(&mut host, 72, 21);
+    write(&mut host, 140, 10);
+    write(&mut host, 141, 20);
+    write(&mut host, 142, -5);
+    assert_eq!(read(&mut host, 48), 3);
+    assert_eq!(read(&mut host, 72), 21);
+    assert_eq!(read(&mut host, 140), 10);
+    assert_eq!(read(&mut host, 141), -20, "y stored negated");
+    assert_eq!(read(&mut host, 142), -5);
+
+    // Mesh visibility is a bit set/clear on member 58's value.
+    write(&mut host, 59, 0b1100);
+    assert_eq!(read(&mut host, 58), 0b1111);
+    write(&mut host, 60, 0b0001);
+    assert_eq!(read(&mut host, 58), 0b1110);
+
+    // Player writes to enemy-only members are ignored.
+    write(&mut host, 100, 7);
+    write(&mut host, 109, 9);
+    write(&mut host, 146, 99);
+    assert_eq!(read(&mut host, 100), 0xFF_FFFF, "steal read default stays");
+    assert_eq!(read(&mut host, 109), 0xFF_FFFF);
+
+    // Unknown members and unknown objects are silent no-ops.
+    write(&mut host, 200, 5);
+    write(&mut host, 34, 5);
+    let before = host.units().clone();
+    tantalus_legacy::LegacyEventHost::write_object_member(
+        &mut host,
+        tantalus_legacy::ObjectMemberRef {
+            object: EntityId::new(77),
+            member: 36,
+        },
+        5,
+    )
+    .unwrap();
+    assert_eq!(host.units(), &before, "no unit changed");
+}
+
+#[test]
+fn enemy_member_writes_land_and_read_back() {
+    use std::collections::BTreeMap;
+    use tantalus_contracts::EntityId;
+    use tantalus_legacy::battle::host::UnitView;
+
+    let mut units = BTreeMap::new();
+    units.insert(
+        EntityId::new(2),
+        UnitView {
+            is_player: false,
+            ..UnitView::default()
+        },
+    );
+    let data = BattleDataView::default();
+    let mut host = tantalus_legacy::battle::host::BattleScriptHost::with_units(&data, units);
+    let write =
+        |host: &mut tantalus_legacy::battle::host::BattleScriptHost, member: u8, value: i32| {
+            tantalus_legacy::LegacyEventHost::write_object_member(
+                host,
+                tantalus_legacy::ObjectMemberRef {
+                    object: EntityId::new(2),
+                    member,
+                },
+                value,
+            )
+            .unwrap()
+        };
+    write(&mut host, 100, 12);
+    write(&mut host, 103, 15);
+    write(&mut host, 105, 22);
+    write(&mut host, 108, 33);
+    write(&mut host, 109, 0b101);
+    write(&mut host, 111, 16);
+    write(&mut host, 113, 8);
+    write(&mut host, 146, 640);
+    write(&mut host, 147, 250);
+    let unit = &host.units()[&EntityId::new(2)];
+    assert_eq!(unit.steal_items, [12, 0, 0, 15]);
+    assert_eq!(unit.bonus_items[1], 22);
+    assert_eq!(unit.bonus_card, 33);
+    assert_eq!(unit.flags, 0b101);
+    assert_eq!(unit.die_fade_rate, 16);
+    assert_eq!(unit.class, 8);
+    assert_eq!(unit.bonus_exp, 640);
+    assert_eq!(unit.bonus_gil, 250);
 }

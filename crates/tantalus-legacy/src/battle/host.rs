@@ -150,12 +150,14 @@ fn character_data(unit: &UnitView, id: u8) -> i32 {
         75 => unit.physical_evade,
         76 => unit.magical_defence,
         77 => unit.magical_evade,
-        100..=103 => unit.steal_items[usize::from(id - 100)],
-        104..=107 => unit.bonus_items[usize::from(id - 104)],
-        108 => unit.bonus_card,
-        109 => unit.flags,
+        // Enemy-only reads leave the reference default for players
+        // (`if (btl.bi.player == 0)` guards in `GetCharacterData`).
+        100..=103 if !unit.is_player => unit.steal_items[usize::from(id - 100)],
+        104..=107 if !unit.is_player => unit.bonus_items[usize::from(id - 104)],
+        108 if !unit.is_player => unit.bonus_card,
+        109 if !unit.is_player => unit.flags,
         110 => i32::from(unit.out_of_reach),
-        111 => unit.die_fade_rate,
+        111 if !unit.is_player => unit.die_fade_rate,
         112 => unit.motion,
         113 => {
             if unit.is_player {
@@ -167,8 +169,8 @@ fn character_data(unit: &UnitView, id: u8) -> i32 {
         114 => unit.current_attack,
         140..=142 => unit.pos[usize::from(id - 140)],
         143..=145 => unit.rot[usize::from(id - 143)],
-        146 => unit.bonus_exp,
-        147 => unit.bonus_gil,
+        146 if !unit.is_player => unit.bonus_exp,
+        147 if !unit.is_player => unit.bonus_gil,
         148 => {
             if unit.trance_gauge != 0 {
                 unit.trance
@@ -181,8 +183,82 @@ fn character_data(unit: &UnitView, id: u8) -> i32 {
     }
 }
 
-static EMPTY_UNITS: std::collections::BTreeMap<EntityId, UnitView> =
-    std::collections::BTreeMap::new();
+/// `btl_scrp.SetCharacterData` (btl_scrp.cs): applies one member write to a
+/// unit. Engine-side effects (mesh/weapon renderers, shadows, texanim,
+/// bonus collection, counter/summon command scheduling, ATB kill switches)
+/// are not modeled and fall through silently, mirroring the reference's
+/// no-default switch. Enemy-only members are ignored for players, as the
+/// reference's `btl.bi.player == 0` guard does.
+fn set_character_data(unit: &mut UnitView, id: u8, val: i32) {
+    let low24 = 0xFF_FFFFu64;
+    match id {
+        35 => unit.max_hp = val,
+        36 => unit.hp = val,
+        37 => unit.max_mp = val,
+        38 => unit.mp = val,
+        40 => unit.atb = val,
+        // 42 sign-extends the value before shifting (C# `(UInt64)val`),
+        // 43 truncates to 32 bits (`(UInt32)val`) and clears bits 32-39
+        // through the reference mask.
+        42 => {
+            unit.status_invalid =
+                (unit.status_invalid & 0xFFFF_0000_00FF_FFFF) | (((val as i64) as u64) << 24);
+        }
+        43 => {
+            unit.status_invalid =
+                (unit.status_invalid & 0xFFFF_FFFF_FF00_0000) | (val as u32 as u64);
+        }
+        // 44-47 replace the addressed 24-bit half; the reference's
+        // remove/add pair nets to a half-write on the view.
+        44 => {
+            unit.status_permanent =
+                (unit.status_permanent & !(low24 << 24)) | ((val as u64 & low24) << 24);
+        }
+        45 => {
+            unit.status_permanent = (unit.status_permanent & !low24) | (val as u64 & low24);
+        }
+        46 => {
+            unit.status_current =
+                (unit.status_current & !(low24 << 24)) | ((val as u64 & low24) << 24);
+        }
+        47 => {
+            unit.status_current = (unit.status_current & !low24) | (val as u64 & low24);
+        }
+        48 => unit.element_invalid = val as u8,
+        49 => unit.element_absorb = val as u8,
+        50 => unit.element_half = val as u8,
+        51 => unit.element_weak = val as u8,
+        52 => unit.targetable = val,
+        53 => unit.disappear = val,
+        59 => unit.model_visible |= i32::from(val as u16),
+        60 => unit.model_visible &= !i32::from(val as u16),
+        69 => unit.stand_animation = val,
+        72 => unit.strength = val,
+        73 => unit.magic = val,
+        74 => unit.physical_defence = val,
+        75 => unit.physical_evade = val,
+        76 => unit.magical_defence = val,
+        77 => unit.magical_evade = val,
+        100..=103 if !unit.is_player => unit.steal_items[usize::from(id - 100)] = val,
+        104..=107 if !unit.is_player => unit.bonus_items[usize::from(id - 104)] = val,
+        108 if !unit.is_player => unit.bonus_card = val,
+        109 if !unit.is_player => unit.flags = val,
+        110 => unit.out_of_reach = val != 0,
+        111 => unit.die_fade_rate = val,
+        112 => unit.motion = val,
+        113 if !unit.is_player => unit.class = val as u8,
+        140 => unit.pos[0] = val,
+        141 => unit.pos[1] = -val,
+        142 => unit.pos[2] = val,
+        143 => unit.rot[0] = val,
+        144 => unit.rot[1] = val,
+        145 => unit.rot[2] = val,
+        146 if !unit.is_player => unit.bonus_exp = val,
+        147 if !unit.is_player => unit.bonus_gil = val,
+        148 => unit.trance = val,
+        _ => {}
+    }
+}
 
 /// Battle state the sysvar and system-list reads answer.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -231,7 +307,7 @@ pub struct BattleDataView {
 /// the read returns 0.
 pub struct BattleScriptHost<'a> {
     data: &'a BattleDataView,
-    units: &'a std::collections::BTreeMap<EntityId, UnitView>,
+    units: std::collections::BTreeMap<EntityId, UnitView>,
     sys_list: [u16; 8],
     rng: Option<&'a mut dyn BattleRandom>,
     probe: ProbeHost,
@@ -239,12 +315,12 @@ pub struct BattleScriptHost<'a> {
 
 impl<'a> BattleScriptHost<'a> {
     pub fn new(data: &'a BattleDataView) -> Self {
-        Self::with_units(data, &EMPTY_UNITS)
+        Self::with_units(data, std::collections::BTreeMap::new())
     }
 
     pub fn with_units(
         data: &'a BattleDataView,
-        units: &'a std::collections::BTreeMap<EntityId, UnitView>,
+        units: std::collections::BTreeMap<EntityId, UnitView>,
     ) -> Self {
         Self {
             data,
@@ -258,11 +334,21 @@ impl<'a> BattleScriptHost<'a> {
     pub fn with_random(data: &'a BattleDataView, rng: &'a mut dyn BattleRandom) -> Self {
         Self {
             data,
-            units: &EMPTY_UNITS,
+            units: std::collections::BTreeMap::new(),
             sys_list: [0; 8],
             rng: Some(rng),
             probe: ProbeHost,
         }
+    }
+
+    /// The unit map after script writes.
+    pub fn units(&self) -> &std::collections::BTreeMap<EntityId, UnitView> {
+        &self.units
+    }
+
+    /// Consumes the host, returning the (possibly written) unit map.
+    pub fn into_units(self) -> std::collections::BTreeMap<EntityId, UnitView> {
+        self.units
     }
 
     /// Current system-list contents (element numbers masked with 7).
@@ -294,12 +380,18 @@ impl LegacyEventHost for BattleScriptHost<'_> {
         self.probe.select_object_member_target(slot)
     }
 
+    /// `SetBattleCharData` (`btl_scrp.SetCharacterData`): writes apply to
+    /// the keyed unit; unknown objects and engine-effect members are
+    /// ignored, mirroring the reference.
     fn write_object_member(
         &mut self,
         reference: ObjectMemberRef,
         value: i32,
     ) -> Result<(), EngineError> {
-        self.probe.write_object_member(reference, value)
+        if let Some(unit) = self.units.get_mut(&reference.object) {
+            set_character_data(unit, reference.member, value);
+        }
+        Ok(())
     }
 
     /// `EventEngine.GetSysvar` battle cases + `btl_scrp.GetBattleData`.
