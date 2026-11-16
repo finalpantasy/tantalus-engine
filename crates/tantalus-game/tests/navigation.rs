@@ -100,3 +100,21 @@ fn floor_origin_offsets_apply_before_height_inversion() {
     assert_eq!(projected.position, point(12, -14, 16));
     assert_eq!(projected.triangle_index, 0);
 }
+
+#[test]
+fn snapping_takes_the_triangle_nearest_in_height_or_the_default_center() {
+    let mesh = mesh();
+    let navigation = FieldNavigation::new(&mesh).unwrap();
+    // Height 32768 takes the highest triangle holding the point (floor 0
+    // here; floor 1 sits lower once the vertex height is negated).
+    let high = navigation.snap_to_walkmesh(point(10, 32768, 5)).unwrap();
+    assert!(high.triangle_index < 2);
+    assert_eq!((high.position.x, high.position.z), (10, 5));
+    // A height near floor 1 takes floor 1.
+    let low = navigation.snap_to_walkmesh(point(10, -110, 5)).unwrap();
+    assert!(low.triangle_index >= 2);
+    // Off every triangle: center of triangle 0 (`SetDefaultCharPos`).
+    let off = navigation.snap_to_walkmesh(point(500, 0, 500)).unwrap();
+    assert_eq!(off.triangle_index, 0);
+    assert_eq!((off.position.x, off.position.z), (13, 6));
+}

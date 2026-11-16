@@ -51,6 +51,108 @@ impl<'a> FieldNavigation<'a> {
         self.project_on_floor(point, self.mesh.active_floor)
     }
 
+    /// `FieldMapActorController.SetPosition` with path-checking on: of every
+    /// walkmesh triangle (all floors) whose XZ footprint holds the point,
+    /// take the one whose center height is nearest the requested height
+    /// (`GetTriIdxAtPos`; a height of 32768 takes the highest) and put the
+    /// point on it by barycentric height. A point on no triangle goes to
+    /// the center of triangle 0 (`SetDefaultCharPos`).
+    pub fn snap_to_walkmesh(&self, point: Point3) -> Option<NavigationProjection> {
+        if let Some(inside) = self.snap_inside(point) {
+            return Some(inside);
+        }
+        let triangle = self.mesh.triangles.first()?;
+        let [a, b, c] = triangle
+            .vertices
+            .map(|index| navigation_vertex(self.mesh, index, triangle.offset));
+        Some(NavigationProjection {
+            position: Point3 {
+                x: ((a.x as i128 + b.x as i128 + c.x as i128) / 3) as i32,
+                y: ((a.y as i128 + b.y as i128 + c.y as i128) / 3) as i32,
+                z: ((a.z as i128 + b.z as i128 + c.z as i128) / 3) as i32,
+            },
+            triangle_index: 0,
+        })
+    }
+
+    /// The walkmesh point nearest `point` in XZ over every floor: the point
+    /// itself (height from the triangle, nearest in height when several
+    /// hold it) when a triangle holds it, otherwise the closest edge point.
+    /// Stands in for `ServiceChar`'s clamp of a step that leaves the mesh.
+    pub fn nearest_on_walkmesh(&self, point: Point3) -> Option<NavigationProjection> {
+        if let Some(inside) = self.snap_inside(point) {
+            return Some(inside);
+        }
+        let mut floors: Vec<i16> = self.mesh.triangles.iter().map(|t| t.floor).collect();
+        floors.sort_unstable();
+        floors.dedup();
+        floors
+            .into_iter()
+            .filter_map(|floor| self.project_on_floor(point, floor).ok())
+            .min_by_key(|p| {
+                let dx = p.position.x as i128 - point.x as i128;
+                let dz = p.position.z as i128 - point.z as i128;
+                (dx * dx + dz * dz, p.triangle_index)
+            })
+            .map(|edge| self.pull_inside(edge))
+    }
+
+    /// An edge point rounded to whole units can fall a unit outside its
+    /// triangle; step it toward the triangle's center until a triangle
+    /// holds it.
+    fn pull_inside(&self, edge: NavigationProjection) -> NavigationProjection {
+        if self.snap_inside(edge.position).is_some() {
+            return edge;
+        }
+        let triangle = &self.mesh.triangles[edge.triangle_index];
+        let [a, b, c] = triangle
+            .vertices
+            .map(|index| navigation_vertex(self.mesh, index, triangle.offset));
+        let center = Point3 {
+            x: ((a.x as i128 + b.x as i128 + c.x as i128) / 3) as i32,
+            y: ((a.y as i128 + b.y as i128 + c.y as i128) / 3) as i32,
+            z: ((a.z as i128 + b.z as i128 + c.z as i128) / 3) as i32,
+        };
+        for step in 1..=16i64 {
+            let lerp = |from: i32, to: i32| {
+                (i64::from(from) + (i64::from(to) - i64::from(from)) * step / 64) as i32
+            };
+            let candidate = Point3 {
+                x: lerp(edge.position.x, center.x),
+                y: edge.position.y,
+                z: lerp(edge.position.z, center.z),
+            };
+            if let Some(inside) = self.snap_inside(candidate) {
+                return inside;
+            }
+        }
+        NavigationProjection {
+            position: center,
+            triangle_index: edge.triangle_index,
+        }
+    }
+
+    fn snap_inside(&self, point: Point3) -> Option<NavigationProjection> {
+        let mut best: Option<(i128, usize, Point3)> = None;
+        for (index, triangle) in self.mesh.triangles.iter().enumerate() {
+            let [a, b, c] = triangle
+                .vertices
+                .map(|index| navigation_vertex(self.mesh, index, triangle.offset));
+            let Some(position) = project_inside(a, b, c, point) else {
+                continue;
+            };
+            let center = (a.y as i128 + b.y as i128 + c.y as i128) / 3;
+            let distance = (point.y as i128 - center).abs();
+            if best.is_none_or(|(d, _, _)| distance < d) {
+                best = Some((distance, index, position));
+            }
+        }
+        best.map(|(_, triangle_index, position)| NavigationProjection {
+            position,
+            triangle_index,
+        })
+    }
+
     pub fn move_by(
         &self,
         position: Point3,

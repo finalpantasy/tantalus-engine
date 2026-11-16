@@ -10,12 +10,15 @@
 //! Reference (Memoria `FieldMapActorController.SetPosition`): an actor whose
 //! `charFlags & 1` is set is snapped onto the walkmesh (off the mesh it goes
 //! to `SetDefaultCharPos`, the first triangle's center). Only actors with that
-//! bit cleared sit anywhere, and the bit is cleared by `SetPathing(0)`
-//! (`BGI_charSetActive`, `EventEngine.DoEventCode.cs` case `BGI`) or while a
-//! jump runs. This engine does not track the bit, so an off-mesh actor in a
-//! field whose scripts contain `SetPathing` is classed `scripted_prop`
-//! candidate and everything else `unexplained`. An actor still at (0, 0, 0)
-//! has not been placed by its script yet and is classed `unplaced`.
+//! bit cleared sit anywhere, and the bit is cleared by `SetPathing(0)`, `POS3`
+//! and `DPOS3` (`BGI_charSetActive`, `EventEngine.DoEventCode.cs`) and set
+//! again by `POS`/`DPOS`. The field world tracks the bit
+//! (`ActorState::path_active`) and snaps on `POS`/`DPOS`/model creation, so an
+//! off-mesh actor with the bit cleared is `pathing_off` (the reference leaves
+//! it there too, as is one placed while the bit was clear and re-enabled
+//! after) and one placed with the bit set is `unexplained` (an engine gap).
+//! An actor still at (0, 0, 0) has not been placed by its script yet and is
+//! classed `unplaced`.
 
 use std::collections::BTreeMap;
 
@@ -33,7 +36,8 @@ pub struct OffMeshActor {
     pub actor: u64,
     pub position: [f32; 3],
     pub model: u16,
-    /// `unplaced`, `scripted_prop` (field has `SetPathing`) or `unexplained`.
+    /// `unplaced`, `pathing_off` (pathing bit cleared by the scripts) or
+    /// `unexplained` (pathing on, so the reference would have snapped it).
     pub class: &'static str,
 }
 
@@ -78,7 +82,6 @@ pub fn on_walkmesh(
 pub fn check_world(
     world: &FieldWorld,
     mesh: &FieldNavigationMesh,
-    uses_set_pathing: bool,
 ) -> Result<(usize, usize, Vec<OffMeshActor>), String> {
     let navigation = FieldNavigation::new(mesh).map_err(|e| e.to_string())?;
     let (mut checked, mut on, mut off) = (0, 0, Vec::new());
@@ -97,8 +100,8 @@ pub fn check_world(
         }
         let class = if x == 0.0 && y == 0.0 && z == 0.0 {
             "unplaced"
-        } else if uses_set_pathing {
-            "scripted_prop"
+        } else if !actor.path_active || actor.placed_unchecked {
+            "pathing_off"
         } else {
             "unexplained"
         };
@@ -175,7 +178,7 @@ pub fn sweep_field(data: &PlayData, map: i32, ticks: u64) -> Option<FieldPlaceme
     }
     let world = session.director.world();
     let mesh = world.navigation()?;
-    match check_world(world, mesh, result.uses_set_pathing) {
+    match check_world(world, mesh) {
         Ok((checked, on, off)) => {
             result.model_actors = checked;
             result.on_mesh = on;
@@ -290,12 +293,18 @@ mod tests {
         actor(&mut world, 4, [500.0, 0.0, 500.0], None, 1); // no model: skipped
         actor(&mut world, 5, [0.0, 0.0, 0.0], Some(5), 1); // corner: on the mesh
         actor(&mut world, 6, [-300.0, 0.0, -300.0], Some(7), 1); // off
-        let (checked, on, off) = check_world(&world, &mesh, false).unwrap();
+        let (checked, on, off) = check_world(&world, &mesh).unwrap();
         assert_eq!((checked, on), (4, 2));
         assert_eq!(off.iter().map(|a| a.actor).collect::<Vec<_>>(), [2, 6]);
         assert!(off.iter().all(|a| a.class == "unexplained"));
-        let (_, _, props) = check_world(&world, &mesh, true).unwrap();
-        assert!(props.iter().all(|a| a.class == "scripted_prop"));
+        world
+            .actors
+            .get_mut(&EntityId::new(2))
+            .unwrap()
+            .placed_unchecked = true;
+        let (_, _, off) = check_world(&world, &mesh).unwrap();
+        assert_eq!(off[0].class, "pathing_off");
+        assert_eq!(off[1].class, "unexplained");
     }
 
     #[test]

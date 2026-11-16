@@ -51,6 +51,17 @@ pub struct ActorState {
     /// 128 north, 192 east).
     pub facing: i16,
     pub flags: i32,
+    /// `FieldMapActorController.charFlags & 1`: the actor is held on the
+    /// walkmesh. `POS`/`DPOS` set it, `SetPathing(0)` and `POS3`/`DPOS3`
+    /// clear it. Runtime-only.
+    #[serde(skip, default = "path_active_default")]
+    pub path_active: bool,
+    /// The position was last set while pathing was off (`POS3`, `DPOS3`, a
+    /// jump), so it was never checked against the mesh; the reference keeps
+    /// it even if `SetPathing(1)` follows (`ResetPos` returns to the same
+    /// `lastPos`). Runtime-only.
+    #[serde(skip)]
+    pub placed_unchecked: bool,
     pub level: i32,
     pub jump: Option<Jump>,
     /// `AFRAME` (`inFrame`/`outFrame`): the frames the next `ANIM` plays
@@ -219,6 +230,10 @@ impl ActorLook {
     }
 }
 
+fn path_active_default() -> bool {
+    true
+}
+
 fn full_out_frame() -> u8 {
     u8::MAX
 }
@@ -238,6 +253,8 @@ impl ActorState {
             talk_radius: 16,
             facing: 0,
             flags: 0,
+            path_active: true,
+            placed_unchecked: false,
             level: 0,
             jump: None,
             in_frame: 0,
@@ -1018,7 +1035,12 @@ impl FieldWorld {
     pub fn advance(&mut self) {
         self.apply_walk_input();
         self.apply_dialog_signal();
-        for state in self.actors.values_mut() {
+        let walk_mesh = self
+            .navigation
+            .as_ref()
+            .and_then(|mesh| crate::navigation::FieldNavigation::new(mesh).ok());
+        let player = self.player;
+        for (id, state) in self.actors.iter_mut() {
             if let Some(movement) = &state.movement {
                 let [dx, dz] = [
                     movement.destination[0] - state.position[0],
@@ -1032,6 +1054,39 @@ impl FieldWorld {
                 } else {
                     state.position[0] += dx / distance * self.walk_speed;
                     state.position[2] += dz / distance * self.walk_speed;
+                    if state.path_active
+                        && Some(*id) != player
+                        && state.look.model.is_some()
+                        && let Some(navigation) = &walk_mesh
+                    {
+                        {
+                            // `UpdateActiveTri`/`ServiceChar`: a pathing actor
+                            // takes the triangle height each step and a step
+                            // off the mesh is clamped back onto it; a clamped
+                            // walk that stops closing on its target ends. The
+                            // player is left to the host's input clamp.
+                            let before = distance;
+                            let point = Point3 {
+                                x: state.position[0].round() as i32,
+                                y: state.position[1] as i32,
+                                z: state.position[2].round() as i32,
+                            };
+                            if let Some(near) = navigation.nearest_on_walkmesh(point) {
+                                if near.position.x != point.x || near.position.z != point.z {
+                                    state.position[0] = near.position.x as f32;
+                                    state.position[2] = near.position.z as f32;
+                                    let moved = f32::hypot(
+                                        movement.destination[0] - state.position[0],
+                                        movement.destination[1] - state.position[2],
+                                    );
+                                    if moved >= before {
+                                        state.movement = None;
+                                    }
+                                }
+                                state.position[1] = near.position.y as f32;
+                            }
+                        }
+                    }
                     // Walking faces the movement direction on the reference
                     // facing scale (0 south, 64 west, 128 north, 192 east):
                     // `128 + atan2_deg(dx, -dz) * 128 / 180`, mod 256.
@@ -1449,6 +1504,54 @@ impl FieldWorld {
 
     pub fn navigation(&self) -> Option<&FieldNavigationMesh> {
         self.navigation.as_ref()
+    }
+
+    /// `FieldMapActorController.SetPosition(pos, true, true)`: an actor with
+    /// pathing on (`charFlags & 1`) stands on the walkmesh at its position
+    /// (height from the triangle), or at the center of triangle 0 when no
+    /// triangle holds it. No mesh or pathing off leaves the position alone.
+    pub(crate) fn snap_actor_to_walkmesh(&mut self, actor: EntityId) {
+        // The controlled actor keeps the height the scripts gave it: the
+        // chain tool's walkmesh walk treats a height of 32768 as "unset" and
+        // picks its start floor from it, and a snapped height changes the
+        // route (map 153).
+        if self.player == Some(actor) {
+            return;
+        }
+        let Some(mesh) = self.navigation.as_ref() else {
+            return;
+        };
+        let Some(state) = self.actors.get(&actor) else {
+            return;
+        };
+        if !state.path_active || state.look.model.is_none() {
+            return;
+        }
+        let Ok(navigation) = crate::navigation::FieldNavigation::new(mesh) else {
+            return;
+        };
+        let [x, y, z] = state.position;
+        let point = Point3 {
+            x: x.round() as i32,
+            y: y.clamp(i32::MIN as f32, i32::MAX as f32) as i32,
+            z: z.round() as i32,
+        };
+        let Some(snapped) = navigation.snap_to_walkmesh(point) else {
+            return;
+        };
+        let inside = snapped.position.x == point.x && snapped.position.z == point.z;
+        if let Some(state) = self.actors.get_mut(&actor) {
+            state.placed_unchecked = false;
+            if inside {
+                state.position[1] = snapped.position.y as f32;
+            } else {
+                state.position = [
+                    snapped.position.x as f32,
+                    snapped.position.y as f32,
+                    snapped.position.z as f32,
+                ];
+            }
+        }
     }
 
     /// Project a world position onto the walkmesh, returning the containing

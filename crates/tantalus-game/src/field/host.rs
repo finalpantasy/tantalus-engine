@@ -478,6 +478,17 @@ impl FieldHost<'_> {
         if let Some(state) = self.world.actors.get_mut(&actor) {
             apply(state);
         }
+        if matches!(event, HostEvent::SetActorModel { .. })
+            && self
+                .world
+                .actors
+                .get(&actor)
+                .is_some_and(|state| state.position != [0.0; 3])
+        {
+            // `AddFieldChar` snaps a newly modeled actor with
+            // `SetPosition` (pathing on by default).
+            self.world.snap_actor_to_walkmesh(actor);
+        }
     }
 }
 
@@ -615,9 +626,25 @@ impl LegacyEventHost for FieldHost<'_> {
                 }
                 HostEvent::MoveActor { actor, x, z } => {
                     let state = self.actor_mut(*actor, "move")?;
-                    state.position[0] = *x as f32;
-                    state.position[2] = *z as f32;
+                    // `DPOS`: `BGI_charSetActive(1)`, then `SetActorPosition`
+                    // with the default height 32768.
+                    state.position = [*x as f32, 32768.0, *z as f32];
+                    state.path_active = true;
                     state.movement = None;
+                    self.world.snap_actor_to_walkmesh(*actor);
+                }
+                HostEvent::MoveActorXzy { actor, position } => {
+                    // `DPOS3`: `BGI_charSetActive(0)`; the position is kept.
+                    let state = self.actor_mut(*actor, "move xzy")?;
+                    state.position = [position[0] as f32, position[1] as f32, position[2] as f32];
+                    state.path_active = false;
+                    state.placed_unchecked = true;
+                    state.movement = None;
+                }
+                HostEvent::SetPathing { actor, enabled } => {
+                    // `BGI_charSetActive`.
+                    let state = self.actor_mut(*actor, "set pathing")?;
+                    state.path_active = *enabled > 0;
                 }
                 HostEvent::MoveActorToExit { actor } => {
                     let state = self.actor_mut(*actor, "exit walk")?;
@@ -628,6 +655,12 @@ impl LegacyEventHost for FieldHost<'_> {
                     let state = self.actor_mut(*actor, "set position")?;
                     state.position = [position[0] as f32, position[1] as f32, position[2] as f32];
                     state.movement = None;
+                    // `POS` passes the default height 32768 and turns
+                    // pathing on; `POS3` passes a script height and turns
+                    // it off (the event does not say which, the height does).
+                    state.path_active = position[1] == 32768;
+                    state.placed_unchecked = !state.path_active;
+                    self.world.snap_actor_to_walkmesh(*actor);
                 }
                 HostEvent::DeleteObject { target } => {
                     self.world.delete_object(*target);
@@ -691,6 +724,9 @@ impl LegacyEventHost for FieldHost<'_> {
                     steps,
                 } => {
                     let state = self.actor_mut(*actor, "setup jump")?;
+                    // `JUMP3` setup: `BGI_charSetActive(0)` (EventEngine.DoEventCode.cs).
+                    state.path_active = false;
+                    state.placed_unchecked = true;
                     let from = state.position;
                     state.jump = Some(Jump {
                         from,
