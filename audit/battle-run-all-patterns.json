@@ -3705,8 +3705,8 @@
       "patterns": [
         {
           "bonus_ap": 0,
-          "bonus_exp": 808,
-          "bonus_gil": 474,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
           "enemy_deaths": 1,
@@ -7736,8 +7736,8 @@
       "patterns": [
         {
           "bonus_ap": 1,
-          "bonus_exp": 64,
-          "bonus_gil": 198,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
           "enemy_deaths": 1,
@@ -7755,8 +7755,8 @@
       "patterns": [
         {
           "bonus_ap": 1,
-          "bonus_exp": 64,
-          "bonus_gil": 198,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
           "enemy_deaths": 1,
@@ -7774,8 +7774,8 @@
       "patterns": [
         {
           "bonus_ap": 1,
-          "bonus_exp": 64,
-          "bonus_gil": 198,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
           "enemy_deaths": 1,
@@ -8974,7 +8974,7 @@
         {
           "bonus_ap": 1,
           "bonus_exp": 0,
-          "bonus_gil": 805,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
           "enemy_deaths": 3,
@@ -9031,7 +9031,7 @@
         {
           "bonus_ap": 1,
           "bonus_exp": 0,
-          "bonus_gil": 500,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
           "enemy_deaths": 3,
@@ -9068,14 +9068,9 @@
       "patterns": [
         {
           "bonus_ap": 0,
-          "bonus_exp": 1856,
-          "bonus_gil": 602,
-          "bonus_items": [
-            [
-              231,
-              1
-            ]
-          ],
+          "bonus_exp": 0,
+          "bonus_gil": 0,
+          "bonus_items": [],
           "card": null,
           "enemy_deaths": 1,
           "error": null,
@@ -9092,8 +9087,8 @@
       "patterns": [
         {
           "bonus_ap": 0,
-          "bonus_exp": 6608,
-          "bonus_gil": 1421,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
           "enemy_deaths": 1,
@@ -9130,8 +9125,8 @@
       "patterns": [
         {
           "bonus_ap": 0,
-          "bonus_exp": 53168,
-          "bonus_gil": 2764,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
           "enemy_deaths": 1,
