@@ -9,6 +9,7 @@ pub mod bgs;
 pub mod bundled_field;
 pub mod dialog_render;
 pub mod field;
+pub mod field_animation;
 pub mod field_composition;
 pub mod field_models;
 pub mod font_bundle;
