@@ -344,6 +344,7 @@ impl FieldBattles {
         let mut adapter = adapter.with_hooks(hooks);
         let mut world = FieldWorld::new();
         let mut defeated: Vec<EntityId> = Vec::new();
+        let mut sent = 0u32;
         for tick in 0..BATTLE_TICK_LIMIT {
             report.ticks = tick + 1;
             // The first ready party member attacks the first enemy still
@@ -361,6 +362,7 @@ impl FieldBattles {
                 .copied()
                 .find(|&i| i < party.len());
             if let (Some(actor), Some(target)) = (actor, target) {
+                sent += 1;
                 input.command = Some(BattleCommand {
                     actor: entities[actor],
                     action: attack.clone(),
@@ -430,6 +432,29 @@ impl FieldBattles {
             .map(|unit| (unit.cur_hp, unit.max_hp))
             .collect();
         report.phase = Some(format!("{:?}/{:?}", machine.phase, machine.menu_off_seq));
+        let describe = |id: &usize| {
+            let slot = &machine.cmds.slots[*id];
+            format!("{}:{}", slot.cmd_no, slot.sub_no)
+        };
+        report
+            .ai_notes
+            .push(format!("ready {:?} sent {sent}", machine.ready_players));
+        report.ai_notes.push(format!(
+            "running [{}] queued [{}]",
+            machine
+                .running
+                .iter()
+                .map(describe)
+                .collect::<Vec<_>>()
+                .join(" "),
+            machine
+                .cmds
+                .queue
+                .iter()
+                .map(describe)
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
         let hooks = adapter.hooks();
         report.ai_error = hooks.error.as_ref().map(ToString::to_string);
         if let Some(map) = &hooks.driver.state.map {
@@ -444,6 +469,18 @@ impl FieldBattles {
                 .ai_notes
                 .push(format!("map vars {}", nonzero.join(" ")));
         }
+        let objects: Vec<String> = (0..hooks.driver.object_count())
+            .map(|slot| {
+                format!(
+                    "{:?}@{:?}",
+                    hooks.driver.object_entry(slot),
+                    hooks.driver.object_level(slot)
+                )
+            })
+            .collect();
+        report
+            .ai_notes
+            .push(format!("objects {}", objects.join(" ")));
         for event in &hooks.driver.state.events {
             let note = match event {
                 AiEvent::UnmodeledRead { what, id } => format!("unmodeled {what} {id}"),

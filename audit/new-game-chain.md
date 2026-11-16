@@ -16,12 +16,12 @@ It runs each field's archive under the orchestrated `FieldDirector` (each entry'
 |---|---|---|---|
 | 336 | `EVT_BATTLE_TH_E001` | Victory | 346 |
 | 338 | `EVT_BATTLE_TH_E002` | Victory | 490 |
-| 337 | `EVT_BATTLE_TH_E003` | Script ends it with result 5 (`BTL_RESULT_INTERRUPTION`) | 371 |
+| 337 | `EVT_BATTLE_TH_E003` | Script ends it with result 5 (`BTL_RESULT_INTERRUPTION`) | 375 |
 | 335 | `EVT_BATTLE_TH_E004` | Victory | 2227 |
-| 334 | `EVT_BATTLE_TH_E005` | Victory | 361 |
-| 302 | `EVT_BATTLE_EF_E006` | Victory | 2020 |
+| 334 | `EVT_BATTLE_TH_E005` | Victory | 359 |
+| 302 | `EVT_BATTLE_EF_E006` | Victory | 2021 |
 | 301 | `EVT_BATTLE_EF_E007` | Victory | 790 |
-| 295 | `EVT_BATTLE_BR_E008` | Victory | 364 |
+| 295 | `EVT_BATTLE_BR_E008` | Victory | 365 |
 
 Before these fixes, all eight ran to the 20,000-tick cap. The changes:
 
@@ -30,8 +30,8 @@ Before these fixes, all eight ran to the 20,000-tick cap. The changes:
 3. **Load timing.** `SceneOverlay::load_frames` reads `load_status` as 0 for the first frames. `BattleLoadLoop` sets `LOAD_INITNPC` and `LOAD_INITCHR` after the scripts start. Objects that entry 0 spawns then pass their load waits in the same frame as entry 0. EF_E006's HP watcher on entry 0 `Return`s for good (`ip = nil`) if entry 2 has not registered its unit yet.
 4. **Unit identity.** `unit_view` gives enemies `slot_no = 4 + index` and `enemy_id = index` (`btl_id = 16 << index`). TH_E001's end check reads member 70 and never fired while every enemy read 0.
 5. **SFX callback.** `QueueSpecialAttack` sets `gEventGlobal[199] |= 16`, which stands in for SFX callback 112. TH_E003 waits on it.
-6. **Script unit writes.** The runner now drives `LegacyBattleAdapter` directly, as `battle_run` does, and applies `take_dirty_views` back each tick. EF_E006 became a victory.
-7. **Member extraction.** `EventEngine.OperatorExtract` always takes the top three stack entries. A mask that is not a list, or an operand that is a member, reads the last member target. The VM rejected `SL3.m57 == SL1.m57` (a dead unit's loop, which now runs every frame). The `--battle-run-all` sweep goes from 514 victories, 33 defeats and 15 errors to 529, 32 and 0. One scene, TH_E005, stalls there: that harness leaves `load_status` at 0, and the script disables the ATB and then waits on the load bits.
+6. **Script unit writes.** `BattleHooks::unit_writes` applies the members the scripts wrote right after the script pass, before `BattleMain`, as `SetCharacterData` writes into `BTL_DATA`. A write to any member marks the whole unit view dirty, so applying it after the tick restored the HP from before that tick's damage. In EF_E006 that undid nearly every hit on the cage. The runner drives `LegacyBattleAdapter` directly, as `battle_run` does.
+7. **Member extraction.** `EventEngine.OperatorExtract` always takes the top three stack entries. A mask that is not a list, or an operand that is a member, reads the last member target. The VM rejected `SL3.m57 == SL1.m57` (a dead unit's loop, which now runs every frame). On main at `a0c773a`, the `--battle-run-all` sweep gives 474 victories, 34 defeats and 54 errors; with these changes it gives 510, 38 and 0. Of the 18 scenes that no longer end in victory there, 9 friendly-monster scenes (WM_14xx to WM_16xx) now end as their scripts say, with `SetBattleData` 33 = 7 (enemy flee). TH_E005 and WM_9900 to WM_9903 stall at the tick cap, and four CW_R scenes end in defeat. That harness leaves `load_status` at 0 and does not start special scenes in the event phase; TH_E005 disables the ATB and then waits on the load bits.
 
 Still open: equipment stat bonuses; battle global memory starts fresh instead of sharing the field's `gEventGlobal`; the win-pose path (`SEQ_MENU_OFF_VICTORY_WITH_ENEMY`) is not ported; battle results do not feed back into field HP or rewards.
 

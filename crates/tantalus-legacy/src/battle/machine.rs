@@ -239,6 +239,16 @@ pub trait BattleHooks {
     fn frame(&mut self, _battle: &Battle) -> Vec<(u32, i32)> {
         Vec::new()
     }
+
+    /// Unit members the scripts wrote during [`BattleHooks::frame`]
+    /// (`SetCharacterData`), applied before `BattleMain` so the machine's own
+    /// changes that tick (damage, gauges) are not overwritten by a stale
+    /// view.
+    fn unit_writes(
+        &mut self,
+    ) -> std::collections::BTreeMap<tantalus_contracts::EntityId, super::host::UnitView> {
+        std::collections::BTreeMap::new()
+    }
 }
 
 /// Which `RequestAction` flavor a hit raises.
@@ -1265,6 +1275,10 @@ impl Battle {
         }
         for (code, value) in hooks.frame(self) {
             self.battle_code(code, value);
+        }
+        let writes = hooks.unit_writes();
+        if !writes.is_empty() {
+            super::host::apply_unit_views(self, &writes);
         }
         self.battle_main(hooks, rng)?;
         if self.menu_enabled {

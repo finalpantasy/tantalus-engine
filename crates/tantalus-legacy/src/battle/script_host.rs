@@ -1243,6 +1243,10 @@ impl<H: BattleHooks> BattleHooks for EnemyAiHooks<H> {
             .collect()
     }
 
+    fn unit_writes(&mut self) -> BTreeMap<EntityId, UnitView> {
+        self.take_dirty_views()
+    }
+
     /// One script pass per machine tick, so each object's loop (tag 1)
     /// runs every frame as in `ServiceEvents`, not only on a full gauge.
     fn frame(&mut self, battle: &Battle) -> Vec<(u32, i32)> {
