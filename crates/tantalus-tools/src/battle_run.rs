@@ -34,6 +34,15 @@ use tantalus_legacy::battle::{BattleUnit, StatusDataRow, StatusTable, WeaponStat
 use crate::battle_scene_rewards::assemble_legacy_battle;
 
 const MAX_TICKS: u64 = 20_000;
+/// Flee-first stall window. After the single flee press fails, the policy
+/// never attacks, so a battle neither side can end would burn the full
+/// 20,000-tick budget doing nothing. Slow party deaths are REAL defeats
+/// (median ~13k ticks in the flee corpora) and reflect/counter kills are
+/// REAL victories, so instead of a fixed cap we watch ALL units' HP: if no
+/// unit has lost HP in this many consecutive ticks after the flee press,
+/// the battle cannot end and we stop early with the honest no-outcome
+/// shape. The machine itself has no such limit.
+const FLEE_STALL_WINDOW: u64 = 1_000;
 const ATTACK_ACTION: &str = "ffix:action/attack";
 
 /// Four stand-in party members (ids 1, 2, 4, 8). `weak` swaps the armed
@@ -303,6 +312,8 @@ pub fn run_scene_battle(
     let attack = ContentId::parse(ATTACK_ACTION).unwrap();
 
     let mut fled = false;
+    let mut party_hp = 0u64;
+    let mut last_damage_tick = 0u64;
     for tick in 0..MAX_TICKS {
         let mut input = tantalus_game::battle::CombatInput::new(Tick::new(tick));
         // The machine gates the flee roll on the ATB running (`atb_runs`),
@@ -363,6 +374,23 @@ pub fn run_scene_battle(
             }
             if bonus.set_bonus(&mut reward_rows, report.enemy_deaths, &mut *draw_rng) {
                 report.enemy_deaths += 1;
+            }
+        }
+        // Flee-first stall detection (see the world path for the rationale).
+        if flee_first && fled {
+            let hp: u64 = adapter
+                .battle()
+                .units
+                .iter()
+                .map(|unit| u64::from(unit.cur_hp))
+                .sum();
+            if hp < party_hp {
+                last_damage_tick = tick;
+            }
+            party_hp = hp;
+            if tick > FLEE_STALL_WINDOW && tick - last_damage_tick >= FLEE_STALL_WINDOW {
+                report.ticks = tick + 1;
+                break;
             }
         }
         if let Some(outcome) = adapter.outcome() {
@@ -539,6 +567,8 @@ pub fn run_world_battle(
 
     let mut fled = false;
     let mut ticks = 0u64;
+    let mut party_hp = 0u64;
+    let mut last_damage_tick = 0u64;
     for tick in 0..MAX_TICKS {
         let mut input = tantalus_game::battle::CombatInput::new(Tick::new(tick));
         // The machine gates the flee roll on the ATB running (`atb_runs`),
@@ -587,6 +617,25 @@ pub fn run_world_battle(
                 && bonus.set_bonus(&mut rows, deaths, &mut *draw_rng)
             {
                 deaths += 1;
+            }
+        }
+        // Flee-first stall detection: after the press, if no player has lost
+        // HP within the window, neither side can end the battle -- stop with
+        // the honest no-outcome shape instead of burning the full budget.
+        if flee_first && fled {
+            let hp: u64 = adapter
+                .battle()
+                .units
+                .iter()
+                .map(|unit| u64::from(unit.cur_hp))
+                .sum();
+            if hp < party_hp {
+                last_damage_tick = tick;
+            }
+            party_hp = hp;
+            if tick > FLEE_STALL_WINDOW && tick - last_damage_tick >= FLEE_STALL_WINDOW {
+                ticks = tick + 1;
+                break;
             }
         }
         if let Some(done) = adapter.outcome() {
