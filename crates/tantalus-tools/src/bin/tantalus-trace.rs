@@ -32,7 +32,7 @@ fn main() -> ExitCode {
 }
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N,...] [--route MAP>DEST,...] [--skip-talk MAP:ENTRY,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST,...] [--skip-talk MAP:ENTRY,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -53,7 +53,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut mes_map: Option<PathBuf> = None;
     let mut item_table: Option<PathBuf> = None;
     let mut language = String::from("us");
-    let mut choices: BTreeMap<(i32, u16), i32> = BTreeMap::new();
+    // (map, text, first scenario) -> answer.
+    let mut choices: BTreeMap<(i32, u16, i32), i32> = BTreeMap::new();
     let mut route: Vec<(i32, i32)> = Vec::new();
     let mut skip_talk: BTreeSet<(i32, usize)> = BTreeSet::new();
     let mut hold: BTreeMap<i32, i32> = BTreeMap::new();
@@ -83,11 +84,21 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 for part in value()?.split(',') {
                     let parsed = part.trim().split_once(':').and_then(|(map, rest)| {
                         let (text, answer) = rest.split_once('=')?;
-                        Some((map.parse().ok()?, text.parse().ok()?, answer.parse().ok()?))
+                        let (answer, from) = match answer.split_once('@') {
+                            Some((answer, from)) => (answer, from.parse().ok()?),
+                            None => (answer, 0),
+                        };
+                        Some((
+                            map.parse().ok()?,
+                            text.parse().ok()?,
+                            from,
+                            answer.parse().ok()?,
+                        ))
                     });
-                    let (map, text, answer) = parsed
-                        .ok_or_else(|| format!("bad --choices entry `{part}`, want MAP:TEXT=N"))?;
-                    choices.insert((map, text), answer);
+                    let (map, text, from, answer) = parsed.ok_or_else(|| {
+                        format!("bad --choices entry `{part}`, want MAP:TEXT=N[@SCENARIO]")
+                    })?;
+                    choices.insert((map, text, from), answer);
                 }
             }
             "--route" => {
@@ -419,6 +430,9 @@ const CANCEL_SPECIAL: i32 = 0x90000;
 /// Cancel and Special to Confirm.
 const STALL_TICKS: u64 = 300;
 const CONFIRM_PERIOD: u64 = 15;
+/// Refusals (a line shown, the player kept) before the explorer tries
+/// another exit.
+const EXIT_REFUSALS: u32 = 3;
 /// Button prompts the explorer answers: (map, text id, `KeyOn` mask). Map
 /// 64's sword fight (`EVT_ALEX1_TS_SWD_BTL` entry 3) shows "Press [n]!"
 /// as text 112 + n for byte 46 = n and checks one key per n: Left, Right,
@@ -779,7 +793,7 @@ struct ChainOptions {
     text: Option<FieldText>,
     /// Scripted answers for choice windows by (field map, text id); 0 when
     /// absent, the reference's default cursor position.
-    choices: BTreeMap<(i32, u16), i32>,
+    choices: BTreeMap<(i32, u16, i32), i32>,
     /// `FF9_Data` directory for the FMV movie inventory (`StreamingAssets/ma`).
     game_data: Option<PathBuf>,
     /// Level tables for experience growth (base stats and leveling rows).
@@ -1321,6 +1335,7 @@ fn chain(
         let mut talk_dwell: BTreeMap<usize, u64> = BTreeMap::new();
         let field_waypoints = waypoints.get(&map).cloned().unwrap_or_default();
         let mut floors_tried: BTreeMap<usize, Vec<f32>> = BTreeMap::new();
+        let mut exit_runs: BTreeMap<usize, (u32, usize)> = BTreeMap::new();
         let mut waypoint_index = 0usize;
         let mut waypoint_dwell = 0u64;
         let mut talk_scenario = scenario_at_start;
@@ -1599,7 +1614,14 @@ fn chain(
                             continue;
                         }
                         if let Some(text) = shown.filter(|text| choice_texts.contains(text)) {
-                            let answer = choices.get(&(map, text)).copied().unwrap_or(0);
+                            // The answer set for the latest story step
+                            // reached: map 202's Baku starts his fight on
+                            // "Anytime!" only from scenario 2100.
+                            let scenario = scenario_counter(director.world());
+                            let answer = choices
+                                .range((map, text, i32::MIN)..=(map, text, scenario))
+                                .next_back()
+                                .map_or(0, |(_, answer)| *answer);
                             director.world_mut().dialog_choice = answer;
                             choices_made.push((text, answer));
                         }
@@ -1738,6 +1760,21 @@ fn chain(
                             }
                             if register(&mut director, &pool, entry, Some(2))?.is_some() {
                                 region_triggers += 1;
+                                // An exit whose script takes control for a
+                                // line and keeps the player here refuses for now
+                                // (map 206 to the forest: "too tough on my
+                                // own"); after a few, try another exit.
+                                // Silent reruns (map 164's floor retries)
+                                // do not count.
+                                let (refusals, seen) =
+                                    exit_runs.entry(entry).or_insert((0, control_changes.len()));
+                                if control_changes.len() > *seen {
+                                    *refusals += 1;
+                                }
+                                *seen = control_changes.len();
+                                if exits.contains_key(&entry) && *refusals >= EXIT_REFUSALS {
+                                    triggered.insert(entry);
+                                }
                             }
                             let dwell = dwell_ticks.entry(entry).or_insert(0);
                             *dwell += 1;

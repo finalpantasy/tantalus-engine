@@ -8,6 +8,36 @@ Goal: from a new game (`fldMapNo` 70, zeroed state), follow each field change un
 
 It runs each field's archive under the orchestrated `FieldDirector` (each entry's tag-0 function, requested tags spawned on demand, as in `tantalusctl --orchestrate`), stops a field at its first `MAPJUMP` (`world.field_transitions`), and carries `FieldWorld` into the next field. The EventDB table is read from the pinned Memoria source at run time and is not copied into the repository. `tantalus-trace disasm --bundle <p0data7.bin> --event <NAME>.eb [--entry N]` prints decoded instructions.
 
+## Result on 2026-11-18, eighth run (created objects, random, prompts)
+
+Same command as the seventh run, with `--ticks 12000`, `--max-fields 110`, `--hold 115:16,207:16` and `--choices 52:66=1,64:127=1,202:242=1,202:242=0@2100`.
+
+The new game runs 110 fields (the cap) with zero VM errors. After the second act it plays the sword fight, the cockpit scenes and King Leo's finale, then the airship crash: Evil Forest, the crash site rooms, and the ATE scenes in between. Scenario goes from 1155 to 2100; the next step is Baku's fight on map 202.
+
+| Map | Archive | Ticks | Next | Scenario |
+|---|---|---|---|---|
+| 64 | `EVT_ALEX1_TS_SWD_BTL` | 2478 | 150 | 1600 (button prompts, 49 rounds) |
+| 68/64/67 | `TS_ROYAL_1` / `TS_SWD_BTL` / `TS_STAGE_2C` | 350 / 960 / 3451 | 64, 67, 60 | 1600 (battle 335 skipped) |
+| 60 | `EVT_ALEX1_TS_COCKPIT` | 825 / 769 | 60, 69 | 1600 (battle 334 skipped) |
+| 69 | `EVT_ALEX1_TS_ROYAL_2` | 1750 | 209 | 1900 |
+| 209/201/206 | `EVT_DOWNSHIP_BT_CF1_0` / `CCP_0` / `FRT_0` | 1136 / 538 / 1153 | 201, 206, 251 | 1900 to 2005 (ATE tutorial) |
+| 250/251 | `EVT_EFOREST1_EF_ENT_0` / `FR1_0` | 326 / 1413 | 251, 207 | 2010 to 2030 (battles 302, 301 skipped) |
+| 200-208 | `EVT_DOWNSHIP_BT_*` | 62 to 1413 | | 2040 to 2100 |
+
+Engine fixes behind this run, each from the Memoria source:
+
+- Only entry 0 starts at field load. Every other entry starts when `NEW`, `NEW2` or `NEW3` creates it; `DirectorStep::initialized` reports those sources. Before this, map 64 at entrance 327 registered exits that its script creates only in another branch.
+- System variable 0 is `Comn.random8()`. It read 0, and map 64 entry 20's retry loop for a new prompt never ended.
+- `FieldWorld::begin_field` also clears actors, the control actor and exit arrivals, as a field change destroys every object. Old actors stayed talkable on the next field.
+
+Explorer changes in `tantalus-trace`:
+
+- Button prompts: `PROMPT_KEYS` maps (map, text) to the key the script checks. Map 64's "Press [n]!" is text 112 + n for byte 46 = n (Left, Right, Triangle, Down, Cross, Up, Circle, Square), and map 206's ATE tutorial holds text 352 until Select is held. A prompt window is answered with its key, never closed with Confirm.
+- Choices can depend on the story step: `MAP:TEXT=N@SCENARIO` applies from that scenario on. Baku's "Anytime!" starts his fight only from scenario 2100; before that the answer is "Hold on".
+- An exit that takes control three times and keeps the player in the field (map 206 to the forest: "too tough on my own") is dropped for that visit, and the explorer tries another.
+
+Open items: battles are still skipped; name text variables are empty; the tick limit is 12000 because the sword fight runs about 2400 ticks.
+
 ## Result on 2026-11-17, seventh run (object order, exit position, floors)
 
 Same command as the sixth run, with `--route` gaining `153>150`, `--waypoints` gaining `154@-807:-5081`, and `--max-fields 60`.

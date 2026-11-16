@@ -400,6 +400,9 @@ impl FieldWorld {
         self.shared_scripts.clear();
         self.object_members.clear();
         self.deleted_objects.clear();
+        self.actors.clear();
+        self.control_actor = None;
+        self.exit_arrivals.clear();
     }
 
     /// `NEW` of a deleted object makes it run again.
