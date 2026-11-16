@@ -2,17 +2,17 @@
 //! battle at a time, and battle rewards commit into field world state
 //! exactly once.
 
-use super::{BattleOutcome, CombatInput, CombatRuleset, GameServices, RewardBundle};
+use super::{AnyRuleset, BattleOutcome, CombatInput, GameServices, RewardBundle};
 use crate::field::world::{EncounterRequest, FieldWorld, MAX_GIL};
 use tantalus_contracts::{ContentId, EngineError, ErrorCategory};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ActiveEncounter {
     pub request: EncounterRequest,
-    pub battle: CombatRuleset,
+    pub battle: AnyRuleset,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct EncounterCoordinator {
     active: Option<ActiveEncounter>,
 }
@@ -35,7 +35,7 @@ impl EncounterCoordinator {
     pub fn begin(
         &mut self,
         request: EncounterRequest,
-        battle: CombatRuleset,
+        battle: impl Into<AnyRuleset>,
     ) -> Result<(), EngineError> {
         if self.active.is_some() {
             return Err(EngineError::new(
@@ -45,7 +45,10 @@ impl EncounterCoordinator {
                 true,
             ));
         }
-        self.active = Some(ActiveEncounter { request, battle });
+        self.active = Some(ActiveEncounter {
+            request,
+            battle: battle.into(),
+        });
         Ok(())
     }
 
