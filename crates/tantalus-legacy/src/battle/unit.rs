@@ -56,6 +56,20 @@ impl WeaponStats {
     pub const LONG_RANGE: u8 = 2;
 }
 
+/// `CharacterCategory.Female` (`Memoria/Data/Battle/CharacterCategory.cs:9`).
+pub const CATEGORY_FEMALE: u8 = 2;
+
+/// `PLAYER.category` at character creation: `CharacterParameter.DefaultCategory`
+/// (`ff9play.cs:133`), the `DefaultCategory` column of the shipped
+/// `Data/Characters/CharacterParameters.csv`, indexed by `CharacterId`
+/// (Zidane 0 .. Beatrix 11). `None` for an id outside that table. Mods and
+/// ability features can change `PLAYER.category` afterwards; the caller sets
+/// [`BattleUnit::player_category`] to the live value.
+pub fn default_player_category(character_id: u8) -> Option<u8> {
+    const TABLE: [u8; 12] = [9, 5, 6, 5, 6, 5, 6, 5, 21, 21, 21, 22];
+    TABLE.get(usize::from(character_id)).copied()
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct BattleUnit {
     /// `BTL_DATA.btl_id` (bit mask id).
@@ -113,6 +127,15 @@ pub struct BattleUnit {
     /// (`btl_util.CheckEnemyCategory`, `btl_util.cs:306`).
     pub is_undead: bool,
     pub is_flight: bool,
+    /// `HasCategory(EnemyCategory.Stone)`; only read for enemies.
+    pub is_stone: bool,
+    /// `ENEMY.info.die_atk` (`BattleEnemy.AttackOnDeath`): the enemy has a
+    /// dying move. Only read for enemies.
+    pub attack_on_death: bool,
+    /// `PLAYER.category` (`CharacterCategory` bits, `BattleUnit.PlayerCategory`,
+    /// `BattleUnit.cs:243`); 0 for enemies. Defaults per character:
+    /// [`default_player_category`].
+    pub player_category: u8,
     pub weapon: Option<WeaponStats>,
     /// `Data.maxDamageLimit` (players: 9999, `ff9play.cs:42`) and
     /// `maxMpDamageLimit` (players: 999, `ff9play.cs:43`).
@@ -185,6 +208,9 @@ impl BattleUnit {
             duration_factor: BTreeMap::new(),
             is_undead: false,
             is_flight: false,
+            is_stone: false,
+            attack_on_death: false,
+            player_category: 0,
             weapon: None,
             max_damage_limit: 9999,
             max_mp_damage_limit: 999,
@@ -230,6 +256,16 @@ impl BattleUnit {
 
     pub fn has_flight_category(&self) -> bool {
         !self.is_player && self.is_flight
+    }
+
+    /// `HasCategory(EnemyCategory.Stone)`: false for players.
+    pub fn has_stone_category(&self) -> bool {
+        !self.is_player && self.is_stone
+    }
+
+    /// `HasCategory(CharacterCategory)` (`BattleUnit.cs:494`).
+    pub fn has_character_category(&self, category: u8) -> bool {
+        self.is_player && self.player_category & category != 0
     }
 
     /// `IsZombie` (`BattleUnit.cs:325`).

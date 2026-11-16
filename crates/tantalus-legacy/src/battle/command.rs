@@ -71,6 +71,13 @@ pub struct BattleCommand {
     pub custom_mp_cost: Option<i32>,
     /// `Item` when `ItemId != NoItem`.
     pub item: Option<ItemEffect>,
+    /// `ff9item.FF9Item_GetCount(ItemId)` when the effect runs (script 74
+    /// and 75 read it); 0 with no item. The select-VFX step has already
+    /// removed the copy this command uses (`btl_cmd.cs:643-648`).
+    pub item_count: u32,
+    /// `Weapon.Find(ItemId).Power` (`Command.Weapon.Power`, script 42); `None`
+    /// when no weapon row is known for the command's item.
+    pub item_weapon_power: Option<i32>,
 }
 
 impl BattleCommand {
@@ -95,6 +102,8 @@ impl BattleCommand {
             mp_cost: 0,
             custom_mp_cost: None,
             item: None,
+            item_count: 0,
+            item_weapon_power: None,
         }
     }
 

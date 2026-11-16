@@ -1,5 +1,6 @@
 //! Battle reactions and command effects layered on the B5 machine: Reflect,
-//! Cover, Counter, Item commands and Double Cast.
+//! Cover and Protect Girls, Counter and Auto-Potion, Item, Auto-Potion and
+//! Throw commands, Magic Sword, Double Cast and the enemy reaction requests.
 //!
 //! Sources, all in the pinned Memoria `c716e1fa` under `Assembly-CSharp/`:
 //!
@@ -25,13 +26,36 @@
 //!   (`BattleHUD.Public.cs:846-856`).
 //! * Double Cast: the `ScriptId == 80` branch of `btl_cmd.SetCommand`
 //!   (`btl_cmd.cs:162-241`).
+//! * Protect Girls: support ability 38 (`AbilityFeatures.txt:766-769`), the
+//!   same `TriggerOnCommand` path as Cover.
+//! * Auto-Potion: support ability 56 (`AbilityFeatures.txt:830-834`) through
+//!   the `AutoItem` operation (`CharacterAbilityGems.cs:735-760`), the
+//!   `AutoPotion` command (`btl_util.GetCommandItem` treats it as an Item
+//!   command) and the `DisableSA 36 54 56` rule (`CharacterAbilityGems.cs:771`).
+//! * Throw: `btl_util.GetCommandItem` for a Throw command returns the item
+//!   (`btl_util.cs:405-415`), counted and consumed like an Item
+//!   (`btl_cmd.cs:1001-1011`, `:637-648`), script 42.
+//! * Magic Sword: `btl_cmd.SetCommand` (`btl_cmd.cs:262-266`),
+//!   `CheckCommandCondition` (`btl_cmd.cs:1016-1021`), `DecideMagicSword`
+//!   (`btl_cmd.cs:1629-1642`) and the busy test of `btl_util.IsBtlBusy`
+//!   (`btl_util.cs:185,195`).
+//! * Enemy reactions: `SBattleCalculator.CalcResult` (`SBattleCalculator.cs:315-325`)
+//!   raises `RequestAction(EnemyDying | EnemyCounter | EnemyReaction)`; the
+//!   AI's answers come back through `SetEnemyCommand` (`btl_cmd.cs:346-438`).
 //!
 //! Support abilities are data in Memoria (`AbilityFeatures.txt`, evaluated by
-//! NCalc). Only the default rows 36 and 37 are ported, as typed code; a mod
-//! that changes the feature text is not modeled.
+//! NCalc). Only the default rows 36, 37, 38 and 56 here (and 27, 28 and 33 in
+//! `calc.rs`) are ported, as typed code, with the features of one unit taken
+//! in ascending id order (the source walks a `HashSet`); a mod that changes
+//! the feature text is not modeled. Not ported: 54 Return Magic (so its
+//! `DisableSA` effect on 56 is absent too), 26 Gamble Defence, and the other
+//! rows.
 
+use super::calc::{CalcFlags, CalcOutcome, UnitFlags};
 use super::command::{BattleCommand, ItemData};
-use super::machine::{Battle, BattleError, BattleEvent, BattleHooks};
+use super::machine::{
+    Battle, BattleError, BattleEvent, BattleHooks, EnemyReactionKind, EnemyReactionRequest,
+};
 use super::queue::{CmdId, CommandSpec, cmd, is_declarable};
 use super::rng::BattleRandom;
 use super::status as st;
@@ -43,6 +67,58 @@ pub const SA_COUNTER: u8 = 36;
 pub const SA_COVER: u8 = 37;
 /// `SupportAbility.Eye4Eye`; read by the Counter condition (`AbilityFeatures.txt:757`).
 pub const SA_EYE_4_EYE: u8 = 39;
+/// `SupportAbility.ProtectGirls` (`AbilityFeatures.txt:766`).
+pub const SA_PROTECT_GIRLS: u8 = 38;
+/// `SupportAbility.AutoPotion` (`AbilityFeatures.txt:830`).
+pub const SA_AUTO_POTION: u8 = 56;
+/// `SupportAbility.ReturnMagic` (`AbilityFeatures.txt:821`), named only for
+/// the `DisableSA` list of 36 and 56.
+pub const SA_RETURN_MAGIC: u8 = 54;
+
+/// `RegularItem.Potion` and `HiPotion` (`Memoria/Data/Battle/RegularItem.cs:242`).
+pub const ITEM_POTION: i32 = 236;
+pub const ITEM_HI_POTION: i32 = 237;
+
+/// Commands whose item is `btl_util.GetCommandItem`: Item and AutoPotion
+/// (`CharacterCommandType.Item`) and Throw (`CharacterCommandType.Throw`).
+pub fn is_item_command(cmd_no: u32) -> bool {
+    matches!(cmd_no, cmd::ITEM | cmd::AUTO_POTION | cmd::THROW)
+}
+
+/// `CharacterCategory.Female` for the Protect Girls condition.
+pub use super::unit::CATEGORY_FEMALE;
+
+/// Blocking statuses of the default Magic Sword set
+/// (`BattleMagicSwordSet.ParseDataEntry`, `BattleMagicSwordSet.cs:35-39`, the
+/// values used when the CSV has no `IncludeStatusBlockers` option; the shipped
+/// `MagicSwordSets.csv` lists the same): Silence, Confuse, Berserk, Sleep,
+/// Heat and Mini for the supporter; Sleep and Mini for the beneficiary.
+pub const MAGIC_SWORD_SUPPORTER_BLOCKING: u64 =
+    st::SILENCE | st::CONFUSE | st::BERSERK | st::SLEEP | st::HEAT | st::MINI;
+pub const MAGIC_SWORD_BENEFICIARY_BLOCKING: u64 = st::SLEEP | st::MINI;
+
+/// `ff9abil.GetAbilityIdFromActiveAbility` (`ff9abil.cs:346`): the key
+/// `AbilityMagicSet` uses for a `BattleAbilityId`.
+pub fn ability_id_from_active(battle_ability: i32) -> i32 {
+    (battle_ability / 192) * 256 + battle_ability % 192
+}
+
+/// One `BattleMagicSwordSet` whose supporter is in the battle, bound to the
+/// units of this battle (`BattleHUD.SetAbilityMagic`, `BattleHUD.cs:1473-1500`).
+/// The shipped `MagicSwordSets.csv` has one set: Vivi supports Steiner, base
+/// abilities `AA:25..48` unlock `AA:50..76, 189, 191`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MagicSwordSet {
+    /// Unit index of the supporter (`Supporter`, found by `PlayerIndex`).
+    pub supporter: usize,
+    /// Unit index of the beneficiary (`Beneficiary`).
+    pub beneficiary: usize,
+    /// `UnlockedAbilities` as ability ids (the `AbilityMagicSet` keys), i.e.
+    /// [`ability_id_from_active`] of a `BattleAbilityId`.
+    pub unlocked_abilities: Vec<i32>,
+    pub supporter_blocking: u64,
+    pub beneficiary_blocking: u64,
+}
 
 /// `BattleAbilityId.Attack` as the Counter feature's `[code=Counter] 176`.
 pub const COUNTER_ABILITY_ATTACK: i32 = 176;
@@ -79,8 +155,12 @@ impl Battle {
     /// (`CharacterAbilityGems.cs:791`). `TryCover` (`:764`): the target is not
     /// Death or Petrify and is under Low HP.
     ///
-    /// Not modeled: SA 38 Protect Girls (needs the character's female
-    /// category), mod-edited feature text.
+    /// Support ability 38 Protect Girls shares the condition; its `TryCover`
+    /// (`AbilityFeatures.txt:769`) wants the target not Death or Petrify, with
+    /// the Female character category and `HP < MaxHP / 2` (unsigned HP against
+    /// an integer half).
+    ///
+    /// Not modeled: mod-edited feature text.
     pub(super) fn try_cover(&mut self, id: CmdId) {
         let (cmd_no, tar, caster, category) = {
             let s = &self.cmds.slots[id];
@@ -103,9 +183,15 @@ impl Battle {
         };
         let target_player = self.units[target].is_player;
         let target_status = self.units[target].status_current;
+        let target_female = self.units[target].has_character_category(CATEGORY_FEMALE);
+        let target_hp = self.units[target].cur_hp;
+        let target_half_hp = self.units[target].max_hp / 2;
         let mut try_cover: u16 = 0;
         for u in 0..self.units.len() {
-            if !self.sched[u].in_list || !self.units[u].has_support_ability(SA_COVER) {
+            if !self.sched[u].in_list
+                || !(self.units[u].has_support_ability(SA_COVER)
+                    || self.units[u].has_support_ability(SA_PROTECT_GIRLS))
+            {
                 continue;
             }
             let unit = &self.units[u];
@@ -117,9 +203,13 @@ impl Battle {
                 && cmd_no == cmd::ENEMY_ATK
                 && category & 8 != 0
                 && !unit.is_under_any_status(st::HEAT);
+            let alive = target_status & (st::DEATH | st::PETRIFY) == 0;
             if condition
-                && target_status & (st::DEATH | st::PETRIFY) == 0
-                && target_status & st::LOW_HP != 0
+                && alive
+                && ((unit.has_support_ability(SA_COVER) && target_status & st::LOW_HP != 0)
+                    || (unit.has_support_ability(SA_PROTECT_GIRLS)
+                        && target_female
+                        && target_hp < target_half_hp))
             {
                 try_cover |= unit.id;
             }
@@ -143,9 +233,8 @@ impl Battle {
 
     /// `btl_abil.CheckCoverAbility` (`btl_abil.cs:191-218`). Returns the
     /// covering unit's id, or 0. Busy test: `IsBtlBusy(CASTER | MAGIC_CASTER)`
-    /// over the running commands; `magic_caster_id` (Magic Sword) is not
-    /// modeled.
-    pub(super) fn check_cover_ability(&mut self, target: usize, candidates: u16) -> u16 {
+    /// over the running commands, so a Magic Sword supporter is busy too.
+    pub fn check_cover_ability(&mut self, target: usize, candidates: u16) -> u16 {
         let target_id = self.units[target].id;
         // A unit already covering this target keeps covering it.
         for u in 0..self.units.len() {
@@ -175,10 +264,12 @@ impl Battle {
         self.units[b].id
     }
 
+    /// `IsBtlBusy(CASTER | MAGIC_CASTER)` over `cur_cmd_list` (`btl_util.cs:178-188`).
     fn running_caster(&self, u: usize) -> bool {
-        self.running
-            .iter()
-            .any(|&c| self.cmds.slots[c].regist == Some(u))
+        let id = self.units[u].id;
+        self.running.iter().any(|&c| {
+            self.cmds.slots[c].regist == Some(u) || self.cmds.slots[c].magic_caster_id & id != 0
+        })
     }
 
     /// `FinishCommand` cover cleanup (`btl_cmd.cs:1345-1360`): a covering unit
@@ -328,53 +419,150 @@ impl Battle {
 
     // -- counter -----------------------------------------------------------------
 
-    /// Support ability 36 after an effect on `target` (`TriggerOnAbility(...,
-    /// "EffectDone", asTarget = true)`, `SBattleCalculator.cs:301`).
+    /// Everything `SBattleCalculator.CalcResult` does after the effect on one
+    /// target (`SBattleCalculator.cs:299-325`): the target's `EffectDone`
+    /// support abilities, then the enemy reaction requests. `outcome` is what
+    /// `calc_main` returned for this target.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn after_effect(
+        &mut self,
+        caster: usize,
+        target: usize,
+        (cmd_no, sub_no): (u32, i32),
+        category: u8,
+        outcome: &CalcOutcome,
+        hooks: &mut dyn BattleHooks,
+        rng: &mut dyn BattleRandom,
+    ) -> Result<(), BattleError> {
+        self.trigger_effect_done(caster, target, cmd_no, category, outcome, hooks, rng)?;
+        self.request_enemy_reactions(caster, target, cmd_no, sub_no, hooks);
+        Ok(())
+    }
+
+    /// The target-side `"EffectDone"` features, in ascending id order, with
+    /// the `DisableSA` set of this one calculation (`CalcContext.DisabledSA`,
+    /// `CharacterAbilityGems.cs:548,771`):
     ///
-    /// Condition (`AbilityFeatures.txt:757`): the target can move; the command
-    /// is declarable; caster and target are on opposite sides; category bit 8;
-    /// and `Spirit (x2 with Eye 4 Eye) > GetRandom(0, 100)`, where `GetRandom`
-    /// is `UnityEngine.Random.Range` (`NCalcUtility.cs:107`), one
-    /// `random_range(0, 100)` draw drawn only when the earlier terms hold
-    /// (NCalc `&&` short-circuits). Result: `SetCounter(target, Counter, 176,
-    /// caster)`.
-    pub(super) fn trigger_counter(
+    /// * 36 Counter (`AbilityFeatures.txt:755-758`): the target can move; the
+    ///   command is declarable; caster and target are on opposite sides;
+    ///   category bit 8; and `Spirit (x2 with Eye 4 Eye) > GetRandom(0, 100)`,
+    ///   where `GetRandom` is `UnityEngine.Random.Range` (`NCalcUtility.cs:107`),
+    ///   one `random_range(0, 100)` draw taken only when the earlier terms
+    ///   hold (NCalc `&&` short-circuits). Result: `SetCounter(target,
+    ///   Counter, 176, caster)`; then 36, 54 and 56 are disabled.
+    /// * 56 Auto-Potion (`AbilityFeatures.txt:831-834`): the target can move;
+    ///   declarable; opposite sides; and either a damage hit (`HPDamage != 0`
+    ///   with `HpAlteration` set and `HpRecovery` clear) or a direct HP hit.
+    ///   Result: `AutoItem` with Potion when one is left, else Hi-Potion;
+    ///   `SetCounter(target, AutoPotion, item, target)` when that item has a
+    ///   copy (default `AutoPotionOverhealLimit = -1`,
+    ///   `BattleSection.cs:70`); then 36, 54 and 56 are disabled.
+    ///
+    /// The condition decides the disabling, not the success of `SetCounter`.
+    #[allow(clippy::too_many_arguments)]
+    fn trigger_effect_done(
         &mut self,
         caster: usize,
         target: usize,
         cmd_no: u32,
         category: u8,
+        outcome: &CalcOutcome,
         hooks: &mut dyn BattleHooks,
         rng: &mut dyn BattleRandom,
     ) -> Result<(), BattleError> {
-        let unit = &self.units[target];
-        if !unit.has_support_ability(SA_COUNTER) || unit.is_under_any_status(IMMOBILIZED) {
-            return Ok(());
-        }
-        if !(is_declarable(cmd_no)
-            && self.units[caster].is_player != unit.is_player
-            && category & 8 != 0)
+        let mut disabled: u64 = 0;
+        let off = |sa: u8| 1u64 << sa;
+        let disable_all = off(SA_COUNTER) | off(SA_RETURN_MAGIC) | off(SA_AUTO_POTION);
+        let opposite = self.units[caster].is_player != self.units[target].is_player;
+        let can_move = !self.units[target].is_under_any_status(IMMOBILIZED);
+
+        if self.units[target].has_support_ability(SA_COUNTER)
+            && disabled & off(SA_COUNTER) == 0
+            && can_move
+            && is_declarable(cmd_no)
+            && opposite
+            && category & 8 != 0
         {
-            return Ok(());
+            let spirit = i32::from(self.units[target].will);
+            let spirit = if self.units[target].has_support_ability(SA_EYE_4_EYE) {
+                2 * spirit
+            } else {
+                spirit
+            };
+            if spirit > rng.random_range(0, 100) {
+                let caster_id = self.units[caster].id;
+                self.set_counter(
+                    target,
+                    cmd::COUNTER,
+                    COUNTER_ABILITY_ATTACK,
+                    caster_id,
+                    hooks,
+                )?;
+                disabled |= disable_all;
+            }
         }
-        let spirit = i32::from(unit.will);
-        let spirit = if unit.has_support_ability(SA_EYE_4_EYE) {
-            2 * spirit
-        } else {
-            spirit
-        };
-        if spirit <= rng.random_range(0, 100) {
-            return Ok(());
+
+        if self.units[target].has_support_ability(SA_AUTO_POTION)
+            && disabled & off(SA_AUTO_POTION) == 0
+            && can_move
+            && is_declarable(cmd_no)
+            && opposite
+        {
+            let t = outcome.target;
+            let damage_hit = t.hp_damage != 0
+                && t.flags.0 & UnitFlags::HP_DAMAGE_OR_HEAL == UnitFlags::HP_ALTERATION;
+            if damage_hit || outcome.flags.has(CalcFlags::DIRECT_HP) {
+                let item = if self.inventory.get(&ITEM_POTION).copied().unwrap_or(0) != 0 {
+                    ITEM_POTION
+                } else {
+                    ITEM_HI_POTION
+                };
+                if self.inventory.get(&item).copied().unwrap_or(0) != 0 {
+                    let own_id = self.units[target].id;
+                    self.set_counter(target, cmd::AUTO_POTION, item, own_id, hooks)?;
+                }
+                disabled |= disable_all;
+            }
         }
-        let caster_id = self.units[caster].id;
-        self.set_counter(
-            target,
-            cmd::COUNTER,
-            COUNTER_ABILITY_ATTACK,
-            caster_id,
-            hooks,
-        )?;
+        let _ = disabled;
         Ok(())
+    }
+
+    /// `RequestAction` after a hit on an enemy (`SBattleCalculator.cs:315-325`).
+    /// A player caster that hits an enemy without `PreventCounter` raises
+    /// `EnemyDying` when the enemy has a dying move and is at 0 HP, else
+    /// `EnemyCounter` when it is alive and the command is declarable; the
+    /// reaction request always follows. Not modeled: `bi.slave` (the request
+    /// goes to the target itself, not to its master enemy).
+    fn request_enemy_reactions(
+        &mut self,
+        caster: usize,
+        target: usize,
+        cmd_no: u32,
+        sub_no: i32,
+        hooks: &mut dyn BattleHooks,
+    ) {
+        if self.units[target].is_player {
+            return;
+        }
+        let target_id = self.units[target].id;
+        let caster_id = self.units[caster].id;
+        let request = |kind| EnemyReactionRequest {
+            kind,
+            target_id,
+            caster_id,
+            cmd_no,
+            sub_no,
+        };
+        if self.units[caster].is_player && !self.units[target].is_under_any_status(PREVENT_COUNTER)
+        {
+            if self.units[target].attack_on_death && self.units[target].cur_hp == 0 {
+                hooks.enemy_reaction(self, request(EnemyReactionKind::Dying));
+            } else if self.units[target].cur_hp != 0 && is_declarable(cmd_no) {
+                hooks.enemy_reaction(self, request(EnemyReactionKind::Counter));
+            }
+        }
+        hooks.enemy_reaction(self, request(EnemyReactionKind::Reaction));
     }
 
     /// `btl_cmd.SetCounter` (`btl_cmd.cs:336-344`): refused while the unit is
@@ -404,7 +592,8 @@ impl Battle {
 
     /// The `CommandSpec` of an Item command: the base spec the hooks give for
     /// the command (the `Void` action row) with the script id and item data
-    /// of `ITEM_DATA` (`GetCommandScriptId`, `btl_util.cs:445-446`;
+    /// of `ITEM_DATA` (`GetCommandScriptId`, `btl_util.cs:432-447`, for Item and
+    /// AutoPotion;
     /// `BattleCommand.Item`, `BattleCommand.cs:24-28`) and the item's
     /// `info.ForDead` (`btl_cmd.cs:1231-1232`). Only player casters use items
     /// (`GetCommandItem`, `btl_util.cs:407`).
@@ -437,13 +626,13 @@ impl Battle {
     }
 
     /// Item count check in `CheckCommandCondition` (`btl_cmd.cs:1001-1007`):
-    /// an Item command with no copy left is rejected.
+    /// an Item, AutoPotion or Throw command with no copy left is rejected.
     pub(super) fn item_available(&self, id: CmdId) -> bool {
         let s = &self.cmds.slots[id];
         let Some(r) = s.regist else {
             return true;
         };
-        if s.cmd_no != cmd::ITEM || !self.units[r].is_player {
+        if !is_item_command(s.cmd_no) || !self.units[r].is_player {
             return true;
         }
         self.inventory.get(&s.sub_no).copied().unwrap_or(0) > 0
@@ -457,7 +646,7 @@ impl Battle {
         let (Some(r), cmd_no, item) = (s.regist, s.cmd_no, s.sub_no) else {
             return;
         };
-        if cmd_no != cmd::ITEM || !self.units[r].is_player {
+        if !is_item_command(cmd_no) || !self.units[r].is_player {
             return;
         }
         if let Some(n) = self.inventory.get_mut(&item)
@@ -471,6 +660,70 @@ impl Battle {
                 remaining,
             });
         }
+    }
+
+    /// The `CommandSpec` of a Throw command: the hooks' row for the Throw
+    /// action (`GetCommandAction` is `aa_data[Throw]`), with the thrown item's
+    /// weapon power for script 42 and, when the item has a use effect, its
+    /// `ITEM_DATA` and `ForDead` (`CheckTargetCondition`, `btl_cmd.cs:1233`).
+    pub(super) fn throw_spec(
+        &mut self,
+        mut spec: CommandSpec,
+        sub_no: i32,
+        hooks: &mut dyn BattleHooks,
+    ) -> CommandSpec {
+        spec.command.item_weapon_power = hooks.item_weapon_power(sub_no);
+        if let Some(data) = hooks.item(sub_no) {
+            spec.command.item = Some(data.effect);
+            spec.for_dead = data.for_dead;
+        }
+        spec
+    }
+
+    // -- magic sword -------------------------------------------------------------
+
+    /// `GetMagicSwordOfAbility(caster, GetAbilityIdFromActiveAbility(aaIndex))`
+    /// for a command (`btl_cmd.cs:262-264,1017-1018`). `aaIndex` is
+    /// `GetCommandMainActionIndex` (`btl_util.cs:359-393`): `Void` for Item,
+    /// AutoPotion, MagicCounter and the system commands, Throw (190) for Throw,
+    /// Flee2 (180) for SysEscape, else `sub_no`. Only a player beneficiary has
+    /// a set. Not modeled: monster transform, mod-defined Throw or Item
+    /// commands (`GetCommandTypeSafe`).
+    pub(super) fn magic_sword_of(
+        &self,
+        caster: usize,
+        cmd_no: u32,
+        sub_no: i32,
+    ) -> Option<MagicSwordSet> {
+        if !self.units[caster].is_player {
+            return None;
+        }
+        let ability = match cmd_no {
+            cmd::ITEM
+            | cmd::AUTO_POTION
+            | cmd::MAGIC_COUNTER
+            | cmd::SYS_DEAD
+            | cmd::SYS_RERAISE
+            | cmd::SYS_STONE => 0,
+            cmd::THROW => 190,
+            cmd::SYS_ESCAPE => 180,
+            _ => sub_no,
+        };
+        let key = ability_id_from_active(ability);
+        self.magic_swords
+            .iter()
+            .find(|m| m.beneficiary == caster && m.unlocked_abilities.contains(&key))
+            .cloned()
+    }
+
+    /// `btl_cmd.DecideMagicSword` (`btl_cmd.cs:1629-1642`): the caster must not
+    /// be immobilized or under the beneficiary blockers, and the supporter
+    /// must not be immobilized or under the supporter blockers.
+    pub(super) fn decide_magic_sword(&self, caster: usize, set: &MagicSwordSet) -> bool {
+        if self.units[caster].is_under_any_status(IMMOBILIZED | set.beneficiary_blocking) {
+            return false;
+        }
+        !self.units[set.supporter].is_under_any_status(IMMOBILIZED | set.supporter_blocking)
     }
 
     // -- double cast ---------------------------------------------------------------

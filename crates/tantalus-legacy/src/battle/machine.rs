@@ -18,10 +18,11 @@
 //!   Defaults are 0 (no wait).
 //! * Enemy AI is the event engine and is not ported: [`BattleHooks::enemy_atb`]
 //!   supplies the action an enemy takes when its gauge fills.
-//! * Reflect, Cover, the player Counter support ability, Item commands and
-//!   Double Cast live in [`super::reactions`]. Steal, jump, Magic Sword,
-//!   summon decisions, other support abilities, Auto-Life, Phantom recast and
-//!   Eiko's Rebirth Flame are not ported.
+//! * Reflect, Cover and Protect Girls, the Counter and Auto-Potion support
+//!   abilities, Item, Auto-Potion and Throw commands, Magic Sword and Double
+//!   Cast live in [`super::reactions`]. Steal, jump, summon decisions, other
+//!   support abilities, Auto-Life, Phantom recast and Eiko's Rebirth Flame are
+//!   not ported.
 
 #![allow(clippy::needless_range_loop)]
 
@@ -204,6 +205,51 @@ pub trait BattleHooks {
     fn item(&mut self, _item_id: i32) -> Option<ItemData> {
         None
     }
+
+    /// `Weapon.Find(item).Power` for a Throw command (`ThrowScript`,
+    /// `Command.Weapon.Power`). `None` means the item has no weapon row.
+    fn item_weapon_power(&mut self, _item_id: i32) -> Option<i32> {
+        None
+    }
+
+    /// A `RequestAction` the effect pipeline raises after a hit on an enemy
+    /// (`SBattleCalculator.CalcResult`, `SBattleCalculator.cs:315-325`): the
+    /// AI function for counter, dying or reaction may start. The default
+    /// ignores it.
+    fn enemy_reaction(&mut self, _battle: &Battle, _request: EnemyReactionRequest) {}
+
+    /// Counter and dying commands the enemy AI queued since the last call
+    /// (`BTLCMD` at script level 1 and 0, `SetEnemyCommand`): `(caster
+    /// btl_id, action)`. Polled once per tick, before the ATB pass.
+    fn enemy_reaction_commands(&mut self, _battle: &Battle) -> Vec<(u16, EnemyAction)> {
+        Vec::new()
+    }
+}
+
+/// Which `RequestAction` flavor a hit raises.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EnemyReactionKind {
+    /// `RequestAction(EnemyCounter, ...)`: script level 1, tag 6.
+    Counter,
+    /// `RequestAction(EnemyDying, ...)`: script level 0, tag 9.
+    Dying,
+    /// `RequestAction(EnemyReaction, ...)`: script level 2, tag 7.
+    Reaction,
+}
+
+/// `RequestAction(cmd, target, reactCaster, reactCmdId, reactSubId)`
+/// (`EventEngine.cs:285`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EnemyReactionRequest {
+    pub kind: EnemyReactionKind,
+    /// `target`: the `btl_id` of the enemy that was hit.
+    pub target_id: u16,
+    /// `reactCaster`: the `btl_id` of the unit that hit it.
+    pub caster_id: u16,
+    /// `reactCmdId`: the command that hit it.
+    pub cmd_no: u32,
+    /// `reactSubId`.
+    pub sub_no: i32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -266,6 +312,11 @@ pub enum BattleEvent {
     Covered {
         target_id: u16,
         cover_id: u16,
+    },
+    /// `DecideMagicSword` refused a Magic Sword spell
+    /// (`BattleMesages.CombinationFailed`, `btl_cmd.cs:1631-1641`).
+    CombinationFailed {
+        unit: usize,
     },
     /// `ItemUse`: one copy of `item` was removed from the inventory.
     ItemUsed {
@@ -365,6 +416,10 @@ pub struct Battle {
     /// id that is absent has count 0. The host owns the real inventory and
     /// seeds this from it.
     pub inventory: std::collections::BTreeMap<i32, u32>,
+    /// Magic Sword links in effect: the host builds one per
+    /// `BattleMagicSwordSet` whose supporter is in the battle
+    /// (`BattleHUD.SetAbilityMagic`, `BattleHUD.cs:1473`).
+    pub magic_swords: Vec<super::reactions::MagicSwordSet>,
     /// `(tick, event)` in order; the tick is 1-based.
     pub log: Vec<(u32, BattleEvent)>,
 }
@@ -405,6 +460,7 @@ impl Battle {
             escape_count: 0,
             bonus_exp: 0,
             inventory: std::collections::BTreeMap::new(),
+            magic_swords: Vec::new(),
             log: Vec::new(),
         }
     }
@@ -850,6 +906,7 @@ impl Battle {
         slot.reflec_targets = [0; 4];
         slot.has_checked_reflect = false;
         slot.covered = false;
+        slot.magic_caster_id = 0;
         slot.priority = !is_declarable(cmd_no);
     }
 
@@ -937,8 +994,10 @@ impl Battle {
             None => None,
         };
         let is_player = regist.is_some_and(|r| self.units[r].is_player);
-        if cmd_no == cmd::ITEM && is_player {
+        if matches!(cmd_no, cmd::ITEM | cmd::AUTO_POTION) && is_player {
             spec = Some(self.item_spec(spec, cmd_no, sub_no, hooks)?);
+        } else if cmd_no == cmd::THROW && is_player {
+            spec = spec.map(|s| self.throw_spec(s, sub_no, hooks));
         }
         if let (Some(s), Some(r)) = (&spec, regist)
             && s.command.script_id == 80
@@ -951,6 +1010,12 @@ impl Battle {
             s.command.custom_mp_cost = Some(mp);
         }
         self.raw_set_command(id, cmd_no, sub_no, tar_id, cursor, spec);
+        if let Some(r) = regist
+            && let Some(set) = self.magic_sword_of(r, cmd_no, sub_no)
+        {
+            // `btl_cmd.cs:262-266`; a missing supporter unit gives 0.
+            self.cmds.slots[id].magic_caster_id = self.units[set.supporter].id;
+        }
         if force_priority {
             self.cmds.slots[id].priority = true;
         }
@@ -992,7 +1057,13 @@ impl Battle {
         Ok(ok)
     }
 
-    /// `btl_cmd.SetEnemyCommand` (`btl_cmd.cs:346-438`) for `EnemyAtk`.
+    /// `btl_cmd.SetEnemyCommand` (`btl_cmd.cs:346-438`) for `EnemyAtk`
+    /// (slot 0), `EnemyCounter` and `EnemyDying` (slot 1) and
+    /// `ScriptCounter1..3` (slots 3 to 5, queued as `EnemyCounter`).
+    ///
+    /// Not modeled: `EnemyDying` while slot 1 holds another command. The
+    /// source then adds a seventh command (`cmd[6]`, `btl_cmd.cs:401-410`);
+    /// the six-slot arena has none, so that request is dropped.
     pub fn set_enemy_command(
         &mut self,
         i: usize,
@@ -1004,19 +1075,44 @@ impl Battle {
             self.sched[i].sel_mode = 0;
             return Ok(());
         }
-        if action.cmd_no != cmd::ENEMY_ATK || self.phase != Phase::Normal {
-            // Counters, dying moves and script counters need the AI event
-            // engine (`btl_cmd.cs:370-393`); only `EnemyAtk` is ported.
+        // `IsSpecialHPInDyingState` (`btl_para.cs:350`): a non-dying boss
+        // under 10000 HP and alone on its side stops attacking.
+        if action.cmd_no != cmd::ENEMY_DYING
+            && self.phase == Phase::Normal
+            && self.units[i].non_dying_boss
+            && self.units[i].cur_hp < 10000
+            && self.enemy_side_mask() == self.units[i].id
+        {
             self.sched[i].sel_mode = 0;
             return Ok(());
         }
-        let id = self.cmds.slot_of(i, 0);
+        let (slot_k, cmd_no) = match action.cmd_no {
+            cmd::ENEMY_ATK => {
+                if self.phase != Phase::Normal {
+                    self.sched[i].sel_mode = 0;
+                    return Ok(());
+                }
+                (0, cmd::ENEMY_ATK)
+            }
+            cmd::ENEMY_COUNTER => (1, cmd::ENEMY_COUNTER),
+            cmd::ENEMY_DYING => (1, cmd::ENEMY_DYING),
+            cmd::SCRIPT_COUNTER_1 => (3, cmd::ENEMY_COUNTER),
+            cmd::SCRIPT_COUNTER_2 => (4, cmd::ENEMY_COUNTER),
+            cmd::SCRIPT_COUNTER_3 => (5, cmd::ENEMY_COUNTER),
+            _ => {
+                self.sched[i].sel_mode = 0;
+                return Ok(());
+            }
+        };
+        let id = self.cmds.slot_of(i, slot_k);
         if self.cmds.is_using(id, &self.running) {
-            self.sched[i].sel_mode = 0;
+            if cmd_no == cmd::ENEMY_ATK {
+                self.sched[i].sel_mode = 0;
+            }
             return Ok(());
         }
         self.cmds.clear(id);
-        let spec = hooks.spec(action.cmd_no, action.sub_no, &self.units[i]);
+        let spec = hooks.spec(cmd_no, action.sub_no, &self.units[i]);
         let cursor = match &spec {
             Some(s) => {
                 let t = s.command.target_type;
@@ -1028,24 +1124,40 @@ impl Battle {
             }
             None => 0,
         };
-        self.raw_set_command(
-            id,
-            action.cmd_no,
-            action.sub_no,
-            action.tar_id,
-            cursor,
-            spec,
-        );
-        let prev = self.snapshot();
-        let env = self.status_env();
-        remove_status(&mut self.units[i], 15, &env);
-        self.sync(&prev);
+        self.raw_set_command(id, cmd_no, action.sub_no, action.tar_id, cursor, spec);
+        if slot_k == 0 {
+            let prev = self.snapshot();
+            let env = self.status_env();
+            remove_status(&mut self.units[i], 15, &env);
+            self.sync(&prev);
+        }
         self.cmds.enqueue(id);
         self.emit(BattleEvent::CommandQueued {
             unit: i,
-            cmd_no: action.cmd_no,
+            cmd_no,
             tar_id: action.tar_id,
         });
+        Ok(())
+    }
+
+    /// `btl_scrp.GetBattleID(1)`: every listed enemy's `btl_id` bit.
+    fn enemy_side_mask(&self) -> u16 {
+        (0..self.units.len())
+            .filter(|&j| self.sched[j].in_list && !self.units[j].is_player)
+            .fold(0, |m, j| m | self.units[j].id)
+    }
+
+    /// Queue the counter and dying commands the AI raised (`SetEnemyCommand`
+    /// from `BTLCMD`, `DoEventCode.cs:1177-1215`).
+    fn poll_enemy_reactions(&mut self, hooks: &mut dyn BattleHooks) -> Result<(), BattleError> {
+        for (caster_id, action) in hooks.enemy_reaction_commands(self) {
+            let Some(i) = (0..self.units.len())
+                .find(|&j| self.sched[j].in_list && self.units[j].id == caster_id)
+            else {
+                continue;
+            };
+            self.set_enemy_command(i, action, hooks)?;
+        }
         Ok(())
     }
 
@@ -1138,6 +1250,7 @@ impl Battle {
         }
         self.battle_main(hooks, rng)?;
         if self.menu_enabled {
+            self.poll_enemy_reactions(hooks)?;
             self.process_active_time(hooks, rng)?;
         }
         self.tick_no += 1;
@@ -1705,6 +1818,13 @@ impl Battle {
         if !self.item_available(id) {
             return false;
         }
+        // `DecideMagicSword` (`btl_cmd.cs:1016-1021`).
+        if let Some(set) = self.magic_sword_of(r, cmd_no, self.cmds.slots[id].sub_no)
+            && !self.decide_magic_sword(r, &set)
+        {
+            self.emit(BattleEvent::CombinationFailed { unit: r });
+            return false;
+        }
         match cmd_no {
             cmd::SYS_STONE => {
                 let prev = self.snapshot();
@@ -1826,9 +1946,16 @@ impl Battle {
         hooks: &mut dyn BattleHooks,
         rng: &mut dyn BattleRandom,
     ) -> Result<(), BattleError> {
-        let (cmd_no, tar, cursor, short, regist) = {
+        let (cmd_no, sub_no, tar, cursor, short, regist) = {
             let s = &self.cmds.slots[id];
-            (s.cmd_no, s.tar_id, s.cursor, s.short_range, s.regist)
+            (
+                s.cmd_no,
+                s.sub_no,
+                s.tar_id,
+                s.cursor,
+                s.short_range,
+                s.regist,
+            )
         };
         if matches!(cmd_no, cmd::JUMP | cmd::JUMP_IN_TRANCE | cmd::SYS_TRANS) {
             return Ok(());
@@ -1855,6 +1982,9 @@ impl Battle {
             }
             command.is_many_target = cursor & 1 != 0;
             command.is_short_range = short;
+            if super::reactions::is_item_command(cmd_no) && self.units[caster].is_player {
+                command.item_count = self.inventory.get(&sub_no).copied().unwrap_or(0);
+            }
             let env = CalcEnv {
                 escape_key_pressed: self.escape_key,
                 battle_menu_enabled: self.menu_enabled,
@@ -1862,7 +1992,7 @@ impl Battle {
                 ..CalcEnv::default()
             };
             let prev = self.snapshot();
-            calc_main(&mut self.units, caster, t, command, env, &self.table, rng)?;
+            let outcome = calc_main(&mut self.units, caster, t, command, env, &self.table, rng)?;
             self.sync(&prev);
             let target_hp = self.units[t].cur_hp;
             self.emit(BattleEvent::EffectApplied {
@@ -1870,7 +2000,15 @@ impl Battle {
                 target: t,
                 target_hp,
             });
-            self.trigger_counter(caster, t, cmd_no, spec.command.ability_category, hooks, rng)?;
+            self.after_effect(
+                caster,
+                t,
+                (cmd_no, sub_no),
+                spec.command.ability_category,
+                &outcome,
+                hooks,
+                rng,
+            )?;
         }
         Ok(())
     }

@@ -88,6 +88,8 @@ pub enum CalcError {
     DivideByZero(&'static str),
     /// A script id this port does not implement.
     UnportedScript(i32),
+    /// Script 42 read `Command.Weapon` but the command carries no weapon row.
+    MissingItemWeapon,
 }
 
 impl std::fmt::Display for CalcError {
@@ -95,6 +97,7 @@ impl std::fmt::Display for CalcError {
         match self {
             CalcError::DivideByZero(what) => write!(f, "division by zero in {what}"),
             CalcError::UnportedScript(id) => write!(f, "battle script {id} is not ported"),
+            CalcError::MissingItemWeapon => write!(f, "the command's item has no weapon row"),
         }
     }
 }
@@ -831,6 +834,31 @@ impl<'a> Calculator<'a> {
         if self.is_absorb() {
             self.target_calc.flags.0 |= UnitFlags::HP_RECOVERY;
         }
+        self.trigger_calc_damage_features();
+    }
+
+    /// The `"CalcDamage"` phase of `TriggerOnAbility` for the caster's
+    /// support abilities 27, 28 and 33 (`AbilityFeatures.txt:710-733`, all
+    /// `WhenCalcDamage EvenImmobilized`, caster side). Default feature text as
+    /// typed code, in ascending id order (the source walks a `HashSet`, whose
+    /// order the data does not fix); mod-edited text is not modeled.
+    ///
+    /// * 27 Chemist: script 69 or 70, `Attack = 2 * Attack`.
+    /// * 28 Power Throw: script 42, `DamageModifierCount + 1`.
+    /// * 33 Concentrate: script 10 or 13, `DamageModifierCount + 1`.
+    ///
+    /// Not modeled: 26 Gamble Defence (target side, needs a draw).
+    fn trigger_calc_damage_features(&mut self) {
+        let script = self.command.script_id;
+        if self.c().has_support_ability(27) && (script == 69 || script == 70) {
+            self.attack = self.attack.wrapping_mul(2);
+        }
+        if self.c().has_support_ability(28) && script == 42 {
+            self.modifier_up();
+        }
+        if self.c().has_support_ability(33) && (script == 10 || script == 13) {
+            self.modifier_up();
+        }
     }
 
     /// `CalcPhysicalHpDamage` (`BattleCalculator.cs:525`).
@@ -858,6 +886,7 @@ impl<'a> Calculator<'a> {
             self.target_calc.flags.0 |= UnitFlags::MP_RECOVERY;
             self.defense_power = 0;
         }
+        self.trigger_calc_damage_features();
         let attack = self.ensure_attack();
         self.target_calc.mp_damage = self.power_difference().max(0).wrapping_mul(attack) >> 2;
     }
@@ -882,6 +911,16 @@ impl<'a> Calculator<'a> {
         }
         self.calc_damage_common();
         self.target_calc.hp_damage = self.attack_power.wrapping_mul(self.attack);
+    }
+
+    /// `CalcMpMagicRecovery` (`BattleCalculator.cs:594`).
+    pub fn calc_mp_magic_recovery(&mut self) {
+        self.target_calc.flags.0 |= UnitFlags::MP_ALTERATION;
+        if !self.t().is_zombie() {
+            self.target_calc.flags.0 |= UnitFlags::MP_RECOVERY;
+        }
+        self.trigger_calc_damage_features();
+        self.target_calc.mp_damage = self.attack_power.wrapping_mul(self.attack);
     }
 
     /// `BonusBackstabAndPenaltyLongDistance` (`BattleCalculator.cs:644`).

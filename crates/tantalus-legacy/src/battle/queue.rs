@@ -41,6 +41,8 @@ pub mod cmd {
     pub const SYS_RERAISE: u32 = 61;
     pub const SYS_STONE: u32 = 62;
     pub const SCRIPT_COUNTER_1: u32 = 63;
+    pub const SCRIPT_COUNTER_2: u32 = 64;
+    pub const SCRIPT_COUNTER_3: u32 = 65;
     pub const BOUNDARY_UPPER_CHECK: u32 = 99;
 }
 
@@ -111,6 +113,10 @@ pub struct CmdSlot {
     pub has_checked_reflect: bool,
     /// `info.cover == 1`: a cover replaced a target of this command.
     pub covered: bool,
+    /// `CMD_DATA.magic_caster_id`: the `btl_id` of the Magic Sword supporter
+    /// (`btl_cmd.cs:264-266`); 0 for every other command. Reset by
+    /// `ClearCommand` (`btl_cmd.cs:59`).
+    pub magic_caster_id: u16,
 }
 
 impl CmdSlot {
@@ -134,6 +140,7 @@ impl CmdSlot {
             reflec_targets: [0; 4],
             has_checked_reflect: false,
             covered: false,
+            magic_caster_id: 0,
         }
     }
 }

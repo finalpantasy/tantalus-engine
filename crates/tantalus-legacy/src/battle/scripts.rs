@@ -4,8 +4,8 @@
 //! `BaseWeaponScript.cs`. Only `Perform` is ported; the `RateTarget`
 //! estimators (enemy AI scoring) are separate code paths.
 //!
-//! Ported ids: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 19 20 22 25 27 63 64
-//! 69 73 100 103 109. Every other id returns
+//! Ported ids: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 19 20 22 25 27 42 62
+//! 63 64 69 70 71 72 73 74 75 76 77 100 103 109. Every other id returns
 //! [`CalcError::UnportedScript`].
 
 use super::calc::{AttackBonus, CalcError, CalcFlags, Calculator, UnitFlags};
@@ -40,11 +40,20 @@ pub fn perform(id: i32, v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Calc
         22 => lv_direct_hp_damage(v),
         25 => precise_direct_hp_damage(v),
         27 => direct_hp_damage(v, rng),
+        42 => throw(v, rng),
+        62 => item_soft(v),
         63 => magic_sword_attack(v, rng),
         // `SBattleCalculator.cs:108`: no script, only `CalcResult`.
         64 => Ok(()),
         69 => item_potion(v, rng),
+        70 => item_ether(v),
+        71 => item_elixir(v),
+        72 => item_phoenix(v, rng),
         73 => item_cure_status(v),
+        74 => item_gem(v),
+        75 => dead_pepper(v),
+        76 => tent(v, rng),
+        77 => dark_matter(v),
         100 => precise_enemy_physical_attack(v, rng),
         103 => magic_apply_positive_status(v, rng),
         109 => mini(v, rng),
@@ -397,6 +406,142 @@ fn item_potion(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
 /// Script 73 (`0073_ItemCureStatusScript.cs`).
 fn item_cure_status(v: &mut Calculator<'_>) -> Result<(), CalcError> {
     v.try_remove_item_statuses();
+    Ok(())
+}
+
+/// Script 42, Throw (`0042_ThrowScript.cs:19`). `Command.Weapon.Power` is the
+/// thrown item's weapon power, carried in `item_weapon_power`.
+fn throw(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
+    if v.target_try_kill_frozen() {
+        return Ok(());
+    }
+    v.caster_set_low_physical_attack(rng);
+    v.target_set_physical_defense();
+    let power = v
+        .command
+        .item_weapon_power
+        .ok_or(CalcError::MissingItemWeapon)?;
+    v.attack_power = power << 1;
+    v.caster_physical_penalty_and_bonus_attack();
+    v.target_physical_penalty_and_bonus_attack();
+    if v.t().has_flight_category() {
+        v.modifier_up();
+    }
+    v.calc_physical_hp_damage();
+    Ok(())
+}
+
+/// Script 62, Soft (`0062_ItemSoftScript.cs:19`). A Stone-category target is
+/// killed (the follow message is UI); anything else loses the item's statuses.
+fn item_soft(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    if !v.t().has_stone_category() {
+        v.try_remove_item_statuses();
+        return Ok(());
+    }
+    if v.target_can_be_attacked() {
+        v.t_mut().kill();
+    }
+    Ok(())
+}
+
+/// Script 70, Ether (`0070_ItemEtherScript.cs:20`).
+fn item_ether(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    v.attack = 15;
+    v.attack_power = v.command.item.map_or(v.command.power, |i| i.power);
+    v.defense_power = 0;
+    v.calc_mp_magic_recovery();
+    Ok(())
+}
+
+/// Script 71, Elixir (`0071_ItemElixirScript.cs:19`): sets HP and MP directly,
+/// no `CalcResult` figures.
+fn item_elixir(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    if !v.target_can_be_attacked() {
+        return Ok(());
+    }
+    if v.t().is_zombie() {
+        v.t_mut().cur_mp = 0;
+        v.t_mut().kill();
+    } else {
+        let max_hp = v.t().max_hp;
+        v.t_mut().set_current_hp(max_hp);
+        let max_mp = v.t().max_mp;
+        v.t_mut().cur_mp = max_mp;
+    }
+    Ok(())
+}
+
+/// Script 72, Phoenix Down and Pinion (`0072_ItemPhoenixScript.cs:19`).
+/// `GameRandom.Next8()` is `random8`. A zombie that does not guard sets HP to
+/// `Next8 % 10` and dies on 0 (the comparison reads the assigned value, not
+/// the clamped HP).
+fn item_phoenix(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
+    if !v.target_can_be_revived() {
+        return Ok(());
+    }
+    if v.t().is_zombie() {
+        if v.target_check_unsafety_or_guard() {
+            let hp = (rng.random8() % 10) as u32;
+            v.t_mut().set_current_hp(hp);
+            if hp == 0 {
+                v.t_mut().kill();
+            }
+        }
+    } else if v.target_check_is_player() {
+        if v.t().is_under_any_status(status::DEATH) {
+            let hp = (1 + rng.random8() % 10) as u32;
+            v.t_mut().set_current_hp(hp);
+        }
+        v.try_remove_item_statuses();
+    }
+    Ok(())
+}
+
+/// `Command.Item.Power` or `Command.Power` (`ItemId != NoItem ? ...`).
+fn item_or_command_power(v: &Calculator<'_>) -> i32 {
+    v.command.item.map_or(v.command.power, |i| i.power)
+}
+
+/// Script 74, gems (`0074_ItemGemScript.cs:19`): power times the remaining
+/// count plus one.
+fn item_gem(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    v.target_calc.flags.0 |= UnitFlags::HP_ALTERATION | UnitFlags::HP_RECOVERY;
+    v.target_calc.hp_damage =
+        item_or_command_power(v).wrapping_mul((v.command.item_count as i32).wrapping_add(1));
+    Ok(())
+}
+
+/// Script 75, Dead Pepper (`0075_DeadPepperScript.cs:19`).
+fn dead_pepper(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    v.target_calc.flags.0 |= UnitFlags::HP_ALTERATION;
+    v.target_calc.hp_damage =
+        item_or_command_power(v).wrapping_mul((v.command.item_count as i32).wrapping_add(1));
+    Ok(())
+}
+
+/// Script 76, Tent (`0076_TentScript.cs:19`): half of max HP and MP, and one
+/// `Next16() % 100` draw against the item's rate that adds the item's statuses
+/// when the rate is lower.
+fn tent(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
+    v.target_calc.flags.0 |= UnitFlags::HP_ALTERATION
+        | UnitFlags::HP_RECOVERY
+        | UnitFlags::MP_ALTERATION
+        | UnitFlags::MP_RECOVERY;
+    v.target_calc.hp_damage = (v.t().max_hp >> 1) as i32;
+    v.target_calc.mp_damage = (v.t().max_mp >> 1) as i32;
+    let item = v.command.item.unwrap_or_default();
+    if item.hit_rate < rng.random16() % 100 {
+        v.target_try_alter_statuses(item.status, false, rng);
+    }
+    Ok(())
+}
+
+/// Script 77, Dark Matter (`0077_DarkMatterScript.cs:18`).
+fn dark_matter(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    if v.target_can_be_attacked() {
+        v.target_calc.flags.0 |= UnitFlags::HP_ALTERATION;
+        v.target_calc.hp_damage = 9999;
+    }
     Ok(())
 }
 

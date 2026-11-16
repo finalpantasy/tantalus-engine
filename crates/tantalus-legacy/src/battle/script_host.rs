@@ -53,7 +53,7 @@ use super::host::{
     BattleDataView, CurrentCommandView, UnitView, battle_sysvar, battle_views, character_data,
     set_character_data,
 };
-use super::machine::{Battle, BattleHooks, EnemyAction};
+use super::machine::{Battle, BattleHooks, EnemyAction, EnemyReactionKind, EnemyReactionRequest};
 use super::queue::cmd;
 use super::rng::BattleRandom;
 use crate::event::{
@@ -731,6 +731,9 @@ pub struct BattleScriptDriver {
     next_slot: usize,
     ticks: u64,
     attacks: Vec<EnemyCommand>,
+    /// Level 1 and level 0 commands (`EnemyCounter`, `EnemyDying`) not yet
+    /// taken by the machine.
+    reactions: Vec<EnemyCommand>,
     /// Number of `events` entries already scanned into `attacks`.
     scanned: usize,
 }
@@ -760,6 +763,7 @@ impl BattleScriptDriver {
             next_slot: 0,
             ticks: 0,
             attacks: Vec::new(),
+            reactions: Vec::new(),
             scanned: 0,
         };
         if !driver.table.entries.is_empty() {
@@ -1015,10 +1019,12 @@ impl BattleScriptDriver {
 
     fn collect_attacks(&mut self) {
         for event in &self.state.events[self.scanned..] {
-            if let AiEvent::Command(command) = event
-                && command.kind == EnemyCommandKind::Attack
-            {
-                self.attacks.push(*command);
+            if let AiEvent::Command(command) = event {
+                if command.kind == EnemyCommandKind::Attack {
+                    self.attacks.push(*command);
+                } else {
+                    self.reactions.push(*command);
+                }
             }
         }
         self.scanned = self.state.events.len();
@@ -1028,6 +1034,18 @@ impl BattleScriptDriver {
     pub fn take_attack(&mut self, caster: u16) -> Option<EnemyCommand> {
         let position = self.attacks.iter().position(|c| c.caster == caster)?;
         Some(self.attacks.remove(position))
+    }
+
+    /// Removes and returns every queued counter and dying command, oldest
+    /// first (`SetEnemyCommand` at script level 1 and 0).
+    pub fn take_reactions(&mut self) -> Vec<EnemyCommand> {
+        std::mem::take(&mut self.reactions)
+    }
+
+    /// True while an object runs a counter, reaction or dying function (script
+    /// level 0 to 2): the driver has to keep ticking until it returns.
+    pub fn reaction_active(&self) -> bool {
+        self.objects.iter().any(|o| o.level <= level::REACTION)
     }
 
     /// Number of live objects (main object, party actors, script actors).
@@ -1121,6 +1139,25 @@ impl<H: BattleHooks> EnemyAiHooks<H> {
     }
 }
 
+impl<H: BattleHooks> EnemyAiHooks<H> {
+    /// Once per battle tick: sync the machine into the script state and
+    /// advance the driver one tick.
+    fn advance(&mut self, battle: &Battle) {
+        if self.last_tick == Some(battle.tick_no) {
+            return;
+        }
+        self.last_tick = Some(battle.tick_no);
+        // Gil and AP are script-writable (`RunBattleCode` 38 and 44).
+        self.overlay.gil = self.driver.state.data.gil;
+        self.overlay.bonus_ap = self.driver.state.data.bonus_ap;
+        sync_state_from_battle(&mut self.driver.state, battle, &self.overlay);
+        self.synced = self.driver.state.units.clone();
+        if let Err(error) = self.driver.tick() {
+            self.error = Some(error);
+        }
+    }
+}
+
 impl<H: BattleHooks> BattleHooks for EnemyAiHooks<H> {
     fn spec(
         &mut self,
@@ -1135,19 +1172,59 @@ impl<H: BattleHooks> BattleHooks for EnemyAiHooks<H> {
         self.inner.item(item_id)
     }
 
+    fn item_weapon_power(&mut self, item_id: i32) -> Option<i32> {
+        self.inner.item_weapon_power(item_id)
+    }
+
+    /// `RequestAction(EnemyCounter | EnemyDying | EnemyReaction, target,
+    /// caster, cmd, sub)` (`EventEngine.cs:285`): the object accepts it only
+    /// when it is above the function's script level.
+    fn enemy_reaction(&mut self, _battle: &Battle, request: EnemyReactionRequest) {
+        let kind = match request.kind {
+            EnemyReactionKind::Counter => ReactionKind::Counter,
+            EnemyReactionKind::Dying => ReactionKind::Dying,
+            EnemyReactionKind::Reaction => ReactionKind::Reaction,
+        };
+        self.driver.request_reaction(
+            kind,
+            request.target_id,
+            request.caster_id,
+            request.cmd_no as i32,
+            request.sub_no,
+        );
+    }
+
+    /// The counter and dying commands the AI queued. While a reaction
+    /// function runs the driver is advanced here, once per battle tick (the
+    /// same guard `enemy_atb` uses); with none running nothing is ticked, so
+    /// a battle without reactions keeps the cadence it had.
+    fn enemy_reaction_commands(&mut self, battle: &Battle) -> Vec<(u16, EnemyAction)> {
+        if self.driver.reaction_active() {
+            self.advance(battle);
+        }
+        self.driver
+            .take_reactions()
+            .into_iter()
+            .map(|command| {
+                let cmd_no = match command.kind {
+                    EnemyCommandKind::Dying => cmd::ENEMY_DYING,
+                    _ => cmd::ENEMY_COUNTER,
+                };
+                (
+                    command.caster,
+                    EnemyAction {
+                        cmd_no,
+                        sub_no: command.attack,
+                        tar_id: command.target_mask,
+                    },
+                )
+            })
+            .collect()
+    }
+
     fn enemy_atb(&mut self, battle: &Battle, unit: usize) -> Option<EnemyAction> {
         let id = battle.units[unit].id;
-        if self.last_tick != Some(battle.tick_no) {
-            self.last_tick = Some(battle.tick_no);
-            // Gil and AP are script-writable (`RunBattleCode` 38 and 44).
-            self.overlay.gil = self.driver.state.data.gil;
-            self.overlay.bonus_ap = self.driver.state.data.bonus_ap;
-            sync_state_from_battle(&mut self.driver.state, battle, &self.overlay);
-            self.synced = self.driver.state.units.clone();
-            if let Err(error) = self.driver.tick() {
-                self.error = Some(error);
-            }
-        }
+        self.advance(battle);
         if let Some(command) = self.driver.take_attack(id) {
             self.outstanding.retain(|&c| c != id);
             return Some(EnemyAction {
