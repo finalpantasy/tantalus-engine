@@ -16,6 +16,11 @@ use tantalus_assets::pc::special_effect::{EffectFile, RecordDetail, SECTOR};
 
 /// `SFX.playParam.Length` in the pinned reference: `SFX.Play` replaces larger ids with `Fire__Multi`.
 const PLAY_PARAM_LENGTH: i32 = 511;
+/// `SpecialEffect.Player_Attack_Zidane_Dagger` and `Player_Attack_Beatrix` (SpecialEffect.cs:387-405).
+const PLAYER_ATTACK_FIRST: i32 = 100;
+const PLAYER_ATTACK_LAST: i32 = 118;
+/// Steal_Cinna, Steal_Blank, Steal_Marcus, Steal_Zidane_Dagger, Steal_Zidane_Sword, Jump.
+const SEQUENCE_ONLY_IDS: [i32; 6] = [19, 20, 119, 200, 273, 393];
 
 pub struct SpecialEffectsRequest {
     pub dll: Option<PathBuf>,
@@ -50,6 +55,8 @@ struct MissingEffect {
     enum_name: Option<&'static str>,
     referenced_by: usize,
     sources: Vec<String>,
+    /// `short_player_attack`, `sequence_only`, `above_play_param` or `unknown`.
+    cause: &'static str,
     reason: String,
 }
 
@@ -264,18 +271,35 @@ pub fn build_report(battle_path: &Path, request: &SpecialEffectsRequest) -> Resu
         .iter()
         .filter(|e| !e.asset_present)
         .map(|e| {
-            let reason = if e.effect_id >= PLAY_PARAM_LENGTH {
-                format!(
-                    "id is not below SFX.playParam.Length ({PLAY_PARAM_LENGTH}): `SFX.Play` replaces it with Fire__Multi"
+            let (cause, reason) = if e.effect_id >= PLAY_PARAM_LENGTH {
+                (
+                    "above_play_param",
+                    format!(
+                        "id is not below SFX.playParam.Length ({PLAY_PARAM_LENGTH}): `SFX.Play` replaces it with Fire__Multi"
+                    ),
+                )
+            } else if (PLAYER_ATTACK_FIRST..=PLAYER_ATTACK_LAST).contains(&e.effect_id) {
+                (
+                    "short_player_attack",
+                    "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source".to_owned(),
+                )
+            } else if SEQUENCE_ONLY_IDS.contains(&e.effect_id) {
+                (
+                    "sequence_only",
+                    "Steal and Jump commands pick this id in `btl_vfx.GetPlayerCommandSFX` (btl_vfx.cs:54-67 for Steal; Jump comes from `aa_data` `vfx_no`), and `UnifiedBattleSequencer.BattleAction` (UnifiedBattleSequencer.cs:113-118) runs only the `ef<id>/PlayerSequence.seq` sequence for it; the shipped Memoria sequence for this id has no `LoadSFX` or `PlaySFX` op, so the plugin container is never requested and no `ef<id>` asset exists".to_owned(),
                 )
             } else {
-                "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)".to_owned()
+                (
+                    "unknown",
+                    "no `ef<id>` TextAsset in resources.assets and no source rule found for it".to_owned(),
+                )
             };
             MissingEffect {
                 effect_id: e.effect_id,
                 enum_name: e.enum_name,
                 referenced_by: e.referenced_by,
                 sources: sources_by_id.get(&e.effect_id).cloned().unwrap_or_default(),
+                cause,
                 reason,
             }
         })

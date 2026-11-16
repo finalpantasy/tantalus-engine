@@ -2868,7 +2868,8 @@
       "sources": [
         "fixed:Steal_Cinna"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "sequence_only",
+      "reason": "Steal and Jump commands pick this id in `btl_vfx.GetPlayerCommandSFX` (btl_vfx.cs:54-67 for Steal; Jump comes from `aa_data` `vfx_no`), and `UnifiedBattleSequencer.BattleAction` (UnifiedBattleSequencer.cs:113-118) runs only the `ef<id>/PlayerSequence.seq` sequence for it; the shipped Memoria sequence for this id has no `LoadSFX` or `PlaySFX` op, so the plugin container is never requested and no `ef<id>` asset exists"
     },
     {
       "effect_id": 20,
@@ -2877,7 +2878,8 @@
       "sources": [
         "fixed:Steal_Blank"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "sequence_only",
+      "reason": "Steal and Jump commands pick this id in `btl_vfx.GetPlayerCommandSFX` (btl_vfx.cs:54-67 for Steal; Jump comes from `aa_data` `vfx_no`), and `UnifiedBattleSequencer.BattleAction` (UnifiedBattleSequencer.cs:113-118) runs only the `ef<id>/PlayerSequence.seq` sequence for it; the shipped Memoria sequence for this id has no `LoadSFX` or `PlaySFX` op, so the plugin container is never requested and no `ef<id>` asset exists"
     },
     {
       "effect_id": 100,
@@ -2886,7 +2888,8 @@
       "sources": [
         "player[0] (Zidane (Dagger)).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 101,
@@ -2895,7 +2898,8 @@
       "sources": [
         "player[1] (Zidane (Thief sword)).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 102,
@@ -2904,7 +2908,8 @@
       "sources": [
         "player[2] (Vivi).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 103,
@@ -2913,7 +2918,8 @@
       "sources": [
         "player[3] (Garnet (Long hair - Rod)).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 104,
@@ -2922,7 +2928,8 @@
       "sources": [
         "player[4] (Garnet (Long hair - Racket)).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 105,
@@ -2931,7 +2938,8 @@
       "sources": [
         "player[5] (Garnet (Short hair - Rod)).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 106,
@@ -2940,7 +2948,8 @@
       "sources": [
         "player[6] (Garnet (Short hair - Racket)).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 107,
@@ -2949,7 +2958,8 @@
       "sources": [
         "player[7] (Steiner (Outdoor)).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 108,
@@ -2958,7 +2968,8 @@
       "sources": [
         "player[8] (Steiner (Indoor)).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 109,
@@ -2967,7 +2978,8 @@
       "sources": [
         "player[9] (Quina).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 110,
@@ -2976,7 +2988,8 @@
       "sources": [
         "player[10] (Eiko (flute)).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 111,
@@ -2985,7 +2998,8 @@
       "sources": [
         "player[11] (Eiko (Racket)).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 112,
@@ -2994,7 +3008,8 @@
       "sources": [
         "player[12] (Freya).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 113,
@@ -3003,7 +3018,8 @@
       "sources": [
         "player[13] (Amarant).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 114,
@@ -3012,7 +3028,8 @@
       "sources": [
         "player[14] (Cinna).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 115,
@@ -3021,7 +3038,8 @@
       "sources": [
         "player[15] (Marcus).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 116,
@@ -3030,7 +3048,8 @@
       "sources": [
         "player[16] (Blank).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 117,
@@ -3039,7 +3058,8 @@
       "sources": [
         "player[17] (Blank (Pluto armor)).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 118,
@@ -3048,7 +3068,8 @@
       "sources": [
         "player[18] (Beatrix).attack_sequence"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "short_player_attack",
+      "reason": "id is in Player_Attack_Zidane_Dagger..Player_Attack_Beatrix, which `SFXData.IsShortSpecialEffect` (SFXData.cs:1331-1337) lists as a short effect; its commented-out first line there tests exactly `LoadBytes(\"SpecialEffects/ef<id>\") == null`, and the exported `PlayerSequence.seq` for it still runs `LoadSFX`/`PlaySFX`, so `SFX.SetEffectArgs` (SFX.cs:1974-1985) calls `SFX_Play` with a null buffer and size 0 and `SFX_Play_0` (u0115_SFX_Play_0.cs:16) skips the container copy; what the native plugin then plays is not provable from the source"
     },
     {
       "effect_id": 119,
@@ -3057,7 +3078,8 @@
       "sources": [
         "fixed:Steal_Marcus"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "sequence_only",
+      "reason": "Steal and Jump commands pick this id in `btl_vfx.GetPlayerCommandSFX` (btl_vfx.cs:54-67 for Steal; Jump comes from `aa_data` `vfx_no`), and `UnifiedBattleSequencer.BattleAction` (UnifiedBattleSequencer.cs:113-118) runs only the `ef<id>/PlayerSequence.seq` sequence for it; the shipped Memoria sequence for this id has no `LoadSFX` or `PlaySFX` op, so the plugin container is never requested and no `ef<id>` asset exists"
     },
     {
       "effect_id": 200,
@@ -3068,7 +3090,8 @@
         "aa_data[181].info.vfx_no",
         "fixed:Steal_Zidane_Dagger"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "sequence_only",
+      "reason": "Steal and Jump commands pick this id in `btl_vfx.GetPlayerCommandSFX` (btl_vfx.cs:54-67 for Steal; Jump comes from `aa_data` `vfx_no`), and `UnifiedBattleSequencer.BattleAction` (UnifiedBattleSequencer.cs:113-118) runs only the `ef<id>/PlayerSequence.seq` sequence for it; the shipped Memoria sequence for this id has no `LoadSFX` or `PlaySFX` op, so the plugin container is never requested and no `ef<id>` asset exists"
     },
     {
       "effect_id": 273,
@@ -3077,7 +3100,8 @@
       "sources": [
         "fixed:Steal_Zidane_Sword"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "sequence_only",
+      "reason": "Steal and Jump commands pick this id in `btl_vfx.GetPlayerCommandSFX` (btl_vfx.cs:54-67 for Steal; Jump comes from `aa_data` `vfx_no`), and `UnifiedBattleSequencer.BattleAction` (UnifiedBattleSequencer.cs:113-118) runs only the `ef<id>/PlayerSequence.seq` sequence for it; the shipped Memoria sequence for this id has no `LoadSFX` or `PlaySFX` op, so the plugin container is never requested and no `ef<id>` asset exists"
     },
     {
       "effect_id": 393,
@@ -3087,7 +3111,8 @@
         "aa_data[172].info.vfx_no",
         "aa_data[178].info.vfx_no"
       ],
-      "reason": "no `ef<id>` TextAsset in resources.assets; `SFX.SetEffectArgs` passes a null buffer and size 0 to `SFX_Play` when `AssetManager.LoadBytes` returns null, so the plugin starts the effect with no loaded container (what it does then is native code)"
+      "cause": "sequence_only",
+      "reason": "Steal and Jump commands pick this id in `btl_vfx.GetPlayerCommandSFX` (btl_vfx.cs:54-67 for Steal; Jump comes from `aa_data` `vfx_no`), and `UnifiedBattleSequencer.BattleAction` (UnifiedBattleSequencer.cs:113-118) runs only the `ef<id>/PlayerSequence.seq` sequence for it; the shipped Memoria sequence for this id has no `LoadSFX` or `PlaySFX` op, so the plugin container is never requested and no `ef<id>` asset exists"
     }
   ],
   "effects": [
