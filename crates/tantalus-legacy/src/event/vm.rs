@@ -4173,22 +4173,33 @@ impl EventVm {
                         ));
                     }
                     // `EventEngine.OperatorExtract` always takes the top
-                    // three entries as mask, target and operand. A mask
+                    // three entries as mask, target and operand. Only the
+                    // member pseudo-read varies per selected slot; a mask
                     // that is not a list, or an operand that is a member,
                     // reads the member target left by the last extraction
                     // (`gMemberTarget`); a target that is not a member reads
                     // the same value for every slot. Some battle loops
                     // compile `SL3.m == SL1.m` that way (EF_R004 entry 1).
+                    let member_targeted =
+                        matches!(stack[stack.len() - 2].target, Some(StackTarget::Member(_)));
                     let mask = read_value(host, stack[stack.len() - 3], offset, opcode)?;
                     let target = stack[stack.len() - 2];
                     let comparison = read_value(host, stack[stack.len() - 1], offset, opcode)?;
+                    let fixed_target = if member_targeted {
+                        None
+                    } else {
+                        Some(read_value(host, target, offset, opcode)?)
+                    };
                     let mut result = 0i32;
                     for slot in 0..8 {
                         result >>= 1;
                         if mask & (1 << slot) != 0 {
                             host.select_object_member_target(Some(slot))
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
-                            let value = read_value(host, target, offset, opcode)?;
+                            let value = match fixed_target {
+                                Some(fixed) => fixed,
+                                None => read_value(host, target, offset, opcode)?,
+                            };
                             let matches = match operation {
                                 ExpressionOp::EqualMembers => value == comparison,
                                 ExpressionOp::NotEqualMembers => value != comparison,

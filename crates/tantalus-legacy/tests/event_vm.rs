@@ -8460,3 +8460,50 @@ fn system_variable_reads_keep_twenty_six_signed_bits() {
         );
     }
 }
+
+#[test]
+fn member_comparison_accepts_slot_invariant_middle_operands() {
+    // Memoria `OperatorExtract` only varies the member pseudo-read per
+    // selected slot; a constant (or system-list) middle operand is read
+    // once and broadcast. mask 0b101 selects slots 0 and 2; the value 9
+    // compares != 4, so bits for slots 0 and 2 set: result 5.
+    let result = variable(VariableScope::Global, VariableType::Int16, 64);
+    let expression = assign(
+        result,
+        [constant(0b101), constant(9), constant(4), vec![35]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.slots.insert(0, EntityId::new(10));
+    host.slots.insert(2, EntityId::new(12));
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 64), 5);
+
+    // A system-list middle operand resolves once and broadcasts the same way.
+    let result = variable(VariableScope::Global, VariableType::Int16, 64);
+    let expression = assign(
+        result,
+        [constant(0b101), vec![121, 3], constant(4), vec![35]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.slots.insert(0, EntityId::new(10));
+    host.slots.insert(2, EntityId::new(12));
+    host.system_lists.insert(3, 9);
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 64), 5);
+
+    // An empty selection stays zero.
+    let result = variable(VariableScope::Global, VariableType::Int16, 64);
+    let expression = assign(
+        result,
+        [constant(0), constant(9), constant(4), vec![35]].concat(),
+    );
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 64), 0);
+}

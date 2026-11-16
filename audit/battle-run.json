@@ -1,6 +1,6 @@
 {
   "defeats": 34,
-  "errors": 54,
+  "errors": 0,
   "escapes": 0,
   "results": [
     {
@@ -243,18 +243,23 @@
       "ticks": 5055
     },
     {
-      "bonus_ap": 0,
+      "bonus_ap": 5,
       "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_gil": 441,
+      "bonus_items": [
+        [
+          238,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 742: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 48, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_AP_E012",
-      "ticks": 742
+      "ticks": 798
     },
     {
       "bonus_ap": 3,
@@ -619,18 +624,18 @@
       "ticks": 306
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 2,
+      "bonus_exp": 2092,
+      "bonus_gil": 889,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_BV_R001",
-      "ticks": 131
+      "ticks": 187
     },
     {
       "bonus_ap": 5,
@@ -1801,18 +1806,18 @@
       "ticks": 1430
     },
     {
-      "bonus_ap": 0,
+      "bonus_ap": 7,
       "bonus_exp": 0,
       "bonus_gil": 0,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 1108: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_FR_E033",
-      "ticks": 1108
+      "ticks": 1164
     },
     {
       "bonus_ap": 0,
@@ -1829,74 +1834,99 @@
       "ticks": 1157
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_FR_R000",
-      "ticks": 131
+      "ticks": 187
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_FR_R001",
-      "ticks": 131
+      "ticks": 187
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_FR_R003",
-      "ticks": 131
+      "ticks": 187
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_FR_R004",
-      "ticks": 131
+      "ticks": 187
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_FR_R005",
-      "ticks": 131
+      "ticks": 187
     },
     {
       "bonus_ap": 3,
@@ -2678,88 +2708,113 @@
       "ticks": 672
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 3,
+      "bonus_exp": 21324,
+      "bonus_gil": 3988,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 254: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
       "pattern": 3,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_GV_R012",
-      "ticks": 254
+      "ticks": 1404
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 3,
+      "bonus_exp": 21324,
+      "bonus_gil": 3988,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 254: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
       "pattern": 3,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_GV_R013",
-      "ticks": 254
+      "ticks": 1404
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 2,
+      "bonus_exp": 14916,
+      "bonus_gil": 2672,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 742: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
       "pattern": 5,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_GV_R014",
-      "ticks": 742
+      "ticks": 1648
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 3,
+      "bonus_exp": 21324,
+      "bonus_gil": 3988,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 254: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
       "pattern": 3,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_GV_R015",
-      "ticks": 254
+      "ticks": 1404
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 3,
+      "bonus_exp": 21324,
+      "bonus_gil": 3988,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 254: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
       "pattern": 3,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_GV_R016",
-      "ticks": 254
+      "ticks": 1404
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 3,
+      "bonus_exp": 21324,
+      "bonus_gil": 3988,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 254: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
       "pattern": 3,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_GV_R017",
-      "ticks": 254
+      "ticks": 1404
     },
     {
       "bonus_ap": 5,
@@ -2852,18 +2907,27 @@
       "ticks": 181
     },
     {
-      "bonus_ap": 0,
+      "bonus_ap": 5,
       "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_gil": 339,
+      "bonus_items": [
+        [
+          240,
+          1
+        ],
+        [
+          237,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 1,
-      "error": "tick 125: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_IC_E011",
-      "ticks": 125
+      "ticks": 181
     },
     {
       "bonus_ap": 2,
@@ -3386,46 +3450,61 @@
       "ticks": 669
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 3,
+      "bonus_exp": 29460,
+      "bonus_gil": 3903,
+      "bonus_items": [
+        [
+          225,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 491: AI: AiError { entry: 2, tag: 7, error: VmError { kind: InvalidExpression, offset: 63, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_IP_R009",
-      "ticks": 491
+      "ticks": 916
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 3,
+      "bonus_exp": 29460,
+      "bonus_gil": 3903,
+      "bonus_items": [
+        [
+          225,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 491: AI: AiError { entry: 2, tag: 7, error: VmError { kind: InvalidExpression, offset: 63, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_IP_R010",
-      "ticks": 491
+      "ticks": 916
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 3,
+      "bonus_exp": 29460,
+      "bonus_gil": 3903,
+      "bonus_items": [
+        [
+          225,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 491: AI: AiError { entry: 2, tag: 7, error: VmError { kind: InvalidExpression, offset: 63, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_IP_R011",
-      "ticks": 491
+      "ticks": 916
     },
     {
       "bonus_ap": 3,
@@ -4001,18 +4080,18 @@
       "ticks": 184
     },
     {
-      "bonus_ap": 0,
+      "bonus_ap": 5,
       "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_gil": 864,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 128: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_SG_E016",
-      "ticks": 128
+      "ticks": 184
     },
     {
       "bonus_ap": 11,
@@ -4387,18 +4466,18 @@
       "ticks": 794
     },
     {
-      "bonus_ap": 0,
+      "bonus_ap": 1,
       "bonus_exp": 0,
       "bonus_gil": 0,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 1,
-      "error": "tick 732: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_TH_E003",
-      "ticks": 732
+      "ticks": 788
     },
     {
       "bonus_ap": 1,
@@ -4430,17 +4509,22 @@
     },
     {
       "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_TR_E074A",
-      "ticks": 131
+      "ticks": 187
     },
     {
       "bonus_ap": 0,
@@ -4560,46 +4644,46 @@
       "ticks": 3350
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 11012,
+      "bonus_gil": 2408,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 366: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
       "pattern": 1,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_UV_R000",
-      "ticks": 366
+      "ticks": 672
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 11012,
+      "bonus_gil": 2408,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 366: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
       "pattern": 1,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_UV_R001",
-      "ticks": 366
+      "ticks": 672
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 11012,
+      "bonus_gil": 2408,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 366: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
       "pattern": 1,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_UV_R003",
-      "ticks": 366
+      "ticks": 672
     },
     {
       "bonus_ap": 2,
@@ -6004,32 +6088,32 @@
       "ticks": 178
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 2,
+      "bonus_exp": 656,
+      "bonus_gil": 606,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 122: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
       "pattern": 1,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_0515",
-      "ticks": 122
+      "ticks": 184
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 2,
+      "bonus_exp": 656,
+      "bonus_gil": 606,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 122: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
       "pattern": 1,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_0516",
-      "ticks": 122
+      "ticks": 184
     },
     {
       "bonus_ap": 30,
@@ -6424,32 +6508,32 @@
       "ticks": 187
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 6096,
+      "bonus_gil": 1840,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 366: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_0900",
-      "ticks": 366
+      "ticks": 422
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 6096,
+      "bonus_gil": 1840,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 366: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_0901",
-      "ticks": 366
+      "ticks": 422
     },
     {
       "bonus_ap": 2,
@@ -6588,144 +6672,194 @@
       "ticks": 1036
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1100",
-      "ticks": 131
+      "ticks": 187
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1101",
-      "ticks": 131
+      "ticks": 187
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1102",
-      "ticks": 131
+      "ticks": 187
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1103",
-      "ticks": 131
+      "ticks": 187
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1104",
-      "ticks": 131
+      "ticks": 187
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1105",
-      "ticks": 131
+      "ticks": 187
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1106",
-      "ticks": 131
+      "ticks": 187
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1107",
-      "ticks": 131
+      "ticks": 187
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1108",
-      "ticks": 131
+      "ticks": 187
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 131: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1109",
-      "ticks": 131
+      "ticks": 187
     },
     {
       "bonus_ap": 20,
@@ -8465,88 +8599,88 @@
       "ticks": 300
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 4,
+      "bonus_gil": 5000,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 378: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1819",
-      "ticks": 378
+      "ticks": 434
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 4,
+      "bonus_gil": 5000,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 378: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1820",
-      "ticks": 378
+      "ticks": 434
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 4,
+      "bonus_gil": 5000,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 378: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1821",
-      "ticks": 378
+      "ticks": 434
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 4,
+      "bonus_gil": 5000,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 378: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1822",
-      "ticks": 378
+      "ticks": 434
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 4,
+      "bonus_gil": 5000,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 378: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1823",
-      "ticks": 378
+      "ticks": 434
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 4,
+      "bonus_gil": 5000,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 378: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1824",
-      "ticks": 378
+      "ticks": 434
     },
     {
       "bonus_ap": 3,
@@ -8606,60 +8740,80 @@
       "ticks": 669
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 3,
+      "bonus_exp": 19300,
+      "bonus_gil": 3810,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 369: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
       "pattern": 2,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1907",
-      "ticks": 369
+      "ticks": 1035
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 3,
+      "bonus_exp": 19300,
+      "bonus_gil": 3810,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 369: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
       "pattern": 2,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1908",
-      "ticks": 369
+      "ticks": 1035
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 3,
+      "bonus_exp": 19300,
+      "bonus_gil": 3810,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 369: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
       "pattern": 2,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1909",
-      "ticks": 369
+      "ticks": 1035
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
-      "bonus_items": [],
+      "bonus_ap": 3,
+      "bonus_exp": 19300,
+      "bonus_gil": 3810,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 369: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
       "pattern": 2,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1910",
-      "ticks": 369
+      "ticks": 1035
     },
     {
       "bonus_ap": 3,
@@ -8756,32 +8910,32 @@
       "ticks": 3850
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 6096,
+      "bonus_gil": 1840,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 366: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1919",
-      "ticks": 366
+      "ticks": 422
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 6096,
+      "bonus_gil": 1840,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 366: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_1920",
-      "ticks": 366
+      "ticks": 422
     },
     {
       "bonus_ap": 3,
@@ -8854,32 +9008,32 @@
       "ticks": 797
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 6096,
+      "bonus_gil": 1840,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 366: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_2115",
-      "ticks": 366
+      "ticks": 422
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 6096,
+      "bonus_gil": 1840,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 366: AI: AiError { entry: 1, tag: 7, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
       "pattern": 0,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_2116",
-      "ticks": 366
+      "ticks": 422
     },
     {
       "bonus_ap": 3,
@@ -8896,32 +9050,32 @@
       "ticks": 309
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 11012,
+      "bonus_gil": 2408,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 366: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
       "pattern": 1,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_2212",
-      "ticks": 366
+      "ticks": 672
     },
     {
-      "bonus_ap": 0,
-      "bonus_exp": 0,
-      "bonus_gil": 0,
+      "bonus_ap": 3,
+      "bonus_exp": 11012,
+      "bonus_gil": 2408,
       "bonus_items": [],
       "card": null,
-      "enemy_deaths": 0,
-      "error": "tick 366: AI: AiError { entry: 1, tag: 1, error: VmError { kind: InvalidExpression, offset: 14, opcode: Some(5), message: \"member extraction target is not a selected member\" } }",
-      "outcome": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
       "pattern": 1,
-      "players_alive": 0,
+      "players_alive": 4,
       "scene": "EVT_BATTLE_WM_2213",
-      "ticks": 366
+      "ticks": 672
     },
     {
       "bonus_ap": 2,
@@ -9292,5 +9446,5 @@
   ],
   "scenes": 562,
   "unfinished": 0,
-  "victories": 474
+  "victories": 528
 }
