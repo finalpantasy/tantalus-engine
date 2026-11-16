@@ -132,6 +132,28 @@ pub fn player_position(frame: &TrackFrame) -> Option<[f32; 3]> {
         .map(|(_, position)| *position)
 }
 
+/// Feeds the view the camera requests logged this tick.
+pub fn observe_view(view: &mut crate::view_scroll::ViewScroll, game: &PlayGame) {
+    let key = format!(
+        "{}:{}",
+        game.map().unwrap_or(-1),
+        game.field_name().unwrap_or("-")
+    );
+    view.observe(&key, game.world().camera_log.len(), game.ticks);
+}
+
+/// Centers the 2D camera on `at`, when there is a place to look.
+pub fn place_camera(world: &mut World, at: Option<[f32; 2]>) {
+    let Some([x, y]) = at else {
+        return;
+    };
+    let mut cameras = world.query_filtered::<&mut Transform, With<Camera2d>>();
+    for mut transform in cameras.iter_mut(world) {
+        transform.translation.x = x;
+        transform.translation.y = y;
+    }
+}
+
 pub fn follow_player(world: &mut World, camera: &LegacyFieldCamera, frame: &TrackFrame) {
     // `SceneService3DScroll` aims `charAimHeight` above the player.
     let target = frame
@@ -192,6 +214,7 @@ struct Live {
     scene: Vec<Entity>,
     elapsed: f64,
     models: crate::actor_models::ActorModels,
+    view: crate::view_scroll::ViewScroll,
 }
 
 /// Opens the play window. `game` is already on its first field.
@@ -229,6 +252,7 @@ pub fn play(
             scene: Vec::new(),
             elapsed: 0.0,
             models,
+            view: crate::view_scroll::ViewScroll::default(),
         })
         .add_systems(Update, live_tick);
     app.run();
@@ -282,6 +306,7 @@ fn live_tick(world: &mut World) {
                     game.stopped = Some(error);
                 }
             }
+            observe_view(&mut live.view, &game);
         }
         if steps == 4 {
             live.elapsed = 0.0;
@@ -332,7 +357,14 @@ fn live_tick(world: &mut World) {
             &game.world().overlays,
             player_position(&frame),
         );
-        follow_player(world, &scene.camera, &frame);
+        let at = live.view.view(
+            &game.world().camera_log,
+            &scene.camera,
+            scene.camera_index,
+            player_position(&frame),
+            game.ticks,
+        );
+        place_camera(world, at);
     }
     let mut title = format!(
         "Tantalus Engine: {} ({})",

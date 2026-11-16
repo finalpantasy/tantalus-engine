@@ -120,6 +120,47 @@ impl FieldHost<'_> {
     /// Keeps the model, animation and visibility state the renderer needs.
     /// Events for an actor that does not exist are ignored here; the
     /// handlers below report them where the reference does.
+    /// Keeps the camera scripts the renderer's view needs.
+    fn record_camera(&mut self, event: &HostEvent) {
+        use super::world::CameraRequest;
+        let request = match *event {
+            HostEvent::MoveCamera {
+                x,
+                y,
+                duration,
+                mode,
+            } => CameraRequest::Move {
+                x,
+                y,
+                frames: duration,
+                mode,
+            },
+            HostEvent::ReleaseCamera { duration, mode } => CameraRequest::Release {
+                frames: duration,
+                mode,
+            },
+            HostEvent::EnableCameraServices {
+                active,
+                frame_count,
+                mode,
+            } => CameraRequest::Services {
+                active: active != 0,
+                frames: frame_count,
+                mode,
+            },
+            HostEvent::SetCameraFollowHeight { height } => CameraRequest::FollowHeight(height),
+            HostEvent::SetCameraBounds { camera, bounds } => {
+                CameraRequest::Bounds { camera, bounds }
+            }
+            _ => return,
+        };
+        // Scripts tween the aim height every frame; keep only changes.
+        if self.world.camera_log.last() == Some(&request) {
+            return;
+        }
+        self.world.camera_log.push(request);
+    }
+
     /// Keeps the background tile-block changes the renderer needs.
     fn record_overlay(&mut self, event: &HostEvent) {
         let (block, change): (i32, &dyn Fn(&mut super::world::OverlayChange)) = match event {
@@ -301,6 +342,7 @@ impl LegacyEventHost for FieldHost<'_> {
             }
             self.record_look(event);
             self.record_overlay(event);
+            self.record_camera(event);
             self.record_tile_animation(event);
             match event {
                 HostEvent::ShowWindow { window, text, .. } => {

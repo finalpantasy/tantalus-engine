@@ -476,6 +476,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     let mut game = load_game(values)?;
     let mut open_for = 0u64;
     let mut last_confirm = false;
+    let mut view = tantalus_client::view_scroll::ViewScroll::default();
     for tick in 0..ticks {
         let mut held = holds
             .iter()
@@ -495,6 +496,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         for event in game.tick(held)? {
             println!("{}", tantalus_client::live::describe(&event));
         }
+        tantalus_client::live::observe_view(&mut view, &game);
         if game.stopped.is_some() {
             break;
         }
@@ -543,7 +545,14 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                 &game.world().overlays,
                 tantalus_client::live::player_position(&frame),
             );
-            tantalus_client::live::follow_player(world, &field.scene.camera, &frame);
+            let at = view.view(
+                &game.world().camera_log,
+                &field.scene.camera,
+                field.scene.camera_index,
+                tantalus_client::live::player_position(&frame),
+                game.ticks,
+            );
+            tantalus_client::live::place_camera(world, at);
         },
     )
     .map_err(|error| error.to_string())?;

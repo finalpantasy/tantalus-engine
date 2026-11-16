@@ -57,6 +57,32 @@ pub struct ActorState {
     pub look: ActorLook,
 }
 
+/// One field camera script, as `FieldMap` receives it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CameraRequest {
+    /// `SCROLL` (`EBG_scene2DScroll`): scroll the view center to `x`, `y`
+    /// (background pixels) over `frames`, then hold there.
+    Move {
+        x: i16,
+        y: i16,
+        frames: u16,
+        mode: u32,
+    },
+    /// `UNSCROLL` (`EBG_scene2DScrollRelease`): scroll back to the player
+    /// over `frames` (-1 is 30), then follow again.
+    Release { frames: i32, mode: u32 },
+    /// `SCROLLON`/off (`EBG_char3DScrollSetActive`).
+    Services {
+        active: bool,
+        frames: i32,
+        mode: u32,
+    },
+    /// `charAimHeight`.
+    FollowHeight(i16),
+    /// `BGVPORT` (`EBG_cameraSetViewport`): `[min x, max x, min y, max y]`.
+    Bounds { camera: i32, bounds: [i16; 4] },
+}
+
 /// An actor's model and animation ids from `SetActorModel` (`SETMODEL`),
 /// the stand, walk and run animations, and the one `ANIM` last started.
 /// Ids are `FF9DBAll` model and animation ids.
@@ -373,6 +399,10 @@ pub struct FieldWorld {
     /// The current field camera, tracked only while animations exist.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub field_camera: u8,
+    /// The camera scripts this field ran, in order, for the renderer's
+    /// view (runtime-only: the view depends on the field projection).
+    #[serde(skip)]
+    pub camera_log: Vec<CameraRequest>,
     /// Experience-to-stats provider (runtime-only).
     #[serde(skip)]
     pub level_growth: Option<LevelGrowth>,
@@ -518,6 +548,7 @@ impl FieldWorld {
             tile_animations: Vec::new(),
             tile_camera_count: 0,
             field_camera: 0,
+            camera_log: Vec::new(),
             level_growth: None,
         }
     }
@@ -557,6 +588,7 @@ impl FieldWorld {
         self.deleted_objects.clear();
         self.actors.clear();
         self.overlays.clear();
+        self.camera_log.clear();
         self.clear_tile_animations();
         self.control_actor = None;
         self.exit_arrivals.clear();
