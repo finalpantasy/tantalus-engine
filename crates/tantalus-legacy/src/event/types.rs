@@ -1974,6 +1974,12 @@ pub trait LegacyEventHost {
     fn read_character_max_mp(&mut self, character: i32) -> Result<i32, EngineError>;
     fn party_contains(&mut self, character: i32) -> Result<bool, EngineError>;
     fn add_party_member(&mut self, character: i32) -> Result<bool, EngineError>;
+    /// `PARTYDELETE` (0xDD), applied at once like `partyadd` so a script
+    /// that empties the party and then adds members in one step keeps the
+    /// new ones. The VM also reports [`HostEvent::RemoveParty`].
+    fn remove_party_member(&mut self, _character: i32) -> Result<(), EngineError> {
+        Ok(())
+    }
     fn party_menu_is_open(&self) -> bool;
     fn actor_turn_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;
     fn shared_script_is_active(&mut self, actor: EntityId) -> Result<bool, EngineError>;

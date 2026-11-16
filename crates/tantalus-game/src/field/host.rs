@@ -628,16 +628,35 @@ impl LegacyEventHost for FieldHost<'_> {
     }
 
     fn party_contains(&mut self, character: i32) -> Result<bool, EngineError> {
-        Ok(self.world.party.contains(&character))
+        // `partychk`: scripts name characters by the old index.
+        Ok(self
+            .world
+            .party
+            .contains(&character_old_index_to_id(character)))
     }
 
     fn add_party_member(&mut self, character: i32) -> Result<bool, EngineError> {
-        // Reference failure flag: false on success.
+        // `partyadd`; reference failure flag: false on success.
+        // `chr2slot` maps anything outside the twelve characters to NONE,
+        // and adding NONE fails.
+        if !(0..=11).contains(&character) {
+            return Ok(true);
+        }
+        let character = character_old_index_to_id(character);
         if self.world.party.len() >= 4 || self.world.party.contains(&character) {
             return Ok(true);
         }
         self.world.party.push(character);
         Ok(false)
+    }
+
+    fn remove_party_member(&mut self, character: i32) -> Result<(), EngineError> {
+        // `PARTYDELETE`: the member's slot empties. The field keeps the party
+        // compact, so a later `partyadd` joins at the end instead of
+        // refilling the emptied slot.
+        let character = character_old_index_to_id(character);
+        self.world.party.retain(|member| *member != character);
+        Ok(())
     }
 
     fn party_menu_is_open(&self) -> bool {

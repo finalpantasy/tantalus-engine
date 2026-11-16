@@ -2277,6 +2277,8 @@ impl EventVm {
                 }
                 InstructionKind::RemoveParty { character } => {
                     let character = self.evaluate(host, &character, instruction.offset, opcode)?;
+                    host.remove_party_member(character)
+                        .map_err(|error| VmError::host(error, instruction.offset, opcode))?;
                     self.pc = next;
                     events.push(HostEvent::RemoveParty { character });
                 }

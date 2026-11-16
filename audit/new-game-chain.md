@@ -356,3 +356,37 @@ Open:
 
 - The battle party is still Zidane, Marcus and Blank (see the eleventh run).
 - No world map, so the chain ends at the forest exit.
+
+## Thirteenth run (the party follows the script)
+
+The chain builds fighters from the field party, and scripts now set that
+party the way Memoria does.
+
+1. **`partychk` and `partyadd` take the old character index.** Memoria
+   maps it with `chr2slot` (Cinna 9, Marcus 10 and Blank 11 become ids 8, 9
+   and 10). Values outside 0 to 11 become NONE and the add fails; the field
+   used to add `-1` as a member.
+2. **`PARTYDELETE` (0xDD) applies at once.** It was a host event handled
+   after the VM step, while `partyadd` runs inside it. Map 100 empties the
+   party and adds Vivi in one step, so the late removes dropped her. The VM
+   now calls a new `remove_party_member` host method (a no-op by default) and
+   still reports the event.
+
+| Map | Scene | Party (character ids) | Result |
+|---|---|---|---|
+| 50 | TH_E001 | 0, 8, 9, 10 (Zidane, Cinna, Marcus, Blank) | victory |
+| 67 | TH_E004 | 0, 1, 2, 9 (Zidane, Vivi, Garnet, Marcus) | defeat |
+| 251 | EF_E007 | 0, 3 (Zidane, Steiner) | victory |
+| 202 | BR_E008 | 0 (Zidane) | victory |
+| 257 | EF_E009 | 10, 0, 1, 3 (Blank, Zidane, Vivi, Steiner) | victory |
+
+The forest exit leaves Zidane, Vivi, Steiner and Garnet in the party.
+
+Open:
+
+- TH_E004 is now a defeat. The stand-in policy (the first ready member hits
+  the first enemy) loses with this party; it won with the old wrong one. The
+  chain still continues, as it does after any fight.
+- EF_E006 ends with no outcome, as before.
+- Removing a member closes the gap instead of leaving an empty slot, so a
+  later add joins at the end rather than in the freed slot.

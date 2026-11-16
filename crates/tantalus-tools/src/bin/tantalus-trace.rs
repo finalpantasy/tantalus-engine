@@ -2066,6 +2066,7 @@ fn chain(
                 "error": error,
                 "next_map": transition,
                 "world_map": world_map,
+                "party": director.world().party,
                 "exits": exits,
                 "route_target": route_target,
                 "regions_defined": director.world().regions.keys().map(|region| region.get()).collect::<Vec<_>>(),
