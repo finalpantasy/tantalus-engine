@@ -458,3 +458,94 @@ fn legacy_battle_replays_identically_from_identical_world_state() {
 
     assert_eq!(run(), run(), "identical world state replays identically");
 }
+
+#[test]
+fn adapter_runs_with_script_driven_enemy_ai_hooks() {
+    use std::collections::BTreeMap;
+    use tantalus_contracts::EntityId;
+    use tantalus_game::battle::legacy::{LegacyBattleAdapter, NoEnemyAi, unit_mappings};
+    use tantalus_game::battle::{BattleCommand, EncounterCoordinator};
+    use tantalus_game::field::world::EncounterRequest;
+    use tantalus_legacy::battle::host::battle_views;
+    use tantalus_legacy::battle::machine::{ABILITY_ATTACK, Battle as LegacyBattle, BattleConfig};
+    use tantalus_legacy::battle::queue::cmd;
+    use tantalus_legacy::battle::rng::SplitMix64Random;
+    use tantalus_legacy::battle::script_host::{
+        BattleScriptDriver, BattleScriptState, EnemyAiHooks, SceneOverlay, ScriptTable,
+    };
+    use tantalus_legacy::battle::{BattleUnit, StatusDataRow, StatusTable, WeaponStats};
+
+    let mut player = BattleUnit::new(1, true);
+    player.character_id = 0;
+    player.level = 20;
+    player.cur_hp = 500;
+    player.max_hp = 500;
+    player.strength = 30;
+    player.dexterity = 30;
+    player.will = 20;
+    player.weapon = Some(WeaponStats {
+        power: 25,
+        rate: 0,
+        elements: tantalus_legacy::battle::Elements::NONE,
+        category: WeaponStats::SHORT_RANGE,
+        status: 0,
+    });
+    let mut enemy = BattleUnit::new(16, false);
+    enemy.cur_hp = 60;
+    enemy.max_hp = 60;
+    enemy.will = 10;
+    let battle = LegacyBattle::new(
+        vec![player, enemy],
+        BattleConfig::default(),
+        StatusTable::new(vec![StatusDataRow::default(); 32]),
+    );
+    let (data, units) = battle_views(&battle);
+    let driver = BattleScriptDriver::new(
+        ScriptTable { entries: vec![] },
+        BattleScriptState::new(data, units),
+        Box::new(SplitMix64Random::new(7)),
+        &[0],
+    );
+    let ai_hooks = EnemyAiHooks::new(NoEnemyAi, driver, SceneOverlay::default());
+    let adapter = LegacyBattleAdapter::new(
+        battle,
+        BTreeMap::from([(content("action/attack"), (cmd::ATTACK, ABILITY_ATTACK))]),
+        unit_mappings(&[(EntityId::new(101), 1), (EntityId::new(102), 16)]).0,
+        unit_mappings(&[(EntityId::new(101), 1), (EntityId::new(102), 16)]).1,
+    )
+    .with_hooks(ai_hooks);
+
+    let mut coordinator = EncounterCoordinator::new();
+    coordinator
+        .begin(
+            EncounterRequest {
+                rush: 0,
+                group: None,
+                battle: 0x55,
+                steiner_state: false,
+            },
+            adapter,
+        )
+        .unwrap();
+    let mut world = FieldWorld::new();
+    let mut outcome = None;
+    for tick in 0..4000u64 {
+        let mut services = WorldGameServices::new(&mut world);
+        let mut input =
+            tantalus_game::battle::CombatInput::new(tantalus_contracts::Tick::new(tick));
+        input.command = Some(BattleCommand {
+            actor: EntityId::new(101),
+            action: content("action/attack"),
+            targets: vec![EntityId::new(102)],
+        });
+        if let Some(done) = coordinator.advance(&input, &mut services).unwrap() {
+            outcome = Some(done);
+            break;
+        }
+    }
+    assert_eq!(
+        outcome,
+        Some(tantalus_game::battle::BattleOutcome::Victory),
+        "script-driven AI hooks run the battle to victory"
+    );
+}

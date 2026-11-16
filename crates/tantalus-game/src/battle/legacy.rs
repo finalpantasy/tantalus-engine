@@ -57,7 +57,10 @@ pub fn basic_spec(cmd_no: u32) -> Option<CommandSpec> {
     }
 }
 
-struct NoEnemyAi;
+/// Default hooks: the minimal Attack/Defend catalog and no enemy AI
+/// (`enemy_atb` answers nothing). Also the natural `inner` hooks for the
+/// script-driven [`tantalus_legacy::battle::script_host::EnemyAiHooks`].
+pub struct NoEnemyAi;
 
 impl BattleHooks for NoEnemyAi {
     fn spec(&mut self, cmd_no: u32, _sub_no: i32, _caster: &BattleUnit) -> Option<CommandSpec> {
@@ -145,7 +148,7 @@ impl BattleRandom for ServicesRandom<'_> {
 /// simulation deterministic from world state.
 pub struct LegacyBattleAdapter {
     battle: LegacyBattle,
-    hooks: NoEnemyAi,
+    hooks: Box<dyn BattleHooks>,
     action_map: BTreeMap<ContentId, (u32, i32)>,
     unit_map: BTreeMap<EntityId, usize>,
     target_bits: BTreeMap<EntityId, u16>,
@@ -173,13 +176,20 @@ impl LegacyBattleAdapter {
     ) -> Self {
         Self {
             battle,
-            hooks: NoEnemyAi,
+            hooks: Box::new(NoEnemyAi),
             action_map,
             unit_map,
             target_bits,
             outcome: None,
             log_cursor: 0,
         }
+    }
+
+    /// Replaces the hooks (e.g. with `EnemyAiHooks` driving enemy AI from
+    /// decoded battle scripts).
+    pub fn with_hooks(mut self, hooks: impl BattleHooks + 'static) -> Self {
+        self.hooks = Box::new(hooks);
+        self
     }
 
     pub fn battle(&self) -> &LegacyBattle {
@@ -252,7 +262,7 @@ impl LegacyBattleAdapter {
                     mask | self.target_bits.get(target).copied().unwrap_or(0)
                 });
                 self.battle
-                    .player_command(unit, cmd_no, sub_no, tar_id, 0, &mut self.hooks)
+                    .player_command(unit, cmd_no, sub_no, tar_id, 0, &mut *self.hooks)
                     .map_err(|error| {
                         battle_error(format!("legacy command rejected: {error:?}"), false)
                     })?;
@@ -262,7 +272,7 @@ impl LegacyBattleAdapter {
             services: _services,
         };
         self.battle
-            .tick(&mut self.hooks, &mut rng)
+            .tick(&mut *self.hooks, &mut rng)
             .map_err(|error| {
                 battle_error(format!("legacy battle tick failed: {error:?}"), false)
             })?;
