@@ -154,9 +154,9 @@ impl BattleRandom for ServicesRandom<'_> {
 /// machine unit index, and target entity -> `btl_id` bit for target masks.
 /// Random draws route through the caller's `GameServices`, keeping the whole
 /// simulation deterministic from world state.
-pub struct LegacyBattleAdapter {
+pub struct LegacyBattleAdapter<H: BattleHooks = NoEnemyAi> {
     battle: LegacyBattle,
-    hooks: Box<dyn BattleHooks>,
+    hooks: H,
     action_map: BTreeMap<ContentId, (u32, i32)>,
     unit_map: BTreeMap<EntityId, usize>,
     target_bits: BTreeMap<EntityId, u16>,
@@ -165,7 +165,7 @@ pub struct LegacyBattleAdapter {
     log_cursor: usize,
 }
 
-impl std::fmt::Debug for LegacyBattleAdapter {
+impl<H: BattleHooks> std::fmt::Debug for LegacyBattleAdapter<H> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("LegacyBattleAdapter")
@@ -175,7 +175,7 @@ impl std::fmt::Debug for LegacyBattleAdapter {
     }
 }
 
-impl LegacyBattleAdapter {
+impl LegacyBattleAdapter<NoEnemyAi> {
     pub fn new(
         battle: LegacyBattle,
         action_map: BTreeMap<ContentId, (u32, i32)>,
@@ -184,7 +184,7 @@ impl LegacyBattleAdapter {
     ) -> Self {
         Self {
             battle,
-            hooks: Box::new(NoEnemyAi),
+            hooks: NoEnemyAi,
             action_map,
             unit_map,
             target_bits,
@@ -192,14 +192,16 @@ impl LegacyBattleAdapter {
             log_cursor: 0,
         }
     }
+}
 
-    /// The party flee-key roll (`btl_sys.CheckEscape(true)`, script 56):
+impl<H: BattleHooks> LegacyBattleAdapter<H> {
+    /// The party flee-key rolll (`btl_sys.CheckEscape(true)`, script 56):
     /// rolls the escape rate and queues `SysEscape` on success. Returns
     /// false when escape is impossible or the roll failed.
     pub fn flee_attempt(&mut self, services: &mut dyn GameServices) -> Result<bool, EngineError> {
         let mut rng = ServicesRandom { services };
         self.battle
-            .flee_attempt(&mut *self.hooks, &mut rng)
+            .flee_attempt(&mut self.hooks, &mut rng)
             .map_err(|error| battle_error(format!("flee attempt failed: {error:?}"), false))
     }
 
@@ -207,19 +209,38 @@ impl LegacyBattleAdapter {
     /// the party can escape.
     pub fn flee_ability(&mut self) -> Result<bool, EngineError> {
         self.battle
-            .flee_ability(&mut *self.hooks)
+            .flee_ability(&mut self.hooks)
             .map_err(|error| battle_error(format!("flee ability failed: {error:?}"), false))
     }
 
     /// Replaces the hooks (e.g. with `EnemyAiHooks` driving enemy AI from
-    /// decoded battle scripts).
-    pub fn with_hooks(mut self, hooks: impl BattleHooks + 'static) -> Self {
-        self.hooks = Box::new(hooks);
-        self
+    /// decoded battle scripts), returning the retyped adapter.
+    pub fn with_hooks<H2: BattleHooks>(self, hooks: H2) -> LegacyBattleAdapter<H2> {
+        LegacyBattleAdapter {
+            battle: self.battle,
+            hooks,
+            action_map: self.action_map,
+            unit_map: self.unit_map,
+            target_bits: self.target_bits,
+            outcome: self.outcome,
+            log_cursor: self.log_cursor,
+        }
     }
 
     pub fn battle(&self) -> &LegacyBattle {
         &self.battle
+    }
+
+    pub fn battle_mut(&mut self) -> &mut LegacyBattle {
+        &mut self.battle
+    }
+
+    pub fn hooks(&self) -> &H {
+        &self.hooks
+    }
+
+    pub fn hooks_mut(&mut self) -> &mut H {
+        &mut self.hooks
     }
 
     pub fn into_battle(self) -> LegacyBattle {
@@ -294,7 +315,7 @@ impl LegacyBattleAdapter {
                     mask | self.target_bits.get(target).copied().unwrap_or(0)
                 });
                 self.battle
-                    .player_command(unit, cmd_no, sub_no, tar_id, 0, &mut *self.hooks)
+                    .player_command(unit, cmd_no, sub_no, tar_id, 0, &mut self.hooks)
                     .map_err(|error| {
                         battle_error(format!("legacy command rejected: {error:?}"), false)
                     })?;
@@ -304,7 +325,7 @@ impl LegacyBattleAdapter {
             services: _services,
         };
         self.battle
-            .tick(&mut *self.hooks, &mut rng)
+            .tick(&mut self.hooks, &mut rng)
             .map_err(|error| {
                 battle_error(format!("legacy battle tick failed: {error:?}"), false)
             })?;

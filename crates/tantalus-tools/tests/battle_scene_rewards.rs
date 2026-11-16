@@ -394,3 +394,28 @@ id\tscene_key
     assert_eq!(full.len(), 856, "pinned SceneData row count");
     assert_eq!(full[&66], "BSC_AC_E028F");
 }
+
+#[test]
+fn run_scene_battle_drives_a_full_battle_with_empty_ai() {
+    use tantalus_tools::battle_run::run_scene_battle;
+
+    let mut scene = scene();
+    for monster in &mut scene.monster_types {
+        monster.max_hp = 60;
+        monster.stats.spirit = 10;
+    }
+    // Minimal valid event archive: EV, version 2, zero entries.
+    let mut script = b"EV\x02\x00".to_vec();
+    script.resize(128, 0);
+
+    let report = run_scene_battle("SYNTHETIC", &scene, 0, &script, 42);
+    assert_eq!(report.error, None);
+    assert_eq!(
+        report.outcome,
+        Some(tantalus_game::battle::BattleOutcome::Victory)
+    );
+    assert_eq!(report.enemy_deaths, 2);
+    assert_eq!(report.bonus_gil, 300, "scene-declared spoils");
+    assert_eq!(report.bonus_exp, 300);
+    assert!(report.ticks < 20_000);
+}

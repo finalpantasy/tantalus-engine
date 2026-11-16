@@ -464,8 +464,7 @@ fn adapter_runs_with_script_driven_enemy_ai_hooks() {
     use std::collections::BTreeMap;
     use tantalus_contracts::EntityId;
     use tantalus_game::battle::legacy::{LegacyBattleAdapter, NoEnemyAi, unit_mappings};
-    use tantalus_game::battle::{BattleCommand, EncounterCoordinator};
-    use tantalus_game::field::world::EncounterRequest;
+    use tantalus_game::battle::BattleCommand;
     use tantalus_legacy::battle::host::battle_views;
     use tantalus_legacy::battle::machine::{ABILITY_ATTACK, Battle as LegacyBattle, BattleConfig};
     use tantalus_legacy::battle::queue::cmd;
@@ -515,18 +514,9 @@ fn adapter_runs_with_script_driven_enemy_ai_hooks() {
     )
     .with_hooks(ai_hooks);
 
-    let mut coordinator = EncounterCoordinator::new();
-    coordinator
-        .begin(
-            EncounterRequest {
-                rush: 0,
-                group: None,
-                battle: 0x55,
-                steiner_state: false,
-            },
-            adapter,
-        )
-        .unwrap();
+    // Script-driven AI runs the battle directly (the coordinator's ruleset
+    // slot is typed for the default hooks; AI hooks drive here).
+    let mut adapter = adapter;
     let mut world = FieldWorld::new();
     let mut outcome = None;
     for tick in 0..4000u64 {
@@ -538,7 +528,7 @@ fn adapter_runs_with_script_driven_enemy_ai_hooks() {
             action: content("action/attack"),
             targets: vec![EntityId::new(102)],
         });
-        if let Some(done) = coordinator.advance(&input, &mut services).unwrap() {
+        if let Some(done) = adapter.advance(&input, &mut services).unwrap().outcome {
             outcome = Some(done);
             break;
         }
