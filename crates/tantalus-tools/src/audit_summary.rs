@@ -242,17 +242,6 @@ pub fn summarize(dir: &Path) -> Vec<SummaryRow> {
             dir,
         ),
         row(
-            "Battle scene sweep (ran to an end)",
-            "scenes",
-            "battle-run.json",
-            |r| {
-                let total = number(r, "scenes")?;
-                let ended = number(r, "victories")? + number(r, "defeats")? + number(r, "escapes")?;
-                of(Some(total), Some(ended))
-            },
-            dir,
-        ),
-        row(
             "Battle runs, all patterns (report path)",
             "battles",
             "battle-run-all-patterns.json",
