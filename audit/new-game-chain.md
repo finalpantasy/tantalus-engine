@@ -272,3 +272,13 @@ the party is alive at the end but gets no EXP share, which only an
 `AfterEvent` scene gives. EF_E007, the second Prison Cage fight, pays 436 gil and items 240
 and 244 through member 71. AP and cards are reported but not applied: the
 field world has no ability or card state yet.
+
+### Equipment stat bonuses
+
+Chain party units now add their default set's stat bonuses, the equipment
+half of `ff9play.FF9Play_Update`: each item's `BonusId` (`Items.csv`) picks a
+`Stats.csv` row, and speed, strength, magic and spirit are summed over the
+five slots and capped at 99. The Evil Forest party (Zidane, Marcus, Blank)
+has no bonuses on its default gear, so chain71 matches chain70. Freya, Eiko,
+Amarant and Beatrix do get them (Beatrix: +1 speed, +2 strength, +3 magic,
++8 spirit).

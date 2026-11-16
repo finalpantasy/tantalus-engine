@@ -7,7 +7,7 @@
 //! units come from base stats and the field HP/MP at level 1; equipment is
 //! each character's default set (`CharacterParameters.csv` ->
 //! `DefaultEquipment.csv`), since the field side does not track equipment
-//! yet, and equipment stat bonuses are not applied. Victories pay gil, items
+//! yet; its stat bonuses (`Stats.csv`) are applied. Victories pay gil, items
 //! and EXP into the field world; AP and cards are reported only. Every party member uses
 //! Attack on the first living enemy, the status table is empty, and the
 //! first pattern is used when the request names no group.
@@ -114,6 +114,10 @@ pub struct Equipment {
     /// Armor row -> physical defence, physical evade, magic defence, magic
     /// evade.
     armors: BTreeMap<i32, [i32; 4]>,
+    /// Item id -> `BonusId` (`Items.csv`).
+    bonus_ids: BTreeMap<i32, i32>,
+    /// `BonusId` -> speed, strength, magic, spirit (`Stats.csv`).
+    bonuses: BTreeMap<i32, [i32; 4]>,
 }
 
 impl Equipment {
@@ -167,6 +171,21 @@ impl Equipment {
             }
             equipment.armors.insert(id, stats);
         }
+        // Id;WeaponId;ArmorId;EffectId;Price;SellingPrice;GraphicsId;ColorId;Quality;BonusId;...
+        for row in csv_rows(&read(items_dir.join("Items.csv"))?) {
+            if let (Some(id), Some(bonus)) = (int(&row, 0), int(&row, 9)) {
+                equipment.bonus_ids.insert(id, bonus);
+            }
+        }
+        // Comment;Id;Speed;Strength;Magic;Spirit;...
+        for row in csv_rows(&read(items_dir.join("Stats.csv"))?) {
+            let Some(id) = int(&row, 1) else { continue };
+            let mut stats = [0; 4];
+            for (index, value) in stats.iter_mut().enumerate() {
+                *value = int(&row, 2 + index).unwrap_or(0);
+            }
+            equipment.bonuses.insert(id, stats);
+        }
         Ok(equipment)
     }
 
@@ -189,6 +208,31 @@ impl Equipment {
             }
         }
         (weapon, defence)
+    }
+
+    /// The equipment half of `ff9play.FF9Play_Update`: speed, strength,
+    /// magic and spirit bonuses summed over the five equipped items.
+    fn stat_bonus(&self, character: i32) -> [i32; 4] {
+        let mut total = [0; 4];
+        let Some(slots) = self
+            .sets
+            .get(&character)
+            .and_then(|set| self.items.get(set))
+        else {
+            return total;
+        };
+        for item in slots {
+            if let Some(stats) = self
+                .bonus_ids
+                .get(item)
+                .and_then(|bonus| self.bonuses.get(bonus))
+            {
+                for (sum, value) in total.iter_mut().zip(stats) {
+                    *sum += value;
+                }
+            }
+        }
+        total
     }
 }
 
@@ -655,10 +699,13 @@ fn party_unit(slot: usize, fighter: &PartyFighter, equipment: &Equipment) -> Bat
     unit.max_hp = fighter.max_hp.max(1);
     unit.cur_mp = fighter.mp;
     unit.max_mp = fighter.max_mp;
-    unit.strength = fighter.base.strength;
-    unit.magic = fighter.base.magic;
-    unit.dexterity = fighter.base.speed;
-    unit.will = fighter.base.spirit.max(1);
+    // `FF9Play_Update`: `elem = basis + equipment bonus`, capped at 99.
+    let bonus = equipment.stat_bonus(fighter.character);
+    let stat = |base: u8, add: i32| (i32::from(base) + add).clamp(0, 99) as u8;
+    unit.dexterity = stat(fighter.base.speed, bonus[0]);
+    unit.strength = stat(fighter.base.strength, bonus[1]);
+    unit.magic = stat(fighter.base.magic, bonus[2]);
+    unit.will = stat(fighter.base.spirit, bonus[3]).max(1);
     unit.physical_defence = defence[0];
     unit.physical_evade = defence[1];
     unit.magic_defence = defence[2];
@@ -676,6 +723,36 @@ fn party_unit(slot: usize, fighter: &PartyFighter, equipment: &Equipment) -> Bat
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stat_bonus_sums_the_bonus_rows_of_the_default_set() {
+        let mut equipment = Equipment::default();
+        equipment.sets.insert(0, 7);
+        equipment.items.insert(7, [1, 89, -1, 100, -1]);
+        equipment.bonus_ids.extend([(1, 0), (89, 2), (100, 5)]);
+        equipment
+            .bonuses
+            .extend([(0, [0; 4]), (2, [0, 0, 0, 1]), (5, [1, 2, 0, 0])]);
+        assert_eq!(equipment.stat_bonus(0), [1, 2, 0, 1]);
+        assert_eq!(equipment.stat_bonus(3), [0; 4]);
+    }
+
+    /// Reads the Memoria tables when `TANTALUS_MEMORIA` points at the
+    /// reference checkout.
+    #[test]
+    fn stat_bonus_reads_memoria_tables_when_present() {
+        let Some(root) = std::env::var_os("TANTALUS_MEMORIA") else {
+            return;
+        };
+        let characters = Path::new(&root).join("Memoria.Patcher/StreamingAssets/Data/Characters");
+        let equipment = Equipment::load(&characters).expect("Memoria tables load");
+        assert!(!equipment.bonuses.is_empty());
+        assert!(!equipment.bonus_ids.is_empty());
+        // Beatrix's default set carries stat bonuses; Zidane's starting gear
+        // carries none.
+        assert_eq!(equipment.stat_bonus(11), [1, 2, 3, 8]);
+        assert_eq!(equipment.stat_bonus(0), [0; 4]);
+    }
 
     #[test]
     fn pay_rewards_adds_gil_items_and_exp_on_victory_only() {
