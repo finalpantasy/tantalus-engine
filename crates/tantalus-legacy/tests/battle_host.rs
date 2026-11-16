@@ -472,3 +472,78 @@ fn enemy_member_writes_land_and_read_back() {
     assert_eq!(unit.bonus_exp, 640);
     assert_eq!(unit.bonus_gil, 250);
 }
+
+#[test]
+fn battle_machine_snapshots_into_script_views() {
+    use tantalus_contracts::EntityId;
+    use tantalus_legacy::battle::host::{battle_views, phase};
+    use tantalus_legacy::battle::machine::{Battle, BattleConfig, Phase};
+    use tantalus_legacy::battle::{BattleUnit, StatusDataRow, StatusTable};
+
+    fn table() -> StatusTable {
+        StatusTable::new(vec![StatusDataRow::default(); 32])
+    }
+    let mut player = BattleUnit::new(1, true);
+    player.level = 20;
+    player.character_id = 5;
+    player.cur_hp = 500;
+    player.max_hp = 500;
+    player.cur_mp = 100;
+    player.max_mp = 100;
+    player.strength = 30;
+    player.guard_elements = tantalus_legacy::battle::Elements(3);
+    let mut enemy = BattleUnit::new(16, false);
+    enemy.level = 15;
+    enemy.is_undead = true;
+    enemy.cur_hp = 300;
+    enemy.max_hp = 300;
+    enemy.physical_defence = 10;
+    let mut battle = Battle::new(vec![player, enemy], BattleConfig::default(), table());
+    battle.bonus_exp = 640;
+    battle.running.push(0);
+
+    let (data, units) = battle_views(&battle);
+    assert_eq!(data.btl_phase, phase::NORMAL);
+    assert_eq!(data.bonus_exp, 640);
+    assert!(data.seq_busy, "a running command means busy");
+    assert_eq!(data.battle_result, 0, "no result yet");
+
+    let player_view = &units[&EntityId::new(1)];
+    assert_eq!(player_view.hp, 500);
+    assert_eq!(player_view.level, 20);
+    assert_eq!(player_view.category, 5, "player category = character id");
+    assert_eq!(player_view.element_invalid, 3);
+    assert!(player_view.is_player);
+    let enemy_view = &units[&EntityId::new(16)];
+    assert_eq!(enemy_view.physical_defence, 10);
+    assert_eq!(enemy_view.class, 16, "undead maps to the Undead category");
+
+    // A decoded script reads the snapshot through the host: unit 16's hp
+    // into a global.
+    let result = global_int24(31);
+    let program = decode_program(
+        &[
+            evaluate({
+                let mut bytes = result;
+                bytes.extend(vec![120, 16, 36]); // getvobj(entity 16, member 36)
+                bytes.push(44);
+                bytes
+            }),
+            vec![4],
+        ]
+        .concat(),
+    )
+    .unwrap();
+    let mut host = tantalus_legacy::battle::host::BattleScriptHost::with_units(&data, units);
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(1));
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(tantalus_legacy::VariableScope::Global, 31), 300);
+
+    // Victory phase maps to the reference phase number.
+    battle.phase = Phase::Victory;
+    battle.result = Some(1);
+    let (data, _) = battle_views(&battle);
+    assert_eq!(data.btl_phase, phase::VICTORY);
+    assert_eq!(data.battle_result, 1);
+    assert!(data.result_mode);
+}

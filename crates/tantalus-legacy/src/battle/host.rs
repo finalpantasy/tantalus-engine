@@ -25,9 +25,12 @@
 //!   [`UnitView`]s; writes (`SetCharacterData`) are accepted but do not
 //!   mutate units yet.
 
+use super::machine::{Battle, Phase, UnitSched};
 use super::rng::BattleRandom;
+use super::unit::BattleUnit;
 use crate::event::probe::ProbeHost;
 use crate::event::{LegacyEventHost, ObjectMemberRef};
+use std::collections::BTreeMap;
 use tantalus_contracts::{EngineError, EntityId};
 
 /// Command data behind sysvars 28/29 and 36-39/43.
@@ -595,5 +598,114 @@ impl LegacyEventHost for BattleScriptHost<'_> {
 impl BattleScriptHost<'_> {
     fn rng_draw(&mut self) -> u8 {
         self.rng.as_deref_mut().map_or(0, |rng| rng.random8() as u8)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Machine wiring
+// ---------------------------------------------------------------------------
+
+/// Battle phase numbers (`FF9StateBattleSystem`: `PHASE_NORMAL = 4`,
+/// `PHASE_MENU_OFF = 5`, `PHASE_VICTORY = 6`, `PHASE_DEFEAT = 7`,
+/// `PHASE_CLOSE = 8`).
+pub mod phase {
+    pub const NORMAL: u32 = 4;
+    pub const MENU_OFF: u32 = 5;
+    pub const VICTORY: u32 = 6;
+    pub const DEFEAT: u32 = 7;
+    pub const CLOSE: u32 = 8;
+}
+
+/// Snapshots a [`Battle`] into the script views: one [`BattleDataView`] plus
+/// per-unit [`UnitView`]s keyed by `EntityId::new(u64::from(unit.id))`, so a
+/// caller can run decoded battle scripts against the live machine state with
+/// [`BattleScriptHost::with_units`].
+///
+/// Documented mappings and gaps (v1, read-only wiring):
+/// * `seq_busy` approximates `BtlSeqBusy()` with "a command is running";
+///   `result_mode` is the victory/defeat phases.
+/// * `btl_phase` uses the reference phase numbers; `btl_seq` stays 0 (the
+///   machine tracks menu-off/closing sequences as enums, not numbers).
+/// * The machine carries no scene (pattern id, start type), party gil, or AP;
+///   those fields stay defaulted and callers overlay them.
+/// * `column` maps the unit's list index (`bi.line_no` is list position);
+///   `disappear` is the boolean scheduler flag; `category` is the player
+///   character id (players only); `class` derives from the undead/flight
+///   flags (Undead 16, Flight 128, else 0); `enemy_id` (slot number) and
+///   `status_invalid` map `status_resist`.
+pub fn battle_views(battle: &Battle) -> (BattleDataView, BTreeMap<EntityId, UnitView>) {
+    let btl_phase = match battle.phase {
+        Phase::Normal => phase::NORMAL,
+        Phase::MenuOff => phase::MENU_OFF,
+        Phase::Victory => phase::VICTORY,
+        Phase::Defeat => phase::DEFEAT,
+        Phase::Close => phase::CLOSE,
+    };
+    let data = BattleDataView {
+        seq_busy: !battle.running.is_empty(),
+        result_mode: matches!(battle.phase, Phase::Victory | Phase::Defeat),
+        battle_result: battle.result.map_or(0, i32::from),
+        btl_phase,
+        bonus_exp: battle.bonus_exp,
+        ..BattleDataView::default()
+    };
+    let units = battle
+        .units
+        .iter()
+        .zip(&battle.sched)
+        .enumerate()
+        .map(|(index, (unit, sched))| {
+            (
+                EntityId::new(u64::from(unit.id)),
+                unit_view(unit, sched, index),
+            )
+        })
+        .collect();
+    (data, units)
+}
+
+fn unit_view(unit: &BattleUnit, sched: &UnitSched, index: usize) -> UnitView {
+    UnitView {
+        max_hp: unit.max_hp as i32,
+        hp: unit.cur_hp as i32,
+        max_mp: unit.max_mp as i32,
+        mp: unit.cur_mp as i32,
+        max_atb: i32::from(sched.max_atb),
+        atb: i32::from(unit.cur_atb),
+        level: i32::from(unit.level),
+        status_invalid: unit.status_resist,
+        status_permanent: unit.status_permanent,
+        status_current: unit.status_current,
+        element_invalid: unit.guard_elements.0,
+        element_absorb: unit.absorb_elements.0,
+        element_half: unit.half_elements.0,
+        element_weak: unit.weak_elements.0,
+        targetable: i32::from(sched.targetable),
+        disappear: i32::from(sched.disappeared),
+        row: i32::from(unit.row),
+        column: index as i32,
+        category: if unit.is_player {
+            i32::from(unit.character_id)
+        } else {
+            0
+        },
+        class: if unit.is_undead {
+            16 // EnemyCategory::Undead
+        } else if unit.is_flight {
+            128 // EnemyCategory::Flight
+        } else {
+            0
+        },
+        is_player: unit.is_player,
+        strength: i32::from(unit.strength),
+        magic: i32::from(unit.magic),
+        physical_defence: unit.physical_defence,
+        physical_evade: unit.physical_evade,
+        magical_defence: unit.magic_defence,
+        magical_evade: unit.magic_evade,
+        bonus_exp: sched.bonus_exp as i32,
+        out_of_reach: sched.out_of_reach,
+        die_fade_rate: i32::from(sched.die_fade_rate),
+        ..UnitView::default()
     }
 }
