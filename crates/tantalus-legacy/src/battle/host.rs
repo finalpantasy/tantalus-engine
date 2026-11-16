@@ -400,7 +400,7 @@ impl<'a> BattleScriptHost<'a> {
             units,
             sys_list: [0; 8],
             rng: None,
-            probe: ProbeHost,
+            probe: ProbeHost::default(),
             cmd_params: None,
         }
     }
@@ -411,7 +411,7 @@ impl<'a> BattleScriptHost<'a> {
             units: std::collections::BTreeMap::new(),
             sys_list: [0; 8],
             rng: Some(rng),
-            probe: ProbeHost,
+            probe: ProbeHost::default(),
             cmd_params: None,
         }
     }

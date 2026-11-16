@@ -733,6 +733,11 @@ impl EventVm {
                     };
                     self.pc = next;
                     events.push(HostEvent::SetActorFacing { actor, angle });
+                    // The reference sets the rotation at once, and turn loops
+                    // read it back (member 3) in the same frame, so apply now.
+                    host.apply(&events[flushed..])
+                        .map_err(|error| VmError::host(error, self.pc, opcode))?;
+                    flushed = events.len();
                 }
                 InstructionKind::StartActorTurn { angle, speed } => {
                     let angle = self

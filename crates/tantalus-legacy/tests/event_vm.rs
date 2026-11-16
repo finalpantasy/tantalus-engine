@@ -8578,3 +8578,21 @@ fn member_assignment_accepts_slot_invariant_member_operands() {
     vm.step(Tick::new(0), &mut host).unwrap();
     assert_eq!(vm.variable(VariableScope::Global, 64), 7);
 }
+
+#[test]
+fn a_turn_loop_reads_its_new_facing_back_in_the_same_frame() {
+    // facing = facing + 2; if facing < 40 jump back; return. The reference
+    // sets the rotation at once, so the loop ends within one step.
+    let facing = vec![120, 255, 3];
+    let mut bytes = vec![0x36, 1];
+    append_expression(&mut bytes, binary(facing.clone(), constant(2), 20));
+    bytes.extend(evaluate(binary(facing, constant(40), 24)));
+    bytes.extend([0x03]);
+    bytes.extend((-26_i16).to_le_bytes());
+    bytes.push(4);
+    let program = decode_program(&bytes).unwrap();
+    let probe = probe_program(&program, EntityId::new(3), 1);
+    assert_eq!(probe.status, VmStatus::Completed);
+    assert!(probe.error.is_none());
+    assert_eq!(probe.events.get("SetActorFacing"), Some(&20));
+}

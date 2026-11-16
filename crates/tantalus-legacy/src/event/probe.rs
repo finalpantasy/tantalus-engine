@@ -2,6 +2,9 @@
 //!
 //! The probe executes a decoded function against a permissive host: every read returns zero or
 //! a plain default, every wait query reports "finished", and every host event is only counted.
+//! Two reads carry state so retry loops can end: random (system variable 0 and
+//! `read_random_u8`) walks 0, 1, 2 ... 255 and wraps, and an object member reads back the
+//! last value written to it, and `SetActorFacing` sets member 3 (facing) as the field host does.
 //! It proves that real bytecode decodes *and* runs through the VM without a runtime error. It
 //! does not model gameplay state, so the events it records are not a behavior claim.
 
@@ -26,7 +29,7 @@ pub struct FunctionProbe {
 /// Runs `program` as `entity` for at most `max_ticks` ticks against a zero-state host.
 pub fn probe_program(program: &EventProgram, entity: EntityId, max_ticks: u64) -> FunctionProbe {
     let mut vm = EventVm::new(program.clone()).with_entity(entity);
-    let mut host = ProbeHost;
+    let mut host = ProbeHost::default();
     let mut events = BTreeMap::new();
     let mut ticks = 0;
     let mut error = None;
@@ -61,10 +64,33 @@ fn event_name(event: &HostEvent) -> String {
         .to_owned()
 }
 
-pub(crate) struct ProbeHost;
+#[derive(Debug, Default)]
+pub(crate) struct ProbeHost {
+    random: u8,
+    members: BTreeMap<ObjectMemberRef, i32>,
+}
+
+impl ProbeHost {
+    fn next_random(&mut self) -> u8 {
+        let value = self.random;
+        self.random = self.random.wrapping_add(1);
+        value
+    }
+}
 
 impl LegacyEventHost for ProbeHost {
-    fn apply(&mut self, _events: &[HostEvent]) -> Result<(), EngineError> {
+    fn apply(&mut self, events: &[HostEvent]) -> Result<(), EngineError> {
+        for event in events {
+            if let HostEvent::SetActorFacing { actor, angle } = event {
+                // Member 3 is the facing byte, as the field host stores it.
+                let reference = ObjectMemberRef {
+                    object: *actor,
+                    member: 3,
+                };
+                self.members
+                    .insert(reference, i32::from((*angle >> 4) & 0xFF));
+            }
+        }
         Ok(())
     }
 
@@ -72,8 +98,8 @@ impl LegacyEventHost for ProbeHost {
         false
     }
 
-    fn read_object_member(&mut self, _reference: ObjectMemberRef) -> Result<i32, EngineError> {
-        Ok(0)
+    fn read_object_member(&mut self, reference: ObjectMemberRef) -> Result<i32, EngineError> {
+        Ok(self.members.get(&reference).copied().unwrap_or(0))
     }
 
     fn select_object_member_target(&mut self, slot: Option<u8>) -> Result<EntityId, EngineError> {
@@ -82,14 +108,20 @@ impl LegacyEventHost for ProbeHost {
 
     fn write_object_member(
         &mut self,
-        _reference: ObjectMemberRef,
-        _value: i32,
+        reference: ObjectMemberRef,
+        value: i32,
     ) -> Result<(), EngineError> {
+        self.members.insert(reference, value);
         Ok(())
     }
 
-    fn read_system_variable(&mut self, _variable: u8) -> Result<i32, EngineError> {
-        Ok(0)
+    fn read_system_variable(&mut self, variable: u8) -> Result<i32, EngineError> {
+        // System variable 0 is `Comn.random8()`.
+        Ok(if variable == 0 {
+            i32::from(self.next_random())
+        } else {
+            0
+        })
     }
 
     fn read_system_list(&mut self, _index: u8) -> Result<i32, EngineError> {
@@ -181,7 +213,7 @@ impl LegacyEventHost for ProbeHost {
     }
 
     fn read_random_u8(&mut self) -> Result<u8, EngineError> {
-        Ok(0)
+        Ok(self.next_random())
     }
 
     fn read_key_on(&mut self) -> Result<i32, EngineError> {

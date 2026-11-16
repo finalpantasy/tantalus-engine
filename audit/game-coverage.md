@@ -5,7 +5,7 @@ Scope: the owned PC install at `E:/SteamLibrary/steamapps/common/FINAL FANTASY I
 | Domain | Where | Count in install | Rust status today |
 |---|---|---|---|
 | Fields (background, walkmesh, atlas) | `p0data11`-`p0data19` (mirrors `p0data101`-`p0data181`) | 674 field directories | all 674 load: scene, navigation and atlas parse and the navigation mesh builds. Rendering and play proven on one field only |
-| Field, battle and world scripts | `p0data7` `eventengine/eventbinary`, 7 languages | 1395 scripts (818 field, 562 battle, 15 world) | 42,582 functions decode, none fail. Dry-run: 35,282 complete, 7,010 wait on host state, 6 stop at the instruction budget (zero-state artifacts), 10 functions in 2 unreachable world scripts stop on the unsupported WATCH opcode |
+| Field, battle and world scripts | `p0data7` `eventengine/eventbinary`, 7 languages | 1395 scripts (818 field, 562 battle, 15 world) | 42,582 functions decode, none fail. Dry-run: 35,290 complete, 7,008 wait on host state, none stop at the instruction budget, 10 functions in 2 unreachable world scripts stop on the unsupported WATCH opcode |
 | Field and movie config | `p0data7` `mapconfigdata`, `mbgdata` | 818 map configs, 56 movie backgrounds | all parse (`--map-config-all`, `--mbg-all`); unread bytes kept raw |
 | Battle scenes and models | `p0data2` | 562 scenes, 178 info files, 6,243 model files | scenes, info files and sequence headers parse (`--battle-scenes`); each scene has an unread tail; `.raw17` enemy action sequences decode (3,814 slots, 0 unknown opcodes, `--battle-sequences`); 560 of 562 scenes resolve every model, clip and background (`--battle-model-coverage`); 372 `ef<id>` spell-effect blobs parse as containers, script bodies are native MIPS code (`--special-effects`) |
 | World map | `p0data3` | 3,439 assets | all classified; 2,178 block meshes decode; raw `wmap` packs account for every byte (`--world-map`); `.hed`/`.nwp` tables kept raw; encounter table (355 records) and special groups of both `discmr.img` files drive the ported zone and scene choice (`world::encounter`) |
@@ -24,16 +24,15 @@ Statement opcodes with no handler in `commandCodeFlow` or `DoEventCode` (`pad0a`
 
 `WATCH` (`0x4E`) decodes as a label plus one variable expression, but it refuses to run. Its handler skips the label, then `SetVariableSpec` reads the label's NUL byte and sets `ip` to 1, a jump into the entry header rather than an instruction. It appears only in `EVT_WORLD_WORLDSV` (9101) and `EVT_WORLD_WORLDTS` (9100), in 10 functions. Those ids appear only in Memoria's event-name table; the world maps the game loads are 9001 to 9012.
 
-The dry run stops 6 functions at the instruction budget, and each is a zero-state artifact:
+No function stops at the instruction budget. Two dry-run host reads carry state so retry loops can end. Random (system variable 0) walks 0 to 255, which lets the `EVT_ALEX3_AT_CENTER` slot loops (`random & 7` until a slot is free) finish. Object members read back what was written, and `SetActorFacing` sets member 3.
 
-- `EVT_ALEX3_AT_CENTER`, 5 functions: a retry loop draws `random & 7` until it finds a free slot. The zero-state host's random is always 0.
-- `EVT_PATA_M_CM_MP0_0` entry 2 tag 12: a turn loop reads its own facing (member 3) back. The zero-state host does not store facing; the field host does.
+The `EVT_PATA_M_CM_MP0_0` turn loop (entry 2 tag 12) also exposed a VM bug. `SetActorFacing` was queued until the end of the step, so a loop that reads its facing back in the same frame never saw it change, in the field host as well. The VM now applies facing at once, as the reference does.
 
 The step budget is 65,536 instructions. `EBin` itself has no cap; the old budget of 1,024 stopped two finite collection-count loops in `EVT_DAG_DG_SRH_0` and `EVT_TRENO2_TR_BAR_0` (about 77 global bytes times 8 bits in one frame) in the field host as well as in the dry run.
 
 Two extended opcodes stay recorded as unknown: entry 13 function 1 `0x180` and entry 16 function 1 `0x1C8`.
 
-447 names in Memoria's event table are not present in this bundle (294 battle, 57 startup, 20 SPS and others); they are listed in the JSON. The dry run has no other runtime errors. The numbers above were recomputed on 2026-11-16 by decoding and dry-running every `EVT_*` asset of `p0data7` once (3,031 names across languages, 64 ticks each).
+447 names in Memoria's event table are not present in this bundle (294 battle, 57 startup, 20 SPS and others); they are listed in the JSON. The 2 WATCH scripts are listed under `unreachable_runtime_errors`, which the summary row does not count: no script jumps to world 9100 or 9101 (a scan of every decoded instruction finds those numbers only as scenario-counter comparisons, text values and SPS parameters). The dry run has no other runtime errors. The numbers above were recomputed on 2026-11-16 by decoding and dry-running every `EVT_*` asset of `p0data7` once (3,031 names across languages, 64 ticks each).
 
 ## Reproduce
 
