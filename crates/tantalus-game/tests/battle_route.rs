@@ -549,3 +549,46 @@ fn adapter_runs_with_script_driven_enemy_ai_hooks() {
         "script-driven AI hooks run the battle to victory"
     );
 }
+
+#[test]
+fn escape_family_results_map_to_distinct_outcomes() {
+    use std::collections::BTreeMap;
+    use tantalus_contracts::EntityId;
+    use tantalus_game::battle::legacy::{LegacyBattleAdapter, unit_mappings};
+    use tantalus_game::battle::BattleOutcome;
+    use tantalus_legacy::battle::machine::{Battle as LegacyBattle, BattleConfig};
+    use tantalus_legacy::battle::{BattleUnit, StatusDataRow, StatusTable};
+
+    fn forced_outcome(result: u8) -> BattleOutcome {
+        let mut player = BattleUnit::new(1, true);
+        player.will = 10;
+        let mut enemy = BattleUnit::new(16, false);
+        enemy.will = 10;
+        let mut battle = LegacyBattle::new(
+            vec![player, enemy],
+            BattleConfig::default(),
+            StatusTable::new(vec![StatusDataRow::default(); 32]),
+        );
+        battle.result = Some(result);
+        battle.over = true;
+        let mut adapter = LegacyBattleAdapter::new(
+            battle,
+            BTreeMap::new(),
+            unit_mappings(&[(EntityId::new(101), 1)]).0,
+            unit_mappings(&[(EntityId::new(101), 1)]).1,
+        );
+        let mut world = FieldWorld::new();
+        let mut services = WorldGameServices::new(&mut world);
+        let input = tantalus_game::battle::CombatInput::new(tantalus_contracts::Tick::new(0));
+        adapter
+            .advance(&input, &mut services)
+            .unwrap()
+            .outcome
+            .unwrap()
+    }
+
+    assert_eq!(forced_outcome(1), BattleOutcome::Victory);
+    assert_eq!(forced_outcome(3), BattleOutcome::Defeat);
+    assert_eq!(forced_outcome(4), BattleOutcome::Escape);
+    assert_eq!(forced_outcome(7), BattleOutcome::EnemyFlee);
+}

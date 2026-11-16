@@ -368,6 +368,14 @@ impl CombatRuleset {
         self.status = match outcome {
             BattleOutcome::Victory => BattleStatus::Victory,
             BattleOutcome::Defeat => BattleStatus::Defeat,
+            // The synthetic ruleset only ends by elimination; escape-family
+            // outcomes come from the legacy machine adapter.
+            BattleOutcome::Escape | BattleOutcome::EnemyFlee => {
+                return Err(battle_error(
+                    "synthetic ruleset cannot end by escape",
+                    false,
+                ));
+            }
         };
         update.outcome = Some(outcome);
         update.events.push(CombatEvent::BattleCompleted { outcome });

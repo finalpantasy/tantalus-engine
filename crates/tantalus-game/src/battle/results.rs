@@ -36,6 +36,11 @@ pub enum CombatEvent {
 pub enum BattleOutcome {
     Victory,
     Defeat,
+    /// The party escaped (`ff9.btl_result` 4). Nothing is paid
+    /// (`ClearBattleBonus` runs before the escape gil check).
+    Escape,
+    /// Every enemy fled (`ff9.btl_result` 7). Nothing is paid.
+    EnemyFlee,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

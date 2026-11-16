@@ -280,6 +280,8 @@ impl LegacyBattleAdapter {
             self.outcome = Some(match self.battle.result {
                 Some(result::VICTORY) | Some(result::VICTORY_NO_POSE) => BattleOutcome::Victory,
                 Some(result::DEFEAT) => BattleOutcome::Defeat,
+                Some(result::ESCAPE) => BattleOutcome::Escape,
+                Some(result::ENEMY_FLEE) => BattleOutcome::EnemyFlee,
                 other => {
                     return Err(battle_error(
                         format!("unmapped legacy battle result {other:?}"),
