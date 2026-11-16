@@ -463,8 +463,8 @@ fn legacy_battle_replays_identically_from_identical_world_state() {
 fn adapter_runs_with_script_driven_enemy_ai_hooks() {
     use std::collections::BTreeMap;
     use tantalus_contracts::EntityId;
-    use tantalus_game::battle::legacy::{LegacyBattleAdapter, NoEnemyAi, unit_mappings};
     use tantalus_game::battle::BattleCommand;
+    use tantalus_game::battle::legacy::{LegacyBattleAdapter, NoEnemyAi, unit_mappings};
     use tantalus_legacy::battle::host::battle_views;
     use tantalus_legacy::battle::machine::{ABILITY_ATTACK, Battle as LegacyBattle, BattleConfig};
     use tantalus_legacy::battle::queue::cmd;
