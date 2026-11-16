@@ -775,6 +775,34 @@ fn world_battle_distinguishes_early_failure_from_no_outcome() {
 }
 
 #[test]
+fn flee_first_paths_agree_on_the_escape_outcome() {
+    use tantalus_tools::battle_run::{run_scene_battle, run_world_battle_report};
+
+    // Weak party vs. an enemy it cannot out-damage: with flee-first the only
+    // non-defeat exit is the flee key, so both paths must reach the same
+    // outcome (Escape on a successful roll, Defeat otherwise) with no error
+    // and no spoils either way.
+    let mut scene = scene();
+    for monster in &mut scene.monster_types {
+        monster.max_hp = 6000;
+        monster.stats.strength = 40;
+    }
+    let mut script = b"EV\x02\x00".to_vec();
+    script.resize(128, 0);
+
+    for seed in [0x5EEDu64, 9, 77] {
+        let report = run_scene_battle("EVT_BATTLE_TEST", &scene, 0, &script, seed, true, true);
+        let world =
+            run_world_battle_report("EVT_BATTLE_TEST", &scene, 0, &script, seed, true, true);
+        assert_eq!(report.error, None, "seed {seed}: report path clean");
+        assert_eq!(world.error, None, "seed {seed}: world path clean");
+        assert_eq!(report.outcome, world.outcome, "seed {seed}: outcome");
+        assert_eq!(report.bonus_gil, world.bonus_gil, "seed {seed}: gil");
+        assert_eq!(report.bonus_exp, world.bonus_exp, "seed {seed}: exp");
+    }
+}
+
+#[test]
 fn report_paths_agree_on_outcome_gil_and_exp() {
     use tantalus_tools::battle_run::{run_scene_battle, run_world_battle_report};
 
