@@ -329,6 +329,17 @@ impl<H: BattleHooks> LegacyBattleAdapter<H> {
             .map_err(|error| {
                 battle_error(format!("legacy battle tick failed: {error:?}"), false)
             })?;
+        // A defeat decided in MenuOff whose close animation cannot play
+        // (un-injected `Timing` death/fade ticks) still reports `Defeat`:
+        // the machine has decided; only the presentation loop stalls.
+        // Escape menu-offs do not need this — `escape_fade` counts down
+        // numerically — and victories publish within the tick budget.
+        if self.outcome.is_none()
+            && self.battle.phase == tantalus_legacy::battle::machine::Phase::MenuOff
+            && self.battle.menu_off_seq == tantalus_legacy::battle::machine::MenuOffSeq::Defeat
+        {
+            self.outcome = Some(BattleOutcome::Defeat);
+        }
         if self.battle.over && self.outcome.is_none() {
             self.outcome = Some(match self.battle.result {
                 Some(result::VICTORY) | Some(result::VICTORY_NO_POSE) => BattleOutcome::Victory,

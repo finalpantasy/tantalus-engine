@@ -714,3 +714,45 @@ fn party_flee_key_escape_costs_nothing() {
     assert_eq!(lost, 0);
     assert_eq!(world.gil, 100, "the flee key costs nothing");
 }
+
+#[test]
+fn decided_menuoff_defeat_reports_defeat_without_close_timings() {
+    use std::collections::BTreeMap;
+    use tantalus_contracts::EntityId;
+    use tantalus_game::battle::legacy::{LegacyBattleAdapter, unit_mappings};
+    use tantalus_game::battle::BattleOutcome;
+    use tantalus_legacy::battle::machine::{
+        Battle as LegacyBattle, BattleConfig, MenuOffSeq, Phase,
+    };
+    use tantalus_legacy::battle::{BattleUnit, StatusDataRow, StatusTable};
+
+    let mut player = BattleUnit::new(1, true);
+    player.will = 20;
+    let mut enemy = BattleUnit::new(16, false);
+    enemy.will = 10;
+    let mut battle = LegacyBattle::new(
+        vec![player, enemy],
+        BattleConfig::default(),
+        StatusTable::new(vec![StatusDataRow::default(); 32]),
+    );
+    // Simulate the decided-but-unclosed state: MenuOff with the defeat
+    // sequence entered (what the superbosses reach with Timing defaults).
+    battle.phase = Phase::MenuOff;
+    battle.menu_off_seq = MenuOffSeq::Defeat;
+    let mut adapter = LegacyBattleAdapter::new(
+        battle,
+        BTreeMap::new(),
+        unit_mappings(&[(EntityId::new(101), 1)]).0,
+        unit_mappings(&[(EntityId::new(101), 1)]).1,
+    );
+    let mut world = FieldWorld::new();
+    let mut services = WorldGameServices::new(&mut world);
+    let input = tantalus_game::battle::CombatInput::new(tantalus_contracts::Tick::new(0));
+    let update = adapter.advance(&input, &mut services).unwrap();
+    assert_eq!(
+        update.outcome,
+        Some(BattleOutcome::Defeat),
+        "a decided MenuOff defeat reports Defeat even when the close \
+         animation timings are un-injected"
+    );
+}
