@@ -390,3 +390,19 @@ Open:
 - EF_E006 ends with no outcome, as before.
 - Removing a member closes the gap instead of leaving an empty slot, so a
   later add joins at the end rather than in the freed slot.
+
+## Actor tracks on screen
+
+`tantalus-trace chain --actor-track <dir>` writes one file per field visit,
+`NNN_<map>.jsonl`. The header line names the map and its background field;
+every second tick after that gives the player id, the control flag and each
+actor's position and facing. Run 84 wrote 147 files.
+
+`tantalus-client view-track --assets <StreamingAssets> --track <file>` plays
+one of these over the field background in a window at 15 frames a second,
+looping. `capture-track ... --tick T --output <png>` saves one frame without a
+window. Actors are boxes for now (amber for the player, cyan for the others),
+placed through the field camera. On `006_103` (Alexandria main street) the
+player walks the street between ticks 100 and 600. Some cyan boxes sit on
+roofs; those objects are probably hidden or off-stage, and the track does not
+record visibility yet.

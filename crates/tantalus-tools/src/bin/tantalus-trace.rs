@@ -49,6 +49,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut confirm_after = 0u64;
     let mut explore = false;
     let mut walk_demo = false;
+    let mut actor_track: Option<PathBuf> = None;
     let mut character_data: Option<PathBuf> = None;
     let mut game_data: Option<PathBuf> = None;
     let mut mes_map: Option<PathBuf> = None;
@@ -81,6 +82,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
             "--item-table" => item_table = Some(PathBuf::from(value()?)),
             "--explore" => explore = true,
             "--walk-demo" => walk_demo = true,
+            "--actor-track" => actor_track = Some(PathBuf::from(value()?)),
             "--game-data" => game_data = Some(PathBuf::from(value()?)),
             "--mes-map" => mes_map = Some(PathBuf::from(value()?)),
             "--language" => language = value()?,
@@ -292,6 +294,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     confirm_after,
                     explore,
                     walk_demo,
+                    actor_track,
                     stats,
                     text,
                     choices,
@@ -863,6 +866,10 @@ struct ChainOptions {
     /// Cycle synthetic direction bits so the controlled actor walks and
     /// faces; scenes that gate on player facing (map 100) then advance.
     walk_demo: bool,
+    /// Directory for per-field actor tracks (`NNN_MAP.jsonl`): a header
+    /// with the background name, then actor positions every two ticks, for
+    /// `tantalus-client view-track`.
+    actor_track: Option<PathBuf>,
     stats: BTreeMap<i32, tantalus_game::field::CharacterStats>,
     text: Option<FieldText>,
     /// Scripted answers for choice windows by (field map, text id); 0 when
@@ -1167,6 +1174,7 @@ fn chain(
         confirm_after,
         explore,
         walk_demo,
+        actor_track,
         stats,
         text,
         choices,
@@ -1274,7 +1282,10 @@ fn chain(
         world.provide_atan_table(table);
     }
     let mut map = start;
-    for _ in 0..max_fields {
+    if let Some(dir) = &actor_track {
+        std::fs::create_dir_all(dir).map_err(|error| format!("{}: {error}", dir.display()))?;
+    }
+    for field_number in 0..max_fields {
         let Some(name) = db.get(&map) else {
             println!(
                 "{}",
@@ -1453,7 +1464,51 @@ fn chain(
         let mut texts_shown: Vec<(u64, u16)> = Vec::new();
         let mut last_texts: BTreeMap<u8, u16> = BTreeMap::new();
         let mut last_control = director.world().user_control;
+        let mut track = match &actor_track {
+            Some(dir) => {
+                let path = dir.join(format!("{field_number:03}_{map}.jsonl"));
+                let mut file = std::io::BufWriter::new(
+                    std::fs::File::create(&path)
+                        .map_err(|error| format!("{}: {error}", path.display()))?,
+                );
+                let header = serde_json::json!({
+                    "map": map,
+                    "field": backgrounds.get(&map),
+                    "scenario_counter": scenario_counter(director.world()),
+                });
+                use std::io::Write as _;
+                writeln!(file, "{header}").map_err(|error| error.to_string())?;
+                Some(file)
+            }
+            None => None,
+        };
         while ticks_run < ticks {
+            if let Some(file) = track.as_mut()
+                && ticks_run.is_multiple_of(2)
+            {
+                let world = director.world();
+                let actors: Vec<serde_json::Value> = world
+                    .actors
+                    .iter()
+                    .map(|(id, actor)| {
+                        serde_json::json!([
+                            id.get(),
+                            actor.position[0].round(),
+                            actor.position[1].round(),
+                            actor.position[2].round(),
+                            actor.facing
+                        ])
+                    })
+                    .collect();
+                let line = serde_json::json!({
+                    "tick": ticks_run,
+                    "player": world.player().map(|player| player.get()),
+                    "control": world.user_control,
+                    "actors": actors,
+                });
+                use std::io::Write as _;
+                writeln!(file, "{line}").map_err(|error| error.to_string())?;
+            }
             for (window, text) in &director.world().window_texts {
                 if last_texts.insert(*window, *text) != Some(*text) {
                     texts_shown.push((ticks_run, *text));

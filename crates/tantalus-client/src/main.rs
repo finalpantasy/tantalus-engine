@@ -10,7 +10,7 @@ fn main() -> ExitCode {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]"
+            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]"
         );
         return ExitCode::SUCCESS;
     }
@@ -18,8 +18,12 @@ fn main() -> ExitCode {
         Some("capture") => run_synthetic_capture(&args[1..]),
         Some("capture-field") => run_field_capture(&args[1..]),
         Some("view-field") => run_field_view(&args[1..]),
+        Some("view-track") => run_track_view(&args[1..]),
+        Some("capture-track") => run_track_capture(&args[1..]),
         _ => {
-            eprintln!("expected `capture`, `capture-field` or `view-field` (see --help)");
+            eprintln!(
+                "expected `capture`, `capture-field` `view-field`, `view-track` or `capture-track` (see --help)"
+            );
             ExitCode::FAILURE
         }
     }
@@ -192,6 +196,137 @@ fn run_field_view(args: &[std::ffi::OsString]) -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("field view failed: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// `--flag value` pairs into a map; `None` (after printing why) on a flag
+/// outside `allowed` or a flag with no value.
+fn flag_values(
+    args: &[std::ffi::OsString],
+    allowed: &[&str],
+) -> Option<std::collections::BTreeMap<String, String>> {
+    let mut values = std::collections::BTreeMap::new();
+    let mut index = 0;
+    while index < args.len() {
+        let flag = args[index].to_string_lossy().into_owned();
+        if !allowed.contains(&flag.as_str()) {
+            eprintln!("unknown argument: {flag}");
+            return None;
+        }
+        let Some(value) = args.get(index + 1) else {
+            eprintln!("{flag} requires a value");
+            return None;
+        };
+        values.insert(flag, value.to_string_lossy().into_owned());
+        index += 2;
+    }
+    Some(values)
+}
+
+type TrackAndField = (
+    tantalus_client::track::ActorTrack,
+    tantalus_assets::pc::bundled_field::BundledField,
+);
+
+fn load_track_and_field(
+    values: &std::collections::BTreeMap<String, String>,
+) -> Result<TrackAndField, String> {
+    let (Some(dir), Some(track)) = (values.get("--assets"), values.get("--track")) else {
+        return Err("requires --assets <StreamingAssets dir> and --track <file>".to_owned());
+    };
+    let track = tantalus_client::track::ActorTrack::load(std::path::Path::new(track))
+        .map_err(|error| error.to_string())?;
+    let field = tantalus_client::window::find_field(std::path::Path::new(dir), &track.field)
+        .map_err(|error| error.to_string())?;
+    Ok((track, field))
+}
+
+fn run_track_view(args: &[std::ffi::OsString]) -> ExitCode {
+    let Some(values) = flag_values(args, &["--assets", "--track", "--scale"]) else {
+        return ExitCode::FAILURE;
+    };
+    let scale = values
+        .get("--scale")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(3);
+    let result = load_track_and_field(&values).and_then(|(track, field)| {
+        tantalus_client::window::view_track(&field, track, scale).map_err(|error| error.to_string())
+    });
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("view-track failed: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run_track_capture(args: &[std::ffi::OsString]) -> ExitCode {
+    let allowed = ["--assets", "--track", "--tick", "--output", "--size"];
+    let Some(values) = flag_values(args, &allowed) else {
+        return ExitCode::FAILURE;
+    };
+    let Some(output) = values.get("--output").map(PathBuf::from) else {
+        eprintln!("capture-track requires --output");
+        return ExitCode::FAILURE;
+    };
+    let tick: u64 = values
+        .get("--tick")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0);
+    let (width, height) = match values.get("--size") {
+        None => (320, 240),
+        Some(size) => match parse_size(std::path::Path::new(size)) {
+            Some(size) => size,
+            None => {
+                eprintln!("--size must be WxH, for example 960x720");
+                return ExitCode::FAILURE;
+            }
+        },
+    };
+    let result = load_track_and_field(&values).and_then(|(track, field)| {
+        let frame = track
+            .frames
+            .iter()
+            .rev()
+            .find(|frame| frame.tick <= tick)
+            .or(track.frames.first())
+            .cloned()
+            .ok_or("track has no frames")?;
+        let placed = track.placed_actors();
+        let mut drawn = 0;
+        tantalus_client::capture::capture_field_scene(
+            &field,
+            &output,
+            CaptureConfig {
+                width,
+                height,
+                ..CaptureConfig::default()
+            },
+            |world| {
+                drawn = tantalus_client::track::spawn_frame_markers(
+                    world,
+                    &field.scene.camera,
+                    &frame,
+                    &placed,
+                );
+            },
+        )
+        .map_err(|error| error.to_string())?;
+        Ok((frame.tick, drawn))
+    });
+    match result {
+        Ok((tick, drawn)) => {
+            println!(
+                "saved tick {tick} with {drawn} actors to {}",
+                output.display()
+            );
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("capture-track failed: {error}");
             ExitCode::FAILURE
         }
     }

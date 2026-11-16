@@ -5,6 +5,7 @@
 
 use crate::field_assets::resolve_field_assets;
 use crate::scene_adapter::{ClientError, ClientSceneAdapter};
+use crate::track::{ActorTrack, FRAMES_PER_SECOND, TrackFrame, spawn_frame_markers};
 use bevy::camera::ScalingMode;
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
@@ -18,6 +19,68 @@ pub const FIELD_FRAME: (f32, f32) = (320.0, 240.0);
 /// window closes. `scale` multiplies the 320x240 frame for the initial
 /// window size.
 pub fn view_field(field: &BundledField, scale: u32) -> Result<(), ClientError> {
+    let mut adapter = field_window(field, scale)?;
+    adapter.app_mut().run();
+    Ok(())
+}
+
+/// Plays an actor track over its field in a window: markers move at the
+/// field's 30 ticks a second and the track loops when it ends.
+pub fn view_track(field: &BundledField, track: ActorTrack, scale: u32) -> Result<(), ClientError> {
+    let mut adapter = field_window(field, scale)?;
+    let placed = track.placed_actors();
+    adapter.app_mut().insert_resource(Playback {
+        camera: field.scene.camera.clone(),
+        frames: track.frames,
+        placed,
+        index: 0,
+        elapsed: 0.0,
+        started: false,
+    });
+    adapter.app_mut().add_systems(Update, advance_playback);
+    adapter.app_mut().run();
+    Ok(())
+}
+
+#[derive(Resource)]
+struct Playback {
+    camera: tantalus_contracts::LegacyFieldCamera,
+    frames: Vec<TrackFrame>,
+    placed: std::collections::BTreeSet<u64>,
+    index: usize,
+    elapsed: f64,
+    started: bool,
+}
+
+fn advance_playback(world: &mut World) {
+    let delta = world.resource::<Time>().delta_secs_f64();
+    let (frame, camera, placed) = {
+        let mut playback = world.resource_mut::<Playback>();
+        if playback.frames.is_empty() {
+            return;
+        }
+        let step = 1.0 / FRAMES_PER_SECOND;
+        playback.elapsed += delta;
+        if playback.started && playback.elapsed < step {
+            return;
+        }
+        if playback.started {
+            while playback.elapsed >= step {
+                playback.elapsed -= step;
+                playback.index = (playback.index + 1) % playback.frames.len();
+            }
+        }
+        playback.started = true;
+        (
+            playback.frames[playback.index].clone(),
+            playback.camera.clone(),
+            playback.placed.clone(),
+        )
+    };
+    spawn_frame_markers(world, &camera, &frame, &placed);
+}
+
+fn field_window(field: &BundledField, scale: u32) -> Result<ClientSceneAdapter, ClientError> {
     let scale = scale.clamp(1, 8);
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb_u8(18, 24, 36)))
@@ -40,8 +103,32 @@ pub fn view_field(field: &BundledField, scale: u32) -> Result<(), ClientError> {
     let assets = resolve_field_assets(&mut adapter, field)?;
     adapter.apply_field(&field.scene, &assets)?;
     fit_field_frame(adapter.app_mut().world_mut());
-    adapter.app_mut().run();
-    Ok(())
+    Ok(adapter)
+}
+
+/// Loads `name` from whichever field bundle (`p0data1N1.bin`) in the
+/// `StreamingAssets` directory holds it.
+pub fn find_field(
+    streaming_assets: &std::path::Path,
+    name: &str,
+) -> Result<BundledField, ClientError> {
+    let mut last = None;
+    for bank in 10..=19 {
+        let bundle = streaming_assets.join(format!("p0data{bank}1.bin"));
+        if !bundle.exists() {
+            continue;
+        }
+        match BundledField::load(&bundle, name) {
+            Ok(field) => return Ok(field),
+            Err(error) => last = Some(error.to_string()),
+        }
+    }
+    Err(ClientError::new(format!(
+        "no field bundle in {} holds `{name}`{}",
+        streaming_assets.display(),
+        last.map(|error| format!(" (last error: {error})"))
+            .unwrap_or_default()
+    )))
 }
 
 /// Gives every 2D camera a projection that always shows the whole field

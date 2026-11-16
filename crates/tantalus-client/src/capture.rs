@@ -69,19 +69,32 @@ pub fn capture_field_with(
     config: CaptureConfig,
     walkmesh: bool,
 ) -> Result<(), ClientError> {
+    capture_field_scene(field, output, config, |world| {
+        if walkmesh {
+            crate::projection::spawn_walkmesh_dots(
+                world,
+                &field.scene.camera,
+                &field.scene.navigation,
+            );
+        }
+    })
+}
+
+/// A field capture with `extra` run on the world after the background and
+/// camera are in place (walkmesh dots, track markers).
+pub fn capture_field_scene(
+    field: &tantalus_assets::pc::bundled_field::BundledField,
+    output: &Path,
+    config: CaptureConfig,
+    extra: impl FnOnce(&mut World),
+) -> Result<(), ClientError> {
     capture_with(output, config, |adapter, target| {
         let assets = crate::field_assets::resolve_field_assets(adapter, field)?;
         adapter.set_render_target(RenderTarget::Image(target.into()));
         adapter.apply_field(&field.scene, &assets)?;
         // The projection `view-field` uses, so a capture checks the window.
         crate::window::fit_field_frame(adapter.app_mut().world_mut());
-        if walkmesh {
-            crate::projection::spawn_walkmesh_dots(
-                adapter.app_mut().world_mut(),
-                &field.scene.camera,
-                &field.scene.navigation,
-            );
-        }
+        extra(adapter.app_mut().world_mut());
         Ok(())
     })
 }
