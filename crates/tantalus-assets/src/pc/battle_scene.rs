@@ -796,6 +796,8 @@ pub struct BattleBundleData {
     pub scenes: BTreeMap<String, Result<BattleScene, ImportError>>,
     /// Keyed by upper-case `EVT_BATTLE_<name>`; the `.raw17` file name is kept alongside.
     pub sequences: BTreeMap<String, (String, Result<SequenceHeader, ImportError>)>,
+    /// Raw `.raw17` bytes, keyed like `sequences` (input for the sequence decoder).
+    pub sequence_bytes: BTreeMap<String, Vec<u8>>,
     /// Keyed by upper-case `INB_<name>`.
     pub infos: BTreeMap<String, Result<BattleInfo, ImportError>>,
 }
@@ -845,7 +847,14 @@ impl BattleBundleData {
                     let parsed = read(info, &key).and_then(|b| BattleScene::parse(&b, &key));
                     data.scenes.insert(key, parsed);
                 } else if let Some(name) = file.strip_suffix(".raw17.bytes") {
-                    let parsed = read(info, &key).and_then(|b| SequenceHeader::parse(&b, &key));
+                    let parsed = match read(info, &key) {
+                        Ok(raw) => {
+                            let parsed = SequenceHeader::parse(&raw, &key);
+                            data.sequence_bytes.insert(key.clone(), raw);
+                            parsed
+                        }
+                        Err(error) => Err(error),
+                    };
                     data.sequences
                         .insert(key, (format!("{name}.raw17"), parsed));
                 }
