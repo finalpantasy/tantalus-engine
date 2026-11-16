@@ -56,6 +56,8 @@ pub struct ScreenVertex {
     pub xy: [f32; 2],
     pub depth: f32,
     pub uv: [f32; 2],
+    /// Vertex color, RGBA in 0..=1 (white when the mesh has none).
+    pub color: [f32; 4],
 }
 
 /// RGBA texels, rows top-down as `Texture2D::rgba_bytes` returns them, so
@@ -114,8 +116,10 @@ impl Raster {
 }
 
 /// Draws textured triangles given in field space (x right, y up) with a
-/// depth buffer. Triangles are double sided; texels with alpha under 128
-/// are cut out. `None` when nothing is in front of the camera or the
+/// depth buffer, shaded as `PSX/FieldMapActor` does: the texel times the
+/// vertex color (its `2 *` and the actor `_Color` of 0.5 cancel), cut out
+/// where texel alpha times vertex alpha is under 0.5. Triangles are
+/// double sided. `None` when nothing is in front of the camera or the
 /// raster would be too large.
 pub fn rasterize(triangles: &[([ScreenVertex; 3], Option<Texels<'_>>)]) -> Option<Raster> {
     let mut min = [f32::INFINITY; 2];
@@ -190,7 +194,7 @@ pub fn rasterize(triangles: &[([ScreenVertex; 3], Option<Texels<'_>>)]) -> Optio
                 if z >= depth[at] {
                     continue;
                 }
-                let color = match texels {
+                let texel = match texels {
                     Some(texels) => {
                         let uv = [0, 1].map(|axis| {
                             w[0] * vertices[0].uv[axis]
@@ -201,11 +205,19 @@ pub fn rasterize(triangles: &[([ScreenVertex; 3], Option<Texels<'_>>)]) -> Optio
                     }
                     None => [160, 160, 160, 255],
                 };
-                if color[3] < 128 {
+                let shade = [0, 1, 2, 3].map(|channel| {
+                    w[0] * vertices[0].color[channel]
+                        + w[1] * vertices[1].color[channel]
+                        + w[2] * vertices[2].color[channel]
+                });
+                if f32::from(texel[3]) / 255.0 * shade[3] < 0.5 {
                     continue;
                 }
+                let lit = |channel: usize| {
+                    (f32::from(texel[channel]) * shade[channel].clamp(0.0, 1.0)).round() as u8
+                };
                 depth[at] = z;
-                rgba[at * 4..at * 4 + 4].copy_from_slice(&[color[0], color[1], color[2], 255]);
+                rgba[at * 4..at * 4 + 4].copy_from_slice(&[lit(0), lit(1), lit(2), 255]);
             }
         }
     }
@@ -392,6 +404,7 @@ impl ActorModels {
                         xy,
                         depth,
                         uv: part.uvs.get(index).copied().unwrap_or_default(),
+                        color: part.colors.get(index).copied().unwrap_or([1.0; 4]),
                     })
                 })
                 .collect();
@@ -510,7 +523,39 @@ mod tests {
             xy: [x, y],
             depth,
             uv,
+            color: [1.0; 4],
         }
+    }
+
+    #[test]
+    fn vertex_colors_multiply_the_texel_and_their_alpha_cuts() {
+        let rgba = [200u8, 100, 50, 255];
+        let texels = Texels {
+            width: 1,
+            height: 1,
+            rgba: &rgba,
+        };
+        let shaded = |color: [f32; 4]| {
+            let tri = [
+                ScreenVertex {
+                    color,
+                    ..vertex(0.0, 0.0, 1.0, [0.5, 0.5])
+                },
+                ScreenVertex {
+                    color,
+                    ..vertex(4.0, 0.0, 1.0, [0.5, 0.5])
+                },
+                ScreenVertex {
+                    color,
+                    ..vertex(0.0, 4.0, 1.0, [0.5, 0.5])
+                },
+            ];
+            rasterize(&[(tri, Some(texels))]).map(|raster| pixel(&raster, 1, raster.height - 2))
+        };
+        assert_eq!(shaded([1.0; 4]), Some([200, 100, 50, 255]));
+        assert_eq!(shaded([0.5, 0.5, 0.5, 1.0]), Some([100, 50, 25, 255]));
+        // Texel alpha 1 times vertex alpha 0.4 is under the 0.5 cut.
+        assert_eq!(shaded([1.0, 1.0, 1.0, 0.4]), None);
     }
 
     fn pixel(raster: &Raster, x: u32, y: u32) -> [u8; 4] {

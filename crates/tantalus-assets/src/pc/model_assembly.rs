@@ -141,6 +141,8 @@ pub struct SkinnedPart {
     pub normals: Vec<[f32; 3]>,
     /// First UV set; empty when absent.
     pub uvs: Vec<[f32; 2]>,
+    /// Vertex colors (channel 2) as RGBA in 0..=1; empty when absent.
+    pub colors: Vec<[f32; 4]>,
     pub indices: Vec<u32>,
     pub submeshes: Vec<PartSubmesh>,
     /// Per vertex; empty for an unskinned mesh.
@@ -919,6 +921,7 @@ impl Assembler<'_> {
         let positions = vertex_channel(&mesh, 0, 3);
         let normals = vertex_channel(&mesh, 1, 3);
         let uvs = vertex_channel(&mesh, 3, 2);
+        let colors = vertex_channel(&mesh, 2, 4);
         let triple = |flat: Vec<Vec<f32>>| -> Vec<[f32; 3]> {
             flat.into_iter().map(|v| [v[0], v[1], v[2]]).collect()
         };
@@ -959,6 +962,10 @@ impl Assembler<'_> {
             positions,
             normals: triple(normals),
             uvs: uvs.into_iter().map(|v| [v[0], v[1]]).collect(),
+            colors: colors
+                .into_iter()
+                .map(|v| [v[0], v[1], v[2], v[3]])
+                .collect(),
             indices: mesh.indices.iter().map(|&i| u32::from(i)).collect(),
             submeshes,
             skin: mesh.skin.clone(),
