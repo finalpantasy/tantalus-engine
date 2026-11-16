@@ -5,6 +5,7 @@ pub mod item_use;
 pub mod region;
 pub mod shop;
 pub mod snapshot;
+pub mod tile_animation;
 pub mod world;
 
 pub use director::{DirectorStep, FieldDirector, RequestedScript};

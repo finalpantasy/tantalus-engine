@@ -231,6 +231,8 @@ impl FieldDirector {
             }
         }
         self.world.advance();
+        // `FieldMap.HonoUpdate` runs `BgAnimationService` every tick.
+        self.world.service_tile_animations();
         self.tick += 1;
         let operations: u64 = steps
             .iter()

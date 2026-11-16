@@ -236,3 +236,33 @@ pub fn load_navigation(
     }
     Err(format!("no field bundle registers `{name}`"))
 }
+
+/// The field's tile animations in their post-load state and its camera
+/// count, from the first bundle that registers `name`.
+pub fn load_tile_animations(
+    bundles: &[PathBuf],
+    name: &str,
+) -> Result<(Vec<tantalus_game::field::tile_animation::TileAnimation>, u8), String> {
+    for bundle in bundles {
+        if !bundle.exists() {
+            continue;
+        }
+        match tantalus_assets::pc::bundled_field::load_field_animations(bundle, name) {
+            Ok(Some((animations, cameras))) => {
+                let animations = animations
+                    .into_iter()
+                    .map(|animation| {
+                        tantalus_game::field::tile_animation::TileAnimation::from_file(
+                            animation.camera,
+                            animation.frames,
+                        )
+                    })
+                    .collect();
+                return Ok((animations, u8::try_from(cameras).unwrap_or(u8::MAX)));
+            }
+            Ok(None) => {}
+            Err(error) => return Err(format!("{}: {error}", bundle.display())),
+        }
+    }
+    Err(format!("no field bundle registers `{name}`"))
+}

@@ -148,6 +148,72 @@ impl FieldHost<'_> {
         }
     }
 
+    /// The `BGA*` opcodes and `SETCAM` (`EBG_anim*`); only the service
+    /// in `tile_animation` turns them into overlay visibility.
+    fn record_tile_animation(&mut self, event: &HostEvent) {
+        use super::tile_animation as anim;
+        let world = &mut *self.world;
+        if world.tile_animations.is_empty() {
+            return;
+        }
+        let animations = &mut world.tile_animations;
+        match event {
+            HostEvent::RunTileAnimation {
+                animation,
+                start_frame,
+            } => {
+                // Crystal World restores a missing animation (Memoria).
+                if world.field_map_no == 2925 && *animation == 0 {
+                    anim::animate(animations, 1, 0);
+                    anim::add_flags(animations, 1, i32::from(anim::FLAG_LOOP));
+                    anim::set_rate(animations, 1, 128);
+                }
+                anim::animate(animations, *animation, *start_frame);
+            }
+            HostEvent::SetTileAnimationActive { animation, active } => {
+                anim::set_playing(animations, *animation, *active);
+            }
+            HostEvent::SetTileAnimationRate {
+                animation,
+                frame_rate,
+            } => anim::set_rate(animations, *animation, *frame_rate),
+            HostEvent::SetTileAnimationFrameWait {
+                animation,
+                frame,
+                wait,
+            } => anim::set_frame_wait(animations, *animation, *frame, *wait),
+            HostEvent::SetTileAnimationFlags { animation, flags } => {
+                anim::add_flags(animations, *animation, *flags);
+            }
+            HostEvent::SetTileAnimationRange {
+                animation,
+                first_frame,
+                last_frame,
+            } => anim::set_range(animations, *animation, *first_frame, *last_frame),
+            HostEvent::SetTileAnimationFrame { animation, frame } => {
+                anim::show_frame(animations, *animation, *frame, &mut world.overlays);
+            }
+            HostEvent::ResetTileAnimation {
+                animation,
+                show_first_frame,
+            } => anim::reset(
+                animations,
+                *animation,
+                *show_first_frame != 0,
+                &mut world.overlays,
+            ),
+            HostEvent::SetFieldCamera { camera } => {
+                // `ActivateCamera` keeps the old camera for an unknown index.
+                if let Ok(camera) = u8::try_from(*camera)
+                    && camera < world.tile_camera_count
+                {
+                    world.field_camera = camera;
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn record_look(&mut self, event: &HostEvent) {
         // `PUSHHIDE` (0xD5) saves every object's flags and clears "show
         // model" (bit 1) unless "don't hide all" (32) is set; `POPSHOW`
@@ -235,6 +301,7 @@ impl LegacyEventHost for FieldHost<'_> {
             }
             self.record_look(event);
             self.record_overlay(event);
+            self.record_tile_animation(event);
             match event {
                 HostEvent::ShowWindow { window, text, .. } => {
                     self.world.windows.insert(*window, true);
@@ -1096,6 +1163,56 @@ mod tests {
         .unwrap();
         assert_eq!(world.actors[&shown].flags & 1, 1);
         assert_eq!(world.actors[&shown].look.hidden_meshes, 0);
+    }
+
+    #[test]
+    fn tile_animation_opcodes_drive_the_overlay_service() {
+        use crate::field::tile_animation::TileAnimation;
+        let mut world = FieldWorld::new();
+        world.provide_tile_animations(vec![TileAnimation::from_file(0, vec![(7, 1), (8, 1)])], 2);
+        FieldHost::new(&mut world)
+            .apply(&[
+                HostEvent::SetTileAnimationActive {
+                    animation: 0,
+                    active: true,
+                },
+                HostEvent::SetTileAnimationFlags {
+                    animation: 0,
+                    flags: 16,
+                },
+            ])
+            .unwrap();
+        world.service_tile_animations();
+        assert_eq!(world.overlays[&7].active, Some(true));
+        assert_eq!(world.overlays[&8].active, Some(false));
+        world.service_tile_animations();
+        assert_eq!(world.overlays[&7].active, Some(false));
+        assert_eq!(world.overlays[&8].active, Some(true));
+        // A camera the animation does not belong to pauses it.
+        FieldHost::new(&mut world)
+            .apply(&[HostEvent::SetFieldCamera { camera: 1 }])
+            .unwrap();
+        assert_eq!(world.field_camera, 1);
+        world.service_tile_animations();
+        assert_eq!(world.overlays[&8].active, Some(true));
+        // An unknown camera keeps the current one.
+        FieldHost::new(&mut world)
+            .apply(&[HostEvent::SetFieldCamera { camera: 5 }])
+            .unwrap();
+        assert_eq!(world.field_camera, 1);
+        FieldHost::new(&mut world)
+            .apply(&[
+                HostEvent::SetFieldCamera { camera: 0 },
+                HostEvent::SetTileAnimationActive {
+                    animation: 0,
+                    active: false,
+                },
+            ])
+            .unwrap();
+        world.service_tile_animations();
+        assert_eq!(world.overlays[&8].active, Some(true));
+        world.begin_field();
+        assert!(world.tile_animations.is_empty());
     }
 
     #[test]

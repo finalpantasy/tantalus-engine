@@ -16,7 +16,9 @@ use tantalus_game::field::FieldWorld;
 use tantalus_game::new_game::BaseStats;
 
 use crate::field_battle::{FieldBattles, PartyFighter, PartyGlobals, pay_rewards, save_party};
-use crate::field_data::{FieldText, load_navigation, parse_background_map, parse_event_db};
+use crate::field_data::{
+    FieldText, load_navigation, load_tile_animations, parse_background_map, parse_event_db,
+};
 use crate::field_session::{
     CONFIRM, FieldSession, decode_pool, load_event, prepare_field_world, world_exit,
 };
@@ -325,6 +327,13 @@ impl PlayGame {
         let (pool, _) = decode_pool(&binary)?;
         let mut world = std::mem::take(&mut self.world);
         prepare_field_world(&mut world, map);
+        match self.data.backgrounds.get(&map) {
+            Some(background) => match load_tile_animations(&self.data.field_bundles, background) {
+                Ok((animations, cameras)) => world.provide_tile_animations(animations, cameras),
+                Err(_) => world.clear_tile_animations(),
+            },
+            None => world.clear_tile_animations(),
+        }
         let navigation = match self.data.backgrounds.get(&map) {
             Some(background) => match load_navigation(&self.data.field_bundles, background) {
                 Ok(mesh) => {

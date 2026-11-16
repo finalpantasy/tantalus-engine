@@ -127,6 +127,37 @@ fn load_text_asset(
     ))
 }
 
+/// Loads only the tile animation table (`<field>.bgs`) and the camera count
+/// of one field from a field bundle. Returns `Ok(None)` when this bundle does
+/// not register the field, so callers can try the next bundle.
+pub fn load_field_animations(
+    bundle_path: &Path,
+    field_name: &str,
+) -> Result<Option<(Vec<crate::pc::bgs::BgsAnimation>, usize)>, ImportError> {
+    let source = bundle_path.display().to_string();
+    let bundle = UnityRawBundle::open(bundle_path)?;
+    let bytes = bundle.read_entry(0, 300 * 1024 * 1024)?;
+    let serialized = SerializedFile::parse(&bytes, &source)?;
+    let Some(metadata_index) = serialized
+        .report()
+        .objects
+        .iter()
+        .position(|object| object.class_id == 142)
+    else {
+        return Ok(None);
+    };
+    let metadata = AssetBundleMetadata::parse(
+        serialized.object_data(metadata_index)?,
+        &format!("{source}:AssetBundle"),
+    )?;
+    if metadata.atlas_for(field_name).is_none() {
+        return Ok(None);
+    }
+    let asset = load_text_asset(&serialized, &scene_asset_candidates(field_name), &source)?;
+    let scene = BgsFile::parse(&asset.script, field_name)?;
+    Ok(Some((scene.animations, scene.cameras.len())))
+}
+
 /// Loads only the walkmesh (`<field>.bgi`) of one field from a field bundle
 /// (`p0data11.bin`-`p0data19.bin`). Returns `Ok(None)` when this bundle does
 /// not register the field, so callers can try the next bundle.

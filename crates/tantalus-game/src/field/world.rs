@@ -362,6 +362,17 @@ pub struct FieldWorld {
     /// overlay index; the renderer applies them over the imported scene.
     #[serde(default)]
     pub overlays: BTreeMap<u16, OverlayChange>,
+    /// The field's `.bgs` tile animations, with their run-time state;
+    /// empty when the caller imports none (the chain tool).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tile_animations: Vec<super::tile_animation::TileAnimation>,
+    /// Camera count of the field scene; `SetFieldCamera` ignores indices
+    /// past it (`FieldMap.ActivateCamera`).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub tile_camera_count: u8,
+    /// The current field camera, tracked only while animations exist.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub field_camera: u8,
     /// Experience-to-stats provider (runtime-only).
     #[serde(skip)]
     pub level_growth: Option<LevelGrowth>,
@@ -432,6 +443,8 @@ impl PartialEq for FieldWorld {
             && self.learned_abilities == other.learned_abilities
             && self.equipment == other.equipment
             && self.overlays == other.overlays
+            && self.tile_animations == other.tile_animations
+            && self.field_camera == other.field_camera
     }
 }
 
@@ -502,6 +515,9 @@ impl FieldWorld {
             equipment: BTreeMap::new(),
             cards: Vec::new(),
             overlays: BTreeMap::new(),
+            tile_animations: Vec::new(),
+            tile_camera_count: 0,
+            field_camera: 0,
             level_growth: None,
         }
     }
@@ -541,6 +557,7 @@ impl FieldWorld {
         self.deleted_objects.clear();
         self.actors.clear();
         self.overlays.clear();
+        self.clear_tile_animations();
         self.control_actor = None;
         self.exit_arrivals.clear();
         self.control_twist = 0.0;
@@ -1141,6 +1158,35 @@ impl FieldWorld {
         Some(u16::from_le_bytes(entry.try_into().ok()?))
     }
 
+    /// Imports the field's tile animations (`BGANIM_DEF` list) and its
+    /// camera count; the field starts on camera 0.
+    pub fn provide_tile_animations(
+        &mut self,
+        animations: Vec<super::tile_animation::TileAnimation>,
+        camera_count: u8,
+    ) {
+        self.tile_animations = animations;
+        self.tile_camera_count = camera_count;
+        self.field_camera = 0;
+    }
+
+    pub fn clear_tile_animations(&mut self) {
+        self.tile_animations.clear();
+        self.tile_camera_count = 0;
+        self.field_camera = 0;
+    }
+
+    /// `BgAnimationService`, once per field tick.
+    pub fn service_tile_animations(&mut self) {
+        if !self.tile_animations.is_empty() {
+            super::tile_animation::service(
+                &mut self.tile_animations,
+                self.field_camera,
+                &mut self.overlays,
+            );
+        }
+    }
+
     pub fn provide_navigation(&mut self, mesh: FieldNavigationMesh) {
         self.navigation = Some(mesh);
     }
@@ -1318,4 +1364,8 @@ mod party_slot_tests {
         }
         assert!(saw_wide, "no 16-bit draw exceeded 255 in 64 seeds");
     }
+}
+
+fn is_zero(value: &u8) -> bool {
+    *value == 0
 }
