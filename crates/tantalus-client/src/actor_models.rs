@@ -53,6 +53,9 @@ pub struct ActorPose {
     pub floor: Option<i16>,
     /// The field scripts' color and shadow changes for this actor.
     pub script: tantalus_game::field::world::ActorShadowScript,
+    /// Garnet's hair is cut (`ScenarioCounter >= 10300`): her model keeps
+    /// `short_hair` instead of `long_hair` (`PosObj.shortHair`).
+    pub short_hair: bool,
 }
 
 /// One projected vertex: raster space position, view depth and texture
@@ -524,6 +527,7 @@ impl ActorModels {
             if under_battle_model(model, part.node)
                 || mesh_index(model, part.node)
                     .is_some_and(|mesh| mesh < 32 && pose.hidden_meshes & (1 << mesh) != 0)
+                || hair_hidden(model, part.node, pose)
             {
                 continue;
             }
@@ -595,6 +599,34 @@ fn under_battle_model(model: &AssembledModel, node: usize) -> bool {
         at = node.parent;
     }
     false
+}
+
+/// Whether `node` is part of the hair Garnet's model does not show.
+///
+/// Her model carries `long_hair` and `short_hair`; `ModelFactory` disables
+/// the one that does not match the story (`garnetShortHair`), and
+/// `PosObj.SetIsEnabledMeshRenderer` points `MESHHIDE`/`MESHSHOW` of mesh 1
+/// at the one that is shown.
+fn hair_hidden(model: &AssembledModel, node: usize, pose: &ActorPose) -> bool {
+    let under = |name: &str| {
+        let mut at = Some(node);
+        while let Some(index) = at {
+            let Some(found) = model.nodes.get(index) else {
+                return false;
+            };
+            if found.name == name {
+                return true;
+            }
+            at = found.parent;
+        }
+        false
+    };
+    let (shown, other) = if pose.short_hair {
+        ("short_hair", "long_hair")
+    } else {
+        ("long_hair", "short_hair")
+    };
+    under(other) || (under(shown) && pose.hidden_meshes & 2 != 0)
 }
 
 /// The `<i>` of the `mesh<i>` child of the model root that holds `node`

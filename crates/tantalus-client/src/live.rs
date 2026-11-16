@@ -57,6 +57,14 @@ pub fn pad_bits(keys: &ButtonInput<KeyCode>) -> i32 {
 /// The world's actors as one marker frame: every actor placed somewhere
 /// other than the origin. A height the scripts left unset (|y| at or past
 /// 32768) takes the walkmesh height under the actor.
+/// `FF9StateSystem.EventState.ScenarioCounter`: the first global word.
+fn scenario_counter(world: &FieldWorld) -> u16 {
+    match world.global_memory.bytes() {
+        [low, high, ..] => u16::from_le_bytes([*low, *high]),
+        _ => 0,
+    }
+}
+
 pub fn world_frame(world: &FieldWorld, tick: u64) -> (TrackFrame, BTreeSet<u64>) {
     let navigation = world
         .navigation()
@@ -87,6 +95,7 @@ pub fn world_frame(world: &FieldWorld, tick: u64) -> (TrackFrame, BTreeSet<u64>)
                     visible: actor.flags & 1 != 0,
                     hidden_meshes: actor.look.hidden_meshes,
                     script: world.actor_shadows.get(id).copied().unwrap_or_default(),
+                    short_hair: scenario_counter(world) >= 10300,
                     floor: world
                         .navigation()
                         .and_then(|mesh| crate::field_light::actor_floor(mesh, actor.position)),
