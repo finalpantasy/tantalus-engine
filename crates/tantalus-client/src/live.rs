@@ -81,6 +81,9 @@ pub fn world_frame(world: &FieldWorld, tick: u64) -> (TrackFrame, BTreeSet<u64>)
                     time,
                     visible: actor.flags & 1 != 0,
                     hidden_meshes: actor.look.hidden_meshes,
+                    floor: world
+                        .navigation()
+                        .and_then(|mesh| crate::field_light::actor_floor(mesh, actor.position)),
                 },
             )
         })
@@ -291,6 +294,10 @@ fn live_tick(world: &mut World) {
     }
     if let Some(scene) = &live.field {
         let (frame, placed) = world_frame(game.world(), game.ticks);
+        let field_name = game.field_name().map(str::to_owned);
+        for problem in live.models.prepare_field(field_name.as_deref()) {
+            println!("!! field light: {problem}");
+        }
         for problem in live.models.prepare(frame.poses.values()) {
             println!("!! actor models: {problem}");
         }

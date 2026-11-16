@@ -508,6 +508,9 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     let (frame, placed) = tantalus_client::live::world_frame(game.world(), game.ticks);
     let mut models =
         tantalus_client::actor_models::ActorModels::new(std::path::Path::new(&values["--assets"]));
+    for problem in models.prepare_field(game.field_name()) {
+        println!("!! field light: {problem}");
+    }
     for problem in models.prepare(frame.poses.values()) {
         println!("!! actor models: {problem}");
     }

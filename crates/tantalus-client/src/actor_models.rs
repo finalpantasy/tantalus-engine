@@ -7,13 +7,15 @@
 //! facing (`ConvertFixedPointAngleToDegree`: facing x 360 / 256 degrees) and
 //! sits at the actor position. Models come from `p0data4.bin` through
 //! `model_factory`, clips from `p0data5.bin` through `AnimationDB`
-//! (`field_models::resolve_animation`). Texture sampling is affine and
-//! unlit, like the PSX field renderer.
+//! (`field_models::resolve_animation`). Texture sampling is affine, like
+//! the PSX field renderer; the only light is the map config's per-actor
+//! `_Color` and shadow (`field_light`).
 
 use crate::projection::project_field_point_depth;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use tantalus_assets::pc::field_models::{model_dirs, resolve_animation};
+use tantalus_assets::pc::map_config::MapConfig;
 use tantalus_assets::pc::model_assembly::pose::{
     Interpolation, bind_clip, rest_pose, sample_clip, skin_model,
 };
@@ -47,6 +49,8 @@ pub struct ActorPose {
     pub visible: bool,
     /// `meshflags`: bit i hides the `mesh<i>` child.
     pub hidden_meshes: u32,
+    /// Walkmesh floor under the actor, for its floor light.
+    pub floor: Option<i16>,
 }
 
 /// One projected vertex: raster space position, view depth and texture
@@ -117,11 +121,30 @@ impl Raster {
 
 /// Draws textured triangles given in field space (x right, y up) with a
 /// depth buffer, shaded as `PSX/FieldMapActor` does: the texel times the
-/// vertex color (its `2 *` and the actor `_Color` of 0.5 cancel), cut out
-/// where texel alpha times vertex alpha is under 0.5. Triangles are
-/// double sided. `None` when nothing is in front of the camera or the
-/// raster would be too large.
+/// vertex color (which carries `2 * _Color`), cut out where texel alpha
+/// times vertex alpha is under 0.5. Triangles are double sided. `None`
+/// when nothing is in front of the camera or the raster would be too
+/// large.
 pub fn rasterize(triangles: &[([ScreenVertex; 3], Option<Texels<'_>>)]) -> Option<Raster> {
+    rasterize_with(triangles, |texel, shade| {
+        if f32::from(texel[3]) / 255.0 * shade[3] < 0.5 {
+            return None;
+        }
+        let lit = |channel: usize| {
+            (f32::from(texel[channel]) * shade[channel].max(0.0))
+                .round()
+                .min(255.0) as u8
+        };
+        Some([lit(0), lit(1), lit(2), 255])
+    })
+}
+
+/// [`rasterize`] with another fragment: `fragment(texel, vertex color)`
+/// gives the pixel, or `None` to discard it (no depth write).
+pub fn rasterize_with(
+    triangles: &[([ScreenVertex; 3], Option<Texels<'_>>)],
+    fragment: impl Fn([u8; 4], [f32; 4]) -> Option<[u8; 4]>,
+) -> Option<Raster> {
     let mut min = [f32::INFINITY; 2];
     let mut max = [f32::NEG_INFINITY; 2];
     for vertex in triangles.iter().flat_map(|(vertices, _)| vertices) {
@@ -210,14 +233,11 @@ pub fn rasterize(triangles: &[([ScreenVertex; 3], Option<Texels<'_>>)]) -> Optio
                         + w[1] * vertices[1].color[channel]
                         + w[2] * vertices[2].color[channel]
                 });
-                if f32::from(texel[3]) / 255.0 * shade[3] < 0.5 {
+                let Some(pixel) = fragment(texel, shade) else {
                     continue;
-                }
-                let lit = |channel: usize| {
-                    (f32::from(texel[channel]) * shade[channel].clamp(0.0, 1.0)).round() as u8
                 };
                 depth[at] = z;
-                rgba[at * 4..at * 4 + 4].copy_from_slice(&[lit(0), lit(1), lit(2), 255]);
+                rgba[at * 4..at * 4 + 4].copy_from_slice(&pixel);
             }
         }
     }
@@ -255,17 +275,114 @@ pub struct ActorModels {
     clips_bundle: PathBuf,
     models: HashMap<u16, Option<AssembledModel>>,
     clips: HashMap<u16, Option<AnimationClip>>,
+    configs_bundle: PathBuf,
+    /// Every field's map config, loaded on the first field.
+    configs: Option<HashMap<String, MapConfig>>,
+    /// The current field's map config.
+    config: Option<MapConfig>,
+    shadow_plate: Option<crate::field_light::ShadowPlate>,
 }
 
 impl ActorModels {
-    /// `streaming_assets` holds `p0data4.bin` and `p0data5.bin`.
+    /// `streaming_assets` holds `p0data4.bin`, `p0data5.bin` and
+    /// `p0data7.bin`.
     pub fn new(streaming_assets: &Path) -> Self {
         Self {
             models_bundle: streaming_assets.join("p0data4.bin"),
             clips_bundle: streaming_assets.join("p0data5.bin"),
             models: HashMap::new(),
             clips: HashMap::new(),
+            configs_bundle: streaming_assets.join("p0data7.bin"),
+            configs: None,
+            config: None,
+            shadow_plate: None,
         }
+    }
+
+    /// Selects the map config of `field` (its `EVT_...` name), loading
+    /// every config and the shadow texture the first time. Returns one line
+    /// per file that failed to load.
+    pub fn prepare_field(&mut self, field: Option<&str>) -> Vec<String> {
+        let mut problems = Vec::new();
+        if self.configs.is_none() {
+            let (configs, plate) = crate::field_light::load_field_light(&self.configs_bundle)
+                .unwrap_or_else(|error| {
+                    problems.push(format!("map configs: {error}"));
+                    (HashMap::new(), None)
+                });
+            if plate.is_none() {
+                problems.push("no shadow_plate texture in p0data7.bin".into());
+            }
+            self.configs = Some(configs);
+            self.shadow_plate = plate;
+        }
+        self.config = field.and_then(|field| {
+            self.configs
+                .as_ref()?
+                .get(&field.to_ascii_lowercase())
+                .cloned()
+        });
+        problems
+    }
+
+    /// The current field's light for `pose`.
+    pub fn light(&self, pose: &ActorPose) -> crate::field_light::ActorLight {
+        pose.model.map_or_else(Default::default, |model| {
+            crate::field_light::actor_light(self.config.as_ref(), model, pose.floor)
+        })
+    }
+
+    /// Rasterizes `pose`'s shadow quad (`FieldMapActor.CreateShadowMesh`)
+    /// baked for a reverse-subtract draw, or `None` when the actor casts
+    /// none.
+    pub fn render_shadow(
+        &self,
+        camera: &LegacyFieldCamera,
+        position: [f32; 3],
+        pose: &ActorPose,
+    ) -> Option<Raster> {
+        let shadow = self.light(pose).shadow?;
+        let (width, height, rgba) = self.shadow_plate.as_ref()?;
+        let texels = Texels {
+            width: *width,
+            height: *height,
+            rgba,
+        };
+        let center = [
+            position[0],
+            position[1] + crate::field_light::SHADOW_HEIGHT_OFFSET,
+            position[2],
+        ];
+        let corner = |x: f32, z: f32| {
+            let field = [
+                center[0] + x * shadow.half[0],
+                center[1],
+                center[2] + z * shadow.half[1],
+            ];
+            let (xy, depth) = project_field_point_depth(camera, field)?;
+            Some(ScreenVertex {
+                xy,
+                depth,
+                uv: [(x + 1.0) / 2.0, (z + 1.0) / 2.0],
+                color: [1.0; 4],
+            })
+        };
+        let quad = [
+            corner(-1.0, -1.0)?,
+            corner(1.0, -1.0)?,
+            corner(1.0, 1.0)?,
+            corner(-1.0, 1.0)?,
+        ];
+        rasterize_with(
+            &[
+                ([quad[2], quad[1], quad[0]], Some(texels)),
+                ([quad[3], quad[2], quad[0]], Some(texels)),
+            ],
+            |texel, _| {
+                let pixel = crate::field_light::shadow_texel(texel, shadow.strength);
+                (pixel[3] != 0).then_some(pixel)
+            },
+        )
     }
 
     /// Loads the models and clips `poses` name that are not loaded yet.
@@ -386,6 +503,7 @@ impl ActorModels {
             None => rest_pose(model),
         };
         let skinned = skin_model(model, &poses);
+        let tint = self.light(pose).tint;
         let mut triangles = Vec::new();
         for (part, vertices) in model.parts.iter().zip(&skinned) {
             if under_battle_model(model, part.node)
@@ -404,7 +522,10 @@ impl ActorModels {
                         xy,
                         depth,
                         uv: part.uvs.get(index).copied().unwrap_or_default(),
-                        color: part.colors.get(index).copied().unwrap_or([1.0; 4]),
+                        color: {
+                            let [r, g, b, a] = part.colors.get(index).copied().unwrap_or([1.0; 4]);
+                            [r * tint[0], g * tint[1], b * tint[2], a]
+                        },
                     })
                 })
                 .collect();

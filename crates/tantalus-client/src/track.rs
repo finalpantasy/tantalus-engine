@@ -164,6 +164,13 @@ pub fn spawn_frame_markers(
                 continue;
             }
             let z = crate::projection::layer_z(depth) + 0.01 / (1.0 + raster.depth.max(0.0));
+            if let Some(shadow) = models
+                .zip(frame.poses.get(id))
+                .and_then(|(models, pose)| models.render_shadow(camera, *position, pose))
+            {
+                // Drawn just before its actor, on the same layer.
+                spawn_shadow(world, shadow, z - 0.005);
+            }
             world.spawn((
                 Sprite {
                     image: handle,
@@ -193,6 +200,45 @@ pub fn spawn_frame_markers(
         drawn.actors += 1;
     }
     drawn
+}
+
+/// One shadow raster as a reverse-subtract quad (`PSX/FieldMapActorShadow`
+/// blends `One One RevSub`). Skipped when the blend material is not set up.
+fn spawn_shadow(world: &mut World, raster: crate::actor_models::Raster, z: f32) {
+    use crate::psx_blend::PsxBlendMaterial;
+    let ([x, y], size) = raster.placement();
+    let pixels = [raster.width as f32, raster.height as f32];
+    let image = Image::new(
+        bevy::render::render_resource::Extent3d {
+            width: raster.width,
+            height: raster.height,
+            depth_or_array_layers: 1,
+        },
+        bevy::render::render_resource::TextureDimension::D2,
+        raster.rgba,
+        bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
+        bevy::asset::RenderAssetUsages::default(),
+    );
+    if world.get_resource::<Assets<PsxBlendMaterial>>().is_none() {
+        return;
+    }
+    let image = world.resource_mut::<Assets<Image>>().add(image);
+    let Some(material) = PsxBlendMaterial::new(image, [0.0, 0.0, pixels[0], pixels[1]], pixels, 2)
+    else {
+        return;
+    };
+    let material = world
+        .resource_mut::<Assets<PsxBlendMaterial>>()
+        .add(material);
+    let mesh = world
+        .resource_mut::<Assets<Mesh>>()
+        .add(Rectangle::new(size[0], size[1]));
+    world.spawn((
+        Mesh2d(mesh),
+        MeshMaterial2d(material),
+        Transform::from_xyz(x, y, z),
+        TrackMarker,
+    ));
 }
 
 #[cfg(test)]
