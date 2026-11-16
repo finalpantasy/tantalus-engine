@@ -5758,6 +5758,7 @@ dependencies = [
  "serde_json",
  "sha1",
  "sha2",
+ "tantalus-assets",
  "tantalus-contracts",
  "tempfile",
 ]

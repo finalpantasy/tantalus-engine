@@ -1,6 +1,7 @@
 pub mod battle;
 pub mod effects;
 pub mod event;
+pub mod quad;
 pub mod saves;
 pub mod shop;
 pub mod sound;
