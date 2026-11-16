@@ -2642,6 +2642,21 @@ fn logical_operators_skip_or_execute_right_side_effects_correctly() {
 }
 
 #[test]
+fn logical_operand_scan_treats_first_member_pick_as_a_two_operand_op() {
+    // `(mask 1, body 7) PickFirstMember && 1`: the pick pops a mask and a body only, so the
+    // left operand of the logical op is found without running past the start of the list.
+    let result_target = variable(VariableScope::Global, VariableType::Int16, 10);
+    let pick = binary(constant(1), constant(7), 43);
+    let expression = assign(result_target, [pick, constant(1), vec![39]].concat());
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.slots.insert(0, EntityId::new(10));
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.variable(VariableScope::Global, 10), 1);
+}
+
+#[test]
 fn empty_member_increment_and_decrement_follow_the_reference_stack_path() {
     for opcode in [8, 11] {
         let program = decode_program(&[evaluate(vec![0, 0, opcode, 0]), vec![4]].concat()).unwrap();

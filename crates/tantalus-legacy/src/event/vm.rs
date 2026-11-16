@@ -4800,6 +4800,7 @@ fn operand_start(
         | ExpressionOp::CastI16
         | ExpressionOp::CastU16 => operand_start(operations, index, offset, opcode),
         ExpressionOp::Sps
+        | ExpressionOp::PickFirstMember
         | ExpressionOp::Add
         | ExpressionOp::Subtract
         | ExpressionOp::Multiply
@@ -4855,7 +4856,6 @@ fn operand_start(
         | ExpressionOp::PlusAssignAllMembers
         | ExpressionOp::ShiftLeftAssignAllMembers
         | ExpressionOp::AssignAllMembers
-        | ExpressionOp::PickFirstMember
         | ExpressionOp::EqualMembers
         | ExpressionOp::NotEqualMembers
         | ExpressionOp::AndMembers

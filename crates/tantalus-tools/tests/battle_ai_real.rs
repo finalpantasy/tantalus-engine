@@ -65,15 +65,7 @@ fn every_battle_script_drives_without_a_host_error() {
         }
     }
     assert!(driven > 100, "only {driven} scripts driven");
-    // Two scripts stop in the VM at byte 1061 of entry 1 tag 5 ("missing
-    // logical operand"). Unresolved; pinned so a change is noticed.
-    let names: Vec<&str> = failures
-        .iter()
-        .map(|f| f.split(':').next().unwrap())
-        .collect();
-    assert_eq!(
-        names,
-        ["EVT_BATTLE_CH_E093", "EVT_BATTLE_CH_E093B"],
-        "{failures:?}"
-    );
+    // The logical-plan scan used to count three operands for the first-member pick (it takes
+    // two), which stopped EVT_BATTLE_CH_E093 and E093B at "missing logical operand".
+    assert!(failures.is_empty(), "{failures:?}");
 }
