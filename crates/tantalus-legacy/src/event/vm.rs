@@ -4172,13 +4172,13 @@ impl EventVm {
                             "member extraction requires mask, target, and operand inputs",
                         ));
                     }
-                    let Some(StackTarget::Member(_)) = stack[stack.len() - 2].target else {
-                        return Err(expression_error(
-                            offset,
-                            opcode,
-                            "member extraction target is not a selected member",
-                        ));
-                    };
+                    // `EventEngine.OperatorExtract` always takes the top
+                    // three entries as mask, target and operand. A mask
+                    // that is not a list, or an operand that is a member,
+                    // reads the member target left by the last extraction
+                    // (`gMemberTarget`); a target that is not a member reads
+                    // the same value for every slot. Some battle loops
+                    // compile `SL3.m == SL1.m` that way (EF_R004 entry 1).
                     let mask = read_value(host, stack[stack.len() - 3], offset, opcode)?;
                     let target = stack[stack.len() - 2];
                     let comparison = read_value(host, stack[stack.len() - 1], offset, opcode)?;

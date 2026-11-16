@@ -54,6 +54,12 @@ pub mod result {
 /// (`FF9StateBattleSystem.cs:10-18`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Phase {
+    /// `PHASE_EVENT`: the battle script owns the scene (special starts and
+    /// after `SetBattleData` 32), with the ATB stopped.
+    Event,
+    /// `PHASE_MENU_ON`: one idle pass before the ATB starts (`SetBattleData`
+    /// 35).
+    MenuOn,
     /// `PHASE_NORMAL`.
     Normal,
     /// `PHASE_MENU_OFF`.
@@ -71,6 +77,8 @@ pub enum Phase {
 pub enum MenuOffSeq {
     Victory,
     Defeat,
+    /// `SEQ_MENU_OFF_EVENT`: winding down into [`Phase::Event`].
+    Event,
     Escape,
 }
 
@@ -222,6 +230,13 @@ pub trait BattleHooks {
     /// (`BTLCMD` at script level 1 and 0, `SetEnemyCommand`): `(caster
     /// btl_id, action)`. Polled once per tick, before the ATB pass.
     fn enemy_reaction_commands(&mut self, _battle: &Battle) -> Vec<(u16, EnemyAction)> {
+        Vec::new()
+    }
+
+    /// The battle scripts' frame (`EventEngine.ServiceEvents`), once per
+    /// tick before `BattleMain`. Returns the `SetBattleData` calls the
+    /// machine applies, as `(code, value)`; see [`Battle::battle_code`].
+    fn frame(&mut self, _battle: &Battle) -> Vec<(u32, i32)> {
         Vec::new()
     }
 }
@@ -1248,6 +1263,9 @@ impl Battle {
         if self.over {
             return Ok(());
         }
+        for (code, value) in hooks.frame(self) {
+            self.battle_code(code, value);
+        }
         self.battle_main(hooks, rng)?;
         if self.menu_enabled {
             self.poll_enemy_reactions(hooks)?;
@@ -1264,6 +1282,17 @@ impl Battle {
         rng: &mut dyn BattleRandom,
     ) -> Result<(), BattleError> {
         match self.phase {
+            Phase::Event => self.idle_loop(),
+            Phase::MenuOn => {
+                // `BattleIdleLoop` returns true once every unit is in its
+                // idle motion; there are no motions here, so at once.
+                self.idle_loop();
+                self.phase = Phase::Normal;
+                self.menu_enabled = true;
+                self.emit(BattleEvent::PhaseChanged {
+                    phase: Phase::Normal,
+                });
+            }
             Phase::Normal => self.battle_main_loop(hooks, rng)?,
             Phase::MenuOff => {
                 self.menu_enabled = false;
@@ -1308,6 +1337,72 @@ impl Battle {
             });
         }
         Ok(())
+    }
+
+    /// Starts in [`Phase::Event`] with the ATB stopped, for scenes with
+    /// `Info.SpecialStart` (`SFX.cs:1612-1615`): the battle script runs the
+    /// opening and calls `SetBattleData` 35 to start the ATB.
+    pub fn begin_special_start(&mut self) {
+        self.phase = Phase::Event;
+        self.menu_enabled = false;
+    }
+
+    /// `btl_scrp.SetBattleData` codes 32-35 (`btl_scrp.cs:774-825`); other
+    /// codes are script-side state and are ignored here.
+    ///
+    /// * 32 Disable ATB: menu off with the event sequence.
+    /// * 33 End battle (`PHASE_EVENT` only): `btl_result = value`. With no
+    ///   scene win pose, Victory becomes `VICTORY_NO_POSE` and the battle
+    ///   closes; the win-pose path (`SEQ_MENU_OFF_VICTORY_WITH_ENEMY`) is
+    ///   not ported.
+    /// * 34 Game Over (`PHASE_EVENT` only): the defeat phase.
+    /// * 35 Enable ATB (`PHASE_EVENT` only): `PHASE_MENU_ON`.
+    pub fn battle_code(&mut self, code: u32, value: i32) {
+        match code {
+            32 => {
+                self.menu_enabled = false;
+                self.escape_key = false;
+                self.cmds.cmd_status &= 0xFFFD;
+                self.phase = Phase::MenuOff;
+                self.menu_off_seq = MenuOffSeq::Event;
+                let removed = self.cmds.kill_all();
+                self.after_dequeue(&removed);
+                self.emit(BattleEvent::PhaseChanged {
+                    phase: Phase::MenuOff,
+                });
+            }
+            33 if self.phase == Phase::Event => {
+                let mut r = value as u8;
+                if r == result::VICTORY {
+                    r = result::VICTORY_NO_POSE;
+                }
+                self.result = Some(r);
+                self.phase = Phase::Close;
+                self.end_seq = EndSeq::FadeOut;
+                self.emit(BattleEvent::Result { result: r });
+                self.emit(BattleEvent::PhaseChanged {
+                    phase: Phase::Close,
+                });
+            }
+            34 if self.phase == Phase::Event => {
+                self.result = Some(result::DEFEAT);
+                self.phase = Phase::Defeat;
+                self.end_seq = EndSeq::FadeOut;
+                self.emit(BattleEvent::Result {
+                    result: result::DEFEAT,
+                });
+                self.emit(BattleEvent::PhaseChanged {
+                    phase: Phase::Defeat,
+                });
+            }
+            35 if self.phase == Phase::Event => {
+                self.phase = Phase::MenuOn;
+                self.emit(BattleEvent::PhaseChanged {
+                    phase: Phase::MenuOn,
+                });
+            }
+            _ => {}
+        }
     }
 
     /// `battle.BattleMainLoop` (`battle.cs:213-243`).
@@ -1392,6 +1487,21 @@ impl Battle {
                             proceed = false;
                         }
                     }
+                    MenuOffSeq::Event => {
+                        // `battle.cs:307-320`. The SysTrans/SysDead/
+                        // SysReraise/SysStone queue exclusions and the idle
+                        // motion check are not ported.
+                        if !self.cmds.queue.is_empty() && self.running.is_empty() {
+                            proceed = true;
+                        }
+                        self.check_point_data(i, rng);
+                        if !self.running.is_empty() {
+                            proceed = false;
+                        }
+                        if self.dead(i) && self.sched[i].die_seq != 6 {
+                            proceed = false;
+                        }
+                    }
                     MenuOffSeq::Escape => {
                         let removed = self.cmds.kill_all();
                         self.after_dequeue(&removed);
@@ -1431,6 +1541,16 @@ impl Battle {
             MenuOffSeq::Defeat => {
                 self.result = Some(result::DEFEAT);
                 self.phase = Phase::Defeat;
+            }
+            MenuOffSeq::Event => {
+                // `battle.cs:426-441`: the script takes over; no result.
+                self.phase = Phase::Event;
+                let removed = self.cmds.kill_all();
+                self.after_dequeue(&removed);
+                self.emit(BattleEvent::PhaseChanged {
+                    phase: Phase::Event,
+                });
+                return Ok(());
             }
             MenuOffSeq::Escape => {
                 self.result = Some(result::ESCAPE);

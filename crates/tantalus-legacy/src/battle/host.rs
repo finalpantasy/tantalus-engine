@@ -647,6 +647,8 @@ impl BattleScriptHost<'_> {
 /// `PHASE_MENU_OFF = 5`, `PHASE_VICTORY = 6`, `PHASE_DEFEAT = 7`,
 /// `PHASE_CLOSE = 8`).
 pub mod phase {
+    pub const EVENT: u32 = 1;
+    pub const MENU_ON: u32 = 3;
     pub const NORMAL: u32 = 4;
     pub const MENU_OFF: u32 = 5;
     pub const VICTORY: u32 = 6;
@@ -666,13 +668,16 @@ pub mod phase {
 ///   machine tracks menu-off/closing sequences as enums, not numbers).
 /// * The machine carries no scene (pattern id, start type), party gil, or AP;
 ///   those fields stay defaulted and callers overlay them.
-/// * `column` maps the unit's list index (`bi.line_no` is list position);
-///   `disappear` is the boolean scheduler flag; `category` is the player
-///   character id (players only); `class` derives from the undead/flight
-///   flags (Undead 16, Flight 128, else 0); `enemy_id` (slot number) and
-///   `status_invalid` map `status_resist`.
+/// * `column` is `bi.line_no`: the list index for players, `4 + placement
+///   index` for enemies; `enemy_id` is `bi.slot_no` (placement index or
+///   character id); `disappear` is the boolean scheduler flag; `category`
+///   is the player character id (players only); `class` derives from the
+///   undead/flight flags (Undead 16, Flight 128, else 0); `status_invalid`
+///   maps `status_resist`.
 pub fn battle_views(battle: &Battle) -> (BattleDataView, BTreeMap<EntityId, UnitView>) {
     let btl_phase = match battle.phase {
+        Phase::Event => phase::EVENT,
+        Phase::MenuOn => phase::MENU_ON,
         Phase::Normal => phase::NORMAL,
         Phase::MenuOff => phase::MENU_OFF,
         Phase::Victory => phase::VICTORY,
@@ -702,6 +707,11 @@ pub fn battle_views(battle: &Battle) -> (BattleDataView, BTreeMap<EntityId, Unit
     (data, units)
 }
 
+/// An enemy's placement index from its `btl_id` (`16 << index`).
+fn enemy_index(btl_id: u16) -> i32 {
+    btl_id.trailing_zeros() as i32 - 4
+}
+
 fn unit_view(unit: &BattleUnit, sched: &UnitSched, index: usize) -> UnitView {
     UnitView {
         max_hp: unit.max_hp as i32,
@@ -721,7 +731,19 @@ fn unit_view(unit: &BattleUnit, sched: &UnitSched, index: usize) -> UnitView {
         targetable: i32::from(sched.targetable),
         disappear: i32::from(sched.disappeared),
         row: i32::from(unit.row),
-        column: index as i32,
+        // `bi.line_no`: enemies are `4 + placement index` (`btl_init.cs:58`).
+        column: if unit.is_player {
+            index as i32
+        } else {
+            4 + enemy_index(unit.id)
+        },
+        // `bi.slot_no`: the placement index for enemies (`btl_init.cs:57`),
+        // the character id for players.
+        enemy_id: if unit.is_player {
+            i32::from(unit.character_id)
+        } else {
+            enemy_index(unit.id)
+        },
         category: if unit.is_player {
             i32::from(unit.character_id)
         } else {

@@ -32,7 +32,8 @@ fn main() -> ExitCode {
 }
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST,...] [--skip-talk MAP:ENTRY,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...]";
+       tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10]
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST,...] [--skip-talk MAP:ENTRY,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -58,6 +59,9 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut route: Vec<(i32, i32)> = Vec::new();
     let mut skip_talk: BTreeSet<(i32, usize)> = BTreeSet::new();
     let mut hold: BTreeMap<i32, i32> = BTreeMap::new();
+    let mut fight_battle: Option<i32> = None;
+    let mut fight_party: Vec<i32> = vec![0];
+    let mut battle_ids: Option<PathBuf> = None;
     let mut waypoints: BTreeMap<i32, Vec<[f32; 2]>> = BTreeMap::new();
     while let Some(flag) = iter.next() {
         let mut value = || {
@@ -124,6 +128,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     })?);
                 }
             }
+            "--battles" => battle_ids = Some(PathBuf::from(value()?)),
             "--hold" => {
                 for part in value()?.split(',') {
                     let parsed = part
@@ -148,6 +153,13 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 }
             }
             "--confirm-after" => confirm_after = parse_number(&value()?, "--confirm-after")?,
+            "--battle" => fight_battle = Some(parse_number(&value()?, "--battle")?),
+            "--party" => {
+                fight_party = value()?
+                    .split(',')
+                    .map(|id| parse_number(id.trim(), "--party"))
+                    .collect::<Result<_, _>>()?;
+            }
             other => return Err(format!("unrecognized argument `{other}`\n{USAGE}")),
         }
     }
@@ -157,6 +169,54 @@ fn run(args: Vec<String>) -> Result<(), String> {
             let event = event.ok_or("--event is required")?;
             let binary = load_event(&bundle, &event)?;
             disassemble(&binary, only_entry)
+        }
+        "fight" => {
+            // One battle with the new-game party stats, for iterating on
+            // the battle machine without the whole chain.
+            let bundle = bundle.ok_or("--bundle is required")?;
+            let ids = battle_ids.ok_or("--battles is required")?;
+            let dir = character_data.ok_or("--character-data is required")?;
+            let battle = fight_battle.ok_or("--battle is required")?;
+            let read = |name: &str| {
+                let path = dir.join(name);
+                std::fs::read_to_string(&path)
+                    .map_err(|error| format!("cannot read {}: {error}", path.display()))
+            };
+            let base = tantalus_game::new_game::parse_base_stats(&read("BaseStats.csv")?)?;
+            let levels = tantalus_game::new_game::parse_leveling(&read("Leveling.csv")?)?;
+            let stats = tantalus_game::new_game::new_game_character_stats(&base, &levels);
+            let battles = tantalus_tools::field_battle::FieldBattles::load(
+                bundle.parent().ok_or("--bundle has no directory")?,
+                &bundle,
+                &ids,
+                tantalus_tools::field_battle::Equipment::load(&dir)?,
+            )?;
+            let party: Vec<tantalus_tools::field_battle::PartyFighter> = fight_party
+                .iter()
+                .filter_map(|character| {
+                    let stats = stats.get(character)?;
+                    Some(tantalus_tools::field_battle::PartyFighter {
+                        character: *character,
+                        hp: stats.current_hp.max(0) as u32,
+                        max_hp: stats.max_hp.max(0) as u32,
+                        mp: stats.current_mp.max(0) as u32,
+                        max_mp: stats.max_mp.max(0) as u32,
+                        base: *base.get(character)?,
+                    })
+                })
+                .collect();
+            let request = tantalus_game::field::world::EncounterRequest {
+                rush: 0,
+                group: None,
+                battle,
+                steiner_state: false,
+            };
+            let report = battles.fight(&request, &party);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?
+            );
+            Ok(())
         }
         "chain" => {
             let bundle = bundle.ok_or("--bundle is required")?;
@@ -175,7 +235,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 BTreeMap<i32, tantalus_game::new_game::BaseStats>,
                 Vec<tantalus_game::new_game::LevelRow>,
             )> = None;
-            let stats = match character_data {
+            let stats = match &character_data {
                 Some(dir) => {
                     let read = |name: &str| {
                         let path = dir.join(name);
@@ -241,6 +301,18 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     hold,
                     backgrounds,
                     waypoints,
+                    battles: match battle_ids {
+                        Some(ids) => Some(tantalus_tools::field_battle::FieldBattles::load(
+                            bundle.parent().ok_or("--bundle has no directory")?,
+                            &bundle,
+                            &ids,
+                            match &character_data {
+                                Some(dir) => tantalus_tools::field_battle::Equipment::load(dir)?,
+                                None => Default::default(),
+                            },
+                        )?),
+                        None => None,
+                    },
                 },
             )
         }
@@ -821,6 +893,8 @@ struct ChainOptions {
     /// map, once its regions and talks are done: fields that wait for the
     /// player to walk somewhere (map 116's roof waits for Vivi's x <= 900).
     waypoints: BTreeMap<i32, Vec<[f32; 2]>>,
+    /// Fight each encounter on the legacy battle machine (`--battles`).
+    battles: Option<tantalus_tools::field_battle::FieldBattles>,
 }
 
 /// `gEventGlobal` Int16 0, the scenario counter that orders the story.
@@ -1101,7 +1175,12 @@ fn chain(
         hold,
         backgrounds,
         waypoints,
+        battles: field_battles,
     } = options;
+    let battle_base: BTreeMap<i32, tantalus_game::new_game::BaseStats> = growth_tables
+        .as_ref()
+        .map(|(base, _)| base.clone())
+        .unwrap_or_default();
     // Field bundles sit beside the event bundle (`StreamingAssets`).
     let field_bundles: Vec<PathBuf> = (11..=19)
         .map(|n| {
@@ -1360,6 +1439,7 @@ fn chain(
         let mut unspawned = 0usize;
         let mut encounters = 0usize;
         let mut battles: Vec<i32> = Vec::new();
+        let mut fights: Vec<tantalus_tools::field_battle::FightReport> = Vec::new();
         // (tick, user control, Map byte 24) whenever user control changes.
         let mut control_changes: Vec<(u64, bool, u8)> = Vec::new();
         // Each text a window shows, in order, as (tick, text id).
@@ -1409,6 +1489,30 @@ fn chain(
                     // No battle engine yet: each scripted battle is skipped
                     // and the field resumes on the next tick, as after a win.
                     battles.extend(step.encounters.iter().map(|request| request.battle));
+                    // With `--battles`, fight each one first; the field
+                    // still resumes as after a win.
+                    if let Some(field_battles) = &field_battles {
+                        let world = director.world();
+                        let party: Vec<tantalus_tools::field_battle::PartyFighter> = world
+                            .party
+                            .iter()
+                            .filter_map(|character| {
+                                let base = *battle_base.get(character)?;
+                                let stats = world.character_stats.get(character)?;
+                                Some(tantalus_tools::field_battle::PartyFighter {
+                                    character: *character,
+                                    hp: stats.current_hp.max(0) as u32,
+                                    max_hp: stats.max_hp.max(0) as u32,
+                                    mp: stats.current_mp.max(0) as u32,
+                                    max_mp: stats.max_mp.max(0) as u32,
+                                    base,
+                                })
+                            })
+                            .collect();
+                        for request in &step.encounters {
+                            fights.push(field_battles.fight(request, &party));
+                        }
+                    }
                     // Talk (EventCollision): confirm next to an object starts
                     // its tag 3. The scripted player talks to each once.
                     if explore {
@@ -1903,6 +2007,7 @@ fn chain(
                 "mes_signal": director.world().mes_signal,
                 "choices_made": choices_made,
                 "battles_skipped": battles,
+                "battles_fought": fights,
                 "region_triggers": region_triggers,
                 "confirm_presses": presses,
                 "vms": states.len(),

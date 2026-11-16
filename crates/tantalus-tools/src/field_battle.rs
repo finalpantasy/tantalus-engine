@@ -1,0 +1,498 @@
+//! Field battles for the headless chain: an `ENCOUNT` request resolves to its
+//! battle scene (`audit/battle-scene-ids.tsv`, then `p0data2.bin`) and enemy
+//! AI script (`EVT_BATTLE_<name>` in the event bundle), and runs on the legacy
+//! battle machine through [`EncounterCoordinator`] with the party attacking.
+//!
+//! Stand-ins, each a gap to close rather than a claim about the game: party
+//! units come from base stats and the field HP/MP at level 1; equipment is
+//! each character's default set (`CharacterParameters.csv` ->
+//! `DefaultEquipment.csv`), since the field side does not track equipment
+//! yet, and equipment stat bonuses are not applied. Every party member uses
+//! Attack on the first living enemy, the status table is empty, and the
+//! first pattern is used when the request names no group.
+
+use std::collections::BTreeMap;
+use std::path::Path;
+
+use tantalus_assets::pc::battle_scene::{BattleBundleData, BattleScene};
+use tantalus_contracts::{ContentId, EntityId, Tick};
+use tantalus_game::FieldWorld;
+use tantalus_game::battle::legacy::{LegacyBattleAdapter, NoEnemyAi, unit_mappings};
+use tantalus_game::battle::{
+    BattleCommand, BattleOutcome, CombatEvent, CombatInput, WorldGameServices,
+};
+use tantalus_game::field::world::EncounterRequest;
+use tantalus_game::new_game::BaseStats;
+use tantalus_legacy::EventBinary;
+use tantalus_legacy::battle::host::{apply_unit_views, battle_views};
+use tantalus_legacy::battle::machine::{ABILITY_ATTACK, Battle, BattleConfig, Phase};
+use tantalus_legacy::battle::queue::cmd;
+use tantalus_legacy::battle::rng::SplitMix64Random;
+use tantalus_legacy::battle::script_host::{
+    AiEvent, BattleScriptDriver, BattleScriptState, EnemyAiHooks, SceneOverlay, ScriptTable,
+};
+use tantalus_legacy::battle::status::DEATH;
+use tantalus_legacy::battle::{BattleUnit, Elements, StatusDataRow, StatusTable, WeaponStats};
+
+use crate::battle_scene_rewards::pattern_machine_units;
+
+/// Ticks a battle may run before the chain gives up on it.
+pub const BATTLE_TICK_LIMIT: u64 = 20_000;
+
+/// One fought battle, as the chain reports it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FightReport {
+    pub battle: i32,
+    pub scene: Option<String>,
+    pub pattern: usize,
+    pub outcome: Option<String>,
+    pub ticks: u64,
+    pub enemies: usize,
+    pub enemies_defeated: usize,
+    pub party_hp: Vec<(i32, u32, u32)>,
+    pub enemy_hp: Vec<(u32, u32)>,
+    /// Machine phase changes: tick, `phase/menu-off sequence`, enemy HP.
+    pub phase_log: Vec<(u64, String, Vec<u32>)>,
+    /// `btl_result` once the machine is over.
+    pub result_code: Option<u8>,
+    /// The first battle script error, if any.
+    pub ai_error: Option<String>,
+    /// Distinct script events worth a look: unmodeled reads and spawns,
+    /// battle codes.
+    pub ai_notes: Vec<String>,
+    /// Machine phase and menu-off sequence when the fight stopped.
+    pub phase: Option<String>,
+    pub ai_script: bool,
+    pub error: Option<String>,
+}
+
+/// One party member going into battle.
+#[derive(Debug, Clone, Copy)]
+pub struct PartyFighter {
+    pub character: i32,
+    pub hp: u32,
+    pub max_hp: u32,
+    pub mp: u32,
+    pub max_mp: u32,
+    pub base: BaseStats,
+}
+
+pub struct FieldBattles {
+    data: BattleBundleData,
+    scripts: BTreeMap<String, Vec<u8>>,
+    scene_ids: BTreeMap<u16, String>,
+    equipment: Equipment,
+}
+
+/// Item ids below this are weapons; armor rows are `item - ARMOR_BASE`
+/// (`ff9armor`, `Armors.csv` row 0 is item 88).
+const ARMOR_BASE: i32 = 88;
+
+/// Default equipment from the Memoria data tables.
+#[derive(Debug, Clone, Default)]
+pub struct Equipment {
+    /// Character id -> `DefaultEquipmentSet`.
+    sets: BTreeMap<i32, i32>,
+    /// Set id -> weapon, head, wrist, armor, accessory item ids (-1 none).
+    items: BTreeMap<i32, [i32; 5]>,
+    /// Weapon item id -> stats.
+    weapons: BTreeMap<i32, WeaponStats>,
+    /// Armor row -> physical defence, physical evade, magic defence, magic
+    /// evade.
+    armors: BTreeMap<i32, [i32; 4]>,
+}
+
+impl Equipment {
+    /// Reads `CharacterParameters.csv` and `DefaultEquipment.csv` from
+    /// `characters` and `Weapons.csv` / `Armors.csv` from `../Items`.
+    pub fn load(characters: &Path) -> Result<Self, String> {
+        let read = |path: std::path::PathBuf| {
+            std::fs::read(&path)
+                .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+                .map_err(|error| format!("cannot read {}: {error}", path.display()))
+        };
+        let items_dir = characters.join("../Items");
+        let mut equipment = Self::default();
+        for row in csv_rows(&read(characters.join("CharacterParameters.csv"))?) {
+            if let (Some(id), Some(set)) = (int(&row, 0), int(&row, 5)) {
+                equipment.sets.insert(id, set);
+            }
+        }
+        for row in csv_rows(&read(characters.join("DefaultEquipment.csv"))?) {
+            let Some(id) = int(&row, 1) else { continue };
+            let mut slots = [-1; 5];
+            for (slot, value) in slots.iter_mut().enumerate() {
+                *value = int(&row, 2 + slot).unwrap_or(-1);
+            }
+            equipment.items.insert(id, slots);
+        }
+        // Comment;Id;Category;StatusIndex;ModelName;ScriptId;Power;Elements;Rate;...
+        for row in csv_rows(&read(items_dir.join("Weapons.csv"))?) {
+            let (Some(id), Some(category), Some(power)) =
+                (int(&row, 1), int(&row, 2), int(&row, 6))
+            else {
+                continue;
+            };
+            equipment.weapons.insert(
+                id,
+                WeaponStats {
+                    power,
+                    rate: int(&row, 8).unwrap_or(0),
+                    elements: Elements::NONE,
+                    category: category as u8,
+                    status: 0,
+                },
+            );
+        }
+        // Comment;Id;PhysicalDefence;PhysicalEvade;MagicalDefence;MagicalEvade
+        for row in csv_rows(&read(items_dir.join("Armors.csv"))?) {
+            let Some(id) = int(&row, 1) else { continue };
+            let mut stats = [0; 4];
+            for (index, value) in stats.iter_mut().enumerate() {
+                *value = int(&row, 2 + index).unwrap_or(0);
+            }
+            equipment.armors.insert(id, stats);
+        }
+        Ok(equipment)
+    }
+
+    /// The character's default weapon and summed armor defences.
+    fn outfit(&self, character: i32) -> (Option<WeaponStats>, [i32; 4]) {
+        let Some(slots) = self
+            .sets
+            .get(&character)
+            .and_then(|set| self.items.get(set))
+        else {
+            return (None, [0; 4]);
+        };
+        let weapon = self.weapons.get(&slots[0]).copied();
+        let mut defence = [0; 4];
+        for &item in &slots[1..] {
+            if let Some(stats) = self.armors.get(&(item - ARMOR_BASE)) {
+                for (total, value) in defence.iter_mut().zip(stats) {
+                    *total += value;
+                }
+            }
+        }
+        (weapon, defence)
+    }
+}
+
+/// Data rows of a Memoria `;` table: `#` lines are comments.
+fn csv_rows(text: &str) -> impl Iterator<Item = Vec<&str>> {
+    text.lines()
+        .map(|line| line.trim_start_matches('\u{feff}'))
+        .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
+        .map(|line| line.split(';').collect())
+}
+
+fn int(row: &[&str], index: usize) -> Option<i32> {
+    row.get(index)?.trim().parse().ok()
+}
+
+impl FieldBattles {
+    /// `streaming_assets` holds `p0data2.bin` (scenes); `event_bundle` holds
+    /// the `EVT_BATTLE_*` AI scripts; `scene_ids` is the id table.
+    pub fn load(
+        streaming_assets: &Path,
+        event_bundle: &Path,
+        scene_ids: &Path,
+        equipment: Equipment,
+    ) -> Result<Self, String> {
+        let data = BattleBundleData::load(&streaming_assets.join("p0data2.bin"))
+            .map_err(|error| error.to_string())?;
+        let scripts = crate::battle_ai_demo::load_battle_scripts(event_bundle)?;
+        let table = std::fs::read_to_string(scene_ids)
+            .map_err(|error| format!("cannot read {}: {error}", scene_ids.display()))?;
+        Ok(Self {
+            data,
+            scripts,
+            scene_ids: crate::battle_scene_rewards::parse_scene_id_table(&table),
+            equipment,
+        })
+    }
+
+    /// Fights `request` with `party`; the field world pays nothing yet.
+    pub fn fight(&self, request: &EncounterRequest, party: &[PartyFighter]) -> FightReport {
+        let pattern = request.group.and_then(|group| usize::try_from(group).ok());
+        let mut report = FightReport {
+            battle: request.battle,
+            scene: None,
+            pattern: pattern.unwrap_or(0),
+            outcome: None,
+            ticks: 0,
+            enemies: 0,
+            enemies_defeated: 0,
+            party_hp: Vec::new(),
+            enemy_hp: Vec::new(),
+            phase_log: Vec::new(),
+            result_code: None,
+            ai_error: None,
+            ai_notes: Vec::new(),
+            phase: None,
+            ai_script: false,
+            error: None,
+        };
+        if let Err(error) = self.run(request, party, &mut report) {
+            report.error = Some(error);
+        }
+        report
+    }
+
+    fn run(
+        &self,
+        request: &EncounterRequest,
+        party: &[PartyFighter],
+        report: &mut FightReport,
+    ) -> Result<(), String> {
+        let id = u16::try_from(request.battle).map_err(|_| "battle id out of range")?;
+        let key = self
+            .scene_ids
+            .get(&id)
+            .ok_or_else(|| format!("battle {id} is not in the scene id table"))?;
+        let name = crate::battle_scene_rewards::event_asset_name(key)
+            .ok_or_else(|| format!("scene key `{key}` has no BSC_ prefix"))?;
+        report.scene = Some(name.clone());
+        let (_, scene) = self
+            .data
+            .scene(&name)
+            .ok_or_else(|| format!("scene `{name}` is not in p0data2.bin"))?;
+        let scene = scene.as_ref().map_err(|error| error.to_string())?;
+        let pattern = report.pattern.min(scene.patterns.len().saturating_sub(1));
+        report.pattern = pattern;
+        let script = self.scripts.get(&name);
+        report.ai_script = script.is_some();
+        self.battle(scene, pattern, script.map(Vec::as_slice), party, report)
+    }
+
+    fn battle(
+        &self,
+        scene: &BattleScene,
+        pattern: usize,
+        script: Option<&[u8]>,
+        party: &[PartyFighter],
+        report: &mut FightReport,
+    ) -> Result<(), String> {
+        let mut units: Vec<BattleUnit> = party
+            .iter()
+            .enumerate()
+            .map(|(slot, fighter)| party_unit(slot, fighter, &self.equipment))
+            .collect();
+        let mut pairs: Vec<(EntityId, u16)> = units
+            .iter()
+            .map(|unit| (EntityId::new(1000 + u64::from(unit.id)), unit.id))
+            .collect();
+        let enemies = pattern_machine_units(scene, pattern)
+            .ok_or_else(|| format!("pattern {pattern} has no machine units"))?;
+        report.enemies = enemies.len();
+        for unit in enemies {
+            pairs.push((EntityId::new(u64::from(unit.id)), unit.id));
+            units.push(unit);
+        }
+        let entities: Vec<EntityId> = pairs.iter().map(|pair| pair.0).collect();
+        let mut battle = Battle::new(
+            units,
+            BattleConfig::default(),
+            StatusTable::new(vec![StatusDataRow::default(); 32]),
+        );
+        // `SB2_FLG_SPECIAL` is `Info.SpecialStart`: the script opens the
+        // battle in the event phase.
+        if scene.header.flags & 0x1 != 0 {
+            battle.begin_special_start();
+        }
+        let table = match script {
+            Some(bytes) => {
+                ScriptTable::from_binary(&EventBinary::parse(bytes).map_err(|e| e.to_string())?)
+            }
+            None => ScriptTable { entries: vec![] },
+        };
+        let (data, views) = battle_views(&battle);
+        let party_ids: Vec<u8> = party
+            .iter()
+            .map(|fighter| fighter.character as u8)
+            .collect();
+        let driver = BattleScriptDriver::new(
+            table,
+            BattleScriptState::new(data, views),
+            Box::new(SplitMix64Random::new(u64::from(report.battle as u32))),
+            &party_ids,
+        );
+        let (unit_map, target_bits) = unit_mappings(&pairs);
+        let attack = ContentId::parse("tantalus:action/attack").map_err(|e| e.to_string())?;
+        let adapter = LegacyBattleAdapter::new(
+            battle,
+            BTreeMap::from([(attack.clone(), (cmd::ATTACK, ABILITY_ATTACK))]),
+            unit_map,
+            target_bits,
+        );
+        let hooks = EnemyAiHooks::new(
+            NoEnemyAi,
+            driver,
+            SceneOverlay {
+                battle_map_no: report.battle,
+                pattern_id: pattern as i32,
+                // `BTL_START_NORMAL_ATTACK`; preemptive and back attacks
+                // are not rolled.
+                start_type: 2,
+                // Every `ff9btl.LOAD_*` bit, after the frames the load
+                // loop takes (see `SceneOverlay::load_frames`).
+                load_status: 0x7F,
+                load_frames: 3,
+                ..SceneOverlay::default()
+            },
+        );
+        let mut adapter = adapter.with_hooks(hooks);
+        let mut world = FieldWorld::new();
+        let mut defeated: Vec<EntityId> = Vec::new();
+        for tick in 0..BATTLE_TICK_LIMIT {
+            report.ticks = tick + 1;
+            // The first ready party member attacks the first enemy still
+            // standing, read from the machine (units are party then enemies).
+            let mut input = CombatInput::new(Tick::new(tick));
+            let machine = adapter.battle();
+            let target = (party.len()..machine.units.len()).find(|&i| {
+                machine.sched[i].in_list
+                    && machine.units[i].cur_hp > 0
+                    && !machine.units[i].is_under_any_status(DEATH)
+            });
+            let actor = machine
+                .ready_players
+                .iter()
+                .copied()
+                .find(|&i| i < party.len());
+            if let (Some(actor), Some(target)) = (actor, target) {
+                input.command = Some(BattleCommand {
+                    actor: entities[actor],
+                    action: attack.clone(),
+                    targets: vec![entities[target]],
+                });
+            }
+            let mut services = WorldGameServices::new(&mut world);
+            let advanced = adapter.advance(&input, &mut services);
+            drop(services);
+            // Script writes to units (`RunBattleCode` member sets) go back
+            // into the machine, as in `battle_run`.
+            let dirty = adapter.hooks_mut().take_dirty_views();
+            apply_unit_views(adapter.battle_mut(), &dirty);
+            let machine = adapter.battle();
+            let phase = format!("{:?}/{:?}", machine.phase, machine.menu_off_seq);
+            let (over, result) = (machine.over, machine.result);
+            if report.phase_log.last().map(|entry| &entry.1) != Some(&phase) {
+                let hp = machine.units[party.len()..]
+                    .iter()
+                    .map(|unit| unit.cur_hp)
+                    .collect();
+                report.phase_log.push((tick, phase, hp));
+                if over && let Some(result) = result {
+                    report.result_code = Some(result);
+                }
+            }
+            if let Err(error) = advanced {
+                // A result the adapter has no outcome for (5 is a scripted
+                // interruption, `BTL_RESULT_INTERRUPTION`).
+                match (over, result) {
+                    (true, Some(result)) => {
+                        report.result_code = Some(result);
+                        report.outcome = Some(format!("result {result}"));
+                        break;
+                    }
+                    _ => return Err(format!("{error:?}")),
+                }
+            }
+            for event in adapter.take_events() {
+                if let CombatEvent::UnitDefeated { unit, .. } = event
+                    && entities[party.len()..].contains(&unit)
+                    && !defeated.contains(&unit)
+                {
+                    defeated.push(unit);
+                }
+            }
+            if let Some(outcome) = adapter.outcome() {
+                report.outcome = Some(outcome_name(outcome).to_owned());
+                break;
+            }
+            // The machine does not reach `over` on a defeat (the defeat song
+            // fade is not ported), so the defeat phase ends the fight here.
+            if adapter.battle().phase == Phase::Defeat {
+                report.outcome = Some("defeat".to_owned());
+                break;
+            }
+        }
+        report.enemies_defeated = defeated.len();
+        let machine = adapter.battle();
+        report.party_hp = party
+            .iter()
+            .zip(&machine.units)
+            .map(|(fighter, unit)| (fighter.character, unit.cur_hp, unit.max_hp))
+            .collect();
+        report.enemy_hp = machine.units[party.len()..]
+            .iter()
+            .map(|unit| (unit.cur_hp, unit.max_hp))
+            .collect();
+        report.phase = Some(format!("{:?}/{:?}", machine.phase, machine.menu_off_seq));
+        let hooks = adapter.hooks();
+        report.ai_error = hooks.error.as_ref().map(ToString::to_string);
+        if let Some(map) = &hooks.driver.state.map {
+            let nonzero: Vec<String> = map
+                .bytes()
+                .iter()
+                .enumerate()
+                .filter(|(_, byte)| **byte != 0)
+                .map(|(index, byte)| format!("{index}={byte}"))
+                .collect();
+            report
+                .ai_notes
+                .push(format!("map vars {}", nonzero.join(" ")));
+        }
+        for event in &hooks.driver.state.events {
+            let note = match event {
+                AiEvent::UnmodeledRead { what, id } => format!("unmodeled {what} {id}"),
+                AiEvent::UnmodeledSpawn { source } => format!("unmodeled spawn {source}"),
+                AiEvent::BattleCode { code, value } => format!("battle code {code}={value}"),
+                _ => continue,
+            };
+            if !report.ai_notes.contains(&note) {
+                report.ai_notes.push(note);
+            }
+        }
+        Ok(())
+    }
+}
+
+fn outcome_name(outcome: BattleOutcome) -> &'static str {
+    match outcome {
+        BattleOutcome::Victory => "victory",
+        BattleOutcome::Defeat => "defeat",
+        BattleOutcome::Escape => "escape",
+        BattleOutcome::EnemyFlee => "enemy_flee",
+    }
+}
+
+/// A party member at level 1: base stats, the field HP/MP and the default
+/// equipment (a power-12 short-range weapon when the tables have none).
+fn party_unit(slot: usize, fighter: &PartyFighter, equipment: &Equipment) -> BattleUnit {
+    let (weapon, defence) = equipment.outfit(fighter.character);
+    let mut unit = BattleUnit::new(1 << slot, true);
+    unit.character_id = fighter.character as u8;
+    unit.level = 1;
+    unit.cur_hp = fighter.hp.max(1);
+    unit.max_hp = fighter.max_hp.max(1);
+    unit.cur_mp = fighter.mp;
+    unit.max_mp = fighter.max_mp;
+    unit.strength = fighter.base.strength;
+    unit.magic = fighter.base.magic;
+    unit.dexterity = fighter.base.speed;
+    unit.will = fighter.base.spirit.max(1);
+    unit.physical_defence = defence[0];
+    unit.physical_evade = defence[1];
+    unit.magic_defence = defence[2];
+    unit.magic_evade = defence[3];
+    unit.weapon = Some(weapon.unwrap_or(WeaponStats {
+        power: 12,
+        rate: 0,
+        elements: Elements::NONE,
+        category: WeaponStats::SHORT_RANGE,
+        status: 0,
+    }));
+    unit
+}

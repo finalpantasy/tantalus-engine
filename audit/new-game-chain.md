@@ -8,6 +8,33 @@ Goal: from a new game (`fldMapNo` 70, zeroed state), follow each field change un
 
 It runs each field's archive under the orchestrated `FieldDirector` (each entry's tag-0 function, requested tags spawned on demand, as in `tantalusctl --orchestrate`), stops a field at its first `MAPJUMP` (`world.field_transitions`), and carries `FieldWorld` into the next field. The EventDB table is read from the pinned Memoria source at run time and is not copied into the repository. `tantalus-trace disasm --bundle <p0data7.bin> --event <NAME>.eb [--entry N]` prints decoded instructions.
 
+## Result on 2026-11-18, ninth run (battles fought)
+
+`chain --battles audit/battle-scene-ids.tsv --character-data <Memoria Data/Characters>` now fights each `StartBattle` with `tantalus_tools::field_battle` instead of skipping it. `tantalus-trace fight --battle N [--party 0,9,10]` runs one battle and prints the report as JSON. Each battle runs the scene's enemy scripts (`EnemyAiHooks`) against the legacy battle machine. The party is the new-game level-1 stats with each character's default equipment (`CharacterParameters.csv` -> `DefaultEquipment.csv`, weapon power and armor defence; stat bonuses are not applied), and every party member attacks the first living enemy.
+
+| Battle | Scene | Outcome | Ticks |
+|---|---|---|---|
+| 336 | `EVT_BATTLE_TH_E001` | Victory | 346 |
+| 338 | `EVT_BATTLE_TH_E002` | Victory | 490 |
+| 337 | `EVT_BATTLE_TH_E003` | Script ends it with result 5 (`BTL_RESULT_INTERRUPTION`) | 371 |
+| 335 | `EVT_BATTLE_TH_E004` | Victory | 2227 |
+| 334 | `EVT_BATTLE_TH_E005` | Victory | 361 |
+| 302 | `EVT_BATTLE_EF_E006` | Victory | 2020 |
+| 301 | `EVT_BATTLE_EF_E007` | Victory | 790 |
+| 295 | `EVT_BATTLE_BR_E008` | Victory | 364 |
+
+Before these fixes, all eight ran to the 20,000-tick cap. The changes:
+
+1. **Event phase.** `Phase::Event` and `Phase::MenuOn`, plus `MenuOffSeq::Event`, port `PHASE_EVENT`, `PHASE_MENU_ON` and `SEQ_MENU_OFF_EVENT` (`battle.cs:307-320`, `426-441`). `Battle::battle_code` applies `SetBattleData` 32 to 35 (`btl_scrp.cs:774-825`). Scenes with header flag 1 (`SpecialStart`) start in the event phase.
+2. **Scripts every frame.** `BattleHooks::frame` runs the battle scripts once per machine tick, before `BattleMain`, as `ServiceEvents` does. Before, they ran only when an enemy's gauge filled, so the tag-1 loops that end battles hardly ran.
+3. **Load timing.** `SceneOverlay::load_frames` reads `load_status` as 0 for the first frames. `BattleLoadLoop` sets `LOAD_INITNPC` and `LOAD_INITCHR` after the scripts start. Objects that entry 0 spawns then pass their load waits in the same frame as entry 0. EF_E006's HP watcher on entry 0 `Return`s for good (`ip = nil`) if entry 2 has not registered its unit yet.
+4. **Unit identity.** `unit_view` gives enemies `slot_no = 4 + index` and `enemy_id = index` (`btl_id = 16 << index`). TH_E001's end check reads member 70 and never fired while every enemy read 0.
+5. **SFX callback.** `QueueSpecialAttack` sets `gEventGlobal[199] |= 16`, which stands in for SFX callback 112. TH_E003 waits on it.
+6. **Script unit writes.** The runner now drives `LegacyBattleAdapter` directly, as `battle_run` does, and applies `take_dirty_views` back each tick. EF_E006 became a victory.
+7. **Member extraction.** `EventEngine.OperatorExtract` always takes the top three stack entries. A mask that is not a list, or an operand that is a member, reads the last member target. The VM rejected `SL3.m57 == SL1.m57` (a dead unit's loop, which now runs every frame). The `--battle-run-all` sweep goes from 514 victories, 33 defeats and 15 errors to 529, 32 and 0. One scene, TH_E005, stalls there: that harness leaves `load_status` at 0, and the script disables the ATB and then waits on the load bits.
+
+Still open: equipment stat bonuses; battle global memory starts fresh instead of sharing the field's `gEventGlobal`; the win-pose path (`SEQ_MENU_OFF_VICTORY_WITH_ENEMY`) is not ported; battle results do not feed back into field HP or rewards.
+
 ## Result on 2026-11-18, eighth run (created objects, random, prompts)
 
 Same command as the seventh run, with `--ticks 12000`, `--max-fields 110`, `--hold 115:16,207:16` and `--choices 52:66=1,64:127=1,202:242=1,202:242=0@2100`.

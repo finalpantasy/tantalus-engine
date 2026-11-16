@@ -38,7 +38,12 @@
 //! * Cross-object requests (`RequestScript*`): none of the 562 battle scripts
 //!   contain one; the host answers them with the zero-state defaults.
 //! * `RunBattleCode` codes other than 38 (gil), 43 and 44 only record an
-//!   event; phase changes (32-37, 39, 40) need the machine.
+//!   event; [`EnemyAiHooks`] hands 32-35 to the machine each frame
+//!   ([`Battle::battle_code`]); 36, 37, 39 and 40 are not applied.
+//! * No effect plugin runs, so the SFX callback 112 flag that some scripts
+//!   wait on (`gEventGlobal[199] |= 16`, `SFX.cs:879-881`, raised mid-effect
+//!   for Moonlight Slash, Kuja's Transform and others) is raised when a
+//!   special attack is queued.
 //! * System-list element 6 / `GetCurrentCommandData` kinds that read ability
 //!   data (0-16, 1003-1009, 1011-1024) record [`AiEvent::UnmodeledRead`] and
 //!   answer 0; kinds 17-19, 1000-1002 and 1010 are modeled.
@@ -58,7 +63,7 @@ use super::queue::cmd;
 use super::rng::BattleRandom;
 use crate::event::{
     EventBinary, EventProgram, EventVm, HostEvent, KeyState, LegacyEventHost, ObjectMemberRef,
-    VariableMemory, VariableScope, VmError, VmStatus,
+    VariableMemory, VariableScope, VariableType, VmError, VmStatus,
 };
 use std::collections::BTreeMap;
 use tantalus_contracts::{EngineError, EntityId, Tick};
@@ -213,6 +218,12 @@ pub struct SceneOverlay {
     pub gil: u32,
     pub bonus_ap: u16,
     pub load_status: u32,
+    /// Script frames that read `load_status` as 0 before it takes its
+    /// value. `battle.BattleLoadLoop` sets `LOAD_INITNPC`/`LOAD_INITCHR`
+    /// some frames after the scripts start, so objects spawned by entry 0
+    /// reach their load waits before the bits appear and pass them in the
+    /// same frame as entry 0 (EF_E006's watcher relies on that order).
+    pub load_frames: u32,
 }
 
 /// Snapshots the machine into script state: [`battle_views`] plus the id
@@ -404,6 +415,10 @@ impl LegacyEventHost for BattleScriptHost<'_> {
                 self.state.events.push(record);
             }
             HostEvent::QueueSpecialAttack { attack } => {
+                if let Some(global) = self.state.global.as_mut() {
+                    let flags = global.get(199, VariableType::Byte).unwrap_or(0);
+                    global.set(199, VariableType::Byte, flags | 16);
+                }
                 self.state.events.push(AiEvent::SpecialAttack {
                     caster,
                     target_mask,
@@ -1105,6 +1120,8 @@ pub struct EnemyAiHooks<H: BattleHooks> {
     pub driver: BattleScriptDriver,
     pub overlay: SceneOverlay,
     last_tick: Option<u32>,
+    /// Script events already scanned for `SetBattleData` 32-35.
+    codes_seen: usize,
     outstanding: Vec<u16>,
     synced: BTreeMap<EntityId, UnitView>,
     pub error: Option<AiError>,
@@ -1117,6 +1134,7 @@ impl<H: BattleHooks> EnemyAiHooks<H> {
             driver,
             overlay,
             last_tick: None,
+            codes_seen: 0,
             outstanding: Vec::new(),
             synced: BTreeMap::new(),
             error: None,
@@ -1151,6 +1169,9 @@ impl<H: BattleHooks> EnemyAiHooks<H> {
         self.overlay.gil = self.driver.state.data.gil;
         self.overlay.bonus_ap = self.driver.state.data.bonus_ap;
         sync_state_from_battle(&mut self.driver.state, battle, &self.overlay);
+        if self.driver.ticks < u64::from(self.overlay.load_frames) {
+            self.driver.state.data.load_status = 0;
+        }
         self.synced = self.driver.state.units.clone();
         if let Err(error) = self.driver.tick() {
             self.error = Some(error);
@@ -1220,6 +1241,24 @@ impl<H: BattleHooks> BattleHooks for EnemyAiHooks<H> {
                 )
             })
             .collect()
+    }
+
+    /// One script pass per machine tick, so each object's loop (tag 1)
+    /// runs every frame as in `ServiceEvents`, not only on a full gauge.
+    fn frame(&mut self, battle: &Battle) -> Vec<(u32, i32)> {
+        self.advance(battle);
+        let events = &self.driver.state.events[self.codes_seen..];
+        let codes = events
+            .iter()
+            .filter_map(|event| match event {
+                AiEvent::BattleCode { code, value } if (32..=35).contains(code) => {
+                    Some((*code, *value))
+                }
+                _ => None,
+            })
+            .collect();
+        self.codes_seen = self.driver.state.events.len();
+        codes
     }
 
     fn enemy_atb(&mut self, battle: &Battle, unit: usize) -> Option<EnemyAction> {
