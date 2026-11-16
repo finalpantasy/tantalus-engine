@@ -649,7 +649,7 @@ fn run_world_battle_applies_the_field_min_hp_rule() {
         monster.max_hp = 60;
         monster.stats.spirit = 10;
     }
-    let mut script = b"EV ".to_vec();
+    let mut script = b"EV\x02\x00".to_vec();
     script.resize(128, 0);
 
     let mut world = FieldWorld::new();
@@ -752,7 +752,7 @@ fn chain_and_handoff_paths_agree_on_the_same_scene() {
     use tantalus_game::FieldWorld;
     use tantalus_legacy::battle::WeaponStats;
     use tantalus_tools::battle_run::run_world_battle;
-    use tantalus_tools::field_battle::{Equipment, FieldBattles, PartyFighter};
+    use tantalus_tools::field_battle::{Equipment, FieldBattles, PartyFighter, save_party};
 
     let mut scene = scene();
     for monster in &mut scene.monster_types {
@@ -762,18 +762,6 @@ fn chain_and_handoff_paths_agree_on_the_same_scene() {
     let mut script = b"EV\x02\x00".to_vec();
     script.resize(128, 0);
 
-    // Opus's chain path: FieldBattles::fight.
-    let engine = FieldBattles::from_parts(
-        BattleBundleData {
-            scenes: BTreeMap::from([("EVT_BATTLE_TEST".to_owned(), Ok(scene.clone()))]),
-            sequences: BTreeMap::new(),
-            sequence_bytes: BTreeMap::new(),
-            infos: BTreeMap::new(),
-        },
-        BTreeMap::from([("EVT_BATTLE_TEST".to_owned(), script.clone())]),
-        BTreeMap::from([(1, "BSC_TEST".to_owned())]),
-        Equipment::default(),
-    );
     let base_stats = tantalus_game::new_game::BaseStats {
         speed: 23,
         strength: 21,
@@ -781,83 +769,129 @@ fn chain_and_handoff_paths_agree_on_the_same_scene() {
         spirit: 23,
         gems: 18,
     };
-    let report = engine.fight(
-        &tantalus_game::field::world::EncounterRequest {
-            rush: 0,
-            group: None,
-            battle: 1,
-            steiner_state: false,
-        },
-        &[PartyFighter {
-            character: 0,
-            hp: 500,
-            max_hp: 500,
-            mp: 100,
-            max_mp: 100,
-            base: base_stats,
-        }],
-    );
-    assert_eq!(report.error, None);
-    assert_eq!(report.outcome.as_deref(), Some("victory"));
 
-    // My hand-off path: run_world_battle over the same scene.
-    let mut world = FieldWorld::new();
-    world.party = vec![0];
-    world.gil = 0;
-    world.character_stats.insert(
-        0,
-        tantalus_game::field::CharacterStats {
-            current_hp: 500,
-            max_hp: 500,
-            current_mp: 100,
-            max_mp: 100,
-        },
-    );
-    let outcome = run_world_battle(
-        &mut world,
-        &[EntityId::new(201)],
-        &scene,
-        0,
-        &script,
-        &|_| tantalus_game::battle::legacy::PlayerBase {
-            level: 20,
-            strength: 30,
-            magic: 30,
-            dexterity: 30,
-            will: 20,
-            physical_defence: 10,
-            physical_evade: 5,
-            magic_defence: 12,
-            magic_evade: 6,
-            weapon: Some(WeaponStats {
-                power: 25,
-                rate: 0,
-                elements: tantalus_legacy::battle::Elements::NONE,
-                category: WeaponStats::SHORT_RANGE,
-                status: 0,
-            }),
-            learnable: Vec::new(),
-            equipped_abilities: Vec::new(),
-        },
-        9,
-    );
-    assert_eq!(
-        outcome,
-        Some(tantalus_game::battle::BattleOutcome::Victory),
-        "both paths agree on the outcome"
-    );
+    // The chain engine derives its RNG streams from the battle id; the
+    // hand-off runner takes its seed explicitly. Feeding the same numeric
+    // value through both paths exercises several independent RNG streams
+    // per path without touching Opus's seed plumbing.
+    // Item/card drops are intentionally NOT compared: each path owns an
+    // independent draw stream, so drop tables may differ by design.
+    for seed in 0..5u16 {
+        // Opus's chain path: FieldBattles::fight.
+        let engine = FieldBattles::from_parts(
+            BattleBundleData {
+                scenes: BTreeMap::from([("EVT_BATTLE_TEST".to_owned(), Ok(scene.clone()))]),
+                sequences: BTreeMap::new(),
+                sequence_bytes: BTreeMap::new(),
+                infos: BTreeMap::new(),
+            },
+            BTreeMap::from([("EVT_BATTLE_TEST".to_owned(), script.clone())]),
+            BTreeMap::from([(seed, "BSC_TEST".to_owned())]),
+            Equipment::default(),
+        );
+        let report = engine.fight(
+            &tantalus_game::field::world::EncounterRequest {
+                rush: 0,
+                group: None,
+                battle: i32::from(seed),
+                steiner_state: false,
+            },
+            &[PartyFighter {
+                character: 0,
+                hp: 500,
+                max_hp: 500,
+                mp: 100,
+                max_mp: 100,
+                base: base_stats,
+            }],
+        );
+        assert_eq!(report.error, None, "seed {seed}: chain path ran clean");
+        assert_eq!(
+            report.outcome.as_deref(),
+            Some("victory"),
+            "seed {seed}: chain path victory"
+        );
 
-    // Gil and EXP are draw-independent: both paths must agree exactly.
-    assert_eq!(
-        report.reward_gil, world.gil,
-        "both paths pay the same gil ({} vs {})",
-        report.reward_gil, world.gil
-    );
-    let chain_exp: u32 = report.reward_exp.iter().map(|(_, exp)| *exp).sum();
-    let handoff_exp: u64 = world.character_exp.values().copied().sum::<u64>() as u32 as u64;
-    assert_eq!(
-        u64::from(chain_exp),
-        handoff_exp,
-        "both paths split EXP identically"
-    );
+        // My hand-off path: run_world_battle over the same scene.
+        let mut world = FieldWorld::new();
+        world.party = vec![0];
+        world.gil = 0;
+        world.character_stats.insert(
+            0,
+            tantalus_game::field::CharacterStats {
+                current_hp: 500,
+                max_hp: 500,
+                current_mp: 100,
+                max_mp: 100,
+            },
+        );
+        let outcome = run_world_battle(
+            &mut world,
+            &[EntityId::new(201)],
+            &scene,
+            0,
+            &script,
+            &|_| tantalus_game::battle::legacy::PlayerBase {
+                level: 20,
+                strength: 30,
+                magic: 30,
+                dexterity: 30,
+                will: 20,
+                physical_defence: 10,
+                physical_evade: 5,
+                magic_defence: 12,
+                magic_evade: 6,
+                weapon: Some(WeaponStats {
+                    power: 25,
+                    rate: 0,
+                    elements: tantalus_legacy::battle::Elements::NONE,
+                    category: WeaponStats::SHORT_RANGE,
+                    status: 0,
+                }),
+                learnable: Vec::new(),
+                equipped_abilities: Vec::new(),
+            },
+            u64::from(seed),
+        );
+        assert_eq!(
+            outcome,
+            Some(tantalus_game::battle::BattleOutcome::Victory),
+            "seed {seed}: both paths agree on the outcome"
+        );
+
+        // Gil and EXP are draw-independent: both paths must agree exactly.
+        assert_eq!(
+            report.reward_gil, world.gil,
+            "seed {seed}: both paths pay the same gil ({} vs {})",
+            report.reward_gil, world.gil
+        );
+        let chain_exp: u32 = report.reward_exp.iter().map(|(_, exp)| *exp).sum();
+        let handoff_exp: u64 = world.character_exp.values().copied().sum::<u64>() as u32 as u64;
+        assert_eq!(
+            u64::from(chain_exp),
+            handoff_exp,
+            "seed {seed}: both paths split EXP identically"
+        );
+
+        // Survivor HP/MP carry-back: Opus's `save_party` (report ->
+        // clamped record write) must land on the same numbers the
+        // hand-off runner writes in place.
+        let mut chain_stats = BTreeMap::from([(
+            0,
+            tantalus_game::field::CharacterStats {
+                current_hp: 500,
+                max_hp: 500,
+                current_mp: 100,
+                max_mp: 100,
+            },
+        )]);
+        save_party(&report, &mut chain_stats);
+        let chain = &chain_stats[&0];
+        let handoff = &world.character_stats[&0];
+        assert_eq!(
+            (chain.current_hp, chain.current_mp),
+            (handoff.current_hp, handoff.current_mp),
+            "seed {seed}: survivor HP/MP carry-back agrees"
+        );
+    }
 }
