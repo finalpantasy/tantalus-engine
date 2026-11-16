@@ -553,6 +553,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                 game.ticks,
             );
             tantalus_client::live::place_camera(world, at);
+            tantalus_client::dialog_view::sync_dialogs(world, &game);
         },
     )
     .map_err(|error| error.to_string())?;

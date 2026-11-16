@@ -1,6 +1,7 @@
 pub mod actor_models;
 pub mod animation_adapter;
 pub mod capture;
+pub mod dialog_view;
 pub mod effects;
 pub mod encounter_presentation;
 pub mod field_assets;

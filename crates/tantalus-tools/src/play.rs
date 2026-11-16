@@ -245,6 +245,7 @@ pub struct PlayGame {
     world: FieldWorld,
     choice_texts: BTreeSet<u16>,
     plain: BTreeMap<u16, String>,
+    layouts: BTreeMap<u16, crate::field_data::TextLayout>,
     shown: BTreeMap<u8, u16>,
     previous: i32,
     /// Answer highlighted in an open choice window.
@@ -267,6 +268,7 @@ impl PlayGame {
             world,
             choice_texts: BTreeSet::new(),
             plain: BTreeMap::new(),
+            layouts: BTreeMap::new(),
             shown: BTreeMap::new(),
             previous: 0,
             cursor: 0,
@@ -316,6 +318,21 @@ impl PlayGame {
             .collect()
     }
 
+    /// Layout of each open window, in window order, for drawing. The text
+    /// has no layout when the field's text failed to load.
+    pub fn open_dialogs(&self) -> Vec<(u8, u16, crate::field_data::TextLayout)> {
+        let world = self.world();
+        world
+            .windows
+            .iter()
+            .filter(|(_, open)| **open)
+            .filter_map(|(window, _)| {
+                let text = *world.window_texts.get(window)?;
+                Some((*window, text, self.layouts.get(&text)?.clone()))
+            })
+            .collect()
+    }
+
     fn enter(&mut self, map: i32, events: &mut Vec<PlayEvent>) -> Result<(), String> {
         let Some(name) = self.data.db.get(&map).cloned() else {
             return self.stop(format!("map {map} is not in the event DB"), events);
@@ -356,11 +373,13 @@ impl PlayGame {
                 world.dialog_signals = info.signals;
                 self.choice_texts = info.choices;
                 self.plain = info.plain;
+                self.layouts = info.layouts;
             }
             Err(_) => {
                 world.dialog_signals.clear();
                 self.choice_texts.clear();
                 self.plain.clear();
+                self.layouts.clear();
             }
         }
         let mut session = FieldSession::start(map, world, pool)?;
