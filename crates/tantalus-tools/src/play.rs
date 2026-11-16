@@ -23,10 +23,12 @@ use crate::field_data::{
 };
 use crate::field_menu::{FieldMenu, MenuAction};
 use crate::field_session::{
-    CONFIRM, FieldSession, decode_pool, load_event, prepare_field_world, world_exit,
+    CONFIRM, FieldSession, WorldExit, decode_pool, load_event, prepare_field_world, world_exit,
 };
 use crate::play_audio::{AudioCue, menu_sound};
 use crate::play_save::{self, PlaySave, SAVE_FORMAT, SLOTS};
+use crate::world_data::WorldAssets;
+use crate::world_play::WorldPlay;
 use tantalus_game::battle::BattleCommand;
 
 /// `EventInput` pad bits (Memoria `Global/Event/EventInput.cs`).
@@ -81,6 +83,7 @@ pub struct PlayPaths {
 
 /// Everything loaded once for a run.
 pub struct PlayData {
+    streaming: PathBuf,
     bundle: PathBuf,
     field_bundles: Vec<PathBuf>,
     db: BTreeMap<i32, String>,
@@ -146,6 +149,7 @@ impl PlayData {
             None => None,
         };
         Ok(Self {
+            streaming: sa.clone(),
             bundle,
             field_bundles,
             db,
@@ -256,6 +260,8 @@ pub enum PlayEvent {
     },
     /// A talk (tag 3) or region (tag 2) function started.
     Script { entry: usize, tag: u16 },
+    /// The player walks the world map from `place`.
+    WorldWalk { place: i32 },
     /// The run cannot go on.
     Stopped(String),
 }
@@ -320,6 +326,13 @@ pub struct PlayGame {
     pub cursor: i32,
     /// World map locations to leave through, used in order.
     pub world_exits: Vec<i32>,
+    /// Walk the world map when a field leaves for it and no scripted
+    /// `world_exits` remain; off, the run stops there as before.
+    pub world_mode: bool,
+    /// The overworld while the player walks it.
+    pub world_play: Option<WorldPlay>,
+    world_assets: Option<std::sync::Arc<WorldAssets>>,
+    world_exit: Option<WorldExit>,
     pub stopped: Option<String>,
     pub ticks: u64,
     /// Walkmesh floor the player stands on (found on the first step).
@@ -372,6 +385,10 @@ impl PlayGame {
             previous: 0,
             cursor: 0,
             world_exits: Vec::new(),
+            world_mode: false,
+            world_play: None,
+            world_assets: None,
+            world_exit: None,
             stopped: None,
             ticks: 0,
             floor: None,
@@ -836,6 +853,10 @@ impl PlayGame {
         if self.tick_menu(held, pressed, &mut events)? {
             return Ok(events);
         }
+        if self.world_play.is_some() {
+            self.tick_world(held, pressed, &mut events)?;
+            return Ok(events);
+        }
         let map = self.map().unwrap_or(0);
         let Some(session) = self.session.as_mut() else {
             return Ok(events);
@@ -996,6 +1017,13 @@ impl PlayGame {
         world_map: Option<i32>,
         events: &mut Vec<PlayEvent>,
     ) -> Result<(), String> {
+        if next_field.is_none()
+            && self.world_mode
+            && self.world_exits.is_empty()
+            && world_map.is_some()
+        {
+            return self.start_world(None, events);
+        }
         let session = self.session.as_mut().expect("session");
         let mut next = next_field;
         if next.is_none()
@@ -1090,12 +1118,16 @@ impl PlayGame {
         if let Some(stage) = pending.stage {
             self.last_battle = Some(stage);
         }
-        let resumed = self
-            .session
-            .as_mut()
-            .expect("session")
-            .resume_after_battle()
-            .and_then(|()| self.leave(pending.next_field, pending.world_map, events));
+        // Walking the world map, the field script is not waiting on the fight.
+        let resumed = if self.world_play.is_some() {
+            Ok(())
+        } else {
+            self.session
+                .as_mut()
+                .expect("session")
+                .resume_after_battle()
+        }
+        .and_then(|()| self.leave(pending.next_field, pending.world_map, events));
         if let Err(error) = resumed {
             let _ = self.stop(error, events);
         }
@@ -1141,6 +1173,146 @@ impl PlayGame {
         });
         self.start_pending(&mut events);
         events
+    }
+}
+
+impl PlayGame {
+    /// The overworld assets, loaded on first use.
+    pub fn world_assets(&mut self) -> Result<std::sync::Arc<WorldAssets>, String> {
+        if let Some(assets) = &self.world_assets {
+            return Ok(assets.clone());
+        }
+        let assets = std::sync::Arc::new(WorldAssets::load(&self.data.streaming, 1)?);
+        self.world_assets = Some(assets.clone());
+        Ok(assets)
+    }
+
+    /// Starts walking the world map at world `(x, z)`.
+    pub fn begin_world(&mut self, x: f32, z: f32) -> Result<(), String> {
+        let assets = self.world_assets()?;
+        let name = self
+            .data
+            .db
+            .get(&9000)
+            .cloned()
+            .ok_or("no world script in the event db")?;
+        let places = crate::world_places::event_places(&self.data.bundle, &name)?;
+        let exit = WorldExit::load(&self.data.bundle, &name)?;
+        let seed = 0x9E37_79B9_u32 ^ (self.ticks as u32).wrapping_mul(2_654_435_761);
+        self.world_play = Some(WorldPlay::new(assets, places, x, z, seed)?);
+        self.world_exit = Some(exit);
+        Ok(())
+    }
+
+    /// Starts walking the world map from the place that leads back to the
+    /// field just left (the reverse of the world script's place switch).
+    pub fn start_world(
+        &mut self,
+        from: Option<i32>,
+        events: &mut Vec<PlayEvent>,
+    ) -> Result<(), String> {
+        let name = self
+            .data
+            .db
+            .get(&9000)
+            .cloned()
+            .ok_or("no world script in the event db")?;
+        let places = crate::world_places::event_places(&self.data.bundle, &name)?;
+        let exit = WorldExit::load(&self.data.bundle, &name)?;
+        let from = from.or(self.map());
+        let world = self
+            .session
+            .as_ref()
+            .map(|session| session.director.world().clone())
+            .unwrap_or_else(|| self.world.clone());
+        let mut arrival = None;
+        for (code, place) in &places {
+            let mut probe = world.clone();
+            // Places whose exit needs state this world lacks are skipped.
+            if exit.run(*place, &mut probe).ok().flatten() == from {
+                arrival = Some(*code);
+                break;
+            }
+        }
+        let code = arrival
+            .or_else(|| places.keys().next().copied())
+            .ok_or("the world script has no places")?;
+        let place = places[&code];
+        let (cell_x, cell_z) = (i32::from((code & 0xFC) >> 2), i32::from((code >> 8) & 0x3F));
+        self.begin_world(cell_x as f32 * 32.0 + 16.0, -(cell_z as f32 * 32.0 + 16.0))?;
+        events.push(PlayEvent::WorldWalk { place });
+        Ok(())
+    }
+
+    /// One frame of walking the world map.
+    fn tick_world(
+        &mut self,
+        held: i32,
+        pressed: i32,
+        events: &mut Vec<PlayEvent>,
+    ) -> Result<(), String> {
+        let Some(play) = self.world_play.as_mut() else {
+            return Ok(());
+        };
+        let tick = play.tick(held, pressed, CONFIRM, false);
+        if let Some(scene) = tick.battle {
+            let request = tantalus_game::field::EncounterRequest {
+                rush: 0,
+                group: None,
+                battle: scene,
+                steiner_state: false,
+            };
+            if self.live_battles && self.data.battles.is_some() {
+                self.pending = Some(PendingBattles {
+                    requests: vec![request],
+                    fight: None,
+                    next_field: None,
+                    world_map: None,
+                    stage: None,
+                });
+                self.start_pending(events);
+                return Ok(());
+            }
+            let party = self.party();
+            let session = self.session.as_mut().expect("session");
+            let outcome = match &self.data.battles {
+                Some(battles) => {
+                    let items = session.director.world().items.clone();
+                    let mut report = battles.fight_with_items(&request, &party, &items);
+                    save_party(&report, &mut session.director.world_mut().character_stats);
+                    pay_rewards(&report, session.director.world_mut());
+                    self.last_battle = report.stage.take();
+                    report
+                        .outcome
+                        .or_else(|| report.error.clone())
+                        .unwrap_or_else(|| "no result".to_owned())
+                }
+                None => "skipped".to_owned(),
+            };
+            events.push(PlayEvent::Battle {
+                battle: scene,
+                outcome,
+            });
+        }
+        if let Some(place) = tick.enter {
+            let session = self.session.as_mut().expect("session");
+            let mut world = session.director.world().clone();
+            let exit = self.world_exit.as_ref().ok_or("no world exit")?;
+            let next = exit.run(place, &mut world)?;
+            events.push(PlayEvent::WorldMap {
+                world_map: 9000,
+                location: Some(place),
+                next,
+            });
+            if let Some(field) = next {
+                session.director.world_mut().clone_from(&world);
+                let session = self.session.take().expect("session");
+                self.world = session.director.world().clone();
+                self.world_play = None;
+                self.enter(field, events)?;
+            }
+        }
+        Ok(())
     }
 }
 

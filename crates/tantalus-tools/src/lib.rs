@@ -20,4 +20,7 @@ pub mod scenario;
 pub mod sound_bank;
 pub mod special_effects_cli;
 pub mod sweep_compare;
+pub mod world_data;
+pub mod world_places;
+pub mod world_play;
 pub mod world_walk_cli;

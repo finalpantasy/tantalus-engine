@@ -17,6 +17,7 @@ tantalus-contracts = { path = "../tantalus-contracts" }
 tantalus-core = { path = "../tantalus-core" }
 tantalus-game = { path = "../tantalus-game" }
 tantalus-tools = { path = "../tantalus-tools" }
+tantalus-legacy = { path = "../tantalus-legacy" }
 
 # The play window's sound output. Windows only for now; elsewhere the window is silent.
 [target.'cfg(windows)'.dependencies]

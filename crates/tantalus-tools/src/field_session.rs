@@ -527,71 +527,96 @@ pub fn world_exit(
     location: i32,
     world: &mut tantalus_game::field::FieldWorld,
 ) -> Result<Option<i32>, String> {
-    use tantalus_legacy::{InstructionKind, VariableType};
-    let binary = load_event(bundle, &format!("{name}.eb"))?;
-    let (pool, _) = decode_pool(&binary)?;
-    let program = pool
-        .iter()
-        .flatten()
-        .map(|(_, program)| program)
-        .find(|program| {
-            let has_switch = program
-                .instructions
-                .values()
-                .any(|i| matches!(i.kind, InstructionKind::JumpSwitch { .. }));
-            let changes = program
-                .instructions
-                .values()
-                .filter(|i| matches!(i.kind, InstructionKind::ChangeField(_)))
-                .count();
-            has_switch && changes > 8
+    WorldExit::load(bundle, name)?.run(location, world)
+}
+
+/// The world script's place-to-field switch, ready to run for any place.
+pub struct WorldExit {
+    program: EventProgram,
+    start: u32,
+}
+
+impl WorldExit {
+    pub fn load(bundle: &Path, name: &str) -> Result<Self, String> {
+        use tantalus_legacy::InstructionKind;
+        let binary = load_event(bundle, &format!("{name}.eb"))?;
+        let (pool, _) = decode_pool(&binary)?;
+        let program = pool
+            .iter()
+            .flatten()
+            .map(|(_, program)| program)
+            .find(|program| {
+                let has_switch = program
+                    .instructions
+                    .values()
+                    .any(|i| matches!(i.kind, InstructionKind::JumpSwitch { .. }));
+                let changes = program
+                    .instructions
+                    .values()
+                    .filter(|i| matches!(i.kind, InstructionKind::ChangeField(_)))
+                    .count();
+                has_switch && changes > 8
+            })
+            .ok_or("no world exit switch in the world script")?;
+        let switch = program
+            .instructions
+            .values()
+            .filter(|i| matches!(i.kind, InstructionKind::JumpSwitch { .. }))
+            .max_by_key(|i| match &i.kind {
+                InstructionKind::JumpSwitch { case_relative, .. } => case_relative.len(),
+                _ => 0,
+            })
+            .ok_or("no switch")?;
+        let start = program
+            .instructions
+            .range(..switch.offset)
+            .rev()
+            .find(|(_, i)| matches!(i.kind, InstructionKind::ApplyFadeFilter { .. }))
+            .and_then(|(offset, _)| program.instructions.range(offset + 1..).next())
+            .map_or(switch.offset, |(offset, _)| *offset);
+        Ok(Self {
+            program: program.clone(),
+            start,
         })
-        .ok_or("no world exit switch in the world script")?;
-    let switch = program
-        .instructions
-        .values()
-        .filter(|i| matches!(i.kind, InstructionKind::JumpSwitch { .. }))
-        .max_by_key(|i| match &i.kind {
-            InstructionKind::JumpSwitch { case_relative, .. } => case_relative.len(),
-            _ => 0,
-        })
-        .ok_or("no switch")?;
-    let start = program
-        .instructions
-        .range(..switch.offset)
-        .rev()
-        .find(|(_, i)| matches!(i.kind, InstructionKind::ApplyFadeFilter { .. }))
-        .and_then(|(offset, _)| program.instructions.range(offset + 1..).next())
-        .map_or(switch.offset, |(offset, _)| *offset);
-    world
-        .map_memory
-        .set(29, VariableType::Byte, location)
-        .ok_or("map variable 29 out of range")?;
-    world
-        .map_memory
-        .set(24, VariableType::Byte, location)
-        .ok_or("map variable 24 out of range")?;
-    let mut vm = tantalus_legacy::EventVm::resume(
-        program.clone(),
-        EntityId::new(0),
-        start,
-        VmStatus::Running,
-        None,
-    )
-    .map_err(|error| error.to_string())?;
-    let mut host = tantalus_game::field::FieldHost::new(world);
-    for tick in 0..600u64 {
-        let report = vm
-            .step(tantalus_contracts::Tick::new(tick), &mut host)
-            .map_err(|error| error.to_string())?;
-        for event in &report.events {
-            if let tantalus_legacy::HostEvent::ChangeField { field } = event {
-                return Ok(Some(i32::from(*field)));
+    }
+
+    pub fn run(
+        &self,
+        location: i32,
+        world: &mut tantalus_game::field::FieldWorld,
+    ) -> Result<Option<i32>, String> {
+        use tantalus_legacy::VariableType;
+        let (program, start) = (&self.program, self.start);
+        world
+            .map_memory
+            .set(29, VariableType::Byte, location)
+            .ok_or("map variable 29 out of range")?;
+        world
+            .map_memory
+            .set(24, VariableType::Byte, location)
+            .ok_or("map variable 24 out of range")?;
+        let mut vm = tantalus_legacy::EventVm::resume(
+            program.clone(),
+            EntityId::new(0),
+            start,
+            VmStatus::Running,
+            None,
+        )
+        .map_err(|error| error.to_string())?;
+        let mut host = tantalus_game::field::FieldHost::new(world);
+        for tick in 0..600u64 {
+            let report = vm
+                .step(tantalus_contracts::Tick::new(tick), &mut host)
+                .map_err(|error| error.to_string())?;
+            for event in &report.events {
+                if let tantalus_legacy::HostEvent::ChangeField { field } = event {
+                    return Ok(Some(i32::from(*field)));
+                }
+            }
+            if report.status == VmStatus::Completed {
+                return Ok(None);
             }
         }
-        if report.status == VmStatus::Completed {
-            return Ok(None);
-        }
+        Err("world exit code did not reach ChangeField in 600 ticks".to_owned())
     }
-    Err("world exit code did not reach ChangeField in 600 ticks".to_owned())
 }

@@ -26,6 +26,7 @@ tantalus-client capture-battle <play flags> --battles <tsv> [--ticks N] [--hold 
         Some("play") => run_play(&args[1..]),
         Some("capture-play") => run_play_capture(&args[1..]),
         Some("capture-battle") => battle_capture::run(&args[1..]),
+        Some("capture-world") => run_world_capture(&args[1..]),
         _ => {
             eprintln!(
                 "expected `capture`, `capture-field` `view-field`, `view-track`, `capture-track`, `play` or `capture-play` (see --help)"
@@ -347,7 +348,8 @@ fn run_track_capture(args: &[std::ffi::OsString]) -> ExitCode {
     }
 }
 
-const PLAY_FLAGS: [&str; 10] = [
+const PLAY_FLAGS: [&str; 11] = [
+    "--world-map",
     "--assets",
     "--game-data",
     "--memoria",
@@ -407,6 +409,7 @@ fn load_game(
             }
         }
     }
+    game.world_mode = values.contains_key("--world-map");
     if let Some(list) = values.get("--world-exits") {
         game.world_exits = list
             .split(',')
@@ -434,7 +437,9 @@ fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
         .get("--scale")
         .and_then(|value| value.parse().ok())
         .unwrap_or(3);
-    let result = load_game(&values).and_then(|game| {
+    let result = load_game(&values).and_then(|mut game| {
+        // Without scripted exits the world map is walked.
+        game.world_mode = !values.contains_key("--world-exits");
         let assets = PathBuf::from(&values["--assets"]);
         tantalus_client::live::play(game, assets, scale, mute).map_err(|error| error.to_string())
     });
@@ -628,6 +633,18 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         }
     }
     audio.finish()?;
+    if let Some(play) = game.world_play.as_ref() {
+        let mut renderer = tantalus_client::world_view::WorldRenderer::default();
+        let frame = renderer.render(play, width, height);
+        tantalus_client::battle_view::save_png(&frame, &output)?;
+        return Ok(format!(
+            "saved the world map at ({:.1}, {:.1}) after {} ticks, to {}",
+            play.walker.pos.x,
+            play.walker.pos.z,
+            game.ticks,
+            output.display()
+        ));
+    }
     let background = game
         .background()
         .ok_or("the run ended on no field background")?;
@@ -858,4 +875,124 @@ impl CaptureAudio {
         }
         Ok(())
     }
+}
+
+/// `capture-world <play flags> [--world-at X,Z] --ticks N [--hold ...]
+/// [--shots T,T] --output <png> [--size WxH]`: walks the world map
+/// headlessly with scripted input and renders what the world camera sees.
+fn run_world_capture(args: &[std::ffi::OsString]) -> ExitCode {
+    let mut allowed = PLAY_FLAGS.to_vec();
+    allowed.extend([
+        "--ticks",
+        "--hold",
+        "--output",
+        "--size",
+        "--world-at",
+        "--arrive-from",
+        "--shots",
+    ]);
+    let Some(values) = flag_values(args, &allowed) else {
+        return ExitCode::FAILURE;
+    };
+    match world_capture(&values) {
+        Ok(line) => {
+            println!("{line}");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("capture-world failed: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<String, String> {
+    let output = values
+        .get("--output")
+        .map(PathBuf::from)
+        .ok_or("requires --output")?;
+    let ticks: u64 = values
+        .get("--ticks")
+        .map_or(Ok(0), |value| value.parse().map_err(|_| "bad --ticks"))?;
+    let (width, height) = match values.get("--size") {
+        None => (640, 480),
+        Some(size) => parse_size(std::path::Path::new(size)).ok_or("--size must be WxH")?,
+    };
+    let holds = parse_holds(values.get("--hold"))?;
+    let shots: Vec<u64> = values
+        .get("--shots")
+        .map(|list| list.split(',').filter_map(|t| t.parse().ok()).collect())
+        .unwrap_or_default();
+    let (x, z) = match values.get("--world-at") {
+        Some(at) => at
+            .split_once(',')
+            .and_then(|(x, z)| Some((x.parse::<f32>().ok()?, z.parse::<f32>().ok()?)))
+            .ok_or("--world-at wants X,Z")?,
+        None => (1218.0, -747.0),
+    };
+    let mut game = load_game(values)?;
+    if let Some(from) = values.get("--arrive-from") {
+        // Arrive as if leaving field `from` for the world map.
+        let from: i32 = from.parse().map_err(|_| "bad --arrive-from")?;
+        let mut events = Vec::new();
+        game.start_world(Some(from), &mut events)?;
+        for event in &events {
+            println!("{}", tantalus_client::live::describe(event));
+        }
+    } else {
+        game.begin_world(x, z)?;
+    }
+    let mut renderer = tantalus_client::world_view::WorldRenderer::default();
+    let render = |renderer: &mut tantalus_client::world_view::WorldRenderer,
+                  game: &tantalus_tools::play::PlayGame,
+                  path: &std::path::Path| {
+        let Some(play) = game.world_play.as_ref() else {
+            return Ok(());
+        };
+        let frame = renderer.render(play, width, height);
+        tantalus_client::battle_view::save_png(&frame, path)
+    };
+    for tick in 0..ticks {
+        let held = holds
+            .iter()
+            .filter(|(from, to, _)| (*from..*to).contains(&tick))
+            .fold(0, |mask, (_, _, bits)| mask | bits);
+        for event in game.tick(held)? {
+            println!("{}", tantalus_client::live::describe(&event));
+        }
+        if shots.contains(&(tick + 1)) {
+            let stem = output
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("world");
+            render(
+                &mut renderer,
+                &game,
+                &output.with_file_name(format!("{stem}-{}.png", tick + 1)),
+            )?;
+        }
+    }
+    let Some(play) = game.world_play.as_ref() else {
+        return Ok(format!(
+            "left the world map for field {:?} ({})",
+            game.map(),
+            game.field_name().unwrap_or("?")
+        ));
+    };
+    render(&mut renderer, &game, &output)?;
+    let pos = play.walker.pos;
+    Ok(format!(
+        "world at ({:.1}, {:.1}, {:.1}) yaw {:.1} camera {:.1} block {:?} ground id {} place {:?} danger steps {}; {} problems; wrote {}",
+        pos.x,
+        pos.y,
+        pos.z,
+        play.walker.rot_y,
+        play.walker.camera.rotation,
+        tantalus_legacy::world::block_index(pos.x, pos.z),
+        play.walker.status.id,
+        play.place,
+        play.steps,
+        renderer.problems.len(),
+        output.display()
+    ))
 }

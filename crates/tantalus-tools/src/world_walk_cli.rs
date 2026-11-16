@@ -51,13 +51,13 @@ const SHARED: [&str; 12] = [
 const BLOCK_219_FORM1: [&str; 3] = ["Sea3", "Sea4", "Sea5"];
 const BLOCK_219_FORM2: [&str; 3] = ["Sea3_2", "Sea4_2", "Sea5_2"];
 
-struct Loaded {
-    world: WorldWalk,
+pub(crate) struct Loaded {
+    pub(crate) world: WorldWalk,
     /// Form 1 slot names per block, indexing the walk-mesh numbers in reports.
-    slots: HashMap<(usize, usize), Vec<String>>,
+    pub(crate) slots: HashMap<(usize, usize), Vec<String>>,
     terrain_blocks: Vec<(usize, usize)>,
-    failures: Vec<String>,
-    meshes: usize,
+    pub(crate) failures: Vec<String>,
+    pub(crate) meshes: usize,
 }
 
 fn slot_list(block_219: bool, form: u8) -> Vec<&'static str> {
@@ -86,7 +86,10 @@ fn to_walk_mesh(data: &WalkMeshData) -> Result<WalkMesh, String> {
         .map_err(|error| format!("{}: {error}", data.path))
 }
 
-fn load_world(cells: &[&BlockCellReport], meshes: &HashMap<String, WalkMeshData>) -> Loaded {
+pub(crate) fn load_world(
+    cells: &[&BlockCellReport],
+    meshes: &HashMap<String, WalkMeshData>,
+) -> Loaded {
     let mut loaded = Loaded {
         world: WorldWalk::new(),
         slots: HashMap::new(),

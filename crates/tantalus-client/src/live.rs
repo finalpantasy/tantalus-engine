@@ -29,7 +29,7 @@ use crate::window::{FIELD_FRAME, find_field, fit_field_frame};
 pub const TICKS_PER_SECOND: f64 = 30.0;
 
 /// Keyboard to `EventInput` bits.
-const KEYS: [(KeyCode, i32); 17] = [
+const KEYS: [(KeyCode, i32); 21] = [
     (KeyCode::ArrowUp, pad::UP),
     (KeyCode::KeyW, pad::UP),
     (KeyCode::ArrowDown, pad::DOWN),
@@ -45,6 +45,11 @@ const KEYS: [(KeyCode, i32); 17] = [
     (KeyCode::KeyX, pad::CANCEL | pad::CROSS),
     (KeyCode::KeyQ, pad::TRIANGLE),
     (KeyCode::KeyE, pad::SQUARE),
+    // The world map camera turns with L1 and R1.
+    (KeyCode::BracketLeft, pad::L1),
+    (KeyCode::BracketRight, pad::R1),
+    (KeyCode::PageUp, pad::L1),
+    (KeyCode::PageDown, pad::R1),
     (KeyCode::Tab, pad::SELECT),
     (KeyCode::KeyP, pad::START),
 ];
@@ -215,6 +220,7 @@ pub fn describe(event: &PlayEvent) -> String {
             next,
         } => format!("** world map {world_map} location {location:?} -> {next:?}"),
         PlayEvent::Script { entry, tag } => format!("   (entry {entry} function {tag})"),
+        PlayEvent::WorldWalk { place } => format!("** walking the world map from place {place}"),
         PlayEvent::Stopped(reason) => format!("!! stopped: {reason}"),
     }
 }
@@ -239,6 +245,8 @@ struct Live {
     motion: Option<crate::overlay_motion::OverlayMotionState>,
     /// The battle view, while a battle is fought.
     fight: Option<crate::battle_view::FightView>,
+    /// The world map view, while the player walks the world.
+    world_view: Option<crate::world_view::LiveWorld>,
     battle_assets: crate::battle_view::BattleAssets,
     /// The battle HUD's font and window art, loaded with the first battle
     /// (`None` inside when they failed to load).
@@ -291,6 +299,7 @@ pub fn play(
             markers_at: None,
             motion: None,
             fight: None,
+            world_view: None,
             battle_assets,
             battle_hud: std::sync::Mutex::new(None),
             audio,
@@ -448,6 +457,21 @@ fn live_tick(world: &mut World) {
     if live.fight.is_some() {
         world.insert_resource(live);
         return;
+    }
+    {
+        let game = live.game.lock().expect("game lock");
+        if let Some(play) = game.world_play.as_ref() {
+            match live.world_view.as_mut() {
+                Some(view) => view.update(world, play),
+                None => live.world_view = Some(crate::world_view::LiveWorld::start(world, play)),
+            }
+            drop(game);
+            world.insert_resource(live);
+            return;
+        }
+    }
+    if let Some(view) = live.world_view.take() {
+        view.finish(world);
     }
     let game = live.game.lock().expect("game lock");
     let background = game.background().map(str::to_owned);

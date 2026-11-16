@@ -1,0 +1,314 @@
+//! The world map view: the blocks around the player drawn through the world
+//! camera into a CPU frame ([`crate::battle_raster`]), and the live-window
+//! sprite that shows it.
+//!
+//! Block geometry is local to the block; block `(x, y)` sits at
+//! `block_origin(x, y)` (`WMWorld.OnInitialize`). The camera is
+//! `w_cameraSetEyeAim`'s ([`tantalus_tools::world_play::WorldPlay::camera`]).
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use bevy::math::Vec3;
+use tantalus_assets::pc::battle_background::BattleBackground;
+use tantalus_legacy::world::block_origin;
+use tantalus_tools::world_data::mesh_in_form1;
+use tantalus_tools::world_play::WorldPlay;
+
+use crate::battle_raster::{
+    BattleCamera, Blend, DrawState, Frame, PSX_HEIGHT, Texture, ViewVertex,
+};
+
+/// Blocks drawn each side of the player's block.
+const RADIUS: i32 = 3;
+/// Loaded blocks kept past the drawn ring before the farthest go.
+const KEEP: i32 = 5;
+/// How much of the water shows over what is under it (`Sea*` meshes).
+const WATER_OPACITY: u8 = 190;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Pass {
+    Land,
+    Water,
+}
+
+/// Sky above the horizon.
+const SKY: [u8; 4] = [120, 165, 225, 255];
+/// Render layer of the live world sprite.
+pub const WORLD_LAYER: usize = 8;
+
+#[derive(Default)]
+pub struct WorldRenderer {
+    blocks: HashMap<(usize, usize), Option<Arc<BattleBackground>>>,
+    /// Blocks that failed, for reports.
+    pub problems: Vec<String>,
+}
+
+fn camera_for(play: &WorldPlay) -> BattleCamera {
+    let view = play.camera();
+    let eye = Vec3::from_array(view.eye);
+    let forward = (Vec3::from_array(view.aim) - eye).normalize_or_zero();
+    let yaw = forward.x.atan2(forward.z).to_degrees();
+    let pitch = (-forward.y).asin().to_degrees();
+    // The PSX projection spans 220 rows; its half is the vertical half angle.
+    let near = (PSX_HEIGHT / 2.0) / (view.fov.to_radians() / 2.0).tan();
+    BattleCamera::from_transform(eye, [pitch, yaw, 0.0], near)
+}
+
+impl WorldRenderer {
+    fn block(&mut self, play: &WorldPlay, x: usize, y: usize) -> Option<Arc<BattleBackground>> {
+        if let Some(entry) = self.blocks.get(&(x, y)) {
+            return entry.clone();
+        }
+        let loaded = if play.assets.has_block(x, y) {
+            match play.assets.render_block(x, y) {
+                Ok(block) => Some(Arc::new(block)),
+                Err(error) => {
+                    self.problems.push(format!("block [{x}][{y}]: {error}"));
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        self.blocks.insert((x, y), loaded.clone());
+        loaded
+    }
+
+    /// Draws the world around `play`.
+    pub fn render(&mut self, play: &WorldPlay, width: u32, height: u32) -> Frame {
+        let camera = camera_for(play);
+        let mut frame = Frame::new(width, height, SKY);
+        let pos = play.walker.pos;
+        let here = (
+            (pos.x / 64.0).floor() as i32,
+            (pos.z.abs() / 64.0).floor() as i32,
+        );
+        self.blocks.retain(|&(x, y), _| {
+            (x as i32 - here.0).abs() <= KEEP && (y as i32 - here.1).abs() <= KEEP
+        });
+        let mut drawn: Vec<(Arc<BattleBackground>, [f32; 3])> = Vec::new();
+        for dy in -RADIUS..=RADIUS {
+            for dx in -RADIUS..=RADIUS {
+                let (x, y) = (here.0 + dx, here.1 + dy);
+                if !(0..24).contains(&x) || !(0..20).contains(&y) {
+                    continue;
+                }
+                if let Some(block) = self.block(play, x as usize, y as usize) {
+                    let origin = block_origin(x as usize, y as usize);
+                    drawn.push((block, [origin.x, origin.y, origin.z]));
+                }
+            }
+        }
+        for pass in [Pass::Land, Pass::Water] {
+            for (block, origin) in &drawn {
+                draw_block(&mut frame, &camera, block, *origin, pass);
+            }
+        }
+        draw_marker(
+            &mut frame,
+            &camera,
+            [pos.x, pos.y, pos.z],
+            play.walker.rot_y,
+        );
+        frame
+    }
+}
+
+fn draw_block(
+    frame: &mut Frame,
+    camera: &BattleCamera,
+    block: &BattleBackground,
+    origin: [f32; 3],
+    pass: Pass,
+) {
+    for mesh in &block.meshes {
+        if !mesh_in_form1(&mesh.name) {
+            continue;
+        }
+        let view: Vec<Vec3> = mesh
+            .positions
+            .iter()
+            .map(|p| camera.to_view([p[0] + origin[0], p[1] + origin[1], p[2] + origin[2]]))
+            .collect();
+        for submesh in &mesh.submeshes {
+            if submesh.topology != 0 {
+                continue;
+            }
+            // The battle rule that reads blending off the material name
+            // does not apply to the world; only the sea blends.
+            let water = mesh.name.starts_with("Sea");
+            let (blend, depth_write) = if water {
+                (Blend::Alpha(WATER_OPACITY), false)
+            } else {
+                (Blend::Opaque, true)
+            };
+            let this_pass = if water { Pass::Water } else { Pass::Land };
+            if this_pass != pass {
+                continue;
+            }
+            let state = DrawState {
+                blend,
+                depth_test: true,
+                depth_write,
+                cull_back: true,
+            };
+            let texture = submesh
+                .texture
+                .and_then(|index| block.textures.get(index))
+                .map(|texture| Texture {
+                    width: texture.width,
+                    height: texture.height,
+                    rgba: &texture.rgba,
+                    clamp: false,
+                });
+            let first = submesh.first_index as usize;
+            let end = first + submesh.index_count as usize;
+            let Some(indices) = mesh.indices.get(first..end) else {
+                continue;
+            };
+            for corner in indices.chunks_exact(3) {
+                let vertex = |at: u32| {
+                    Some(ViewVertex {
+                        position: *view.get(at as usize)?,
+                        uv: mesh.uvs.get(at as usize).copied().unwrap_or_default(),
+                    })
+                };
+                if let (Some(a), Some(b), Some(c)) =
+                    (vertex(corner[0]), vertex(corner[1]), vertex(corner[2]))
+                {
+                    frame.draw(camera, [a, b, c], texture, state);
+                }
+            }
+        }
+    }
+}
+
+/// A small pyramid standing on the actor, turned to its yaw.
+fn draw_marker(frame: &mut Frame, camera: &BattleCamera, at: [f32; 3], yaw_degrees: f32) {
+    const TEXEL: [u8; 4] = [255, 210, 40, 255];
+    const SIDE: [u8; 4] = [200, 60, 40, 255];
+    let yaw = yaw_degrees.to_radians();
+    let (sin, cos) = (yaw.sin(), yaw.cos());
+    let corner = |x: f32, z: f32| [at[0] + x * cos + z * sin, at[1], at[2] - x * sin + z * cos];
+    let top = [at[0], at[1] + 1.6, at[2]];
+    let base = [
+        corner(-0.5, -0.5),
+        corner(0.5, -0.5),
+        corner(0.5, 0.5),
+        corner(-0.5, 0.5),
+    ];
+    let state = DrawState {
+        blend: Blend::Opaque,
+        depth_test: true,
+        depth_write: true,
+        cull_back: false,
+    };
+    let view = |p: [f32; 3]| ViewVertex {
+        position: camera.to_view(p),
+        uv: [0.5, 0.5],
+    };
+    for index in 0..4 {
+        let (a, b) = (base[index], base[(index + 1) % 4]);
+        let texel = if index == 0 { TEXEL } else { SIDE };
+        let rgba = texel;
+        let texture = Texture {
+            width: 1,
+            height: 1,
+            rgba: &rgba,
+            clamp: true,
+        };
+        frame.draw(camera, [view(a), view(b), view(top)], Some(texture), state);
+    }
+}
+
+/// The live-window sprite showing the world frame.
+pub struct LiveWorld {
+    pub renderer: WorldRenderer,
+    image: bevy::asset::Handle<bevy::image::Image>,
+    camera: bevy::ecs::entity::Entity,
+    sprite: bevy::ecs::entity::Entity,
+}
+
+/// Size of the CPU world frame in the window.
+pub const LIVE_SIZE: (u32, u32) = (640, 480);
+
+impl LiveWorld {
+    pub fn start(world: &mut bevy::ecs::world::World, play: &WorldPlay) -> Self {
+        use bevy::camera::visibility::RenderLayers;
+        use bevy::camera::{RenderTarget, ScalingMode};
+        use bevy::prelude::*;
+        let mut renderer = WorldRenderer::default();
+        let frame = renderer.render(play, LIVE_SIZE.0, LIVE_SIZE.1);
+        let image = world
+            .resource_mut::<Assets<Image>>()
+            .add(crate::battle_view::frame_image(&frame));
+        let mut targets = world.query_filtered::<&RenderTarget, With<Camera2d>>();
+        let target = targets.iter(world).next().cloned();
+        let (width, height) = crate::window::FIELD_FRAME;
+        let camera = world
+            .spawn((
+                Camera2d,
+                Camera {
+                    order: 9,
+                    clear_color: ClearColorConfig::Custom(Color::BLACK),
+                    ..default()
+                },
+                Projection::Orthographic(OrthographicProjection {
+                    scaling_mode: ScalingMode::AutoMin {
+                        min_width: width,
+                        min_height: height,
+                    },
+                    ..OrthographicProjection::default_2d()
+                }),
+                RenderLayers::layer(WORLD_LAYER),
+            ))
+            .id();
+        if let Some(target) = target {
+            world.entity_mut(camera).insert(target);
+        }
+        let sprite = world
+            .spawn((
+                Sprite {
+                    image: image.clone(),
+                    custom_size: Some(Vec2::new(width, height)),
+                    ..default()
+                },
+                Transform::default(),
+                RenderLayers::layer(WORLD_LAYER),
+            ))
+            .id();
+        Self {
+            renderer,
+            image,
+            camera,
+            sprite,
+        }
+    }
+
+    pub fn update(&mut self, world: &mut bevy::ecs::world::World, play: &WorldPlay) {
+        use bevy::prelude::*;
+        let frame = self.renderer.render(play, LIVE_SIZE.0, LIVE_SIZE.1);
+        if let Some(mut image) = world.resource_mut::<Assets<Image>>().get_mut(&self.image) {
+            image.data = Some(frame.rgba);
+        }
+        let at = world
+            .get::<Transform>(self.camera)
+            .map(|transform| transform.translation.truncate());
+        if let (Some(at), Some(mut transform)) = (at, world.get_mut::<Transform>(self.sprite)) {
+            transform.translation.x = at.x;
+            transform.translation.y = at.y;
+        }
+    }
+
+    pub fn finish(self, world: &mut bevy::ecs::world::World) {
+        for entity in [self.sprite, self.camera] {
+            if let Ok(entity) = world.get_entity_mut(entity) {
+                entity.despawn();
+            }
+        }
+        world
+            .resource_mut::<bevy::asset::Assets<bevy::image::Image>>()
+            .remove(&self.image);
+    }
+}

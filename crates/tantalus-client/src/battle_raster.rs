@@ -110,6 +110,9 @@ pub enum Blend {
     Screen,
     /// Darkens: `dst * src`.
     Multiply,
+    /// Straight alpha: texel alpha times this opacity (0 to 255) over the
+    /// pixel (the world's water).
+    Alpha(u8),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -269,6 +272,13 @@ impl Frame {
                         for channel in 0..3 {
                             let (src, dst) = (u32::from(texel[channel]), u32::from(pixel[channel]));
                             pixel[channel] = (src + dst * (255 - src) / 255).min(255) as u8;
+                        }
+                    }
+                    Blend::Alpha(opacity) => {
+                        let alpha = u32::from(texel[3]) * u32::from(opacity) / 255;
+                        for channel in 0..3 {
+                            let (src, dst) = (u32::from(texel[channel]), u32::from(pixel[channel]));
+                            pixel[channel] = ((src * alpha + dst * (255 - alpha)) / 255) as u8;
                         }
                     }
                     Blend::Multiply => {
