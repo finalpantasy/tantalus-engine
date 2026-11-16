@@ -23,14 +23,19 @@ Three independent engine paths execute real battles from the owned install
 |---|---|---|
 | `audit/battle-run-all-patterns.json` (report path, seed 0x5EED) | 1054 | 1002 / 38 / 0 |
 | `audit/battle-world-run-all-patterns.json` (world hand-off, seed 0x5EED) | 1054 | 1002 / 38 / 0 |
+| `audit/battle-run-all-patterns-weak.json` (report path, unarmed level-8 party) | 1054 | 460 / 544 / 0 |
+| `audit/battle-world-run-all-patterns-weak.json` (world hand-off, weak party) | 1054 | 460 / 544 / 0 |
 
-The 38 defeats are the endgame superboss set (the armed level-20 demo party
-wipes). The 5 fog battles (`TH_E005`, `WM_9900-9903`) assemble clean and
-reach no outcome on both paths; both paths record that as a non-error row.
+The 38 armed defeats are the endgame superboss set (the armed level-20 demo
+party wipes). The weak pair deliberately loses most battles (544 defeats) so
+the defeat path — the decided-defeat gate, reward suppression, HP carry-back
+under mass defeat — is covered at corpus scale, not just by the superboss
+set. The 5 fog battles (`TH_E005`, `WM_9900-9903`) assemble clean and reach
+no outcome on both paths; both paths record that as a non-error row.
 
 ## Cross-path agreement
 
-`audit compare-sweeps` between the two baselines reports `identical: true`,
+`audit compare-sweeps` between the armed baselines reports `identical: true`,
 zero deltas on outcome, gil, EXP, and error — all 1054 battles. Re-runs are
 bit-identical. At seed 48879 (0xBEEF) both paths again produce identical
 rows; outcomes, gil, and EXP match the 0x5EED baselines on every row, while
@@ -39,12 +44,25 @@ in the draw stream (`seed ^ 0xD1AA`), confirming the seed is wired in and
 the reward channels are deterministic where the reference says they should
 be.
 
+The weak pair is also cross-path identical (zero deltas over 1054
+mass-defeat battles). Getting there required fixing two real divergences
+the weak mode exposed: (1) the two paths passed different battle-script
+party lists (`&[0]` vs `&[]`) so enemy scripts saw different player
+objects — both now pass the machine units' character ids (Zidane..Steiner,
+per the reference `btl_init` CharacterId binding, `ObjTable.ReadData`
+vanilla links); (2) the report path's demo units never set defensive
+stats while the world base closure did — now aligned (armed 10/5/12/6,
+weak 4/2/5/2). After both fixes the weak dual sweep converged from 31
+outcome deltas to zero, and the armed baselines reproduce bit-for-bit
+(the armed party kills too fast for either difference to matter — which
+is exactly why the weak gate exists).
+
 ## Gates
 
 - `cargo test --workspace` — 0 failures (cross-path conformance, seed loops,
   exactly-once rewards, flee economics, save/reload ledger, error fidelity).
-- `tantalusctl audit summary --deny-fail` — both battle corpora gated; any
-  sweep error or stale audit fails.
+- `tantalusctl audit summary --deny-fail` — all four battle corpora gated
+  (armed + weak, both paths); any sweep error or stale audit fails.
 - `tantalusctl audit compare-sweeps <a> <b>` — the standard regression
   check after any behavioral landing.
 
@@ -58,13 +76,7 @@ be.
   does not flip outcomes (verified across two seeds).
 - Item/card drops are not cross-path comparable by design: each path owns
   an independent draw stream.
-- **Weak-party sweeps (`--battle-weak-party`) currently diverge between
-  the two paths: 31 outcome changes / 1054 battles.** Root cause found:
-  `BattleScriptDriver::new` takes the party's character-id list and spawns
-  one event object per character, but the report path passes `&[0]` and
-  the world hand-off passes `&[]` (`crates/tantalus-tools/src/battle_run.rs`),
-  so enemy scripts see different player objects and make different
-  decisions in long battles. The armed default never surfaces this (battles
-  end too fast for AI party-queries to matter) and stays bit-exact across
-  paths. Reference-correct party spawning is with the script-host owner;
-  until it lands, weak-party mode is a diagnostic, not a conformance gate.
+- Spawn semantics inside `BattleScriptDriver::new` (all entries vs entry 0
+  + player-linked) are still Claude's open question from the 05:30 mailbox
+  note; the tool paths now feed reference-shaped party ids, and the weak
+  gate will catch any spawn-side change that moves outcomes.

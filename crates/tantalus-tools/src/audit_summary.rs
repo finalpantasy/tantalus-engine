@@ -248,6 +248,26 @@ pub fn summarize(dir: &Path) -> Vec<SummaryRow> {
             dir,
         ),
         row(
+            "Battle runs, all patterns, weak party (report path)",
+            "battles",
+            "battle-run-all-patterns-weak.json",
+            |r| {
+                let total = number(r, "battles")?;
+                of(Some(total), total.checked_sub(number(r, "errors")?))
+            },
+            dir,
+        ),
+        row(
+            "Battle runs, all patterns, weak party (world hand-off)",
+            "battles",
+            "battle-world-run-all-patterns-weak.json",
+            |r| {
+                let total = number(r, "battles")?;
+                of(Some(total), total.checked_sub(number(r, "errors")?))
+            },
+            dir,
+        ),
+        row(
             "Sound asset decode",
             "assets",
             "audio-decode.json",

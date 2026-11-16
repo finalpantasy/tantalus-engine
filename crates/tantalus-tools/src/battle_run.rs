@@ -40,8 +40,10 @@ const ATTACK_ACTION: &str = "ffix:action/attack";
 fn demo_players(weak: bool) -> Vec<BattleUnit> {
     [1u16, 2, 4, 8]
         .iter()
-        .map(|id| {
+        .enumerate()
+        .map(|(index, id)| {
             let mut unit = BattleUnit::new(*id, true);
+            unit.character_id = index as u8;
             if weak {
                 unit.level = 8;
                 unit.cur_hp = 120;
@@ -52,6 +54,10 @@ fn demo_players(weak: bool) -> Vec<BattleUnit> {
                 unit.magic = 8;
                 unit.dexterity = 10;
                 unit.will = 8;
+                unit.physical_defence = 4;
+                unit.physical_evade = 2;
+                unit.magic_defence = 5;
+                unit.magic_evade = 2;
             } else {
                 unit.level = 20;
                 unit.cur_hp = 500;
@@ -62,6 +68,10 @@ fn demo_players(weak: bool) -> Vec<BattleUnit> {
                 unit.magic = 30;
                 unit.dexterity = 30;
                 unit.will = 20;
+                unit.physical_defence = 10;
+                unit.physical_evade = 5;
+                unit.magic_defence = 12;
+                unit.magic_evade = 6;
                 unit.weapon = Some(WeaponStats {
                     power: 25,
                     rate: 0,
@@ -187,6 +197,7 @@ pub fn run_scene_battle(
     };
 
     let players = demo_players(weak_party);
+    let party_ids: Vec<u8> = players.iter().map(|unit| unit.character_id).collect();
     let player_entities: Vec<EntityId> = players
         .iter()
         .map(|unit| EntityId::new(u64::from(unit.id)))
@@ -223,7 +234,7 @@ pub fn run_scene_battle(
         ScriptTable::from_binary(&binary),
         BattleScriptState::new(data, units),
         Box::new(SplitMix64Random::new(seed)),
-        &[0],
+        &party_ids,
     );
     let hooks = EnemyAiHooks::new(NoEnemyAi, driver, SceneOverlay::default());
     let mut adapter = setup.adapter.with_hooks(hooks);
@@ -396,11 +407,12 @@ pub fn run_world_battle(
     let (data, units) = battle_views(setup.adapter.battle());
     let binary =
         EventBinary::parse(script).map_err(|error| format!("script decode failed: {error}"))?;
+    let party_ids: Vec<u8> = players.iter().map(|(_, unit)| unit.character_id).collect();
     let driver = BattleScriptDriver::new(
         ScriptTable::from_binary(&binary),
         BattleScriptState::new(data, units),
         Box::new(SplitMix64Random::new(seed)),
-        &[],
+        &party_ids,
     );
     let hooks = EnemyAiHooks::new(NoEnemyAi, driver, SceneOverlay::default());
     let mut adapter = setup.adapter.with_hooks(hooks);
@@ -596,7 +608,7 @@ pub fn run_world_battle_report(
         card: None,
     };
     let mut world = FieldWorld::new();
-    world.party = vec![1, 2, 4, 8];
+    world.party = vec![0, 1, 2, 3];
     world.gil = 0;
     let (hp, mp) = if weak_party { (120, 50) } else { (500, 100) };
     for &character in &world.party {
