@@ -92,6 +92,10 @@ pub struct FightReport {
     /// the character can learn with its AP goal `(ability, max AP)`, once
     /// per equipped item that carries it.
     pub reward_ap_lines: Vec<ApLine>,
+    /// Units, positions and per-tick HP/ATB for a client to draw; runtime
+    /// only.
+    #[serde(skip)]
+    pub stage: Option<crate::battle_stage::BattleStage>,
 }
 
 /// One party member going into battle.
@@ -865,6 +869,18 @@ impl FieldBattles {
             },
         );
         let mut adapter = adapter.with_hooks(hooks);
+        let mut stage = crate::battle_stage::BattleStage::new(
+            report.battle,
+            // `EVT_BATTLE_<scene>` to the bare scene name.
+            report
+                .scene
+                .as_deref()
+                .map(|name| name.strip_prefix("EVT_BATTLE_").unwrap_or(name))
+                .unwrap_or_default(),
+            scene,
+            pattern,
+            &adapter.battle().units[..party.len().min(adapter.battle().units.len())],
+        );
         let mut world = FieldWorld::new();
         let mut defeated: Vec<EntityId> = Vec::new();
         // `btl_sys.SetBonus` on each enemy death; `Info.AfterEvent` scenes
@@ -988,6 +1004,14 @@ impl FieldBattles {
             let machine = adapter.battle();
             let phase = format!("{:?}/{:?}", machine.phase, machine.menu_off_seq);
             let (over, result) = (machine.over, machine.result);
+            {
+                let (max_atb, present): (Vec<i16>, Vec<bool>) = machine
+                    .sched
+                    .iter()
+                    .map(|sched| (sched.max_atb, sched.in_list))
+                    .unzip();
+                stage.record(tick, &machine.units, &max_atb, &present, &phase);
+            }
             if report.phase_log.last().map(|entry| &entry.1) != Some(&phase) {
                 let hp = machine.units[party.len()..]
                     .iter()
@@ -1051,6 +1075,8 @@ impl FieldBattles {
                 break;
             }
         }
+        stage.outcome = report.outcome.clone();
+        report.stage = Some(stage);
         report.enemies_defeated = defeated.len();
         let machine = adapter.battle();
         report.party_hp = party

@@ -1,5 +1,7 @@
 pub mod actor_models;
 pub mod animation_adapter;
+pub mod battle_raster;
+pub mod battle_view;
 pub mod capture;
 pub mod dialog_view;
 pub mod effects;

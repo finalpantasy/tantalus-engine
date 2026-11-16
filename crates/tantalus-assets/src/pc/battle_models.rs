@@ -1199,6 +1199,15 @@ pub fn player_model_names() -> Vec<(&'static str, &'static str)> {
         .collect()
 }
 
+/// `BattleParameters.csv` row `serial`: label, model name and the
+/// `MP_IDLE_NORMAL` motion name (`SetPlayerDefMotion`, motion 0).
+pub fn player_battle_row(serial: u32) -> Option<(&'static str, &'static str, &'static str)> {
+    names::PLAYERS
+        .iter()
+        .find(|row| row.serial == serial)
+        .map(|row| (row.label, row.model, row.animations[0]))
+}
+
 /// `AttackSequence` of each player row (`SpecialEffect` id).
 pub fn player_attack_sequences() -> Vec<(u32, &'static str, i32)> {
     names::PLAYERS

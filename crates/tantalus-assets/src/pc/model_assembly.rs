@@ -25,7 +25,7 @@ use crate::pc::texture::Texture2D;
 use crate::pc::unity_object::mesh::BoneInfluence;
 use crate::pc::unity_object::{
     Aabb, AnimationClip, GameObject, Material, Mesh, PPtr, SkinnedMeshRenderer, TypeTree,
-    UnityObject, decode_object,
+    UnityObject, Value, decode_object,
 };
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -434,6 +434,25 @@ impl<'f, 'a> SerializedStore<'f, 'a> {
                 path_id: info.path_id,
             })
             .collect())
+    }
+
+    /// Reads the object at `path_id` through its type tree and hands the
+    /// generic value to `read` (for classes without a typed view, such as
+    /// `MeshFilter`). `None` when no object has that path id.
+    pub fn read_value<T>(
+        &self,
+        path_id: i64,
+        read: impl FnOnce(&Value<'_>, &str) -> Result<T, ImportError>,
+    ) -> Result<Option<T>, ImportError> {
+        let Some(index) = self.index.get(&path_id).copied() else {
+            return Ok(None);
+        };
+        let object = &self.file.report().objects[index];
+        let tree = self.trees.get(&object.type_id).ok_or_else(|| {
+            ImportError::invalid(&self.source, format!("no type tree for {path_id}"))
+        })?;
+        let value = tree.read(self.file.object_data(index)?, &self.source)?;
+        read(&value, &self.source).map(Some)
     }
 
     /// Decodes an `AnimationClip` by path id.
@@ -1097,7 +1116,7 @@ impl Assembler<'_> {
 
 /// Decodes a float vertex channel into `dimension`-sized rows (padded with
 /// zeros when the stored dimension is smaller); empty when absent.
-fn vertex_channel(mesh: &Mesh, slot: usize, dimension: usize) -> Vec<Vec<f32>> {
+pub(crate) fn vertex_channel(mesh: &Mesh, slot: usize, dimension: usize) -> Vec<Vec<f32>> {
     let Some(flat) = mesh.channel_f32(slot) else {
         return Vec::new();
     };

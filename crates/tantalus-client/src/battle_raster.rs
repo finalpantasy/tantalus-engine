@@ -1,0 +1,484 @@
+//! CPU frame for the battle view: the battle camera, a depth-buffered
+//! perspective-correct triangle rasterizer with the battle map blend modes,
+//! and a 5x7 debug font for the HP/ATB readout.
+//!
+//! Camera (Memoria `BattleMapCameraController.SetDefaultPsxCamera0..2`):
+//! three default Unity transforms, one per `PatAddr[pattern].Camera`
+//! (`HonoluluBattleMain.Start`: 3 and up pick one at random). The
+//! projection is `PsxCamera.PsxProj2UnityProj(near, far)`, the off-centre
+//! frustum the battle camera always gets from `SFX.UpdateCamera`: x spans
+//! -160..160 and y -100..120 at distance `near` (`PsxScreenHeightNative`
+//! 220, bottom `220 / 2.2`). The preset's `nearClipPlane` (400, 360, 300)
+//! stands in for the plugin's projection distance (`SFX_UpdateCamera`
+//! result 12), which lives in the native `FF9SpecialEffectPlugin.dll`.
+
+use bevy::math::{EulerRot, Mat4, Quat, Vec3};
+
+/// PSX screen the projection spans.
+pub const PSX_WIDTH: f32 = 320.0;
+pub const PSX_HEIGHT: f32 = 220.0;
+/// `PsxProj2UnityProj`: `top = 220 - 220 / 2.2`.
+const PSX_TOP: f32 = PSX_HEIGHT - PSX_HEIGHT / 2.2;
+/// Nearest view distance drawn (Memoria sets `nearClipPlane` 0.1).
+const NEAR_CLIP: f32 = 1.0;
+
+/// One of the default battle cameras.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BattleCamera {
+    /// World to view (Unity camera space: x right, y up, looking down -z).
+    pub view: Mat4,
+    /// Projection distance.
+    pub near: f32,
+}
+
+impl BattleCamera {
+    /// `SetDefaultPsxCamera<preset>`; presets past 2 use camera 0.
+    pub fn preset(preset: u8) -> Self {
+        let (position, euler, near) = match preset {
+            1 => ([-2100.0, 900.0, -4500.0], [3.0, 30.0, 0.0], 360.0),
+            2 => ([0.0, 1000.0, -4500.0], [10.0, 0.0, 0.0], 300.0),
+            _ => ([-2200.0, 2900.0, 4600.0], [25.0, 155.0, 0.0], 400.0),
+        };
+        Self::from_transform(Vec3::from_array(position), euler, near)
+    }
+
+    /// A Unity camera at `position` turned `Quaternion.Euler(euler)`
+    /// (degrees, applied z, then x, then y).
+    pub fn from_transform(position: Vec3, euler: [f32; 3], near: f32) -> Self {
+        let rotation = Quat::from_euler(
+            EulerRot::YXZ,
+            euler[1].to_radians(),
+            euler[0].to_radians(),
+            euler[2].to_radians(),
+        );
+        // `worldToCameraMatrix`: the inverse camera transform with z negated
+        // (OpenGL convention, the camera looks down -z).
+        let camera = Mat4::from_rotation_translation(rotation, position);
+        let view = Mat4::from_scale(Vec3::new(1.0, 1.0, -1.0)) * camera.inverse();
+        Self { view, near }
+    }
+
+    pub fn to_view(&self, world: [f32; 3]) -> Vec3 {
+        self.view.transform_point3(Vec3::from_array(world))
+    }
+}
+
+/// A view-space vertex with its texture coordinate.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ViewVertex {
+    pub position: Vec3,
+    pub uv: [f32; 2],
+}
+
+/// RGBA texels, rows top-down, `v = 0` the last row.
+#[derive(Debug, Clone, Copy)]
+pub struct Texture<'a> {
+    pub width: usize,
+    pub height: usize,
+    pub rgba: &'a [u8],
+    /// Clamp (battle maps, `TextureWrapMode.Clamp`) or repeat.
+    pub clamp: bool,
+}
+
+impl Texture<'_> {
+    fn sample(&self, uv: [f32; 2]) -> [u8; 4] {
+        let coordinate = |value: f32, size: usize| {
+            let value = if self.clamp {
+                value.clamp(0.0, 1.0)
+            } else {
+                value - value.floor()
+            };
+            ((value * size as f32) as usize).min(size - 1)
+        };
+        let x = coordinate(uv[0], self.width);
+        let y = self.height - 1 - coordinate(uv[1], self.height);
+        let at = (y * self.width + x) * 4;
+        self.rgba
+            .get(at..at + 4)
+            .map_or([255, 0, 255, 255], |texel| {
+                [texel[0], texel[1], texel[2], texel[3]]
+            })
+    }
+}
+
+/// How a triangle writes its pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Blend {
+    /// Cut out under alpha 0.5, then replace.
+    Opaque,
+    /// `Blend One OneMinusSrcColor`.
+    Screen,
+    /// Darkens: `dst * src`.
+    Multiply,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DrawState {
+    pub blend: Blend,
+    pub depth_test: bool,
+    pub depth_write: bool,
+    /// Unity's default `Cull Back`: only triangles that wind clockwise on
+    /// screen are drawn.
+    pub cull_back: bool,
+}
+
+/// Color and depth buffers.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Frame {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+    /// View distance per pixel (`f32::INFINITY` where nothing wrote).
+    pub depth: Vec<f32>,
+}
+
+#[derive(Clone, Copy)]
+struct ScreenVertex {
+    xy: [f32; 2],
+    /// 1 / view distance.
+    w: f32,
+    /// uv / view distance.
+    uv: [f32; 2],
+}
+
+impl Frame {
+    pub fn new(width: u32, height: u32, clear: [u8; 4]) -> Self {
+        let pixels = (width * height) as usize;
+        Self {
+            width,
+            height,
+            rgba: clear.repeat(pixels),
+            depth: vec![f32::INFINITY; pixels],
+        }
+    }
+
+    /// Screen position of a view-space point in front of the camera.
+    pub fn project(&self, camera: &BattleCamera, view: Vec3) -> Option<[f32; 2]> {
+        let distance = -view.z;
+        (distance >= NEAR_CLIP).then(|| {
+            let x = PSX_WIDTH / 2.0 + camera.near * view.x / distance;
+            let y = PSX_TOP - camera.near * view.y / distance;
+            [
+                x * self.width as f32 / PSX_WIDTH,
+                y * self.height as f32 / PSX_HEIGHT,
+            ]
+        })
+    }
+
+    /// Clips one view-space triangle at the near plane and draws it.
+    pub fn draw(
+        &mut self,
+        camera: &BattleCamera,
+        triangle: [ViewVertex; 3],
+        texture: Option<Texture<'_>>,
+        state: DrawState,
+    ) {
+        // Sutherland-Hodgman against `distance >= NEAR_CLIP`.
+        let inside = |vertex: &ViewVertex| -vertex.position.z >= NEAR_CLIP;
+        let mut polygon: Vec<ViewVertex> = Vec::with_capacity(4);
+        for index in 0..3 {
+            let a = triangle[index];
+            let b = triangle[(index + 1) % 3];
+            if inside(&a) {
+                polygon.push(a);
+            }
+            if inside(&a) != inside(&b) {
+                let (da, db) = (-a.position.z - NEAR_CLIP, -b.position.z - NEAR_CLIP);
+                let t = da / (da - db);
+                polygon.push(ViewVertex {
+                    position: a.position.lerp(b.position, t),
+                    uv: [
+                        a.uv[0] + (b.uv[0] - a.uv[0]) * t,
+                        a.uv[1] + (b.uv[1] - a.uv[1]) * t,
+                    ],
+                });
+            }
+        }
+        if polygon.len() < 3 {
+            return;
+        }
+        let screen: Vec<ScreenVertex> = polygon
+            .iter()
+            .filter_map(|vertex| {
+                let xy = self.project(camera, vertex.position)?;
+                let w = 1.0 / -vertex.position.z;
+                Some(ScreenVertex {
+                    xy,
+                    w,
+                    uv: [vertex.uv[0] * w, vertex.uv[1] * w],
+                })
+            })
+            .collect();
+        for index in 1..screen.len().saturating_sub(1) {
+            self.fill(
+                [screen[0], screen[index], screen[index + 1]],
+                texture,
+                state,
+            );
+        }
+    }
+
+    fn fill(&mut self, v: [ScreenVertex; 3], texture: Option<Texture<'_>>, state: DrawState) {
+        let area = edge(v[0].xy, v[1].xy, v[2].xy);
+        // Screen y points down, so a clockwise triangle has a positive area.
+        if area.abs() < 1e-6 || (state.cull_back && area < 0.0) {
+            return;
+        }
+        let min_x = v.iter().map(|p| p.xy[0]).fold(f32::INFINITY, f32::min);
+        let max_x = v.iter().map(|p| p.xy[0]).fold(f32::NEG_INFINITY, f32::max);
+        let min_y = v.iter().map(|p| p.xy[1]).fold(f32::INFINITY, f32::min);
+        let max_y = v.iter().map(|p| p.xy[1]).fold(f32::NEG_INFINITY, f32::max);
+        let x0 = min_x.floor().max(0.0) as i64;
+        let x1 = (max_x.ceil() as i64).min(i64::from(self.width) - 1);
+        let y0 = min_y.floor().max(0.0) as i64;
+        let y1 = (max_y.ceil() as i64).min(i64::from(self.height) - 1);
+        for y in y0..=y1 {
+            for x in x0..=x1 {
+                let p = [x as f32 + 0.5, y as f32 + 0.5];
+                let b0 = edge(v[1].xy, v[2].xy, p) / area;
+                let b1 = edge(v[2].xy, v[0].xy, p) / area;
+                let b2 = 1.0 - b0 - b1;
+                if b0 < 0.0 || b1 < 0.0 || b2 < 0.0 {
+                    continue;
+                }
+                let w = b0 * v[0].w + b1 * v[1].w + b2 * v[2].w;
+                if w <= 0.0 {
+                    continue;
+                }
+                let distance = 1.0 / w;
+                let at = (y as usize) * self.width as usize + x as usize;
+                if state.depth_test && distance >= self.depth[at] {
+                    continue;
+                }
+                let texel = match texture {
+                    Some(texture) => texture.sample([
+                        (b0 * v[0].uv[0] + b1 * v[1].uv[0] + b2 * v[2].uv[0]) * distance,
+                        (b0 * v[0].uv[1] + b1 * v[1].uv[1] + b2 * v[2].uv[1]) * distance,
+                    ]),
+                    None => [200, 200, 200, 255],
+                };
+                let pixel = &mut self.rgba[at * 4..at * 4 + 4];
+                match state.blend {
+                    Blend::Opaque => {
+                        if texel[3] < 128 {
+                            continue;
+                        }
+                        pixel.copy_from_slice(&[texel[0], texel[1], texel[2], 255]);
+                    }
+                    Blend::Screen => {
+                        for channel in 0..3 {
+                            let (src, dst) = (u32::from(texel[channel]), u32::from(pixel[channel]));
+                            pixel[channel] = (src + dst * (255 - src) / 255).min(255) as u8;
+                        }
+                    }
+                    Blend::Multiply => {
+                        for channel in 0..3 {
+                            pixel[channel] =
+                                (u32::from(pixel[channel]) * u32::from(texel[channel]) / 255) as u8;
+                        }
+                    }
+                }
+                if state.depth_write {
+                    self.depth[at] = distance;
+                }
+            }
+        }
+    }
+
+    /// A filled rectangle blended at `alpha`.
+    pub fn rect(&mut self, x: i32, y: i32, width: i32, height: i32, color: [u8; 3], alpha: f32) {
+        for row in y.max(0)..(y + height).min(self.height as i32) {
+            for column in x.max(0)..(x + width).min(self.width as i32) {
+                let at = (row as usize * self.width as usize + column as usize) * 4;
+                for (pixel, source) in self.rgba[at..at + 3].iter_mut().zip(color) {
+                    let dst = f32::from(*pixel);
+                    *pixel = (dst + (f32::from(source) - dst) * alpha).round() as u8;
+                }
+            }
+        }
+    }
+
+    /// `text` in the 5x7 font, `scale` pixels per font pixel, with a dark
+    /// drop shadow. Returns the width drawn.
+    pub fn text(&mut self, x: i32, y: i32, text: &str, scale: i32, color: [u8; 3]) -> i32 {
+        for (offset, shade) in [(scale.max(1) / 2 + 1, [16, 16, 24]), (0, color)] {
+            let mut pen = x + offset;
+            for character in text.chars() {
+                let glyph = glyph(character);
+                for (column, bits) in glyph.iter().enumerate() {
+                    for row in 0..7 {
+                        if bits >> row & 1 != 0 {
+                            self.rect(
+                                pen + column as i32 * scale,
+                                y + offset + row * scale,
+                                scale,
+                                scale,
+                                shade,
+                                1.0,
+                            );
+                        }
+                    }
+                }
+                pen += 6 * scale;
+            }
+        }
+        text.chars().count() as i32 * 6 * scale
+    }
+}
+
+fn edge(a: [f32; 2], b: [f32; 2], c: [f32; 2]) -> f32 {
+    (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+}
+
+/// Columns of a 5x7 glyph (bit 0 the top row); lower case shows as upper.
+fn glyph(character: char) -> [u8; 5] {
+    let code = character.to_ascii_uppercase() as usize;
+    FONT.get(code.wrapping_sub(0x20))
+        .copied()
+        .unwrap_or(FONT[(b'?' - 0x20) as usize])
+}
+
+/// The classic 5x7 terminal font, ASCII 0x20..=0x5F, column-major.
+const FONT: [[u8; 5]; 64] = [
+    [0x00, 0x00, 0x00, 0x00, 0x00],
+    [0x00, 0x00, 0x5F, 0x00, 0x00],
+    [0x00, 0x07, 0x00, 0x07, 0x00],
+    [0x14, 0x7F, 0x14, 0x7F, 0x14],
+    [0x24, 0x2A, 0x7F, 0x2A, 0x12],
+    [0x23, 0x13, 0x08, 0x64, 0x62],
+    [0x36, 0x49, 0x55, 0x22, 0x50],
+    [0x00, 0x05, 0x03, 0x00, 0x00],
+    [0x00, 0x1C, 0x22, 0x41, 0x00],
+    [0x00, 0x41, 0x22, 0x1C, 0x00],
+    [0x08, 0x2A, 0x1C, 0x2A, 0x08],
+    [0x08, 0x08, 0x3E, 0x08, 0x08],
+    [0x00, 0x50, 0x30, 0x00, 0x00],
+    [0x08, 0x08, 0x08, 0x08, 0x08],
+    [0x00, 0x60, 0x60, 0x00, 0x00],
+    [0x20, 0x10, 0x08, 0x04, 0x02],
+    [0x3E, 0x51, 0x49, 0x45, 0x3E],
+    [0x00, 0x42, 0x7F, 0x40, 0x00],
+    [0x42, 0x61, 0x51, 0x49, 0x46],
+    [0x21, 0x41, 0x45, 0x4B, 0x31],
+    [0x18, 0x14, 0x12, 0x7F, 0x10],
+    [0x27, 0x45, 0x45, 0x45, 0x39],
+    [0x3C, 0x4A, 0x49, 0x49, 0x30],
+    [0x01, 0x71, 0x09, 0x05, 0x03],
+    [0x36, 0x49, 0x49, 0x49, 0x36],
+    [0x06, 0x49, 0x49, 0x29, 0x1E],
+    [0x00, 0x36, 0x36, 0x00, 0x00],
+    [0x00, 0x56, 0x36, 0x00, 0x00],
+    [0x00, 0x08, 0x14, 0x22, 0x41],
+    [0x14, 0x14, 0x14, 0x14, 0x14],
+    [0x41, 0x22, 0x14, 0x08, 0x00],
+    [0x02, 0x01, 0x51, 0x09, 0x06],
+    [0x32, 0x49, 0x79, 0x41, 0x3E],
+    [0x7E, 0x11, 0x11, 0x11, 0x7E],
+    [0x7F, 0x49, 0x49, 0x49, 0x36],
+    [0x3E, 0x41, 0x41, 0x41, 0x22],
+    [0x7F, 0x41, 0x41, 0x22, 0x1C],
+    [0x7F, 0x49, 0x49, 0x49, 0x41],
+    [0x7F, 0x09, 0x09, 0x01, 0x01],
+    [0x3E, 0x41, 0x41, 0x51, 0x32],
+    [0x7F, 0x08, 0x08, 0x08, 0x7F],
+    [0x00, 0x41, 0x7F, 0x41, 0x00],
+    [0x20, 0x40, 0x41, 0x3F, 0x01],
+    [0x7F, 0x08, 0x14, 0x22, 0x41],
+    [0x7F, 0x40, 0x40, 0x40, 0x40],
+    [0x7F, 0x02, 0x04, 0x02, 0x7F],
+    [0x7F, 0x04, 0x08, 0x10, 0x7F],
+    [0x3E, 0x41, 0x41, 0x41, 0x3E],
+    [0x7F, 0x09, 0x09, 0x09, 0x06],
+    [0x3E, 0x41, 0x51, 0x21, 0x5E],
+    [0x7F, 0x09, 0x19, 0x29, 0x46],
+    [0x46, 0x49, 0x49, 0x49, 0x31],
+    [0x01, 0x01, 0x7F, 0x01, 0x01],
+    [0x3F, 0x40, 0x40, 0x40, 0x3F],
+    [0x1F, 0x20, 0x40, 0x20, 0x1F],
+    [0x7F, 0x20, 0x18, 0x20, 0x7F],
+    [0x63, 0x14, 0x08, 0x14, 0x63],
+    [0x03, 0x04, 0x78, 0x04, 0x03],
+    [0x61, 0x51, 0x49, 0x45, 0x43],
+    [0x00, 0x00, 0x7F, 0x41, 0x41],
+    [0x02, 0x04, 0x08, 0x10, 0x20],
+    [0x41, 0x41, 0x7F, 0x00, 0x00],
+    [0x04, 0x02, 0x01, 0x02, 0x04],
+    [0x40, 0x40, 0x40, 0x40, 0x40],
+];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn camera_zero_looks_at_the_battlefield_centre() {
+        let camera = BattleCamera::preset(0);
+        let centre = camera.to_view([0.0, 0.0, 0.0]);
+        // In front of the camera, near the middle of the screen.
+        assert!(centre.z < -5000.0, "{centre:?}");
+        let frame = Frame::new(320, 220, [0; 4]);
+        let [x, y] = frame.project(&camera, centre).expect("in front");
+        assert!(
+            (x - 160.0).abs() < 60.0 && (y - 110.0).abs() < 80.0,
+            "{x} {y}"
+        );
+    }
+
+    #[test]
+    fn up_in_the_world_is_up_on_screen() {
+        let camera = BattleCamera::preset(2);
+        let frame = Frame::new(320, 220, [0; 4]);
+        let low = frame.project(&camera, camera.to_view([0.0, 0.0, 0.0]));
+        let high = frame.project(&camera, camera.to_view([0.0, 500.0, 0.0]));
+        assert!(high.expect("high")[1] < low.expect("low")[1]);
+    }
+
+    #[test]
+    fn nearer_triangles_win_and_clipped_ones_still_draw() {
+        let camera = BattleCamera {
+            view: Mat4::IDENTITY,
+            near: 160.0,
+        };
+        let mut frame = Frame::new(32, 22, [0; 4]);
+        let solid = [255u8, 0, 0, 255];
+        let texture = Texture {
+            width: 1,
+            height: 1,
+            rgba: &solid,
+            clamp: true,
+        };
+        let state = DrawState {
+            blend: Blend::Opaque,
+            depth_test: true,
+            depth_write: true,
+            cull_back: false,
+        };
+        let quad = |z: f32| {
+            [
+                ViewVertex {
+                    position: Vec3::new(-1000.0, -1000.0, z),
+                    uv: [0.0, 0.0],
+                },
+                ViewVertex {
+                    position: Vec3::new(1000.0, -1000.0, z),
+                    uv: [1.0, 0.0],
+                },
+                ViewVertex {
+                    position: Vec3::new(0.0, 1000.0, 5.0),
+                    uv: [0.5, 1.0],
+                },
+            ]
+        };
+        frame.draw(&camera, quad(-100.0), Some(texture), state);
+        assert!(frame.rgba.chunks(4).any(|pixel| pixel[0] == 255));
+        assert!(frame.depth.iter().any(|depth| depth.is_finite()));
+    }
+
+    #[test]
+    fn text_draws_pixels() {
+        let mut frame = Frame::new(40, 10, [0; 4]);
+        let width = frame.text(0, 0, "HP 9", 1, [255, 255, 255]);
+        assert_eq!(width, 24);
+        assert!(frame.rgba.chunks(4).any(|pixel| pixel[0] == 255));
+    }
+}

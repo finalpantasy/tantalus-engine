@@ -307,6 +307,10 @@ pub struct PlayGame {
     pub ticks: u64,
     /// Walkmesh floor the player stands on (found on the first step).
     floor: Option<i16>,
+    /// The last battle fought, with its stage record, for a client to
+    /// replay ([`crate::battle_stage`]). Take it after a
+    /// [`PlayEvent::Battle`].
+    pub last_battle: Option<crate::battle_stage::BattleStage>,
 }
 
 impl PlayGame {
@@ -328,6 +332,7 @@ impl PlayGame {
             stopped: None,
             ticks: 0,
             floor: None,
+            last_battle: None,
         };
         let mut events = Vec::new();
         game.enter(start, &mut events)?;
@@ -626,14 +631,16 @@ impl PlayGame {
 
         if !step.encounters.is_empty() {
             let party = self.party();
+            let mut stages = Vec::new();
             let session = self.session.as_mut().expect("session");
             for request in &step.encounters {
                 let outcome = match &self.data.battles {
                     Some(battles) => {
                         let items = session.director.world().items.clone();
-                        let report = battles.fight_with_items(request, &party, &items);
+                        let mut report = battles.fight_with_items(request, &party, &items);
                         save_party(&report, &mut session.director.world_mut().character_stats);
                         pay_rewards(&report, session.director.world_mut());
+                        stages.push(report.stage.take());
                         report.outcome.unwrap_or_else(|| "no result".to_owned())
                     }
                     None => "skipped".to_owned(),
@@ -644,6 +651,9 @@ impl PlayGame {
                 });
             }
             session.resume_after_battle()?;
+            if let Some(stage) = stages.into_iter().flatten().last() {
+                self.last_battle = Some(stage);
+            }
         }
 
         let session = self.session.as_mut().expect("session");

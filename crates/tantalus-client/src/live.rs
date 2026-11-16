@@ -6,7 +6,8 @@
 //! Z confirm, Backspace or X cancel, Q triangle, E square, Tab select,
 //! P start. Dialog lines, battles and field changes print to the console
 //! and the current line shows in the window title (the client has no font
-//! yet).
+//! yet). A fought battle replays in the battle view
+//! ([`crate::battle_view`]) before the field resumes.
 
 use std::collections::BTreeSet;
 
@@ -224,6 +225,9 @@ struct Live {
     markers_at: Option<u64>,
     /// Scrolling background layers (`BGLLOOP`, `BGLPARALLAX`, ...).
     motion: Option<crate::overlay_motion::OverlayMotionState>,
+    /// The battle view, while a fought battle replays.
+    battle: Option<crate::battle_view::LiveBattle>,
+    battle_assets: crate::battle_view::BattleAssets,
 }
 
 /// Opens the play window. `game` is already on its first field.
@@ -234,6 +238,7 @@ pub fn play(
 ) -> Result<(), ClientError> {
     let scale = scale.clamp(1, 8);
     let models = crate::actor_models::ActorModels::new(&streaming_assets);
+    let battle_assets = crate::battle_view::BattleAssets::new(&streaming_assets);
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb_u8(18, 24, 36)))
         .add_plugins(
@@ -264,6 +269,8 @@ pub fn play(
             view: crate::view_scroll::ViewScroll::default(),
             markers_at: None,
             motion: None,
+            battle: None,
+            battle_assets,
         })
         .add_systems(Update, live_tick);
     app.run();
@@ -327,6 +334,16 @@ fn live_tick(world: &mut World) {
     let delta = world.resource::<Time>().delta_secs_f64();
     let held = pad_bits(world.resource::<ButtonInput<KeyCode>>());
     let mut live = world.remove_resource::<Live>().expect("live state");
+    if crate::battle_view::run_live_battle(
+        world,
+        &mut live.battle,
+        &live.battle_assets,
+        delta,
+        held,
+    ) {
+        world.insert_resource(live);
+        return;
+    }
     live.elapsed += delta;
     let step = 1.0 / TICKS_PER_SECOND;
     let mut steps = 0;
@@ -354,10 +371,27 @@ fn live_tick(world: &mut World) {
                 &mut live.view,
                 &game,
             );
+            if game.last_battle.is_some() {
+                break;
+            }
         }
         if steps == 4 {
             live.elapsed = 0.0;
         }
+        if let Some(stage) = game.last_battle.take() {
+            live.elapsed = 0.0;
+            live.battle = Some(crate::battle_view::LiveBattle::start(
+                world,
+                &mut live.battle_assets,
+                stage,
+            ));
+        }
+    }
+    // The battle view covers the field from here; leave the field as it is
+    // until the replay ends.
+    if live.battle.is_some() {
+        world.insert_resource(live);
+        return;
     }
     let game = live.game.lock().expect("game lock");
     let background = game.background().map(str::to_owned);
