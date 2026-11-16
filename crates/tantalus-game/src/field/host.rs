@@ -161,6 +161,71 @@ impl FieldHost<'_> {
         self.world.camera_log.push(request);
     }
 
+    /// Keeps the layer scroll scripts for the renderer's `FieldAnimation`.
+    fn record_overlay_motion(&mut self, event: &HostEvent) {
+        use super::world::OverlayMotion as Motion;
+        let motion = match *event {
+            HostEvent::SetTileLoop {
+                block,
+                enabled,
+                x_speed,
+                y_speed,
+            } => Motion::Loop {
+                block,
+                enabled: enabled != 0,
+                speed: [x_speed, y_speed],
+            },
+            HostEvent::SetTileParallax {
+                block,
+                enabled,
+                x_speed,
+                y_speed,
+            } => Motion::Parallax {
+                block,
+                enabled: enabled != 0,
+                speed: [x_speed, y_speed],
+            },
+            HostEvent::SetTileOrigin { block, x, y } => Motion::Origin { block, x, y },
+            HostEvent::MoveTile { overlay, offset } => Motion::Move {
+                block: overlay,
+                offset,
+            },
+            HostEvent::SetTileScrollWithOffset {
+                overlay,
+                enabled,
+                speed,
+                offset,
+                is_x_offset,
+            } => Motion::ScrollWithOffset {
+                block: overlay,
+                enabled: enabled != 0,
+                speed,
+                offset,
+                is_x_offset: is_x_offset != 0,
+            },
+            HostEvent::SetTileLoopType {
+                overlay,
+                screen_anchored,
+            } => Motion::LoopType {
+                block: overlay,
+                screen_anchored,
+            },
+            HostEvent::DefineTileViewport {
+                viewport,
+                x,
+                y,
+                width,
+                height,
+            } => Motion::Viewport {
+                viewport,
+                position: [x, y],
+                size: [width, height],
+            },
+            _ => return,
+        };
+        self.world.overlay_motion.push(motion);
+    }
+
     /// Keeps the background tile-block changes the renderer needs.
     fn record_overlay(&mut self, event: &HostEvent) {
         let (block, change): (i32, &dyn Fn(&mut super::world::OverlayChange)) = match event {
@@ -342,6 +407,7 @@ impl LegacyEventHost for FieldHost<'_> {
             }
             self.record_look(event);
             self.record_overlay(event);
+            self.record_overlay_motion(event);
             self.record_camera(event);
             self.record_tile_animation(event);
             match event {
@@ -1257,6 +1323,42 @@ mod tests {
         assert_eq!(world.overlays[&8].active, Some(true));
         world.begin_field();
         assert!(world.tile_animations.is_empty());
+    }
+
+    #[test]
+    fn layer_scroll_scripts_are_logged_for_the_renderer_until_the_field_ends() {
+        use super::super::world::OverlayMotion;
+        let mut world = FieldWorld::new();
+        FieldHost::new(&mut world)
+            .apply(&[
+                HostEvent::SetTileParallax {
+                    block: 19,
+                    enabled: 1,
+                    x_speed: 32,
+                    y_speed: 0,
+                },
+                HostEvent::MoveTile {
+                    overlay: 5,
+                    offset: [160, 100, 0],
+                },
+            ])
+            .unwrap();
+        assert_eq!(
+            world.overlay_motion,
+            vec![
+                OverlayMotion::Parallax {
+                    block: 19,
+                    enabled: true,
+                    speed: [32, 0]
+                },
+                OverlayMotion::Move {
+                    block: 5,
+                    offset: [160, 100, 0]
+                },
+            ]
+        );
+        world.begin_field();
+        assert!(world.overlay_motion.is_empty());
     }
 
     #[test]

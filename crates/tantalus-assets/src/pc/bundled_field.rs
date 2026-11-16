@@ -17,6 +17,8 @@ pub struct BundledField {
     pub atlas_id: ContentId,
     pub atlas_path_id: i64,
     pub atlas: Texture2D,
+    /// The parsed `.bgs` scene, for the layer scroll state.
+    pub background: BgsFile,
 }
 
 impl BundledField {
@@ -89,6 +91,7 @@ impl BundledField {
             atlas_id,
             atlas_path_id: atlas_info.path_id,
             atlas,
+            background: scene,
         })
     }
 }

@@ -477,6 +477,12 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     let mut open_for = 0u64;
     let mut last_confirm = false;
     let mut view = tantalus_client::view_scroll::ViewScroll::default();
+    // Layer scrolling, started once a field's scripts call a layer opcode.
+    let mut motion: Option<(
+        String,
+        tantalus_client::overlay_motion::OverlayMotionState,
+        tantalus_contracts::FieldSceneDescription,
+    )> = None;
     for tick in 0..ticks {
         let mut held = holds
             .iter()
@@ -497,6 +503,43 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
             println!("{}", tantalus_client::live::describe(&event));
         }
         tantalus_client::live::observe_view(&mut view, &game);
+        let background = game.background().map(str::to_owned);
+        if motion.as_ref().map(|(name, ..)| name) != background.as_ref() {
+            motion = None;
+        }
+        if motion.is_none()
+            && !game.world().overlay_motion.is_empty()
+            && let Some(name) = &background
+            && let Ok(mut field) =
+                tantalus_client::window::find_field(std::path::Path::new(&values["--assets"]), name)
+        {
+            if let Some(scene) = field
+                .scene
+                .with_camera(u32::from(game.world().field_camera))
+            {
+                field.scene = scene;
+            }
+            motion = tantalus_client::overlay_motion::OverlayMotionState::new(
+                &field.background,
+                &field.scene,
+            )
+            .map(|state| (name.clone(), state, field.scene.clone()));
+        }
+        if let Some((_, state, scene)) = &mut motion {
+            let at = if state.needs_camera() {
+                let (frame, _) = tantalus_client::live::world_frame(game.world(), game.ticks);
+                view.view(
+                    &game.world().camera_log,
+                    &scene.camera,
+                    scene.camera_index,
+                    tantalus_client::live::player_position(&frame),
+                    game.ticks,
+                )
+            } else {
+                None
+            };
+            state.tick(&game.world().overlay_motion, at);
+        }
         if game.stopped.is_some() {
             break;
         }
@@ -563,6 +606,9 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                 game.ticks,
             );
             tantalus_client::live::place_camera(world, at);
+            if let Some((_, state, _)) = &motion {
+                state.place_sprites(world, &field.scene);
+            }
             tantalus_client::dialog_view::sync_dialogs(world, &game);
         },
     )

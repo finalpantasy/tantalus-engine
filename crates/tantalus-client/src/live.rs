@@ -222,6 +222,8 @@ struct Live {
     /// Game tick the actor markers were last drawn for; they are redrawn
     /// only when the tick or the shown field changes, not every frame.
     markers_at: Option<u64>,
+    /// Scrolling background layers (`BGLLOOP`, `BGLPARALLAX`, ...).
+    motion: Option<crate::overlay_motion::OverlayMotionState>,
 }
 
 /// Opens the play window. `game` is already on its first field.
@@ -261,6 +263,7 @@ pub fn play(
             models,
             view: crate::view_scroll::ViewScroll::default(),
             markers_at: None,
+            motion: None,
         })
         .add_systems(Update, live_tick);
     app.run();
@@ -291,6 +294,35 @@ pub fn show_field(
     Ok(())
 }
 
+/// Runs the layer scroll service for the tick `game` just played.
+fn step_overlay_motion(
+    field: &Option<tantalus_contracts::FieldSceneDescription>,
+    background: Option<&str>,
+    motion: &mut Option<crate::overlay_motion::OverlayMotionState>,
+    view: &mut crate::view_scroll::ViewScroll,
+    game: &PlayGame,
+) {
+    let (Some(scene), Some(motion)) = (field, motion) else {
+        return;
+    };
+    if game.background() != background {
+        return;
+    }
+    let at = if motion.needs_camera() {
+        let (frame, _) = world_frame(game.world(), game.ticks);
+        view.view(
+            &game.world().camera_log,
+            &scene.camera,
+            scene.camera_index,
+            player_position(&frame),
+            game.ticks,
+        )
+    } else {
+        None
+    };
+    motion.tick(&game.world().overlay_motion, at);
+}
+
 fn live_tick(world: &mut World) {
     let delta = world.resource::<Time>().delta_secs_f64();
     let held = pad_bits(world.resource::<ButtonInput<KeyCode>>());
@@ -315,6 +347,13 @@ fn live_tick(world: &mut World) {
                 }
             }
             observe_view(&mut live.view, &game);
+            step_overlay_motion(
+                &live.field,
+                live.background.as_deref(),
+                &mut live.motion,
+                &mut live.view,
+                &game,
+            );
         }
         if steps == 4 {
             live.elapsed = 0.0;
@@ -327,6 +366,7 @@ fn live_tick(world: &mut World) {
         live.field = None;
         live.bundled = None;
         live.markers_at = None;
+        live.motion = None;
         if let Some(name) = &background {
             match find_field(&live.streaming_assets, name) {
                 Ok(field) => live.bundled = Some(field),
@@ -350,6 +390,13 @@ fn live_tick(world: &mut World) {
         live.scene = scene;
         live.field = Some(field.scene.clone());
         live.markers_at = None;
+        match &mut live.motion {
+            Some(motion) => motion.set_camera(camera as u8),
+            None => {
+                live.motion =
+                    crate::overlay_motion::OverlayMotionState::new(&field.background, &field.scene);
+            }
+        }
     }
     if let Some(scene) = &live.field {
         let (frame, placed) = world_frame(game.world(), game.ticks);
@@ -378,6 +425,11 @@ fn live_tick(world: &mut World) {
             game.ticks,
         );
         place_camera(world, at);
+        if let Some(motion) = &live.motion
+            && !motion.is_idle()
+        {
+            motion.place_sprites(world, scene);
+        }
         crate::dialog_view::sync_dialogs(world, &game);
     }
     let mut title = format!(

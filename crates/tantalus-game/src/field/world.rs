@@ -64,6 +64,45 @@ pub struct ActorState {
     pub look: ActorLook,
 }
 
+/// One background layer script (`EBG_overlay*` setter) the renderer replays
+/// on its own `FieldAnimation` to scroll layers each tick. Values are the
+/// opcode operands, unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OverlayMotion {
+    /// `BGLLOOP` (`EBG_overlaySetLoop`).
+    Loop {
+        block: i32,
+        enabled: bool,
+        speed: [i16; 2],
+    },
+    /// `BGLPARALLAX` (`EBG_overlaySetParallax`).
+    Parallax {
+        block: i32,
+        enabled: bool,
+        speed: [i16; 2],
+    },
+    /// `BGLORIGIN` (`EBG_overlaySetOrigin`).
+    Origin { block: i32, x: i16, y: i16 },
+    /// `BGLMOVE` (`EBG_overlayMove`).
+    Move { block: i32, offset: [i16; 3] },
+    /// `BGLSCROLLOFFSET` (`EBG_overlaySetScrollWithOffset`).
+    ScrollWithOffset {
+        block: i32,
+        enabled: bool,
+        speed: i16,
+        offset: i16,
+        is_x_offset: bool,
+    },
+    /// `BGLLOOPTYPE` (`EBG_overlaySetLoopType`).
+    LoopType { block: i32, screen_anchored: bool },
+    /// `BGVDEFINE` (`EBG_overlayDefineViewport`).
+    Viewport {
+        viewport: i32,
+        position: [i16; 2],
+        size: [i16; 2],
+    },
+}
+
 /// One field camera script, as `FieldMap` receives it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CameraRequest {
@@ -427,6 +466,9 @@ pub struct FieldWorld {
     /// view (runtime-only: the view depends on the field projection).
     #[serde(skip)]
     pub camera_log: Vec<CameraRequest>,
+    /// The layer scroll scripts this field ran, in order (runtime-only).
+    #[serde(skip)]
+    pub overlay_motion: Vec<OverlayMotion>,
     /// Experience-to-stats provider (runtime-only).
     #[serde(skip)]
     pub level_growth: Option<LevelGrowth>,
@@ -577,6 +619,7 @@ impl FieldWorld {
             tile_camera_count: 0,
             field_camera: 0,
             camera_log: Vec::new(),
+            overlay_motion: Vec::new(),
             level_growth: None,
         }
     }
@@ -619,6 +662,7 @@ impl FieldWorld {
         self.actors.clear();
         self.overlays.clear();
         self.camera_log.clear();
+        self.overlay_motion.clear();
         self.clear_tile_animations();
         self.control_actor = None;
         self.exit_arrivals.clear();
