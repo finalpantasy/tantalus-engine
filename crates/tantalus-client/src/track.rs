@@ -3,7 +3,7 @@
 //! actor positions every two ticks. The viewer draws each actor as a marker
 //! at its projected foot position over the field background.
 
-use crate::actor_models::{ActorModels, ActorPose};
+use crate::actor_models::{ActorModels, ActorPose, Raster};
 use crate::projection::project_field_point;
 use crate::scene_adapter::ClientError;
 use bevy::prelude::*;
@@ -125,6 +125,40 @@ pub fn spawn_frame_markers(
         world.entity_mut(entity).despawn();
     }
     let mut drawn = Drawn::default();
+    // The software rasterizer is the frame's cost: each actor's body and
+    // shadow rasters are independent, so they run on their own threads.
+    let mut rasters: BTreeMap<u64, (Option<Raster>, Option<Raster>)> = BTreeMap::new();
+    if let Some(models) = models {
+        let jobs: Vec<(u64, [f32; 3], &ActorPose)> = frame
+            .actors
+            .iter()
+            .filter(|(id, _)| placed.contains(id))
+            .filter_map(|(id, position)| {
+                let pose = frame.poses.get(id)?;
+                (pose.model.is_some() && pose.visible).then_some((*id, *position, pose))
+            })
+            .collect();
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = jobs
+                .iter()
+                .map(|(id, position, pose)| {
+                    let (id, position, pose) = (*id, *position, *pose);
+                    scope.spawn(move || {
+                        let body = models.render(camera, position, pose);
+                        let shadow = body
+                            .as_ref()
+                            .and_then(|_| models.render_shadow(camera, position, pose));
+                        (id, body, shadow)
+                    })
+                })
+                .collect();
+            for handle in handles {
+                if let Ok((id, body, shadow)) = handle.join() {
+                    rasters.insert(id, (body, shadow));
+                }
+            }
+        });
+    }
     for (id, position) in &frame.actors {
         if !placed.contains(id) {
             continue;
@@ -136,9 +170,7 @@ pub fn spawn_frame_markers(
         {
             continue;
         }
-        let raster = models
-            .zip(frame.poses.get(id))
-            .and_then(|(models, pose)| models.render(camera, *position, pose));
+        let (raster, shadow) = rasters.remove(id).unwrap_or_default();
         if let Some(raster) = raster {
             let ([x, y], size) = raster.placement();
             let image = Image::new(
@@ -164,10 +196,7 @@ pub fn spawn_frame_markers(
                 continue;
             }
             let z = crate::projection::layer_z(depth) + 0.01 / (1.0 + raster.depth.max(0.0));
-            if let Some(shadow) = models
-                .zip(frame.poses.get(id))
-                .and_then(|(models, pose)| models.render_shadow(camera, *position, pose))
-            {
+            if let Some(shadow) = shadow {
                 // Drawn just before its actor, on the same layer.
                 spawn_shadow(world, shadow, z - 0.005);
             }

@@ -219,6 +219,9 @@ struct Live {
     elapsed: f64,
     models: crate::actor_models::ActorModels,
     view: crate::view_scroll::ViewScroll,
+    /// Game tick the actor markers were last drawn for; they are redrawn
+    /// only when the tick or the shown field changes, not every frame.
+    markers_at: Option<u64>,
 }
 
 /// Opens the play window. `game` is already on its first field.
@@ -257,6 +260,7 @@ pub fn play(
             elapsed: 0.0,
             models,
             view: crate::view_scroll::ViewScroll::default(),
+            markers_at: None,
         })
         .add_systems(Update, live_tick);
     app.run();
@@ -322,6 +326,7 @@ fn live_tick(world: &mut World) {
         live.background = background.clone();
         live.field = None;
         live.bundled = None;
+        live.markers_at = None;
         if let Some(name) = &background {
             match find_field(&live.streaming_assets, name) {
                 Ok(field) => live.bundled = Some(field),
@@ -344,17 +349,21 @@ fn live_tick(world: &mut World) {
         }
         live.scene = scene;
         live.field = Some(field.scene.clone());
+        live.markers_at = None;
     }
     if let Some(scene) = &live.field {
         let (frame, placed) = world_frame(game.world(), game.ticks);
-        let field_name = game.field_name().map(str::to_owned);
-        for problem in live.models.prepare_field(field_name.as_deref()) {
-            println!("!! field light: {problem}");
+        if live.markers_at != Some(game.ticks) {
+            let field_name = game.field_name().map(str::to_owned);
+            for problem in live.models.prepare_field(field_name.as_deref()) {
+                println!("!! field light: {problem}");
+            }
+            for problem in live.models.prepare(frame.poses.values()) {
+                println!("!! actor models: {problem}");
+            }
+            spawn_frame_markers(world, &scene.camera, &frame, &placed, Some(&live.models));
+            live.markers_at = Some(game.ticks);
         }
-        for problem in live.models.prepare(frame.poses.values()) {
-            println!("!! actor models: {problem}");
-        }
-        spawn_frame_markers(world, &scene.camera, &frame, &placed, Some(&live.models));
         crate::scene_adapter::apply_overlay_changes(
             world,
             scene,

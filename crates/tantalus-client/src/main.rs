@@ -522,6 +522,9 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     for problem in models.prepare(frame.poses.values()) {
         println!("!! actor models: {problem}");
     }
+    if std::env::var_os("TANTALUS_PERF").is_some() {
+        play_perf(&game, &models, &field.scene.camera);
+    }
     let mut drawn = tantalus_client::track::Drawn::default();
     tantalus_client::capture::capture_field_scene(
         &field,
@@ -532,6 +535,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
             ..CaptureConfig::default()
         },
         |world| {
+            let started = std::time::Instant::now();
             drawn = tantalus_client::track::spawn_frame_markers(
                 world,
                 &field.scene.camera,
@@ -539,6 +543,12 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                 &placed,
                 Some(&models),
             );
+            if std::env::var_os("TANTALUS_PERF").is_some() {
+                println!(
+                    "perf spawn_frame_markers (rasters on threads + spawn): {:.3} ms",
+                    started.elapsed().as_secs_f64() * 1000.0
+                );
+            }
             tantalus_client::scene_adapter::apply_overlay_changes(
                 world,
                 &field.scene,
@@ -571,4 +581,67 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         drawn.models,
         output.display()
     ))
+}
+
+/// Per-frame cost of the live window's pieces, printed with `TANTALUS_PERF=1`
+/// on `capture-play`: 30 runs of each, mean milliseconds.
+fn play_perf(
+    game: &tantalus_tools::play::PlayGame,
+    models: &tantalus_client::actor_models::ActorModels,
+    camera: &tantalus_contracts::LegacyFieldCamera,
+) {
+    use std::time::Instant;
+    const RUNS: u32 = 30;
+    let mean = |label: &str, mut run: Box<dyn FnMut() + '_>| {
+        run();
+        let start = Instant::now();
+        for _ in 0..RUNS {
+            run();
+        }
+        println!(
+            "perf {label}: {:.3} ms",
+            start.elapsed().as_secs_f64() * 1000.0 / f64::from(RUNS)
+        );
+    };
+    mean(
+        "world_frame",
+        Box::new(|| {
+            std::hint::black_box(tantalus_client::live::world_frame(game.world(), game.ticks));
+        }),
+    );
+    let (frame, _) = tantalus_client::live::world_frame(game.world(), game.ticks);
+    mean(
+        "render all actors",
+        Box::new(|| {
+            for (id, position) in &frame.actors {
+                if let Some(pose) = frame.poses.get(id) {
+                    std::hint::black_box(models.render(camera, *position, pose));
+                }
+            }
+        }),
+    );
+    mean(
+        "render_shadow all actors",
+        Box::new(|| {
+            for (id, position) in &frame.actors {
+                if let Some(pose) = frame.poses.get(id) {
+                    std::hint::black_box(models.render_shadow(camera, *position, pose));
+                }
+            }
+        }),
+    );
+    let drawn = frame
+        .actors
+        .iter()
+        .filter(|(id, p)| {
+            frame
+                .poses
+                .get(id)
+                .is_some_and(|pose| pose.visible && models.render(camera, *p, pose).is_some())
+        })
+        .count();
+    println!(
+        "perf actors with a raster: {drawn} of {}",
+        frame.actors.len()
+    );
 }
