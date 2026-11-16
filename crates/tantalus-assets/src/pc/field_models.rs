@@ -26,7 +26,8 @@ mod animation_names;
 
 /// `AnimationFactory.GetRenameAnimationDirectory` special cases: geo name to
 /// animation folder number.
-const FOLDER_OVERRIDES: &[(&str, u32)] = &[("GEO_MON_B3_110", 347), ("GEO_MON_B3_109", 5461)];
+pub(crate) const FOLDER_OVERRIDES: &[(&str, u32)] =
+    &[("GEO_MON_B3_110", 347), ("GEO_MON_B3_109", 5461)];
 
 /// The kind of script operand an animation id came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
