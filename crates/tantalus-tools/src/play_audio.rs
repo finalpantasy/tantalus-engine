@@ -1,0 +1,455 @@
+//! What the play loop asks the sound system to do, and the director that does it.
+//!
+//! `PlayGame` turns script sound opcodes, field changes, battles and menu presses into
+//! [`AudioCue`]s. [`AudioDirector`] feeds them to the ported `SoundSystem`
+//! (`tantalus_legacy::sound`), which renders interleaved stereo f32. Nothing here opens an audio
+//! device: the client plays the rendered samples, `capture-play --audio-log` prints the cues.
+
+use tantalus_legacy::HostEvent;
+use tantalus_legacy::sound::{Backend, DispatchMode, SoundProjector, SoundSystem, code};
+
+use crate::sound_bank::{BattleSongTable, SoundBank, clip_loader, music_for_battle};
+
+/// `FF9SFX_Play` (`Global/ff9/FF9Sfx.cs:5`): `ff9snd_sndeffect_play(id, 8388608, 127, 128)`.
+const SFX_ATTR: i32 = 8_388_608;
+const SFX_VOLUME: i32 = 127;
+const SFX_POSITION: i32 = 128;
+
+/// Sound effect ids of the menu and dialog cursors (`FF9Sfx.FF9SFX_Play(103/101/102)` across
+/// `Global/*UI.cs`): 103 moves, 101 confirms, 102 cancels or refuses.
+pub mod menu_sound {
+    pub const CONFIRM: i32 = 101;
+    pub const CANCEL: i32 = 102;
+    pub const CURSOR: i32 = 103;
+}
+
+/// Song ids `btl_util.ManageBattleSong` plays when a battle ends (`battle.cs:381`, `:276`).
+pub const VICTORY_SONG: i32 = 5;
+pub const DEFEAT_SONG: i32 = 6;
+/// Ticks the battle song fades for before the end song starts (`ManageBattleSong(sys, 30, ..)`).
+pub const BATTLE_SONG_FADE_TICKS: i32 = 30;
+
+/// How a battle ended, as far as its music goes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BattleEnd {
+    /// `ManageBattleSong(sys, 30, 5)`: the victory fanfare.
+    Victory,
+    /// `ManageBattleSong(sys, 30, 6)`: the game over song.
+    Defeat,
+    /// Fled or scripted: no end song (`ff9ShutdownStateBattleResult` fades the battle song).
+    Escape,
+}
+
+impl BattleEnd {
+    /// From a `FieldBattles` outcome name.
+    pub fn from_outcome(outcome: &str) -> Self {
+        match outcome {
+            "victory" => Self::Victory,
+            "defeat" => Self::Defeat,
+            _ => Self::Escape,
+        }
+    }
+}
+
+/// One thing the sound system should do.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AudioCue {
+    /// A script sound opcode or position/flag event, as the event VM raised it.
+    Script(HostEvent),
+    /// A field started: sets the dispatcher's field state and stops the old field's map sounds
+    /// (`ff9fieldsound_stopall_mapsndeffect`, `FF9Snd.cs:1419`).
+    FieldStarted { map: i32 },
+    /// A battle begins from field `map`: picks its song from `BtlEncountBgmMetaData`
+    /// (`BattleSwirl.RequestPlayBattleEncounterSongForField`, `BattleSwirl.cs:89`).
+    BattleStarted { map: i32, battle: i32 },
+    /// The battle ended; a won or lost battle plays its end song first.
+    BattleEnded { end: BattleEnd },
+    /// The battle view is gone and the field is back: the field song returns once any end song
+    /// is over.
+    BattleLeft,
+    /// A user interface sound effect by id (`FF9SFX_Play`).
+    Effect { id: i32 },
+}
+
+/// One line of the `--audio-log`: what the cue means in the reference's terms.
+pub fn describe_cue(cue: &AudioCue, bank: &SoundBank) -> String {
+    let music = |id: i32| {
+        bank.metadata.music.get(&id).map_or_else(
+            || format!("music {id} (unnamed)"),
+            |n| format!("music {id} {n}"),
+        )
+    };
+    let effect = |id: i32| {
+        bank.metadata.sound_effect.get(&id).map_or_else(
+            || format!("effect {id} (unnamed)"),
+            |n| format!("effect {id} {n}"),
+        )
+    };
+    match cue {
+        AudioCue::Script(HostEvent::RunSound {
+            code: sound_code,
+            sound,
+            arguments,
+        }) => {
+            let op = sound_code & 65471;
+            let [a, b, c] = *arguments;
+            let kind = (op >> 12) & 3;
+            let subject = match kind {
+                0 => music(*sound),
+                1 => effect(*sound),
+                _ => format!("object {sound}"),
+            };
+            format!(
+                "sound code {op} ({}) {subject} args {a},{b},{c}",
+                code_name(op)
+            )
+        }
+        AudioCue::Script(HostEvent::SetSoundPosition { position, volume }) => {
+            format!("sound position {position:?} volume {volume}")
+        }
+        AudioCue::Script(HostEvent::SetSoundObjectPosition { object, volume }) => {
+            format!("sound object position {object:?} volume {volume}")
+        }
+        AudioCue::Script(HostEvent::SetBattleMusicContinuation { enabled }) => {
+            format!("continue field song after battle: {enabled}")
+        }
+        AudioCue::Script(other) => format!("{other:?}"),
+        AudioCue::FieldStarted { map } => format!("field {map} started"),
+        AudioCue::BattleStarted { map, battle } => {
+            let song = music_for_battle(&bank.field_battle_songs, *map, *battle);
+            if song < 0 {
+                format!("battle {battle} from field {map}: no battle song, field song goes on")
+            } else {
+                format!("battle {battle} from field {map}: play {}", music(song))
+            }
+        }
+        AudioCue::BattleEnded { end } => match end {
+            BattleEnd::Victory => format!("battle won: fade, play {}", music(VICTORY_SONG)),
+            BattleEnd::Defeat => format!("battle lost: fade, play {}", music(DEFEAT_SONG)),
+            BattleEnd::Escape => {
+                "battle ended without an end song: fade the battle song".to_owned()
+            }
+        },
+        AudioCue::BattleLeft => "back on the field: the field song returns".to_owned(),
+        AudioCue::Effect { id } => format!("play {}", effect(*id)),
+    }
+}
+
+fn code_name(op: i32) -> &'static str {
+    match op {
+        code::SONG_PLAY => "song play",
+        code::SONG_STOP => "song stop",
+        code::SONG_STOPCURRENT => "song stop current",
+        code::SONG_LOAD => "song load",
+        code::SONG_SUSPEND => "song suspend",
+        code::SONG_RESTORE => "song restore",
+        code::SONG_VOL => "song volume",
+        code::SONG_VOL_INTPL => "song volume fade",
+        code::SONG_VOL_INTPLALL => "all songs volume fade",
+        code::SONG_PITCH => "song pitch",
+        code::SNDEFFECT_PLAY => "effect play",
+        code::SNDEFFECTRES_PLAY => "resident effect play",
+        code::SNDEFFECTRES_STOP => "resident effect stop",
+        code::SNDEFFECTRES_VOL_INTPL => "resident effect volume fade",
+        code::SNDEFFECT_NULL => "ignored",
+        code::SONG_NULL => "ignored",
+        code::SNDEFFECT_STOP => "effect stop",
+        code::SNDEFFECT_VOL => "effect volume",
+        code::SNDEFFECT_PITCH => "effect pitch",
+        code::SNDEFFECT_VOL_ALL => "all effects volume",
+        _ => "other",
+    }
+}
+
+/// `FF9FieldSoundGetPositionVolume` needs the field camera and GTE projection, which the play
+/// loop does not hand over: a centered, full-volume position (the dispatcher stores the position
+/// and never pans with it).
+struct CenteredProjector;
+
+impl SoundProjector for CenteredProjector {
+    fn project_position(&mut self, _position: [i32; 3]) -> (i32, i32) {
+        (SFX_POSITION, SFX_VOLUME)
+    }
+    fn project_object(&mut self, _object: tantalus_contracts::EntityId) -> Option<(i32, i32)> {
+        Some((SFX_POSITION, SFX_VOLUME))
+    }
+}
+
+/// A cue waiting for the battle song to finish fading.
+#[derive(Debug, Clone, Copy)]
+struct Pending {
+    ticks_left: i32,
+    song: i32,
+}
+
+/// Runs cues against a `SoundSystem` and renders it.
+pub struct AudioDirector {
+    pub system: SoundSystem,
+    field_battle_songs: BattleSongTable,
+    pending: Option<Pending>,
+    /// The end-of-battle song once it started.
+    end_song: Option<i32>,
+    /// The battle view closed; the field song returns when the end song is over.
+    returning: bool,
+}
+
+impl AudioDirector {
+    /// `sample_rate` must be a multiple of 60 (one script tick is a whole number of frames).
+    pub fn new(bank: SoundBank, sample_rate: u32) -> Result<Self, String> {
+        let field_battle_songs = bank.field_battle_songs.clone();
+        let metadata = bank.metadata.clone();
+        let mut system = SoundSystem::new(Backend::new(sample_rate)?, metadata);
+        system.clip_loader = clip_loader(bank);
+        Ok(Self::with_system(system, field_battle_songs))
+    }
+
+    /// A director over a ready `SoundSystem` (its clips and metadata already set).
+    pub fn with_system(mut system: SoundSystem, field_battle_songs: BattleSongTable) -> Self {
+        system.dispatch_mode = DispatchMode::Field;
+        system.game_mode = 1;
+        Self {
+            system,
+            field_battle_songs,
+            pending: None,
+            end_song: None,
+            returning: false,
+        }
+    }
+
+    /// Applies one cue.
+    pub fn apply(&mut self, cue: &AudioCue) {
+        match cue {
+            AudioCue::Script(event) => {
+                self.system.apply_host_event(event, &mut CenteredProjector);
+            }
+            AudioCue::FieldStarted { map } => {
+                self.system.stopall_map_sndeffects();
+                self.system.dispatch_mode = DispatchMode::Field;
+                self.system.game_mode = 1;
+                self.system.fld_map_no = *map;
+                self.system.bgm_field_song_counter = 0;
+            }
+            AudioCue::BattleStarted { map, battle } => self.battle_started(*map, *battle),
+            AudioCue::BattleEnded { end } => self.battle_ended(*end),
+            AudioCue::BattleLeft => self.battle_left(),
+            AudioCue::Effect { id } => {
+                self.system.ff9_sound(
+                    code::SNDEFFECT_PLAY,
+                    *id,
+                    SFX_ATTR,
+                    SFX_POSITION,
+                    SFX_VOLUME,
+                );
+            }
+        }
+    }
+
+    /// `HonoluluFieldMain.cs:313` and `BattleSwirl.RequestPlayBattleEncounterSongForField`: the
+    /// field song is set aside and the table's song plays, unless the table has none or that song
+    /// already plays.
+    fn battle_started(&mut self, map: i32, battle: i32) {
+        self.system.dispatch_mode = DispatchMode::All;
+        let song = music_for_battle(&self.field_battle_songs, map, battle);
+        let current = self.system.current_music_id();
+        if song < 0 || song == current {
+            return;
+        }
+        if current >= 0 {
+            self.system.song_suspend(current, false);
+        }
+        self.system.song_play(song, 127, 0);
+    }
+
+    /// `btl_util.ManageBattleSong` (`btl_util.cs:244`): every song fades over 30 ticks, the field
+    /// song is set aside (unless a battle song is what plays), then the end song starts.
+    fn battle_ended(&mut self, end: BattleEnd) {
+        let song = match end {
+            BattleEnd::Victory => VICTORY_SONG,
+            BattleEnd::Defeat => DEFEAT_SONG,
+            BattleEnd::Escape => return,
+        };
+        self.system.song_vol_intplall(BATTLE_SONG_FADE_TICKS, 0);
+        self.pending = Some(Pending {
+            ticks_left: BATTLE_SONG_FADE_TICKS,
+            song,
+        });
+    }
+
+    /// The battle view closed: the field returns once the end song is over.
+    fn battle_left(&mut self) {
+        self.returning = true;
+    }
+
+    fn end_song_playing(&self) -> bool {
+        use tantalus_legacy::sound::ProfileType;
+        let Some(song) = self.end_song else {
+            return false;
+        };
+        self.system
+            .profile(song, ProfileType::Music)
+            .is_some_and(|profile| self.system.backend.is_exist(profile.sound_id))
+    }
+
+    /// `HonoluluFieldMain.cs:145` and `battle.ff9ShutdownStateBattleResult` (`battle.cs:581`): a
+    /// field song set aside comes back at full volume; otherwise the battle song fades out
+    /// unless a script asked to keep the field song.
+    fn finish_battle_return(&mut self) {
+        self.returning = false;
+        self.pending = None;
+        self.end_song = None;
+        if self.system.suspend_song_id() >= 0 {
+            let current = self.system.current_music_id();
+            if current >= 0 {
+                self.system.song_stop(current);
+            }
+            self.system.song_restore();
+            let restored = self.system.current_music_id();
+            if restored >= 0 {
+                self.system.song_vol(restored, 127);
+            }
+        } else if !self.system.continue_field_song_after_battle {
+            self.system.song_vol_intplall(120, 0);
+            self.system.stop_current_song(120);
+        }
+        self.system.dispatch_mode = DispatchMode::Field;
+    }
+
+    /// Renders `ticks` script ticks (1/60 s each) of interleaved stereo f32.
+    pub fn render(&mut self, ticks: u32) -> Vec<f32> {
+        let mut out = Vec::new();
+        for _ in 0..ticks {
+            if let Some(pending) = &mut self.pending {
+                pending.ticks_left -= 1;
+                if pending.ticks_left <= 0 {
+                    let song = pending.song;
+                    self.pending = None;
+                    let current = self.system.current_music_id();
+                    // Battle (0), boss battle (35) and faerie battle (61) are not set aside.
+                    if current >= 0
+                        && self.system.suspend_song_id() < 0
+                        && !matches!(current, 0 | 35 | 61)
+                    {
+                        self.system.song_vol(current, 127);
+                        self.system.song_suspend(current, false);
+                    }
+                    self.system.song_load(song);
+                    self.system.song_play(song, 127, 0);
+                    self.end_song = Some(song);
+                }
+            }
+            if self.returning && self.pending.is_none() && !self.end_song_playing() {
+                self.finish_battle_return();
+            }
+            out.extend(self.system.run_ticks(1));
+        }
+        out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use tantalus_legacy::sound::PcmClip;
+
+    const RATE: u32 = 6000; // 100 frames a tick
+
+    fn clip(value: i16, frames: usize, looped: bool) -> Arc<PcmClip> {
+        Arc::new(PcmClip {
+            sample_rate: RATE,
+            channels: 1,
+            samples: vec![value; frames],
+            loop_start: 0,
+            loop_end: if looped { frames as u32 } else { 0 },
+            loop_start_alternate: 0,
+            loop_end_alternate: 0,
+        })
+    }
+
+    fn director() -> AudioDirector {
+        let mut metadata = tantalus_legacy::sound::SoundMetadata::default();
+        // Field song 10, battle song 0, victory fanfare 5, cursor effect 103.
+        for (id, name) in [(10, "field"), (0, "battle"), (5, "fanfare")] {
+            metadata.music.insert(id, name.to_owned());
+        }
+        metadata.sound_effect.insert(103, "cursor".to_owned());
+        let mut system = SoundSystem::new(Backend::new(RATE).unwrap(), metadata);
+        system
+            .clips
+            .insert("field".into(), clip(4000, 60_000, true));
+        system
+            .clips
+            .insert("battle".into(), clip(8000, 60_000, true));
+        system
+            .clips
+            .insert("fanfare".into(), clip(12000, 300, false));
+        system.clips.insert("cursor".into(), clip(2000, 200, false));
+        let table = BTreeMap::from([(7, BTreeMap::from([(3, 0)]))]);
+        AudioDirector::with_system(system, table)
+    }
+
+    use std::collections::BTreeMap;
+
+    fn play(song: i32) -> AudioCue {
+        AudioCue::Script(HostEvent::RunSound {
+            code: code::SONG_PLAY,
+            sound: song,
+            arguments: [0, 0, 0],
+        })
+    }
+
+    fn level(director: &mut AudioDirector) -> i32 {
+        let out = director.render(2);
+        out.iter()
+            .map(|v| (v * 32768.0).abs() as i32)
+            .max()
+            .unwrap_or(0)
+    }
+
+    #[test]
+    fn script_song_plays_and_loops_past_its_length() {
+        let mut d = director();
+        d.apply(&play(10));
+        assert_eq!(d.system.current_music_id(), 10);
+        // 60,000 frames at 100 a tick is 600 ticks; the loop keeps it going well past that.
+        let _ = d.render(700);
+        assert!(level(&mut d) > 0);
+    }
+
+    #[test]
+    fn menu_cursor_effect_is_audible() {
+        let mut d = director();
+        d.apply(&AudioCue::Effect { id: 103 });
+        assert!(level(&mut d) > 0);
+    }
+
+    #[test]
+    fn battle_takes_the_song_and_the_field_song_returns() {
+        let mut d = director();
+        d.apply(&play(10));
+        let _ = d.render(5);
+        d.apply(&AudioCue::BattleStarted { map: 7, battle: 3 });
+        assert_eq!(d.system.current_music_id(), 0);
+        assert_eq!(d.system.suspend_song_id(), 10);
+        d.apply(&AudioCue::BattleEnded {
+            end: BattleEnd::Victory,
+        });
+        d.battle_left();
+        // 30 ticks of fade, then the fanfare (3 ticks long), then the field song again.
+        let _ = d.render(31);
+        assert_eq!(d.system.current_music_id(), VICTORY_SONG);
+        let _ = d.render(10);
+        assert_eq!(d.system.current_music_id(), 10);
+        assert_eq!(d.system.suspend_song_id(), -1);
+        assert!(level(&mut d) > 0);
+    }
+
+    #[test]
+    fn a_battle_without_a_table_song_leaves_the_field_song_alone() {
+        let mut d = director();
+        d.apply(&play(10));
+        d.apply(&AudioCue::BattleStarted { map: 7, battle: 99 });
+        assert_eq!(d.system.current_music_id(), 10);
+        assert_eq!(d.system.suspend_song_id(), -1);
+    }
+}

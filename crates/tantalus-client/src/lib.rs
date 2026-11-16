@@ -1,5 +1,6 @@
 pub mod actor_models;
 pub mod animation_adapter;
+pub mod audio;
 pub mod battle_hud;
 pub mod battle_menu;
 pub mod battle_motion;

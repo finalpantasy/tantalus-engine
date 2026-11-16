@@ -279,6 +279,35 @@ impl PlayingSfx {
     }
 }
 
+type ClipFn = dyn FnMut(&str) -> Option<Arc<PcmClip>> + Send;
+
+/// Loads a clip the first time its resource id is asked for (`SoundLoaderResources`): the
+/// caller's asset reader. Unset, only clips placed in `SoundSystem::clips` can play.
+#[derive(Clone, Default)]
+pub struct ClipLoader(Option<Arc<std::sync::Mutex<Box<ClipFn>>>>);
+
+impl ClipLoader {
+    pub fn new(load: impl FnMut(&str) -> Option<Arc<PcmClip>> + Send + 'static) -> Self {
+        Self(Some(Arc::new(std::sync::Mutex::new(Box::new(load)))))
+    }
+
+    fn load(&self, resource_id: &str) -> Option<Arc<PcmClip>> {
+        let loader = self.0.as_ref()?;
+        let mut load = loader.lock().ok()?;
+        load(resource_id)
+    }
+}
+
+impl std::fmt::Debug for ClipLoader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(if self.0.is_some() {
+            "ClipLoader(set)"
+        } else {
+            "ClipLoader(unset)"
+        })
+    }
+}
+
 /// The sound state machine.
 #[derive(Debug, Clone)]
 pub struct SoundSystem {
@@ -287,6 +316,8 @@ pub struct SoundSystem {
     pub settings: SoundSettings,
     /// Decoded assets by resource id (`SoundProfile.ResourceID`). A missing entry is a load error.
     pub clips: BTreeMap<String, Arc<PcmClip>>,
+    /// Fills `clips` on a miss.
+    pub clip_loader: ClipLoader,
     pub dispatch_mode: DispatchMode,
     /// `EventEngine.gMode` (1 field, 3 world).
     pub game_mode: i32,
@@ -321,6 +352,7 @@ impl SoundSystem {
             metadata,
             settings: SoundSettings::default(),
             clips: BTreeMap::new(),
+            clip_loader: ClipLoader::default(),
             dispatch_mode: DispatchMode::All,
             game_mode: 0,
             fld_map_no: 0,
@@ -425,6 +457,11 @@ impl SoundSystem {
         };
         self.delete_immediate_profiles_if_unused();
         // `SoundPlayer.LoadResource` -> loader. A missing clip is the loader's error path.
+        if !self.clips.contains_key(&profile.resource_id)
+            && let Some(clip) = self.clip_loader.load(&profile.resource_id)
+        {
+            self.clips.insert(profile.resource_id.clone(), clip);
+        }
         let Some(clip) = self.clips.get(&profile.resource_id).cloned() else {
             return false;
         };

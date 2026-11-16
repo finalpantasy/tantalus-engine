@@ -52,9 +52,9 @@ pub mod profile;
 
 pub use backend::{Backend, PcmClip};
 pub use dispatch::{
-    DispatchMode, PlayingSfx, SoundSettings, SoundSystem, code, convert_millisec_to_tick,
-    convert_tick_to_millisec, ext_env_obj_no, is_ext_env_obj_no, is_shift_pitch_in_fast_forward,
-    normalize_pitch, normalize_volume, reverse_normalize_volume,
+    ClipLoader, DispatchMode, PlayingSfx, SoundSettings, SoundSystem, code,
+    convert_millisec_to_tick, convert_tick_to_millisec, ext_env_obj_no, is_ext_env_obj_no,
+    is_shift_pitch_in_fast_forward, normalize_pitch, normalize_volume, reverse_normalize_volume,
 };
 pub use events::{EventSoundOutcome, SoundProjector};
 pub use profile::{

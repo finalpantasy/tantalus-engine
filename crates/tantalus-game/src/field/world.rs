@@ -429,6 +429,13 @@ pub struct FieldWorld {
     /// Runtime-only, for drawing.
     #[serde(skip)]
     pub mes_values: BTreeMap<i32, i32>,
+    /// Sound requests scripts made (`RunSoundCode*`, `SetSoundPosition`,
+    /// `SetSoundObjectPosition`, `SetBattleMusicContinuation`), in order,
+    /// until a client drains them with [`FieldWorld::take_sound_events`].
+    /// Runtime-only: nothing in the game reads them back, so they are not
+    /// part of snapshots or equality.
+    #[serde(skip)]
+    pub sound_events: Vec<tantalus_legacy::HostEvent>,
     /// Field text id -> the `[SIGL=n]` values its text carries, in order.
     /// Loaded by the caller from the field's `.mes` file (this crate embeds
     /// no game text). Empty means windows raise no signals.
@@ -679,6 +686,7 @@ impl FieldWorld {
             window_texts: BTreeMap::new(),
             window_speakers: BTreeMap::new(),
             mes_values: BTreeMap::new(),
+            sound_events: Vec::new(),
             dialog_signals: BTreeMap::new(),
             pending_signals: std::collections::VecDeque::new(),
             pending_requests: BTreeMap::new(),
@@ -751,6 +759,11 @@ impl FieldWorld {
     /// object stays deleted across a field change.
     pub fn clear_deleted_objects(&mut self) {
         self.deleted_objects.clear();
+    }
+
+    /// Drains the sound requests scripts made since the last call.
+    pub fn take_sound_events(&mut self) -> Vec<tantalus_legacy::HostEvent> {
+        std::mem::take(&mut self.sound_events)
     }
 
     /// `InitEvents` (EventEngine.cs:556) frees every object of the old

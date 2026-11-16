@@ -18,6 +18,10 @@ tantalus-core = { path = "../tantalus-core" }
 tantalus-game = { path = "../tantalus-game" }
 tantalus-tools = { path = "../tantalus-tools" }
 
+# The play window's sound output. Windows only for now; elsewhere the window is silent.
+[target.'cfg(windows)'.dependencies]
+cpal = "0.15"
+
 [dev-dependencies]
 image = "0.25"
 tempfile = "3"

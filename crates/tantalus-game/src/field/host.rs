@@ -531,6 +531,12 @@ impl LegacyEventHost for FieldHost<'_> {
             self.record_camera(event);
             self.record_tile_animation(event);
             match event {
+                HostEvent::RunSound { .. }
+                | HostEvent::SetSoundPosition { .. }
+                | HostEvent::SetSoundObjectPosition { .. }
+                | HostEvent::SetBattleMusicContinuation { .. } => {
+                    self.world.sound_events.push(event.clone());
+                }
                 HostEvent::ShowWindow {
                     window,
                     flags,

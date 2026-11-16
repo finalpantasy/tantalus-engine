@@ -25,6 +25,7 @@ use crate::field_menu::{FieldMenu, MenuAction};
 use crate::field_session::{
     CONFIRM, FieldSession, decode_pool, load_event, prepare_field_world, world_exit,
 };
+use crate::play_audio::{AudioCue, menu_sound};
 use crate::play_save::{self, PlaySave, SAVE_FORMAT, SLOTS};
 use tantalus_game::battle::BattleCommand;
 
@@ -339,6 +340,9 @@ pub struct PlayGame {
     /// The battles a field tick started, while [`Self::live_battles`]
     /// fights them; the field waits until they are over.
     pending: Option<PendingBattles>,
+    /// Sound requests made since the last [`PlayGame::take_audio`], with the tick of each.
+    /// Runtime-only: the run never reads them back.
+    audio: Vec<(u64, AudioCue)>,
 }
 
 /// Battles a field tick started, fought live, and the rest of that tick.
@@ -377,6 +381,7 @@ impl PlayGame {
             pending_position: None,
             live_battles: false,
             pending: None,
+            audio: Vec::new(),
         };
         let mut events = Vec::new();
         game.enter(start, &mut events)?;
@@ -558,6 +563,8 @@ impl PlayGame {
             .set_walk_bits(Some((pad::UP, pad::DOWN, pad::LEFT, pad::RIGHT)));
         session.director.set_walk_hold_bit(Some(pad::CANCEL));
         self.session = Some(session);
+        self.audio
+            .push((self.ticks, AudioCue::FieldStarted { map }));
         self.shown.clear();
         self.cursor = 0;
         self.floor = None;
@@ -612,7 +619,23 @@ impl PlayGame {
                     Some(session) => session.director.world_mut(),
                     None => &mut self.world,
                 };
+                let before = menu.revision;
                 open = menu.press(pressed, world, tables);
+                // `FF9SFX_Play(103)` moves the cursor, `101` confirms, `102` cancels or refuses.
+                let sound = if pressed & CONFIRM != 0 {
+                    Some(menu_sound::CONFIRM)
+                } else if pressed & (pad::CANCEL | pad::CIRCLE) != 0 {
+                    Some(menu_sound::CANCEL)
+                } else if pressed & (pad::UP | pad::DOWN | pad::LEFT | pad::RIGHT) != 0
+                    && menu.revision != before
+                {
+                    Some(menu_sound::CURSOR)
+                } else {
+                    None
+                };
+                if let Some(id) = sound {
+                    self.audio.push((self.ticks, AudioCue::Effect { id }));
+                }
             }
             if let Some(action) = menu.action.take() {
                 match action {
@@ -789,6 +812,12 @@ impl PlayGame {
         }
     }
 
+    /// Drains the sound requests made so far (script opcodes, field changes, battles, menu and
+    /// choice presses), each with the game tick it happened on.
+    pub fn take_audio(&mut self) -> Vec<(u64, AudioCue)> {
+        std::mem::take(&mut self.audio)
+    }
+
     /// The main menu to draw, with a number that changes when it does.
     pub fn menu_frame(&self) -> Option<(u64, crate::field_menu::MenuFrame)> {
         let menu = self.menu.as_ref()?;
@@ -824,11 +853,20 @@ impl PlayGame {
             .iter()
             .any(|(_, text)| self.choice_texts.contains(text));
         if choosing {
+            let before = self.cursor;
             if pressed & pad::UP != 0 {
                 self.cursor = (self.cursor - 1).max(0);
             }
             if pressed & pad::DOWN != 0 {
                 self.cursor += 1;
+            }
+            if self.cursor != before {
+                self.audio.push((
+                    self.ticks,
+                    AudioCue::Effect {
+                        id: menu_sound::CURSOR,
+                    },
+                ));
             }
         }
         if pressed & CONFIRM != 0 {
@@ -842,6 +880,12 @@ impl PlayGame {
                 }
                 if self.choice_texts.contains(text) {
                     session.director.world_mut().dialog_choice = self.cursor;
+                    self.audio.push((
+                        self.ticks,
+                        AudioCue::Effect {
+                            id: menu_sound::CONFIRM,
+                        },
+                    ));
                 }
                 session.director.world_mut().close_window(*window);
             }
@@ -849,6 +893,9 @@ impl PlayGame {
         }
         let before = player_position(session.director.world());
         let step = session.tick(input)?;
+        for event in session.director.world_mut().take_sound_events() {
+            self.audio.push((self.ticks, AudioCue::Script(event)));
+        }
         walk_on_walkmesh(session.director.world_mut(), before, &mut self.floor);
         if let Some(position) = self.pending_position {
             let world = session.director.world_mut();
@@ -902,6 +949,13 @@ impl PlayGame {
             let mut stages = Vec::new();
             let session = self.session.as_mut().expect("session");
             for request in &step.encounters {
+                self.audio.push((
+                    self.ticks,
+                    AudioCue::BattleStarted {
+                        map,
+                        battle: request.battle,
+                    },
+                ));
                 let outcome = match &self.data.battles {
                     Some(battles) => {
                         let items = session.director.world().items.clone();
@@ -913,6 +967,13 @@ impl PlayGame {
                     }
                     None => "skipped".to_owned(),
                 };
+                self.audio.push((
+                    self.ticks,
+                    AudioCue::BattleEnded {
+                        end: crate::play_audio::BattleEnd::from_outcome(&outcome),
+                    },
+                ));
+                self.audio.push((self.ticks, AudioCue::BattleLeft));
                 events.push(PlayEvent::Battle {
                     battle: request.battle,
                     outcome,
@@ -985,6 +1046,7 @@ impl PlayGame {
     /// is reported and skipped. With none left, the field resumes.
     fn start_pending(&mut self, events: &mut Vec<PlayEvent>) {
         let party = self.party();
+        let map = self.map().unwrap_or(0);
         loop {
             let Some(pending) = self.pending.as_mut() else {
                 return;
@@ -1001,6 +1063,13 @@ impl PlayGame {
                         fight.name_enemies(&text);
                     }
                     pending.fight = Some(fight);
+                    self.audio.push((
+                        self.ticks,
+                        AudioCue::BattleStarted {
+                            map,
+                            battle: request.battle,
+                        },
+                    ));
                     return;
                 }
                 Err(report) => {
@@ -1017,6 +1086,7 @@ impl PlayGame {
         }
         // Every battle is over: the field goes on as `tick` would have.
         let pending = self.pending.take().expect("pending");
+        self.audio.push((self.ticks, AudioCue::BattleLeft));
         if let Some(stage) = pending.stage {
             self.last_battle = Some(stage);
         }
@@ -1058,9 +1128,16 @@ impl PlayGame {
         if let Some(stage) = report.stage.take() {
             pending.stage = Some(stage);
         }
+        let outcome = report.outcome.unwrap_or_else(|| "no result".to_owned());
+        self.audio.push((
+            self.ticks,
+            AudioCue::BattleEnded {
+                end: crate::play_audio::BattleEnd::from_outcome(&outcome),
+            },
+        ));
         events.push(PlayEvent::Battle {
             battle: request.battle,
-            outcome: report.outcome.unwrap_or_else(|| "no result".to_owned()),
+            outcome,
         });
         self.start_pending(&mut events);
         events

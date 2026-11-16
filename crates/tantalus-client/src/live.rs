@@ -18,6 +18,7 @@ use tantalus_assets::pc::bundled_field::BundledField;
 use tantalus_contracts::{LegacyFieldCamera, Point3};
 use tantalus_game::field::FieldWorld;
 use tantalus_tools::play::{PlayEvent, PlayGame, pad};
+use tantalus_tools::play_audio::AudioCue;
 
 use crate::field_assets::resolve_field_assets_in;
 use crate::scene_adapter::{ClientError, field_sprites, spawn_field_scene};
@@ -242,6 +243,8 @@ struct Live {
     /// The battle HUD's font and window art, loaded with the first battle
     /// (`None` inside when they failed to load).
     battle_hud: std::sync::Mutex<Option<Option<crate::battle_hud::BattleHud>>>,
+    /// Sound output; `None` with `--mute`.
+    audio: Option<crate::audio::LiveAudio>,
 }
 
 /// Opens the play window. `game` is already on its first field.
@@ -249,9 +252,12 @@ pub fn play(
     mut game: PlayGame,
     streaming_assets: std::path::PathBuf,
     scale: u32,
+    mute: bool,
 ) -> Result<(), ClientError> {
     let scale = scale.clamp(1, 8);
     game.live_battles = true;
+    let audio =
+        (!mute).then(|| crate::audio::LiveAudio::start(&streaming_assets, game.game_data()));
     let models = crate::actor_models::ActorModels::new(&streaming_assets);
     let battle_assets = crate::battle_view::BattleAssets::new(&streaming_assets);
     let mut app = App::new();
@@ -287,6 +293,7 @@ pub fn play(
             fight: None,
             battle_assets,
             battle_hud: std::sync::Mutex::new(None),
+            audio,
         })
         .add_systems(Update, live_tick);
     app.run();
@@ -346,6 +353,15 @@ fn step_overlay_motion(
     motion.tick(&game.world().overlay_motion, at);
 }
 
+/// Hands the sound requests a game step made (script sounds, menu presses, battle songs) to the
+/// audio thread.
+fn send_audio(audio: Option<&crate::audio::LiveAudio>, game: &mut PlayGame) {
+    let cues: Vec<AudioCue> = game.take_audio().into_iter().map(|(_, cue)| cue).collect();
+    if let Some(audio) = audio {
+        audio.cues(cues);
+    }
+}
+
 fn live_tick(world: &mut World) {
     let delta = world.resource::<Time>().delta_secs_f64();
     let held = pad_bits(world.resource::<ButtonInput<KeyCode>>());
@@ -356,6 +372,7 @@ fn live_tick(world: &mut World) {
         for event in &events {
             println!("{}", describe(event));
         }
+        send_audio(live.audio.as_ref(), &mut game);
         if done {
             view.finish(world);
             live.elapsed = 0.0;
@@ -394,6 +411,7 @@ fn live_tick(world: &mut World) {
                     game.stopped = Some(error);
                 }
             }
+            send_audio(live.audio.as_ref(), &mut game);
             observe_view(&mut live.view, &game);
             step_overlay_motion(
                 &live.field,

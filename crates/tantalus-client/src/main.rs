@@ -209,6 +209,13 @@ fn run_field_view(args: &[std::ffi::OsString]) -> ExitCode {
 
 /// `--flag value` pairs into a map; `None` (after printing why) on a flag
 /// outside `allowed` or a flag with no value.
+/// Removes a flag that takes no value from `args`; true when it was there.
+fn take_switch(args: &[std::ffi::OsString], name: &str) -> (bool, Vec<std::ffi::OsString>) {
+    let found = args.iter().any(|arg| arg == name);
+    let rest = args.iter().filter(|arg| *arg != name).cloned().collect();
+    (found, rest)
+}
+
 fn flag_values(
     args: &[std::ffi::OsString],
     allowed: &[&str],
@@ -415,6 +422,9 @@ fn load_game(
 }
 
 fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
+    // `--mute` leaves the window silent (no audio thread, no device).
+    let (mute, args) = take_switch(args, "--mute");
+    let args = &args[..];
     let mut allowed = PLAY_FLAGS.to_vec();
     allowed.push("--scale");
     let Some(values) = flag_values(args, &allowed) else {
@@ -426,7 +436,7 @@ fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
         .unwrap_or(3);
     let result = load_game(&values).and_then(|game| {
         let assets = PathBuf::from(&values["--assets"]);
-        tantalus_client::live::play(game, assets, scale).map_err(|error| error.to_string())
+        tantalus_client::live::play(game, assets, scale, mute).map_err(|error| error.to_string())
     });
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -463,6 +473,9 @@ fn parse_holds(list: Option<&String>) -> Result<Vec<(u64, u64, i32)>, String> {
 /// `--auto-confirm` ticks), then renders the field it ends on with its
 /// actors to a PNG.
 fn run_play_capture(args: &[std::ffi::OsString]) -> ExitCode {
+    // `--audio-log` prints each sound request with its tick; no device is ever opened.
+    let (audio_log, args) = take_switch(args, "--audio-log");
+    let args = &args[..];
     let mut allowed = PLAY_FLAGS.to_vec();
     allowed.extend([
         "--ticks",
@@ -475,10 +488,14 @@ fn run_play_capture(args: &[std::ffi::OsString]) -> ExitCode {
         "--give",
         "--learn",
         "--save-point",
+        "--audio-wav",
     ]);
-    let Some(values) = flag_values(args, &allowed) else {
+    let Some(mut values) = flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
     };
+    if audio_log {
+        values.insert("--audio-log".to_owned(), "1".to_owned());
+    }
     match play_capture(&values) {
         Ok(line) => {
             println!("{line}");
@@ -538,6 +555,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     if values.contains_key("--hurt") {
         game.hurt_party();
     }
+    let mut audio = CaptureAudio::new(values, &game)?;
     let mut open_for = 0u64;
     let mut last_confirm = false;
     let mut view = tantalus_client::view_scroll::ViewScroll::default();
@@ -566,6 +584,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         for event in game.tick(held)? {
             println!("{}", tantalus_client::live::describe(&event));
         }
+        audio.tick(&mut game)?;
         tantalus_client::live::observe_view(&mut view, &game);
         let background = game.background().map(str::to_owned);
         if motion.as_ref().map(|(name, ..)| name) != background.as_ref() {
@@ -608,6 +627,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
             break;
         }
     }
+    audio.finish()?;
     let background = game
         .background()
         .ok_or("the run ended on no field background")?;
@@ -763,4 +783,79 @@ fn play_perf(
         "perf actors with a raster: {drawn} of {}",
         frame.actors.len()
     );
+}
+
+/// Sound in `capture-play`: off unless `--audio-log` (print each request with its tick) or
+/// `--audio-wav FILE` (also render the run's sound to a WAV) is given. Neither opens a device.
+struct CaptureAudio {
+    log: Option<tantalus_tools::sound_bank::SoundBank>,
+    wav: Option<(
+        tantalus_tools::play_audio::AudioDirector,
+        tantalus_assets::pc::audio_decode::WavWriter<std::io::BufWriter<std::fs::File>>,
+    )>,
+}
+
+/// The sample rate of the WAV `--audio-wav` writes (a multiple of 60).
+const WAV_RATE: u32 = 44_100;
+
+impl CaptureAudio {
+    fn new(
+        values: &std::collections::BTreeMap<String, String>,
+        game: &tantalus_tools::play::PlayGame,
+    ) -> Result<Self, String> {
+        use tantalus_tools::sound_bank::SoundBank;
+        let open = || SoundBank::open(std::path::Path::new(&values["--assets"]), game.game_data());
+        let log = values.contains_key("--audio-log").then(open).transpose()?;
+        let wav = match values.get("--audio-wav") {
+            Some(path) => {
+                let file = std::fs::File::create(path).map_err(|e| format!("{path}: {e}"))?;
+                let writer = tantalus_assets::pc::audio_decode::WavWriter::new(
+                    std::io::BufWriter::new(file),
+                    2,
+                    WAV_RATE,
+                )
+                .map_err(|e| e.to_string())?;
+                let director = tantalus_tools::play_audio::AudioDirector::new(open()?, WAV_RATE)?;
+                Some((director, writer))
+            }
+            None => None,
+        };
+        Ok(Self { log, wav })
+    }
+
+    /// Handles the sound requests of the tick `game` just played. A game tick is two 1/60 s
+    /// sound ticks.
+    fn tick(&mut self, game: &mut tantalus_tools::play::PlayGame) -> Result<(), String> {
+        if self.log.is_none() && self.wav.is_none() {
+            return Ok(());
+        }
+        let cues = game.take_audio();
+        if let Some(bank) = &self.log {
+            for (tick, cue) in &cues {
+                println!(
+                    "audio tick {tick}: {}",
+                    tantalus_tools::play_audio::describe_cue(cue, bank)
+                );
+            }
+        }
+        if let Some((director, writer)) = &mut self.wav {
+            for (_, cue) in &cues {
+                director.apply(cue);
+            }
+            let samples = director.render(2);
+            let pcm: Vec<i16> = samples
+                .iter()
+                .map(|v| (v.clamp(-1.0, 1.0) * 32767.0) as i16)
+                .collect();
+            writer.write_samples(&pcm).map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn finish(&mut self) -> Result<(), String> {
+        if let Some((_, writer)) = self.wav.take() {
+            writer.finish().map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
 }
