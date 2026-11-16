@@ -97,6 +97,9 @@ not presentation frame rates.
 calculator stream through `GameServices` (the battle world's RNG, seeded
 `seed ^ 0xC0FFEE11DEADBEEF`). Before the world stream was seed-controlled,
 hit rolls and flee rolls used a fixed stream regardless of the knob.
+Wide draws (the flee roll asks for 65_536) compose whole bytes from the
+world RNG, matching the reference's 16-bit draw width exactly (65_536 is
+a power of two); narrow draws stay one byte.
 
 Outcomes are seed-sensitive to a degree that depends on the policy:
 the armed party flips only a couple of marginal battles between seeds;

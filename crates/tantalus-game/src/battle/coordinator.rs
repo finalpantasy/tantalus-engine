@@ -164,7 +164,21 @@ impl GameServices for WorldGameServices<'_> {
         if upper <= 1 {
             return 0;
         }
-        u32::from(self.world.next_random_u8()) % upper
+        if upper <= 256 {
+            return u32::from(self.world.next_random_u8()) % upper;
+        }
+        // Wider draws compose bytes from the world RNG, matching the
+        // reference's draw width: `random16()` asks for 65_536 and gets a
+        // full 16-bit value (exact, a power of two) instead of one u8 %
+        // 65536. Powers of two are exact; other uppers keep the small
+        // modulo bias the reference's own `%` has.
+        let bits = 32 - upper.leading_zeros();
+        let bytes = bits.div_ceil(8);
+        let mut value = 0u32;
+        for _ in 0..bytes {
+            value = (value << 8) | u32::from(self.world.next_random_u8());
+        }
+        value % upper
     }
 
     fn commit_rewards(&mut self, rewards: &RewardBundle) -> Result<(), EngineError> {
