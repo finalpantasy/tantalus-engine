@@ -745,6 +745,32 @@ fn sweep_compare_classifies_outcome_spoils_and_error_changes() {
 }
 
 #[test]
+fn report_paths_agree_on_outcome_gil_and_exp() {
+    use tantalus_tools::battle_run::{run_scene_battle, run_world_battle_report};
+
+    let mut scene = scene();
+    for monster in &mut scene.monster_types {
+        monster.max_hp = 60;
+        monster.stats.spirit = 10;
+    }
+    let mut script = b"EV\x02\x00".to_vec();
+    script.resize(128, 0);
+
+    // Same scene, same seeds, both engine paths: the report-only runner and
+    // the world hand-off must agree on outcome, gil, and EXP. Item/card
+    // draws are independent streams and stay un-compared.
+    for seed in [0x5EEDu64, 1, 7] {
+        let report = run_scene_battle("EVT_BATTLE_TEST", &scene, 0, &script, seed);
+        let world = run_world_battle_report("EVT_BATTLE_TEST", &scene, 0, &script, seed);
+        assert_eq!(report.error, None, "seed {seed}: report path clean");
+        assert_eq!(world.error, None, "seed {seed}: world path clean");
+        assert_eq!(report.outcome, world.outcome, "seed {seed}: outcome");
+        assert_eq!(report.bonus_gil, world.bonus_gil, "seed {seed}: gil");
+        assert_eq!(report.bonus_exp, world.bonus_exp, "seed {seed}: exp");
+    }
+}
+
+#[test]
 fn chain_and_handoff_paths_agree_on_the_same_scene() {
     use std::collections::BTreeMap;
     use tantalus_assets::pc::battle_scene::BattleBundleData;

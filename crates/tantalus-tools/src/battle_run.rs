@@ -527,3 +527,121 @@ pub fn run_world_battle(
     }
     outcome
 }
+
+/// World-hand-off twin of [`run_scene_battle`]: a fresh scratch world whose
+/// party stats match `demo_players`, run through [`run_world_battle`] with
+/// the same seed wiring. The report is filled from world deltas (gil, EXP,
+/// survivor HP) so sweep outputs from both paths compare directly. Item and
+/// card draws are NOT expected to match the report path: each path owns an
+/// independent draw stream.
+pub fn run_world_battle_report(
+    scene_name: &str,
+    scene: &BattleScene,
+    pattern: usize,
+    script: &[u8],
+    seed: u64,
+) -> BattleRunReport {
+    let mut report = BattleRunReport {
+        scene: scene_name.to_owned(),
+        pattern,
+        outcome: None,
+        ticks: 0,
+        error: None,
+        enemy_deaths: 0,
+        players_alive: 0,
+        bonus_gil: 0,
+        bonus_exp: 0,
+        bonus_ap: 0,
+        bonus_items: Vec::new(),
+        card: None,
+    };
+    let mut world = FieldWorld::new();
+    world.party = vec![1, 2, 4, 8];
+    world.gil = 0;
+    for &character in &world.party {
+        world.character_stats.insert(
+            character,
+            tantalus_game::field::CharacterStats {
+                current_hp: 500,
+                max_hp: 500,
+                current_mp: 100,
+                max_mp: 100,
+            },
+        );
+    }
+    let entities: Vec<EntityId> = [101u64, 102, 104, 108]
+        .iter()
+        .map(|id| EntityId::new(*id))
+        .collect();
+    let base = |_: i32| tantalus_game::battle::legacy::PlayerBase {
+        level: 20,
+        strength: 30,
+        magic: 30,
+        dexterity: 30,
+        will: 20,
+        physical_defence: 10,
+        physical_evade: 5,
+        magic_defence: 12,
+        magic_evade: 6,
+        weapon: Some(WeaponStats {
+            power: 25,
+            rate: 0,
+            elements: tantalus_legacy::battle::Elements::NONE,
+            category: WeaponStats::SHORT_RANGE,
+            status: 0,
+        }),
+        learnable: Vec::new(),
+        equipped_abilities: Vec::new(),
+    };
+    // `None` mirrors the report path's "ran but reached no outcome" rows
+    // (e.g. the fog battles, which assemble clean and simply never end):
+    // not an error. Early-failure distinction inside `run_world_battle`
+    // would need a `Result` refactor; flagged as a follow-up.
+    let Some(outcome) =
+        run_world_battle(&mut world, &entities, scene, pattern, script, &base, seed)
+    else {
+        report.players_alive = world
+            .character_stats
+            .values()
+            .filter(|stats| stats.current_hp > 0)
+            .count();
+        return report;
+    };
+    report.outcome = Some(outcome);
+    report.bonus_gil = world.gil;
+    report.bonus_exp = world.character_exp.values().copied().sum::<u64>() as u32;
+    report.players_alive = world
+        .character_stats
+        .values()
+        .filter(|stats| stats.current_hp > 0)
+        .count();
+    report
+}
+
+/// Panic-containing wrapper for sweep drivers, mirroring
+/// [`run_scene_battle_caught`].
+pub fn run_world_battle_caught(
+    scene_name: &str,
+    scene: &BattleScene,
+    pattern: usize,
+    script: &[u8],
+    seed: u64,
+) -> BattleRunReport {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        run_world_battle_report(scene_name, scene, pattern, script, seed)
+    }))
+    .unwrap_or_else(|_| BattleRunReport {
+        scene: scene_name.to_owned(),
+        pattern,
+        outcome: None,
+        ticks: 0,
+        error: Some("panic during run".to_owned()),
+        enemy_deaths: 0,
+        players_alive: 0,
+        bonus_gil: 0,
+        bonus_exp: 0,
+        bonus_ap: 0,
+        bonus_items: Vec::new(),
+        card: None,
+    })
+}
