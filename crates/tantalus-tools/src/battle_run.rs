@@ -206,7 +206,9 @@ pub fn run_scene_battle(
     let enemy_entities = setup.enemy_entities;
 
     let mut world = FieldWorld::new();
-    let mut bonus = BattleBonus::new(pattern_ap, 0x0F, false);
+    // `SB2_HEAD` 0x800 (`after_event`): story battles pay nothing.
+    let event = scene.header.flags & 0x800 != 0;
+    let mut bonus = BattleBonus::new(pattern_ap, 0x0F, event);
     let mut draw_rng: Box<dyn BattleRandom> = Box::new(SplitMix64Random::new(seed ^ 0xD1AA));
     let attack = ContentId::parse(ATTACK_ACTION).unwrap();
 
@@ -263,6 +265,16 @@ pub fn run_scene_battle(
             report.outcome = Some(outcome);
             report.ticks = tick;
             break;
+        }
+    }
+
+    // Script-paid bonuses for enemies that never died (member 71 writes).
+    for event in &adapter.hooks().driver.state.events {
+        if let tantalus_legacy::battle::script_host::AiEvent::SetBonus { unit } = event
+            && let Some(index) = enemy_entities.iter().position(|entity| entity == unit)
+            && index < reward_rows.len()
+        {
+            bonus.set_bonus(&mut reward_rows, index, &mut *draw_rng);
         }
     }
 
@@ -353,7 +365,11 @@ pub fn run_world_battle(
     let hooks = EnemyAiHooks::new(NoEnemyAi, driver, SceneOverlay::default());
     let mut adapter = setup.adapter.with_hooks(hooks);
 
-    let mut bonus = BattleBonus::new(setup.pattern_ap, 0x0F, false);
+    // `SB2_HEAD` 0x800 (`after_event`): story battles show no result
+    // screen and pay nothing (`BattleResultUI.InitialEvent`).
+    let event = scene.header.flags & 0x800 != 0;
+    let member_flag = (1u8 << players.len().min(4)) - 1;
+    let mut bonus = BattleBonus::new(setup.pattern_ap, member_flag, event);
     let mut rows = setup.reward_rows.clone();
     let mut deaths = 0usize;
     let mut draw_rng: Box<dyn BattleRandom> = Box::new(SplitMix64Random::new(seed ^ 0xD1AA));
@@ -401,6 +417,21 @@ pub fn run_world_battle(
         if let Some(done) = adapter.outcome() {
             outcome = Some(done);
             break;
+        }
+    }
+
+    // Script-paid bonuses (`SetBattleCharData` member 71 -> `btl_sys.SetBonus`)
+    // for enemies that end the battle alive; `set_bonus`'s `bonus_given`
+    // guard skips rows already paid by death.
+    for event in &adapter.hooks().driver.state.events {
+        if let tantalus_legacy::battle::script_host::AiEvent::SetBonus { unit } = event
+            && let Some(index) = setup
+                .enemy_entities
+                .iter()
+                .position(|entity| entity == unit)
+            && index < rows.len()
+        {
+            bonus.set_bonus(&mut rows, index, &mut *draw_rng);
         }
     }
 

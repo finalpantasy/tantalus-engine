@@ -514,10 +514,63 @@ fn run_world_battle_plays_a_scene_through_the_field_world() {
     let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 7);
     assert_eq!(outcome, Some(tantalus_game::battle::BattleOutcome::Victory));
     assert_eq!(world.gil, 10 + 300, "scene spoils committed to the world");
+    // 300 EXP splits over the two participating party lines (the
+    // participation mask follows the actual party, not a fixed four).
+    assert_eq!(world.character_exp.get(&0).copied(), Some(150));
+    assert_eq!(world.character_exp.get(&1).copied(), Some(150));
     // Surviving HP/MP carried back to the field world (the unhurt party
     // keeps its full current values, clamped to max).
     let stats = &world.character_stats[&0];
     assert_eq!((stats.current_hp, stats.current_mp), (500, 100));
-    // 300 EXP over four eligible lines = 75 each.
-    assert_eq!(world.character_exp.get(&0).copied(), Some(75));
+}
+
+#[test]
+fn after_event_battles_pay_nothing() {
+    use tantalus_contracts::EntityId;
+    use tantalus_game::FieldWorld;
+    use tantalus_game::battle::legacy::PlayerBase;
+    use tantalus_legacy::battle::WeaponStats;
+    use tantalus_tools::battle_run::run_world_battle;
+
+    let mut scene = scene();
+    for monster in &mut scene.monster_types {
+        monster.max_hp = 60;
+        monster.stats.spirit = 10;
+    }
+    scene.header.flags |= 0x800; // SB2_HEAD after_event
+    let mut script = b"EV\x02\x00".to_vec();
+    script.resize(128, 0);
+
+    let mut world = FieldWorld::new();
+    world.party = vec![0];
+    world.gil = 500;
+    world.character_stats.insert(
+        0,
+        tantalus_game::field::CharacterStats {
+            current_hp: 500,
+            max_hp: 500,
+            current_mp: 100,
+            max_mp: 100,
+        },
+    );
+    let entities = vec![EntityId::new(201)];
+    let base = |_| PlayerBase {
+        level: 20,
+        strength: 30,
+        magic: 30,
+        dexterity: 30,
+        will: 20,
+        weapon: Some(WeaponStats {
+            power: 25,
+            rate: 0,
+            elements: tantalus_legacy::battle::Elements::NONE,
+            category: WeaponStats::SHORT_RANGE,
+            status: 0,
+        }),
+        ..PlayerBase::default()
+    };
+    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 3);
+    assert_eq!(outcome, Some(tantalus_game::battle::BattleOutcome::Victory));
+    assert_eq!(world.gil, 500, "after-event battles pay nothing");
+    assert!(world.character_exp.is_empty(), "no EXP either");
 }
