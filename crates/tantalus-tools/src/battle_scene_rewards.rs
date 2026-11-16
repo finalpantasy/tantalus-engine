@@ -149,6 +149,11 @@ pub fn assemble_legacy_battle(
     action_map: std::collections::BTreeMap<tantalus_contracts::ContentId, (u32, i32)>,
 ) -> Option<BattleSetup> {
     let row = scene.patterns.get(pattern)?;
+    // `SB2_FLG_NO_RUN_AWAY` (0x20): `Info.Runaway = (flags & 32) == 0`
+    // (`BTL_SCENE.cs:322`). The scene wins over the caller's config, whose
+    // default of `true` would otherwise let the party flee Ozma.
+    let mut config = config.clone();
+    config.runaway = scene.header.flags & 0x20 == 0;
     let mut units: Vec<BattleUnit> = players.iter().map(|(_, unit)| unit.clone()).collect();
     let mut entity_pairs: Vec<(tantalus_contracts::EntityId, u16)> = players
         .iter()
@@ -163,7 +168,7 @@ pub fn assemble_legacy_battle(
     }
     let (unit_map, target_bits) = tantalus_game::battle::legacy::unit_mappings(&entity_pairs);
     let adapter = tantalus_game::battle::legacy::LegacyBattleAdapter::new(
-        tantalus_legacy::battle::machine::Battle::new(units, config.clone(), table.clone()),
+        tantalus_legacy::battle::machine::Battle::new(units, config, table.clone()),
         action_map,
         unit_map,
         target_bits,

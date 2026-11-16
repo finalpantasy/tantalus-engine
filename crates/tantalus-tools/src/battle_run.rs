@@ -260,7 +260,12 @@ pub fn run_scene_battle(
     let mut fled = false;
     for tick in 0..MAX_TICKS {
         let mut input = tantalus_game::battle::CombatInput::new(Tick::new(tick));
-        if flee_first && !fled {
+        // The machine gates the flee roll on the ATB running (`atb_runs`),
+        // false at tick 0: wait for the ATB, then press ONCE and live with
+        // the roll. Waiting consumes no draws, so both engine paths roll
+        // from the same stream state; retrying until success would make
+        // every runaway battle a guaranteed escape.
+        if flee_first && !fled && adapter.battle().atb_runs() {
             fled = true;
             let mut services = WorldGameServices::new(&mut world);
             let _ = adapter.flee_attempt(&mut services);
@@ -450,7 +455,12 @@ pub fn run_world_battle(
     let mut fled = false;
     for tick in 0..MAX_TICKS {
         let mut input = tantalus_game::battle::CombatInput::new(Tick::new(tick));
-        if flee_first && !fled {
+        // The machine gates the flee roll on the ATB running (`atb_runs`),
+        // false at tick 0: wait for the ATB, then press ONCE and live with
+        // the roll. Waiting consumes no draws, so both engine paths roll
+        // from the same stream state; retrying until success would make
+        // every runaway battle a guaranteed escape.
+        if flee_first && !fled && adapter.battle().atb_runs() {
             fled = true;
             let mut services = WorldGameServices::new(world);
             let _ = adapter.flee_attempt(&mut services);
