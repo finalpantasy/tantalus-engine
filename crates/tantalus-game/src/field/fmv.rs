@@ -124,6 +124,12 @@ impl FieldFmv {
         self.status = 1;
     }
 
+    /// The movie ended or was skipped: `ff9fieldFMVShutdown`, which the decoder's finish
+    /// callback runs in the reference.
+    pub fn finish(&mut self, field_map_no: i32) {
+        self.shutdown(field_map_no);
+    }
+
     fn shutdown(&mut self, field_map_no: i32) {
         self.attr |= 4;
         self.status = 7;

@@ -206,6 +206,8 @@ pub struct BattleStage {
     /// [`attack_animations`] of the scene's sequence file, by enemy attack
     /// number (`sub_no`).
     pub attack_anims: Vec<(Vec<u16>, bool)>,
+    /// The sounds of each enemy attack ([`crate::battle_sound::sequence_sounds`]).
+    pub sfx: Vec<Vec<crate::battle_sound::SequenceSfx>>,
 }
 
 impl BattleStage {
@@ -252,6 +254,7 @@ impl BattleStage {
             frames: Vec::new(),
             outcome: None,
             attack_anims: Vec::new(),
+            sfx: Vec::new(),
         }
     }
 

@@ -27,6 +27,13 @@ tantalus-client capture-battle <play flags> --battles <tsv> [--ticks N] [--hold 
         Some("capture-play") => run_play_capture(&args[1..]),
         Some("capture-battle") => battle_capture::run(&args[1..]),
         Some("capture-world") => run_world_capture(&args[1..]),
+        Some("capture-movie") => match tantalus_client::movie_view::run_capture(&args[1..]) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("capture-movie failed: {error}");
+                ExitCode::FAILURE
+            }
+        },
         _ => {
             eprintln!(
                 "expected `capture`, `capture-field` `view-field`, `view-track`, `capture-track`, `play` or `capture-play` (see --help)"

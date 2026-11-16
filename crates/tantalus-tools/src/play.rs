@@ -30,6 +30,7 @@ use crate::play_save::{self, PlaySave, SAVE_FORMAT, SLOTS};
 use crate::world_data::WorldAssets;
 use crate::world_play::WorldPlay;
 use tantalus_game::battle::BattleCommand;
+use tantalus_legacy::HostEvent;
 
 /// `EventInput` pad bits (Memoria `Global/Event/EventInput.cs`).
 pub mod pad {
@@ -95,6 +96,9 @@ pub struct PlayData {
     battle_base: BTreeMap<i32, BaseStats>,
     new_game: FieldWorld,
     menu: crate::field_menu::MenuTables,
+    streaming_assets: PathBuf,
+    /// `MBG.MBGDiscTable`: `(disc, fmv)` to movie name; empty without `MBG.cs`.
+    movies: BTreeMap<(i32, i32), String>,
 }
 
 fn read_text(path: &Path) -> Result<String, String> {
@@ -161,6 +165,10 @@ impl PlayData {
             battle_base: base,
             new_game,
             menu,
+            streaming_assets: sa.clone(),
+            movies: std::fs::read_to_string(memoria.join("Assembly-CSharp/Global/MBG.cs"))
+                .map(|source| crate::movie::parse_disc_table(&source))
+                .unwrap_or_default(),
         })
     }
 
@@ -350,6 +358,11 @@ pub struct PlayGame {
     /// (a player's window) instead of to the end inside the field tick
     /// that starts them. Off by default: the headless paths are unchanged.
     pub live_battles: bool,
+    /// Hand movies to a player's window ([`Self::movie`]) and hold the field while one plays.
+    /// Off by default: the headless paths are unchanged.
+    pub live_movies: bool,
+    sound_camera: Option<tantalus_contracts::LegacyFieldCamera>,
+    battle_sounds: crate::battle_sound::BattleSounds,
     /// The battles a field tick started, while [`Self::live_battles`]
     /// fights them; the field waits until they are over.
     pending: Option<PendingBattles>,
@@ -397,6 +410,9 @@ impl PlayGame {
             save_dir: play_save::default_dir(),
             pending_position: None,
             live_battles: false,
+            live_movies: false,
+            sound_camera: None,
+            battle_sounds: crate::battle_sound::BattleSounds::default(),
             pending: None,
             audio: Vec::new(),
         };
@@ -534,6 +550,14 @@ impl PlayGame {
         let (pool, _) = decode_pool(&binary)?;
         let mut world = std::mem::take(&mut self.world);
         prepare_field_world(&mut world, map);
+        if self.live_movies {
+            let movies = self.data.movies.clone();
+            let assets = self.data.streaming_assets.clone();
+            world.fmv_frame_counts = Some(std::sync::Arc::new(move |disc, number| {
+                let name = movies.get(&(disc, number))?;
+                crate::movie::movie_file(&assets, name).map(|_| u32::MAX)
+            }));
+        }
         match self.data.backgrounds.get(&map) {
             Some(background) => match load_tile_animations(&self.data.field_bundles, background) {
                 Ok((animations, cameras)) => world.provide_tile_animations(animations, cameras),
@@ -829,6 +853,64 @@ impl PlayGame {
         }
     }
 
+    /// The movie a script is playing, when [`Self::live_movies`] is on and its file exists.
+    /// The field waits until [`Self::end_movie`].
+    pub fn movie(&self) -> Option<crate::movie::MovieRequest> {
+        if !self.live_movies {
+            return None;
+        }
+        let fmv = &self.session.as_ref()?.director.world().fmv;
+        if fmv.status != 6 {
+            return None;
+        }
+        let name = self.data.movies.get(&(fmv.disc, fmv.number))?;
+        Some(crate::movie::MovieRequest {
+            disc: fmv.disc,
+            number: fmv.number,
+            name: name.clone(),
+            path: crate::movie::movie_file(&self.data.streaming_assets, name)?,
+        })
+    }
+
+    /// The field camera sound positions are projected through (`FF9FieldSoundGetPositionVolume`);
+    /// without one they are centered.
+    pub fn set_sound_camera(&mut self, camera: Option<tantalus_contracts::LegacyFieldCamera>) {
+        self.sound_camera = camera;
+    }
+
+    /// `SetSoundPosition` and `SetSoundObjectPosition` as a cue with the camera projection done.
+    fn sound_position_cue(
+        camera: Option<&tantalus_contracts::LegacyFieldCamera>,
+        world: &FieldWorld,
+        event: &HostEvent,
+    ) -> Option<AudioCue> {
+        let camera = camera?;
+        let (point, volume) = match event {
+            HostEvent::SetSoundPosition { position, volume } => {
+                (position.map(|value| value as f32), *volume)
+            }
+            HostEvent::SetSoundObjectPosition { object, volume } => {
+                (world.actors.get(object)?.position, *volume)
+            }
+            _ => return None,
+        };
+        let (pos, vol) = crate::sound_view::position_volume(camera, point);
+        Some(AudioCue::SoundPosition { pos, vol, volume })
+    }
+
+    /// Queues the sound of the movie that starts (`Some`) or stops (`None`) in the window.
+    pub fn movie_sound(&mut self, resource: Option<String>) {
+        self.audio.push((self.ticks, AudioCue::Movie { resource }));
+    }
+
+    /// The movie finished or was skipped: the script's cinematic wait ends.
+    pub fn end_movie(&mut self) {
+        let map = self.map().unwrap_or(0);
+        if let Some(session) = self.session.as_mut() {
+            session.director.world_mut().fmv.finish(map);
+        }
+    }
+
     /// Drains the sound requests made so far (script opcodes, field changes, battles, menu and
     /// choice presses), each with the game tick it happened on.
     pub fn take_audio(&mut self) -> Vec<(u64, AudioCue)> {
@@ -844,7 +926,7 @@ impl PlayGame {
     /// One field tick (30 a second) with `held` pad bits.
     pub fn tick(&mut self, held: i32) -> Result<Vec<PlayEvent>, String> {
         let mut events = Vec::new();
-        if self.stopped.is_some() || self.pending.is_some() {
+        if self.stopped.is_some() || self.pending.is_some() || self.movie().is_some() {
             return Ok(events);
         }
         let pressed = held & !self.previous;
@@ -915,7 +997,13 @@ impl PlayGame {
         let before = player_position(session.director.world());
         let step = session.tick(input)?;
         for event in session.director.world_mut().take_sound_events() {
-            self.audio.push((self.ticks, AudioCue::Script(event)));
+            let cue = Self::sound_position_cue(
+                self.sound_camera.as_ref(),
+                session.director.world(),
+                &event,
+            );
+            self.audio
+                .push((self.ticks, cue.unwrap_or(AudioCue::Script(event))));
         }
         walk_on_walkmesh(session.director.world_mut(), before, &mut self.floor);
         if let Some(position) = self.pending_position {
@@ -1146,7 +1234,11 @@ impl PlayGame {
         else {
             return events;
         };
-        if fight.step(FightControl::Player(command)) {
+        let more = fight.step(FightControl::Player(command));
+        let cues = self.battle_sounds.step(fight.stage(), fight.party_len());
+        self.audio
+            .extend(cues.into_iter().map(|cue| (self.ticks, cue)));
+        if more {
             return events;
         }
         let pending = self.pending.as_mut().expect("pending");

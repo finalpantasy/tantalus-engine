@@ -253,6 +253,8 @@ struct Live {
     battle_hud: std::sync::Mutex<Option<Option<crate::battle_hud::BattleHud>>>,
     /// Sound output; `None` with `--mute`.
     audio: Option<crate::audio::LiveAudio>,
+    /// The cutscene movie on screen, with the pad bits held when it began or last changed.
+    movie: Option<(crate::movie_view::MoviePlayer, i32)>,
 }
 
 /// Opens the play window. `game` is already on its first field.
@@ -264,6 +266,7 @@ pub fn play(
 ) -> Result<(), ClientError> {
     let scale = scale.clamp(1, 8);
     game.live_battles = true;
+    game.live_movies = true;
     let audio =
         (!mute).then(|| crate::audio::LiveAudio::start(&streaming_assets, game.game_data()));
     let models = crate::actor_models::ActorModels::new(&streaming_assets);
@@ -302,6 +305,7 @@ pub fn play(
             world_view: None,
             battle_assets,
             battle_hud: std::sync::Mutex::new(None),
+            movie: None,
             audio,
         })
         .add_systems(Update, live_tick);
@@ -375,6 +379,23 @@ fn live_tick(world: &mut World) {
     let delta = world.resource::<Time>().delta_secs_f64();
     let held = pad_bits(world.resource::<ButtonInput<KeyCode>>());
     let mut live = world.remove_resource::<Live>().expect("live state");
+    if let Some((mut player, before)) = live.movie.take() {
+        // Start skips; a Start held since before the movie began does not.
+        let skipped = held & pad::START != 0 && before & pad::START == 0;
+        if player.update(world) || skipped {
+            player.close(world);
+            let mut game = live.game.lock().expect("game lock");
+            game.end_movie();
+            game.movie_sound(None);
+            send_audio(live.audio.as_ref(), &mut game);
+            drop(game);
+            live.elapsed = 0.0;
+        } else {
+            live.movie = Some((player, before));
+            world.insert_resource(live);
+            return;
+        }
+    }
     if let Some(mut view) = live.fight.take() {
         let mut game = live.game.lock().expect("game lock");
         let (events, done) = view.update(&mut game, delta, held);
@@ -429,7 +450,7 @@ fn live_tick(world: &mut World) {
                 &mut live.view,
                 &game,
             );
-            if game.battle().is_some() {
+            if game.battle().is_some() || game.movie().is_some() {
                 break;
             }
         }
@@ -450,6 +471,26 @@ fn live_tick(world: &mut World) {
                 hud.as_ref(),
                 &game,
             );
+        }
+    }
+    {
+        let mut game = live.game.lock().expect("game lock");
+        if let Some(request) = game
+            .movie()
+            .filter(|_| live.movie.is_none() && live.fight.is_none())
+        {
+            match crate::movie_view::MoviePlayer::start(&request.path) {
+                Ok(player) => {
+                    println!("** movie {}", request.name);
+                    live.movie = Some((player, held));
+                    game.movie_sound(request.sound_resource());
+                }
+                Err(error) => {
+                    println!("!! movie {}: {error}", request.name);
+                    game.end_movie();
+                }
+            }
+            send_audio(live.audio.as_ref(), &mut game);
         }
     }
     // The battle view covers the field from here; leave the field as it is
@@ -473,7 +514,7 @@ fn live_tick(world: &mut World) {
     if let Some(view) = live.world_view.take() {
         view.finish(world);
     }
-    let game = live.game.lock().expect("game lock");
+    let mut game = live.game.lock().expect("game lock");
     let background = game.background().map(str::to_owned);
     if background != live.background {
         live.background = background.clone();
@@ -503,6 +544,7 @@ fn live_tick(world: &mut World) {
         }
         live.scene = scene;
         live.field = Some(field.scene.clone());
+        game.set_sound_camera(Some(field.scene.camera.clone()));
         live.markers_at = None;
         match &mut live.motion {
             Some(motion) => motion.set_camera(camera as u8),

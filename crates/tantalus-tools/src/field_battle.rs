@@ -909,6 +909,9 @@ impl FieldBattles {
         stage.attack_anims = sequence
             .map(crate::battle_stage::attack_animations)
             .unwrap_or_default();
+        stage.sfx = sequence
+            .map(crate::battle_sound::sequence_sounds)
+            .unwrap_or_default();
         // `btl_sys.SetBonus` on each enemy death; `Info.AfterEvent` scenes
         // pay nothing (`battle.cs:72`).
         let rows = pattern_rewards(scene, pattern).unwrap_or_default();

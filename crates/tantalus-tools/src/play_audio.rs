@@ -69,7 +69,17 @@ pub enum AudioCue {
     BattleLeft,
     /// A user interface sound effect by id (`FF9SFX_Play`).
     Effect { id: i32 },
+    /// `SetSoundPosition` or `SetSoundObjectPosition` with the point already put through the
+    /// field camera (`FF9FieldSoundGetPositionVolume`): the next effect's pan and volume.
+    SoundPosition { pos: i32, vol: i32, volume: i32 },
+    /// `btl_util.SetBattleSfx`: a battle sound effect by id at `volume` (0 to 127).
+    BattleEffect { id: i32, volume: i32 },
+    /// A movie's sound starts (`Some`: the sound resource) or stops (`None`).
+    Movie { resource: Option<String> },
 }
+
+/// The song id a movie's sound is registered under (above every real song id).
+const MOVIE_STREAM_ID: i32 = 9000;
 
 /// One line of the `--audio-log`: what the cue means in the reference's terms.
 pub fn describe_cue(cue: &AudioCue, bank: &SoundBank) -> String {
@@ -132,6 +142,16 @@ pub fn describe_cue(cue: &AudioCue, bank: &SoundBank) -> String {
         },
         AudioCue::BattleLeft => "back on the field: the field song returns".to_owned(),
         AudioCue::Effect { id } => format!("play {}", effect(*id)),
+        AudioCue::BattleEffect { id, volume } => {
+            format!("battle {} at volume {volume}", effect(*id))
+        }
+        AudioCue::SoundPosition { pos, vol, volume } => {
+            format!("sound position pan {pos} volume {vol} script volume {volume}")
+        }
+        AudioCue::Movie { resource } => match resource {
+            Some(resource) => format!("movie sound {resource} starts"),
+            None => "movie sound stops".to_owned(),
+        },
     }
 }
 
@@ -232,6 +252,25 @@ impl AudioDirector {
             AudioCue::BattleStarted { map, battle } => self.battle_started(*map, *battle),
             AudioCue::BattleEnded { end } => self.battle_ended(*end),
             AudioCue::BattleLeft => self.battle_left(),
+            AudioCue::BattleEffect { id, volume } => {
+                // `ff9btlsnd_sndeffect_play(id, 0, volume, S_SeGetPos)`: no attribute bits; the
+                // dispatcher takes no pan for it.
+                self.system
+                    .ff9_sound(code::SNDEFFECT_PLAY, *id, 0, 0, *volume);
+            }
+            AudioCue::SoundPosition { pos, vol, volume } => {
+                self.system.set_se_position_volume(*pos, *vol, *volume);
+            }
+            AudioCue::Movie { resource } => match resource {
+                Some(resource) => {
+                    self.system
+                        .metadata
+                        .song
+                        .insert(MOVIE_STREAM_ID, resource.clone());
+                    self.system.stream_play(MOVIE_STREAM_ID, 0, 0);
+                }
+                None => self.system.stream_stop(),
+            },
             AudioCue::Effect { id } => {
                 self.system.ff9_sound(
                     code::SNDEFFECT_PLAY,
