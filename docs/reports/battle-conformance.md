@@ -90,6 +90,26 @@ equivalent harness). Windows 11, release build, 2026-11-16:
 These are simulation-through-reward numbers with script-driven enemy AI,
 not presentation frame rates.
 
+## Seed sensitivity
+
+Cross-seed verification (0xBEEF vs the committed 0x5EED baselines) across
+all six corpora shows a precise property:
+
+- Armed and flee-first outcomes are seed-invariant: identical rows across
+  seeds (the armed party dominates; the flee roll is level-based, not
+  draw-gated).
+- Weak-party outcomes are seed-sensitive: 17 of 1054 mass-defeat battles
+  flip outcome between seeds, because a marginal party's survival is
+  genuinely stochastic. This is honest behavior, not noise.
+- Cross-path agreement holds at EVERY seed: at 0xBEEF both engine paths
+  still agree with each other on all six corpora, including the 17
+  flipped weak battles.
+
+Consequence: the committed weak baselines are seed-specific (0x5EED).
+Always regenerate or compare weak corpora at the same seed (`--battle-seed`
+defaults to 0x5EED); the gate does. Armed and flee corpora may be compared
+across seeds.
+
 ## Known limits
 
 - Defeat *presentation* (Timing-injected close sequence) is Claude's lane;
