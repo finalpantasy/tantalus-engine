@@ -2,6 +2,7 @@ pub mod battle;
 pub mod chocobo;
 pub mod effects;
 pub mod event;
+pub mod menu;
 pub mod movie;
 pub mod quad;
 pub mod saves;
