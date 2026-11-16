@@ -16,11 +16,16 @@ const SFX_VOLUME: i32 = 127;
 const SFX_POSITION: i32 = 128;
 
 /// Sound effect ids of the menu and dialog cursors (`FF9Sfx.FF9SFX_Play(103/101/102)` across
-/// `Global/*UI.cs`): 103 moves, 101 confirms, 102 cancels or refuses.
+/// `Global/*UI.cs`, `MainMenuUI.cs`): 103 moves the cursor and confirms, 101 goes back, 102 refuses.
 pub mod menu_sound {
-    pub const CONFIRM: i32 = 101;
-    pub const CANCEL: i32 = 102;
+    pub const CONFIRM: i32 = 103;
+    pub const CANCEL: i32 = 101;
+    pub const REFUSE: i32 = 102;
     pub const CURSOR: i32 = 103;
+    /// `BattleResultUI`: a character gained a level.
+    pub const LEVEL_UP: i32 = 683;
+    /// `BattleResultUI.ApLearned`: an ability was learned.
+    pub const ABILITY_LEARNED: i32 = 1043;
 }
 
 /// Song ids `btl_util.ManageBattleSong` plays when a battle ends (`battle.cs:381`, `:276`).
@@ -76,6 +81,8 @@ pub enum AudioCue {
     BattleEffect { id: i32, volume: i32 },
     /// A sound effect by resource name (a spell effect's own sounds, `SFX.SoundPlay`).
     EffectSound { resource: String },
+    /// The Config screen's music and sound volumes, 0 to 100 (`Configuration.Audio`).
+    Volumes { music: i32, sound: i32 },
     /// A movie's sound starts (`Some`: the sound resource) or stops (`None`).
     Movie { resource: Option<String> },
 }
@@ -149,6 +156,7 @@ pub fn describe_cue(cue: &AudioCue, bank: &SoundBank) -> String {
         AudioCue::BattleLeft => "back on the field: the field song returns".to_owned(),
         AudioCue::Effect { id } => format!("play {}", effect(*id)),
         AudioCue::EffectSound { resource } => format!("effect sound {resource}"),
+        AudioCue::Volumes { music, sound } => format!("music volume {music}, sound volume {sound}"),
         AudioCue::BattleEffect { id, volume } => {
             format!("battle {} at volume {volume}", effect(*id))
         }
@@ -262,6 +270,13 @@ impl AudioDirector {
             AudioCue::BattleStarted { map, battle } => self.battle_started(*map, *battle),
             AudioCue::BattleEnded { end } => self.battle_ended(*end),
             AudioCue::BattleLeft => self.battle_left(),
+            AudioCue::Volumes { music, sound } => {
+                // `SoundLib.TryUpdateMusicVolume` / `TryUpdateSoundVolume`.
+                self.system.settings.music_volume = *music as f32 / 100.0;
+                self.system.settings.sound_volume = *sound as f32 / 100.0;
+                self.system.update_playing_music_volume();
+                self.system.update_playing_sound_effect_volume();
+            }
             AudioCue::EffectSound { resource } => {
                 let known = self
                     .effect_sounds

@@ -135,7 +135,7 @@ impl PlayData {
         let atan = std::fs::read(&paths.atan_table)
             .map_err(|error| format!("cannot read {}: {error}", paths.atan_table.display()))?;
         let mut new_game = new_game_world(&base, &levels, atan);
-        let menu = crate::field_menu::MenuTables::load(
+        let mut menu = crate::field_menu::MenuTables::load(
             memoria,
             base.clone(),
             levels.iter().map(|row| row.experience).collect(),
@@ -143,6 +143,8 @@ impl PlayData {
             text.names("ability/aa_name").unwrap_or_default(),
             text.names("ability/sa_name").unwrap_or_default(),
         )?;
+        menu.card_names = text.names("etc/minista").unwrap_or_default();
+        menu.card_levels = text.names("etc/card").unwrap_or_default();
         menu.seed_equipment(&mut new_game);
         new_game.items = tantalus_game::new_game::parse_initial_items(&read_text(
             &characters.join("../Items/InitialItems.csv"),
@@ -372,6 +374,8 @@ pub struct PlayGame {
     pub live_movies: bool,
     sound_camera: Option<tantalus_contracts::LegacyFieldCamera>,
     battle_sounds: crate::battle_sound::BattleSounds,
+    /// The volumes last handed to the audio, so a change is sent once.
+    sent_volumes: Option<(i32, i32)>,
     /// The battles a field tick started, while [`Self::live_battles`]
     /// fights them; the field waits until they are over.
     pending: Option<PendingBattles>,
@@ -423,6 +427,7 @@ impl PlayGame {
             live_movies: false,
             sound_camera: None,
             battle_sounds: crate::battle_sound::BattleSounds::default(),
+            sent_volumes: None,
             pending: None,
             audio: Vec::new(),
         };
@@ -649,6 +654,7 @@ impl PlayGame {
                     max_mp: stats.max_mp.max(0) as u32,
                     base,
                     globals: PartyGlobals::from_globals(world.global_memory.bytes()),
+                    row: u8::from(!world.back_row.contains(character)),
                 })
             })
             .collect()
@@ -672,10 +678,12 @@ impl PlayGame {
                 };
                 let before = menu.revision;
                 open = menu.press(pressed, world, tables);
-                // `FF9SFX_Play(103)` moves the cursor, `101` confirms, `102` cancels or refuses.
-                let sound = if pressed & CONFIRM != 0 {
+                // `FF9SFX_Play(103)` moves the cursor and confirms, `101` goes back, `102` refuses.
+                let sound = if std::mem::take(&mut menu.refused) {
+                    Some(menu_sound::REFUSE)
+                } else if pressed & (CONFIRM | pad::CIRCLE) != 0 {
                     Some(menu_sound::CONFIRM)
-                } else if pressed & (pad::CANCEL | pad::CIRCLE) != 0 {
+                } else if pressed & (pad::CANCEL | pad::CROSS) != 0 {
                     Some(menu_sound::CANCEL)
                 } else if pressed & (pad::UP | pad::DOWN | pad::LEFT | pad::RIGHT) != 0
                     && menu.revision != before
@@ -939,6 +947,14 @@ impl PlayGame {
     /// Drains the sound requests made so far (script opcodes, field changes, battles, menu and
     /// choice presses), each with the game tick it happened on.
     pub fn take_audio(&mut self) -> Vec<(u64, AudioCue)> {
+        let settings = &self.world().settings;
+        let volumes = (settings.music_volume, settings.sound_volume);
+        if self.sent_volumes != Some(volumes) {
+            self.sent_volumes = Some(volumes);
+            let (music, sound) = volumes;
+            self.audio
+                .insert(0, (self.ticks, AudioCue::Volumes { music, sound }));
+        }
         std::mem::take(&mut self.audio)
     }
 
@@ -1203,6 +1219,7 @@ impl PlayGame {
                     if let Ok(text) = self.data.text.battle_text(request.battle) {
                         fight.name_enemies(&text);
                     }
+                    fight.set_battle_speed(session.director.world().settings.btl_speed);
                     pending.fight = Some(fight);
                     self.audio.push((
                         self.ticks,
@@ -1297,8 +1314,13 @@ impl PlayGame {
                 .collect()
         };
         let before = levels(world);
+        let learned = |world: &FieldWorld| -> usize {
+            world.learned_abilities.values().map(|set| set.len()).sum()
+        };
+        let learned_before = learned(world);
         pay_rewards(&report, world);
         let after = levels(world);
+        let learned_after = learned(world);
         let victory = report.outcome.as_deref() == Some("victory");
         self.last_results = Some(BattleResults {
             outcome: report.outcome.clone().unwrap_or_default(),
@@ -1322,6 +1344,23 @@ impl PlayGame {
             stolen: report.items_stolen.clone(),
             card: report.reward_card.filter(|_| victory),
         });
+        if victory {
+            // `BattleResultUI`: a level-up chime (683) once, and the ability-learned sound
+            // (1043) once. The EXP, AP and gil tick loops (105, 109) go with count-up
+            // animations this result screen does not have.
+            let mut sounds = Vec::new();
+            if before.iter().zip(&after).any(|(from, to)| to > from) {
+                sounds.push(menu_sound::LEVEL_UP);
+            }
+            if learned_after > learned_before {
+                sounds.push(menu_sound::ABILITY_LEARNED);
+            }
+            self.audio.extend(
+                sounds
+                    .into_iter()
+                    .map(|id| (self.ticks, AudioCue::Effect { id })),
+            );
+        }
         if let Some(stage) = report.stage.take() {
             pending.stage = Some(stage);
         }

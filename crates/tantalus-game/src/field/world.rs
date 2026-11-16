@@ -532,6 +532,13 @@ pub struct FieldWorld {
     /// (`QuadMistDatabase.MiniGame_SetCard`).
     #[serde(default)]
     pub cards: Vec<u32>,
+    /// Config screen values (`FF9CFG` and the ini options), saved with the game.
+    #[serde(default)]
+    pub settings: super::settings::GameSettings,
+    /// Party members moved to the back row by the Order screen (character
+    /// ids; everyone else stands in the front row).
+    #[serde(default)]
+    pub back_row: std::collections::BTreeSet<i32>,
     /// Background tile blocks the scripts changed on this field, by
     /// overlay index; the renderer applies them over the imported scene.
     #[serde(default)]
@@ -608,6 +615,8 @@ impl PartialEq for FieldWorld {
             && self.items == other.items
             && self.gil == other.gil
             && self.party == other.party
+            && self.settings == other.settings
+            && self.back_row == other.back_row
             && self.character_stats == other.character_stats
             && self.field_name == other.field_name
             && self.timer == other.timer
@@ -724,6 +733,8 @@ impl FieldWorld {
             learned_abilities: BTreeMap::new(),
             equipment: BTreeMap::new(),
             cards: Vec::new(),
+            settings: super::settings::GameSettings::default(),
+            back_row: std::collections::BTreeSet::new(),
             overlays: BTreeMap::new(),
             tile_animations: Vec::new(),
             tile_camera_count: 0,

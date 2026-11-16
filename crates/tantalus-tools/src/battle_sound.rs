@@ -32,6 +32,8 @@ pub type SequenceSfx = (u32, u16, u8);
 const ENEMY_DEATH_EFFECTS: [u16; 2] = [121, 120];
 const FULL_VOLUME: u8 = 127;
 /// `BattleAbilityId.Attack`: a party member's weapon attack.
+/// `BattleCommandId.Item`.
+const ITEM_COMMAND: u32 = 14;
 const ATTACK_ABILITY: i32 = 176;
 /// Ticks from a command starting to its effect landing, as the battle view times it
 /// (`battle_motion::EFFECT_TICKS`).
@@ -95,6 +97,8 @@ pub fn sequence_sounds(bytes: &[u8]) -> Vec<Vec<SequenceSfx>> {
 pub struct EffectSounds {
     /// Ability id to `AnimationId` (`AA_DATA.Info.VfxIndex`).
     effect_of: BTreeMap<i32, i32>,
+    /// Item id to the `AnimationId` of its `ItemEffects.csv` row (the Item command's effect).
+    item_effect_of: BTreeMap<i32, i32>,
     /// Effect id to `(ticks before the figure point, sound resource)`.
     timelines: BTreeMap<i32, Vec<(u32, String)>>,
 }
@@ -130,8 +134,23 @@ impl EffectSounds {
         }
         let text = std::fs::read_to_string(actions)
             .map_err(|error| format!("cannot read {}: {error}", actions.display()))?;
+        // `Items.csv` EffectId (column 3) picks the `ItemEffects.csv` row whose AnimationId
+        // (column 4) is the effect.
+        let items_dir = actions
+            .parent()
+            .and_then(Path::parent)
+            .map(|data| data.join("Items"));
+        let item_effect_of = items_dir
+            .and_then(|dir| {
+                Some(parse_item_effects(
+                    &std::fs::read_to_string(dir.join("Items.csv")).ok()?,
+                    &std::fs::read_to_string(dir.join("ItemEffects.csv")).ok()?,
+                ))
+            })
+            .unwrap_or_default();
         Ok(Self {
             effect_of: parse_actions(&text),
+            item_effect_of,
             timelines,
         })
     }
@@ -143,6 +162,40 @@ impl EffectSounds {
             .and_then(|effect| self.timelines.get(effect))
             .map_or(&[], Vec::as_slice)
     }
+}
+
+/// The sounds of the Item command's effect for `item`.
+impl EffectSounds {
+    pub fn for_item(&self, item: i32) -> &[(u32, String)] {
+        self.item_effect_of
+            .get(&item)
+            .and_then(|effect| self.timelines.get(effect))
+            .map_or(&[], Vec::as_slice)
+    }
+}
+
+/// Item id to effect id: `Items.csv` column 3 into `ItemEffects.csv` column 4.
+fn parse_item_effects(items: &str, effects: &str) -> BTreeMap<i32, i32> {
+    let animation: BTreeMap<i32, i32> = effects
+        .lines()
+        .filter(|line| !line.starts_with('#') && !line.trim().is_empty())
+        .filter_map(|line| {
+            let mut fields = line.split(';');
+            let id = fields.next()?.trim().parse().ok()?;
+            let effect = fields.nth(3)?.trim().parse().ok()?;
+            Some((id, effect))
+        })
+        .collect();
+    items
+        .lines()
+        .filter(|line| !line.starts_with('#') && !line.trim().is_empty())
+        .filter_map(|line| {
+            let mut fields = line.split(';');
+            let item = fields.next()?.trim().parse().ok()?;
+            let effect_id: i32 = fields.nth(2)?.trim().parse().ok()?;
+            Some((item, *animation.get(&effect_id)?))
+        })
+        .collect()
 }
 
 /// `SpecialEffectMetaData.txt`: `{"data": {"<effect>": ["<resource>", ..]}}`.
@@ -356,6 +409,14 @@ impl BattleSounds {
                     self.add(frame, Due::Effect(id, volume));
                 }
             }
+            StageEvent::Command { cmd_no, sub_no, .. } if cmd_no == ITEM_COMMAND => {
+                for (before, resource) in effects.into_iter().flat_map(|e| e.for_item(sub_no)) {
+                    self.add(
+                        EFFECT_TICKS.saturating_sub(*before),
+                        Due::Resource(resource.clone()),
+                    );
+                }
+            }
             StageEvent::Command { unit, sub_no, .. } if sub_no == ATTACK_ABILITY => {
                 self.attacking.push(unit);
                 if let Some((swing, _)) = weapon_sounds(stage, unit) {
@@ -427,6 +488,10 @@ mod tests {
         assert_eq!(cure.len(), 3);
         assert!(cure.iter().all(|(_, name)| name.starts_with("Sounds0")));
         assert!(!sounds.for_ability(25).is_empty(), "Fire has sounds");
+        // Items: Potion (236) and Phoenix Down (249) each play an effect with sounds.
+        let potion = sounds.for_item(236);
+        println!("POTION {potion:?}");
+        assert!(!potion.is_empty(), "the Potion's effect has sounds");
     }
 
     fn stage_with(events: Vec<Vec<StageEvent>>) -> BattleStage {

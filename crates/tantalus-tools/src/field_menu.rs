@@ -36,6 +36,7 @@ use crate::ability_menu::{
 };
 use crate::play::{character_name, pad};
 use crate::play_save::SLOTS;
+use crate::system_menu::{CardState, ConfigState, Exit as SystemExit, OrderState};
 
 /// Row height in PSX pixels.
 pub const ROW: f32 = 14.0;
@@ -50,7 +51,7 @@ const COMMANDS: [&str; 8] = [
     "Save",
 ];
 /// Commands that work.
-const WORKING: [bool; 8] = [true, true, true, true, false, false, false, false];
+const WORKING: [bool; 8] = [true, true, true, true, true, true, true, false];
 const SLOT_NAMES: [&str; 5] = ["Weapon", "Helmet", "Armlet", "Armor", "Accessory"];
 const STAT_NAMES: [&str; 9] = [
     "Speed", "Strength", "Magic", "Spirit", "Attack", "Defense", "Evade", "Mag Def", "Mag Eva",
@@ -110,6 +111,10 @@ pub struct MenuTables {
     /// accessory).
     pub default_equipment: BTreeMap<i32, [Option<u16>; 5]>,
     pub abilities: AbilityTables,
+    /// Tetra Master card names by card id and collector class names by level
+    /// (`ETC/minista.mes`, `ETC/card.mes`).
+    pub card_names: BTreeMap<i32, String>,
+    pub card_levels: BTreeMap<i32, String>,
 }
 
 fn rows(text: &str) -> impl Iterator<Item = Vec<&str>> {
@@ -274,6 +279,8 @@ impl MenuTables {
             item_names,
             default_equipment,
             abilities: AbilityTables::load(&data, active_names, support_names)?,
+            card_names: BTreeMap::new(),
+            card_levels: BTreeMap::new(),
         })
     }
 
@@ -345,6 +352,9 @@ enum Screen {
         member: i32,
     },
     Abilities(AbilityState),
+    Order(OrderState),
+    Cards(CardState),
+    Config(ConfigState),
     /// The save (`save`) or load screen. `direct` ones were opened by a
     /// script or at start and close the menu on cancel.
     Slots {
@@ -385,6 +395,8 @@ pub struct FieldMenu {
     pub action: Option<MenuAction>,
     /// Counts presses; a client redraws when it changes.
     pub revision: u64,
+    /// Set when the last press was refused (the game plays the refusal sound).
+    pub refused: bool,
 }
 
 pub(crate) fn step(cursor: usize, len: usize, pressed: i32) -> usize {
@@ -460,6 +472,7 @@ impl FieldMenu {
             screen: Screen::Main,
             main: 0,
             message: None,
+            refused: false,
             slot_labels: Vec::new(),
             slots_stale: false,
             action: None,
@@ -530,6 +543,7 @@ impl FieldMenu {
                                 };
                                 self.slots_stale = true;
                             } else {
+                                self.refused = true;
                                 self.message =
                                     Some("You can only save at a save point (a moogle).".into());
                             }
@@ -546,7 +560,11 @@ impl FieldMenu {
                                 cursor: 0,
                             };
                         }
+                        (4, _) if party > 0 => self.screen = Screen::Order(OrderState::default()),
+                        (5, _) => self.screen = Screen::Cards(CardState::default()),
+                        (6, _) => self.screen = Screen::Config(ConfigState::default()),
                         (_, false) => {
+                            self.refused = true;
                             self.message = Some(format!(
                                 "{} is not available in this build yet.",
                                 COMMANDS[self.main]
@@ -589,6 +607,7 @@ impl FieldMenu {
                             cursor: 0,
                         };
                     } else {
+                        self.refused = true;
                         self.message = Some("That cannot be used here.".into());
                     }
                 }
@@ -634,6 +653,24 @@ impl FieldMenu {
                     AbilityExit::Stay => Screen::Abilities(state),
                 };
             }
+            Screen::Order(mut state) => {
+                self.screen = match state.press(pressed, world) {
+                    SystemExit::Back => Screen::Main,
+                    SystemExit::Stay => Screen::Order(state),
+                };
+            }
+            Screen::Config(mut state) => {
+                self.screen = match state.press(pressed, world) {
+                    SystemExit::Back => Screen::Main,
+                    SystemExit::Stay => Screen::Config(state),
+                };
+            }
+            Screen::Cards(mut state) => {
+                self.screen = match state.press(pressed, world) {
+                    SystemExit::Back => Screen::Main,
+                    SystemExit::Stay => Screen::Cards(state),
+                };
+            }
             Screen::Slots {
                 save,
                 cursor,
@@ -661,6 +698,7 @@ impl FieldMenu {
                     } else if filled {
                         self.action = Some(MenuAction::Load(cursor + 1));
                     } else {
+                        self.refused = true;
                         self.message = Some("That slot is empty.".into());
                     }
                 }
@@ -730,6 +768,7 @@ impl FieldMenu {
                             .map(Some),
                     );
                     if entries.is_empty() {
+                        self.refused = true;
                         self.message = Some("Nothing to equip there.".into());
                     } else {
                         self.message = None;
@@ -822,6 +861,9 @@ impl FieldMenu {
             } => self.equip_frame(&mut frame, world, tables, *member, *slot, picker.as_ref()),
             Screen::Status { member } => status_frame(&mut frame, world, tables, *member),
             Screen::Abilities(state) => ability_frame(state, &mut frame, world, tables),
+            Screen::Order(state) => state.frame(&mut frame, world),
+            Screen::Config(state) => state.frame(&mut frame, world),
+            Screen::Cards(state) => state.frame(&mut frame, world, tables),
             Screen::Slots { save, cursor, .. } => {
                 let mut texts = Vec::new();
                 for slot in 0..SLOTS {

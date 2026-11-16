@@ -270,6 +270,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                         max_mp: stats.max_mp.max(0) as u32,
                         base: *base.get(character)?,
                         globals: fight_globals,
+                        row: 1,
                     })
                 })
                 .collect();
@@ -1271,6 +1272,7 @@ fn chain(
                                         tantalus_tools::field_battle::PartyGlobals::from_globals(
                                             world.global_memory.bytes(),
                                         ),
+                                    row: u8::from(!world.back_row.contains(character)),
                                 })
                             })
                             .collect();

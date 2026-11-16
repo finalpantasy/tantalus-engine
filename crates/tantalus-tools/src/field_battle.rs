@@ -112,6 +112,8 @@ pub struct PartyFighter {
     pub base: BaseStats,
     /// Event globals the battle setup reads.
     pub globals: PartyGlobals,
+    /// 0 back row, 1 front row (`bi.row`); the Order screen sets it.
+    pub row: u8,
 }
 
 /// The event globals `btl_init` reads when it sets up a party member.
@@ -1424,6 +1426,14 @@ impl LiveFight {
         self.party.len()
     }
 
+    /// Applies the Config screen's Battle Speed (`cfg.btl_speed`, 0 to 2) to a
+    /// battle that has not started ticking.
+    pub fn set_battle_speed(&mut self, speed: u64) {
+        self.adapter
+            .battle_mut()
+            .set_btl_speed(u8::try_from(speed).unwrap_or(1));
+    }
+
     /// Field entity of machine unit `unit`.
     pub fn entity(&self, unit: usize) -> Option<EntityId> {
         self.entities.get(unit).copied()
@@ -1986,6 +1996,7 @@ fn party_unit(slot: usize, fighter: &PartyFighter, equipment: &Equipment) -> Bat
     unit.has_trance_gauge = fighter.globals.trance_gauge != 0
         && category.is_some_and(|category| category & 16 == 0)
         && !(fighter.character == 2 && fighter.globals.garnet_depress != 0);
+    unit.row = fighter.row;
     unit.level = 1;
     unit.cur_hp = fighter.hp.max(1);
     unit.max_hp = fighter.max_hp.max(1);

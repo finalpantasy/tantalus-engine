@@ -23,6 +23,7 @@ pub mod sound_bank;
 pub mod sound_view;
 pub mod special_effects_cli;
 pub mod sweep_compare;
+pub mod system_menu;
 pub mod world_data;
 pub mod world_places;
 pub mod world_play;

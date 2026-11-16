@@ -501,6 +501,24 @@ impl Battle {
         self.log.push((self.tick_no + 1, e));
     }
 
+    /// Applies `cfg.btl_speed` after construction (the Config screen's Battle
+    /// Speed): each unit's gauge coefficient moves from the old base to the new
+    /// one, keeping Haste and Slow.
+    pub fn set_btl_speed(&mut self, speed: u8) {
+        let old = self.base_coef();
+        self.config.btl_speed_config = speed;
+        let new = self.base_coef();
+        for sched in &mut self.sched {
+            sched.atb_coef = if sched.atb_coef == atb::hasted_coef(old) {
+                atb::hasted_coef(new)
+            } else if sched.atb_coef == atb::slowed_coef(old) {
+                atb::slowed_coef(new)
+            } else {
+                atb::setup_atb_coef(new)
+            };
+        }
+    }
+
     fn base_coef(&self) -> i32 {
         atb::base_atb_coef(self.config.btl_speed_config)
     }

@@ -985,3 +985,21 @@ fn enemy_action_through_hook() {
     );
     assert_eq!(b.ready_players, vec![0]);
 }
+
+#[test]
+fn a_battle_speed_set_after_construction_matches_one_built_with_it() {
+    let units = || vec![unit(1, true, 40), unit(16, false, 0)];
+    let mut late = battle(units());
+    late.set_btl_speed(2);
+    let built = Battle::new(
+        units(),
+        BattleConfig {
+            btl_speed_config: 2,
+            ..BattleConfig::default()
+        },
+        table(),
+    );
+    let coefs = |b: &Battle| b.sched.iter().map(|s| s.atb_coef).collect::<Vec<_>>();
+    assert_eq!(coefs(&late), coefs(&built));
+    assert_eq!(late.config.btl_speed_config, 2);
+}
