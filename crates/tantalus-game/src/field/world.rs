@@ -236,6 +236,12 @@ pub struct FieldWorld {
     /// denormalized here for save/inspection.
     #[serde(default)]
     pub learned_abilities: BTreeMap<i32, BTreeSet<i32>>,
+    /// Equipped item ids per character and slot (weapon, head, body, wrist,
+    /// accessory; `None` = empty). Legacy item ids, matching the inventory
+    /// map. Stat effects are computed by the caller's equipment/level rules
+    /// (this world stores ownership only).
+    #[serde(default)]
+    pub equipment: BTreeMap<i32, [Option<u16>; 5]>,
     /// Experience-to-stats provider (runtime-only).
     #[serde(skip)]
     pub level_growth: Option<LevelGrowth>,
@@ -300,6 +306,7 @@ impl PartialEq for FieldWorld {
             && self.character_exp == other.character_exp
             && self.ability_pa == other.ability_pa
             && self.learned_abilities == other.learned_abilities
+            && self.equipment == other.equipment
     }
 }
 
@@ -363,6 +370,7 @@ impl FieldWorld {
             character_exp: BTreeMap::new(),
             ability_pa: BTreeMap::new(),
             learned_abilities: BTreeMap::new(),
+            equipment: BTreeMap::new(),
             level_growth: None,
         }
     }
@@ -798,6 +806,20 @@ impl FieldWorld {
         }
         *pa += amount;
         false
+    }
+
+    /// Equips `item` (legacy id) in `slot` (0 weapon, 1 head, 2 body, 3
+    /// wrist, 4 accessory); `None` empties the slot. Ownership of the item
+    /// is the inventory's concern, not this call's.
+    pub fn equip(&mut self, character: i32, slot: usize, item: Option<u16>) {
+        if slot < 5 {
+            self.equipment.entry(character).or_default()[slot] = item;
+        }
+    }
+
+    /// The character's equipped item ids, five slots, `None` when unset.
+    pub fn equipped(&self, character: i32) -> [Option<u16>; 5] {
+        self.equipment.get(&character).copied().unwrap_or([None; 5])
     }
 
     pub fn add_item_amount(&mut self, item: i32, amount: i32) {

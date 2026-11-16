@@ -418,3 +418,71 @@ pub fn apply_flee_ability_cost(
     world.gil = remaining;
     lost
 }
+
+/// Battle-relevant character data the field world does not own: level-table
+/// and equipment-derived stats. Callers compute this from their level rules
+/// (e.g. the vanilla `Leveling.csv` build) and equipment tables
+/// (`tantalus_legacy::shop`); the world stores ownership, not effects.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PlayerBase {
+    pub level: u8,
+    pub strength: u8,
+    pub magic: u8,
+    pub dexterity: u8,
+    pub will: u8,
+    pub physical_defence: i32,
+    pub physical_evade: i32,
+    pub magic_defence: i32,
+    pub magic_evade: i32,
+    pub weapon: Option<tantalus_legacy::battle::WeaponStats>,
+}
+
+/// Builds one machine battle unit for a party character from field world
+/// state: current HP/MP come from `world.character_stats`, everything else
+/// from the caller's [`PlayerBase`] (level tables + equipment effects).
+/// Returns `None` when the character has no stats in the world.
+pub fn player_machine_unit(
+    world: &crate::field::world::FieldWorld,
+    character: i32,
+    btl_id: u16,
+    base: &PlayerBase,
+) -> Option<BattleUnit> {
+    let stats = world.character_stats.get(&character)?;
+    let mut unit = BattleUnit::new(btl_id, true);
+    unit.character_id = u8::try_from(character).unwrap_or(u8::MAX);
+    unit.level = base.level;
+    unit.cur_hp = u32::try_from(stats.current_hp).unwrap_or(0);
+    unit.max_hp = u32::try_from(stats.max_hp).unwrap_or(0);
+    unit.cur_mp = u32::try_from(stats.current_mp).unwrap_or(0);
+    unit.max_mp = u32::try_from(stats.max_mp).unwrap_or(0);
+    unit.strength = base.strength;
+    unit.magic = base.magic;
+    unit.dexterity = base.dexterity;
+    unit.will = base.will;
+    unit.physical_defence = base.physical_defence;
+    unit.physical_evade = base.physical_evade;
+    unit.magic_defence = base.magic_defence;
+    unit.magic_evade = base.magic_evade;
+    unit.weapon = base.weapon;
+    Some(unit)
+}
+
+/// Builds machine units for the whole party in order (btl_id bits 1, 2, 4,
+/// 8), pairing each with its field entity. Characters without stats are
+/// skipped.
+pub fn party_machine_units(
+    world: &crate::field::world::FieldWorld,
+    entities: &[EntityId],
+    base: &dyn Fn(i32) -> PlayerBase,
+) -> Vec<(EntityId, BattleUnit)> {
+    world
+        .party
+        .iter()
+        .enumerate()
+        .filter_map(|(index, &character)| {
+            let btl_id = 1u16.checked_shl(index as u32)?;
+            let unit = player_machine_unit(world, character, btl_id, &base(character))?;
+            Some((entities.get(index).copied()?, unit))
+        })
+        .collect()
+}

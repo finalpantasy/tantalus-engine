@@ -756,3 +756,74 @@ fn decided_menuoff_defeat_reports_defeat_without_close_timings() {
          animation timings are un-injected"
     );
 }
+
+#[test]
+fn player_machine_units_build_from_world_state_and_equipment() {
+    use std::collections::BTreeMap;
+    use tantalus_contracts::EntityId;
+    use tantalus_game::battle::legacy::{PlayerBase, party_machine_units, player_machine_unit};
+
+    let mut world = FieldWorld::new();
+    world.party = vec![0, 1];
+    for character in [0, 1] {
+        world.character_stats.insert(
+            character,
+            tantalus_game::field::CharacterStats {
+                current_hp: 420,
+                max_hp: 500,
+                current_mp: 60,
+                max_mp: 100,
+            },
+        );
+    }
+    world.equip(0, 0, Some(12));
+    world.equip(0, 4, Some(30));
+    world.equip(1, 1, Some(13));
+    world.equip(1, 1, None); // unequip
+    assert_eq!(world.equipped(0), [Some(12), None, None, None, Some(30)]);
+    assert_eq!(world.equipped(1), [None; 5]);
+    assert_eq!(world.equipped(99), [None; 5]);
+    world.equip(0, 9, Some(1)); // out-of-range slot ignored
+
+    let base = |_| PlayerBase {
+        level: 20,
+        strength: 30,
+        magic: 22,
+        dexterity: 25,
+        will: 18,
+        physical_defence: 12,
+        physical_evade: 4,
+        magic_defence: 15,
+        magic_evade: 6,
+        weapon: Some(tantalus_legacy::battle::WeaponStats {
+            power: 25,
+            rate: 0,
+            elements: tantalus_legacy::battle::Elements::NONE,
+            category: tantalus_legacy::battle::WeaponStats::SHORT_RANGE,
+            status: 0,
+        }),
+    };
+    let unit = player_machine_unit(&world, 0, 1, &base(0)).unwrap();
+    assert!(unit.is_player && unit.id == 1 && unit.character_id == 0);
+    assert_eq!((unit.cur_hp, unit.max_hp), (420, 500));
+    assert_eq!((unit.cur_mp, unit.max_mp), (60, 100));
+    assert_eq!(unit.level, 20);
+    assert_eq!(unit.strength, 30);
+    assert_eq!(unit.physical_defence, 12);
+    assert_eq!(unit.weapon.unwrap().power, 25);
+    assert_eq!(player_machine_unit(&world, 77, 8, &base(0)), None);
+
+    let entities = vec![EntityId::new(201), EntityId::new(202)];
+    let party = party_machine_units(&world, &entities, &base);
+    assert_eq!(party.len(), 2);
+    assert_eq!(party[0].1.id, 1);
+    assert_eq!(party[1].1.id, 2);
+    assert_eq!(party[0].0, EntityId::new(201));
+
+    // Equipment survives save/reload.
+    let scene = tantalus_game::FieldScene::new();
+    let snapshot = tantalus_game::snapshot_scene(&scene, &world, &BTreeMap::new()).unwrap();
+    let decoded = tantalus_game::FieldSnapshot::from_json(&snapshot.to_json().unwrap()).unwrap();
+    let (_, restored) = tantalus_game::restore_scene(&decoded).unwrap();
+    assert_eq!(restored.equipped(0), world.equipped(0));
+}
