@@ -477,7 +477,7 @@ impl PlayGame {
         }
         let before = player_position(session.director.world());
         let step = session.tick(input)?;
-        clamp_to_walkmesh(session.director.world_mut(), before, &mut self.floor);
+        walk_on_walkmesh(session.director.world_mut(), before, &mut self.floor);
         events.extend(
             step.started
                 .iter()
@@ -570,6 +570,46 @@ impl PlayGame {
 fn player_position(world: &FieldWorld) -> Option<[f32; 3]> {
     let player = world.player()?;
     Some(world.actors.get(&player)?.position)
+}
+
+/// The longest piece of a pad step that is clamped at once: a run moves 60
+/// per tick, and a longer jump could land on another floor past a wall.
+const WALK_PIECE: f32 = 15.0;
+
+/// Clamps a pad step to the walkmesh in pieces of at most [`WALK_PIECE`],
+/// as the reference checks each of a run's two walk steps; other moves
+/// (scripts) clamp once.
+fn walk_on_walkmesh(world: &mut FieldWorld, before: Option<[f32; 3]>, floor: &mut Option<i16>) {
+    let walked = world
+        .player()
+        .and_then(|player| world.actors.get(&player))
+        .is_some_and(|actor| actor.input_walking);
+    let (Some(start), Some(after)) = (before, player_position(world)) else {
+        clamp_to_walkmesh(world, before, floor);
+        return;
+    };
+    let delta = [after[0] - start[0], after[2] - start[2]];
+    let pieces = (delta[0].hypot(delta[1]) / WALK_PIECE).ceil();
+    if !walked || pieces <= 1.0 {
+        clamp_to_walkmesh(world, before, floor);
+        return;
+    }
+    let Some(player) = world.player() else {
+        return;
+    };
+    let mut at = start;
+    for _ in 0..pieces as usize {
+        let next = [
+            at[0] + delta[0] / pieces,
+            after[1],
+            at[2] + delta[1] / pieces,
+        ];
+        if let Some(actor) = world.actors.get_mut(&player) {
+            actor.position = next;
+        }
+        clamp_to_walkmesh(world, Some(at), floor);
+        at = player_position(world).unwrap_or(next);
+    }
 }
 
 /// Input walking has no collision of its own: keep the player on the
