@@ -249,7 +249,7 @@ fn field_encounter_drives_the_legacy_machine_to_victory_and_pays_rewards() {
     let enemy_entity = EntityId::new(102);
     let (unit_map, target_bits) = unit_mappings(&[(player_entity, 1), (enemy_entity, 16)]);
     let action_map = BTreeMap::from([(content("action/attack"), (cmd::ATTACK, ABILITY_ATTACK))]);
-    let adapter = LegacyBattleAdapter::new(battle, action_map, unit_map, target_bits, 0x5EED);
+    let adapter = LegacyBattleAdapter::new(battle, action_map, unit_map, target_bits);
 
     // Field: an ENCOUNT request begins the battle through the coordinator.
     let mut coordinator = EncounterCoordinator::new();
@@ -380,4 +380,81 @@ fn field_encounter_drives_the_legacy_machine_to_victory_and_pays_rewards() {
     assert_eq!(world.items[&12], 1, "drawn drop lands in field state");
 
     coordinator.finish().unwrap();
+}
+
+#[test]
+fn legacy_battle_replays_identically_from_identical_world_state() {
+    use std::collections::BTreeMap;
+    use tantalus_contracts::EntityId;
+    use tantalus_game::battle::legacy::{LegacyBattleAdapter, unit_mappings};
+    use tantalus_game::battle::{BattleCommand, EncounterCoordinator};
+    use tantalus_legacy::battle::machine::{ABILITY_ATTACK, Battle as LegacyBattle, BattleConfig};
+    use tantalus_legacy::battle::queue::cmd;
+    use tantalus_legacy::battle::{BattleUnit, StatusDataRow, StatusTable, WeaponStats};
+
+    fn run() -> (u64, u32) {
+        let mut player = BattleUnit::new(1, true);
+        player.level = 20;
+        player.cur_hp = 500;
+        player.max_hp = 500;
+        player.strength = 30;
+        player.dexterity = 30;
+        player.will = 20;
+        player.weapon = Some(WeaponStats {
+            power: 25,
+            rate: 0,
+            elements: tantalus_legacy::battle::Elements::NONE,
+            category: WeaponStats::SHORT_RANGE,
+            status: 0,
+        });
+        let mut enemy = BattleUnit::new(16, false);
+        enemy.cur_hp = 60;
+        enemy.max_hp = 60;
+        enemy.will = 10;
+        let adapter = LegacyBattleAdapter::new(
+            LegacyBattle::new(
+                vec![player, enemy],
+                BattleConfig::default(),
+                StatusTable::new(vec![StatusDataRow::default(); 32]),
+            ),
+            BTreeMap::from([(content("action/attack"), (cmd::ATTACK, ABILITY_ATTACK))]),
+            unit_mappings(&[(EntityId::new(101), 1), (EntityId::new(102), 16)]).0,
+            unit_mappings(&[(EntityId::new(101), 1), (EntityId::new(102), 16)]).1,
+        );
+        let mut coordinator = EncounterCoordinator::new();
+        coordinator
+            .begin(
+                tantalus_game::field::world::EncounterRequest {
+                    rush: 0,
+                    group: None,
+                    battle: 0x55,
+                    steiner_state: false,
+                },
+                adapter,
+            )
+            .unwrap();
+        // The world RNG backs the machine's draws; gil marks world state.
+        let mut world = FieldWorld::new();
+        world.gil = 7;
+        for tick in 0..4000u64 {
+            let mut services = WorldGameServices::new(&mut world);
+            let mut input =
+                tantalus_game::battle::CombatInput::new(tantalus_contracts::Tick::new(tick));
+            input.command = Some(BattleCommand {
+                actor: EntityId::new(101),
+                action: content("action/attack"),
+                targets: vec![EntityId::new(102)],
+            });
+            if coordinator
+                .advance(&input, &mut services)
+                .unwrap()
+                .is_some()
+            {
+                return (tick, world.gil);
+            }
+        }
+        panic!("battle did not end");
+    }
+
+    assert_eq!(run(), run(), "identical world state replays identically");
 }

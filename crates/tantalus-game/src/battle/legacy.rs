@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 use tantalus_contracts::{ContentId, EngineError, EntityId, ErrorCategory};
 use tantalus_legacy::battle::machine::{Battle as LegacyBattle, BattleHooks, EnemyAction, result};
 use tantalus_legacy::battle::queue::{CommandSpec, cmd};
-use tantalus_legacy::battle::rng::{BattleRandom, SplitMix64Random};
+use tantalus_legacy::battle::rng::BattleRandom;
 use tantalus_legacy::battle::targeting::target_type;
 use tantalus_legacy::battle::{BattleCommand, BattleUnit};
 
@@ -102,13 +102,49 @@ impl From<LegacyBattleAdapter> for AnyRuleset {
     }
 }
 
+/// Routes the machine's random draws through the simulation's RNG
+/// authority (`GameServices::random_below`) so a battle replays from world
+/// state alone. Draws are byte-granular: the field world advances an 8-bit
+/// random source, so `random16` and `random_unit` carry 8 bits of entropy
+/// until the world RNG widens.
+struct ServicesRandom<'a> {
+    services: &'a mut dyn GameServices,
+}
+
+impl BattleRandom for ServicesRandom<'_> {
+    fn random16(&mut self) -> i32 {
+        i32::try_from(self.services.random_below(65_536)).unwrap_or(i32::MAX)
+    }
+
+    fn random8(&mut self) -> i32 {
+        i32::try_from(self.services.random_below(256)).unwrap_or(i32::MAX)
+    }
+
+    fn random_range(&mut self, min: i32, max_exclusive: i32) -> i32 {
+        let span = max_exclusive.saturating_sub(min);
+        if span <= 0 {
+            return min;
+        }
+        min + i32::try_from(
+            self.services
+                .random_below(u32::try_from(span).unwrap_or(u32::MAX)),
+        )
+        .unwrap_or(min)
+    }
+
+    fn random_unit(&mut self) -> f32 {
+        self.services.random_below(256) as f32 / 256.0
+    }
+}
+
 /// Drives one legacy machine battle. Player commands arrive as
 /// [`CombatInput`] values; the caller supplies the content-identity mappings
 /// the machine cannot know: action id -> `(cmd_no, sub_no)`, field entity ->
 /// machine unit index, and target entity -> `btl_id` bit for target masks.
+/// Random draws route through the caller's `GameServices`, keeping the whole
+/// simulation deterministic from world state.
 pub struct LegacyBattleAdapter {
     battle: LegacyBattle,
-    rng: Box<dyn BattleRandom>,
     hooks: NoEnemyAi,
     action_map: BTreeMap<ContentId, (u32, i32)>,
     unit_map: BTreeMap<EntityId, usize>,
@@ -134,11 +170,9 @@ impl LegacyBattleAdapter {
         action_map: BTreeMap<ContentId, (u32, i32)>,
         unit_map: BTreeMap<EntityId, usize>,
         target_bits: BTreeMap<EntityId, u16>,
-        seed: u64,
     ) -> Self {
         Self {
             battle,
-            rng: Box::new(SplitMix64Random::new(seed)),
             hooks: NoEnemyAi,
             action_map,
             unit_map,
@@ -224,8 +258,11 @@ impl LegacyBattleAdapter {
                     })?;
             }
         }
+        let mut rng = ServicesRandom {
+            services: _services,
+        };
         self.battle
-            .tick(&mut self.hooks, &mut *self.rng)
+            .tick(&mut self.hooks, &mut rng)
             .map_err(|error| {
                 battle_error(format!("legacy battle tick failed: {error:?}"), false)
             })?;
