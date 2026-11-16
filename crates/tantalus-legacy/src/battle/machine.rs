@@ -18,15 +18,16 @@
 //!   Defaults are 0 (no wait).
 //! * Enemy AI is the event engine and is not ported: [`BattleHooks::enemy_atb`]
 //!   supplies the action an enemy takes when its gauge fills.
-//! * Items, steal, jump, double cast, magic sword, summon decisions, cover,
-//!   reflect redirect, counter requests, support abilities, Auto-Life,
-//!   Phantom recast and Eiko's Rebirth Flame are not ported.
+//! * Reflect, Cover, the player Counter support ability, Item commands and
+//!   Double Cast live in [`super::reactions`]. Steal, jump, Magic Sword,
+//!   summon decisions, other support abilities, Auto-Life, Phantom recast and
+//!   Eiko's Rebirth Flame are not ported.
 
 #![allow(clippy::needless_range_loop)]
 
 use super::atb::{self, GaugeInput, GaugeStep, StartType};
 use super::calc::{CalcEnv, CalcError, calc_main};
-use super::command::BattleCommand;
+use super::command::{BattleCommand, ItemData};
 use super::cost;
 use super::flee::{self, EscapeSides};
 use super::queue::{CmdId, CmdMode, CommandQueue, CommandSpec, SLOTS_PER_UNIT, cmd, is_declarable};
@@ -197,6 +198,12 @@ pub trait BattleHooks {
     fn enemy_atb(&mut self, _battle: &Battle, _unit: usize) -> Option<EnemyAction> {
         None
     }
+
+    /// `ff9item.GetItemEffect(item)` for an Item command. `None` means the
+    /// item has no use effect and the command is refused.
+    fn item(&mut self, _item_id: i32) -> Option<ItemData> {
+        None
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -246,6 +253,25 @@ pub enum BattleEvent {
     },
     UnitRemoved {
         unit: usize,
+    },
+    /// `CheckReflec` redirected a command: `mode` 1 aims it at `targets`,
+    /// mode 2 keeps the non-reflecting targets and replays on `targets`.
+    Reflected {
+        caster: usize,
+        reflecting: u16,
+        targets: [u16; 4],
+        mode: u8,
+    },
+    /// A cover replaced `target_id` with the covering unit `cover_id`.
+    Covered {
+        target_id: u16,
+        cover_id: u16,
+    },
+    /// `ItemUse`: one copy of `item` was removed from the inventory.
+    ItemUsed {
+        unit: usize,
+        item: i32,
+        remaining: u32,
     },
     TranceEntered {
         unit: usize,
@@ -334,6 +360,11 @@ pub struct Battle {
     pub escape_count: u32,
     /// `btl_bonus.exp`.
     pub bonus_exp: u32,
+    /// Item inventory the Item command reads and decrements
+    /// (`ff9item.FF9Item_GetCount` / `FF9Item_Remove`): item id to count. An
+    /// id that is absent has count 0. The host owns the real inventory and
+    /// seeds this from it.
+    pub inventory: std::collections::BTreeMap<i32, u32>,
     /// `(tick, event)` in order; the tick is 1-based.
     pub log: Vec<(u32, BattleEvent)>,
 }
@@ -373,11 +404,12 @@ impl Battle {
             ability_flee: false,
             escape_count: 0,
             bonus_exp: 0,
+            inventory: std::collections::BTreeMap::new(),
             log: Vec::new(),
         }
     }
 
-    fn emit(&mut self, e: BattleEvent) {
+    pub(super) fn emit(&mut self, e: BattleEvent) {
         self.log.push((self.tick_no + 1, e));
     }
 
@@ -814,6 +846,10 @@ impl Battle {
         slot.mode = CmdMode::Inspection;
         slot.loop_ticks = 0;
         slot.effect_done = false;
+        slot.reflec_mode = 0;
+        slot.reflec_targets = [0; 4];
+        slot.has_checked_reflect = false;
+        slot.covered = false;
         slot.priority = !is_declarable(cmd_no);
     }
 
@@ -831,6 +867,59 @@ impl Battle {
         force_priority: bool,
         hooks: &mut dyn BattleHooks,
     ) -> Result<bool, BattleError> {
+        self.set_command_inner(
+            id,
+            cmd_no,
+            sub_no,
+            tar_id,
+            cursor,
+            force_priority,
+            None,
+            hooks,
+            None,
+        )
+    }
+
+    /// [`Battle::set_command`] with a random source, needed by the Double Cast
+    /// branch that picks a random target (`Comn.randomID`, `btl_cmd.cs:215`).
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_command_with_rng(
+        &mut self,
+        id: CmdId,
+        cmd_no: u32,
+        sub_no: i32,
+        tar_id: u16,
+        cursor: u8,
+        force_priority: bool,
+        hooks: &mut dyn BattleHooks,
+        rng: &mut dyn BattleRandom,
+    ) -> Result<bool, BattleError> {
+        self.set_command_inner(
+            id,
+            cmd_no,
+            sub_no,
+            tar_id,
+            cursor,
+            force_priority,
+            None,
+            hooks,
+            Some(rng),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn set_command_inner(
+        &mut self,
+        id: CmdId,
+        cmd_no: u32,
+        sub_no: i32,
+        tar_id: u16,
+        cursor: u8,
+        force_priority: bool,
+        custom_mp_cost: Option<i32>,
+        hooks: &mut dyn BattleHooks,
+        rng: Option<&mut dyn BattleRandom>,
+    ) -> Result<bool, BattleError> {
         if self.cmds.is_using(id, &self.running) {
             return Ok(false);
         }
@@ -843,15 +932,23 @@ impl Battle {
             self.cmds.cmd_status |= 1;
         }
         let regist = self.cmds.slots[id].regist;
-        let spec = match regist {
+        let mut spec = match regist {
             Some(r) => hooks.spec(cmd_no, sub_no, &self.units[r]),
             None => None,
         };
-        if let Some(s) = &spec
+        let is_player = regist.is_some_and(|r| self.units[r].is_player);
+        if cmd_no == cmd::ITEM && is_player {
+            spec = Some(self.item_spec(spec, cmd_no, sub_no, hooks)?);
+        }
+        if let (Some(s), Some(r)) = (&spec, regist)
             && s.command.script_id == 80
-            && regist.is_some_and(|r| self.units[r].is_player)
+            && is_player
         {
-            return Err(BattleError::Unported("double cast (script 80)"));
+            let double = s.clone();
+            return self.queue_double_cast(id, r, &double, cmd_no, tar_id, hooks, rng);
+        }
+        if let (Some(s), Some(mp)) = (spec.as_mut(), custom_mp_cost) {
+            s.command.custom_mp_cost = Some(mp);
         }
         self.raw_set_command(id, cmd_no, sub_no, tar_id, cursor, spec);
         if force_priority {
@@ -1495,13 +1592,29 @@ impl Battle {
                     }
                 }
                 CmdMode::SelectVfx => {
-                    let tar = self.cmds.slots[id].tar_id;
-                    let valid = (0..self.units.len()).any(|j| {
-                        self.sched[j].in_list
-                            && self.units[j].id & tar != 0
-                            && self.sched[j].targetable
-                    });
-                    self.cmds.slots[id].mode = if valid { CmdMode::Loop } else { CmdMode::Done };
+                    // `CMD_MODE_SELECT_VFX` (`btl_cmd.cs:606-650`): confirm a
+                    // target, try covers, confirm again, then the effect
+                    // setup runs `CheckReflec`, then the item is used.
+                    if !self.confirm_valid_target(id) {
+                        self.cmds.slots[id].mode = CmdMode::Done;
+                    } else {
+                        let before = self.cmds.slots[id].tar_id;
+                        self.try_cover(id);
+                        let after = self.cmds.slots[id].tar_id;
+                        if before != after {
+                            self.emit(BattleEvent::Covered {
+                                target_id: before & !after,
+                                cover_id: after & !before,
+                            });
+                        }
+                        if !self.confirm_valid_target(id) {
+                            self.cmds.slots[id].mode = CmdMode::Done;
+                        } else {
+                            self.check_reflect(id, rng);
+                            self.consume_item(id);
+                            self.cmds.slots[id].mode = CmdMode::Loop;
+                        }
+                    }
                 }
                 CmdMode::Loop => {
                     self.command_loop(id, hooks, rng)?;
@@ -1587,6 +1700,9 @@ impl Battle {
             .as_ref()
             .map_or(0, |s| s.command.ability_category);
         if self.units[r].is_under_any_status(st::SILENCE) && category & 2 != 0 {
+            return false;
+        }
+        if !self.item_available(id) {
             return false;
         }
         match cmd_no {
@@ -1691,7 +1807,11 @@ impl Battle {
             self.apply_effect(id, hooks, rng)?;
         }
         if self.cmds.slots[id].effect_done && self.cmds.slots[id].loop_ticks >= t.loop_total_ticks {
-            self.cmds.slots[id].mode = CmdMode::Done;
+            // `ReqFinishCommand` replays a partly reflected command on the
+            // reflected targets instead of finishing.
+            if !self.arm_reflect_second_pass(id) {
+                self.cmds.slots[id].mode = CmdMode::Done;
+            }
         }
         self.cmds.slots[id].loop_ticks += 1;
         Ok(())
@@ -1730,6 +1850,9 @@ impl Battle {
             let mut command: BattleCommand = spec.command.clone();
             command.command_id = cmd_no;
             command.target_id = tar;
+            if self.cmds.slots[id].reflec_mode == 1 {
+                command.reflect_target_ids = Some(self.cmds.slots[id].reflec_targets);
+            }
             command.is_many_target = cursor & 1 != 0;
             command.is_short_range = short;
             let env = CalcEnv {
@@ -1747,6 +1870,7 @@ impl Battle {
                 target: t,
                 target_hp,
             });
+            self.trigger_counter(caster, t, cmd_no, spec.command.ability_category, hooks, rng)?;
         }
         Ok(())
     }
@@ -1775,6 +1899,7 @@ impl Battle {
             self.ready_players.retain(|&u| u != r);
             self.check_point_data(r, rng);
         }
+        self.finish_cover(id);
         self.running.retain(|&c| c != id);
         self.cmds.clear(id);
         if let Some(r) = regist {

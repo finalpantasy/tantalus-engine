@@ -16,6 +16,12 @@ use super::command::BattleCommand;
 pub mod cmd {
     pub const NONE: u32 = 0;
     pub const ATTACK: u32 = 1;
+    pub const MAGIC_SWORD: u32 = 31;
+    pub const ITEM: u32 = 14;
+    pub const THROW: u32 = 15;
+    pub const COUNTER: u32 = 49;
+    pub const MAGIC_COUNTER: u32 = 50;
+    pub const AUTO_POTION: u32 = 51;
     pub const JUMP: u32 = 3;
     pub const DEFEND: u32 = 4;
     pub const JUMP_IN_TRANCE: u32 = 12;
@@ -96,6 +102,15 @@ pub struct CmdSlot {
     pub loop_ticks: u32,
     /// The effect of this command has been applied (injected-timing flag).
     pub effect_done: bool,
+    /// `info.reflec`: 0 none, 1 reflected onto `reflec_targets`, 2 partly
+    /// reflected (the non-reflecting targets resolve first).
+    pub reflec_mode: u8,
+    /// `reflec.tar_id[0..4]`.
+    pub reflec_targets: [u16; 4],
+    /// `info.HasCheckedReflect`.
+    pub has_checked_reflect: bool,
+    /// `info.cover == 1`: a cover replaced a target of this command.
+    pub covered: bool,
 }
 
 impl CmdSlot {
@@ -115,6 +130,10 @@ impl CmdSlot {
             spec: None,
             loop_ticks: 0,
             effect_done: false,
+            reflec_mode: 0,
+            reflec_targets: [0; 4],
+            has_checked_reflect: false,
+            covered: false,
         }
     }
 }

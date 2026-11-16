@@ -18,6 +18,15 @@ pub struct ItemEffect {
     pub elements: Elements,
 }
 
+/// What the item tables give an Item command: `ff9item.GetItemEffect(item)`
+/// (`ITEM_DATA`): `Ref.ScriptId`, the [`ItemEffect`] fields and `info.ForDead`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ItemData {
+    pub effect: ItemEffect,
+    pub script_id: i32,
+    pub for_dead: bool,
+}
+
 /// One executing command. For an `AA_DATA` row, `CMD_DATA.SetAAData`
 /// (`CMD_DATA.cs:38-54`) copies: `script_id` = `Ref.ScriptId` (table
 /// `btl_ref.prog_no`), `power` = `Ref.Power`, `hit_rate` = `Ref.Rate`,

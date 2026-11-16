@@ -3,7 +3,7 @@
 //! Source of each field: `Global/BTL_DATA.cs` (the `Data.*` members) through
 //! the accessor in `Memoria/Battle/Calculator/BattleUnit.cs`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// `ElementSet` restricted to the eight vanilla elements, stored as the
 /// `EffectElement` byte (`Memoria/Data/Battle/EffectElement.cs:14`): Fire 1,
@@ -138,6 +138,14 @@ pub struct BattleUnit {
     /// parameter, `DoomStatusScript.cs:17`, `GradualPetrifyStatusScript.cs:18`).
     pub doom_counter: i32,
     pub gradual_petrify_counter: i32,
+    /// Support abilities in effect (`ff9abil.GetEnabledSA`, ids of
+    /// `SupportAbility`). Which ones a character has equipped and learned is
+    /// party state the caller supplies.
+    pub support_abilities: BTreeSet<u8>,
+    /// `bi.cover_unit`: the `btl_id` of the unit this unit is covering. Set by
+    /// `btl_abil.CheckCoverAbility`; `bi.cover` is `cover_unit != null`, so
+    /// [`BattleUnit::covering`] is kept equal to `cover_unit.is_some()`.
+    pub cover_unit: Option<u16>,
 }
 
 impl BattleUnit {
@@ -190,7 +198,14 @@ impl BattleUnit {
             petrify_command_pending: false,
             doom_counter: 0,
             gradual_petrify_counter: 0,
+            support_abilities: BTreeSet::new(),
+            cover_unit: None,
         }
+    }
+
+    /// `ff9abil.GetEnabledSA(unit)` contains `sa`.
+    pub fn has_support_ability(&self, sa: u8) -> bool {
+        self.support_abilities.contains(&sa)
     }
 
     /// `IsUnderAnyStatus(mask)` (`BattleUnit.cs:482`): `(CurrentStatus & mask) != 0`.

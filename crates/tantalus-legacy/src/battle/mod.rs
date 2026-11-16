@@ -24,6 +24,7 @@ pub mod flee;
 pub mod host;
 pub mod machine;
 pub mod queue;
+pub mod reactions;
 pub mod rewards;
 pub mod rng;
 pub mod script_host;
@@ -36,7 +37,7 @@ pub use calc::{
     AttackBonus, CalcEnv, CalcError, CalcFlags, CalcOutcome, Calculator, UnitCalc, UnitFlags,
     calc_main, calc_result,
 };
-pub use command::{BattleCommand, ItemEffect};
+pub use command::{BattleCommand, ItemData, ItemEffect};
 pub use rng::{BattleRandom, SequenceRandom, SplitMix64Random};
 pub use status::{AlterResult, StatusCtx, StatusDataRow, StatusEnv, StatusTable};
 pub use unit::{BattleUnit, Elements, WeaponStats};

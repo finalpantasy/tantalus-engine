@@ -1131,6 +1131,10 @@ impl<H: BattleHooks> BattleHooks for EnemyAiHooks<H> {
         self.inner.spec(cmd_no, sub_no, caster)
     }
 
+    fn item(&mut self, item_id: i32) -> Option<super::command::ItemData> {
+        self.inner.item(item_id)
+    }
+
     fn enemy_atb(&mut self, battle: &Battle, unit: usize) -> Option<EnemyAction> {
         let id = battle.units[unit].id;
         if self.last_tick != Some(battle.tick_no) {
