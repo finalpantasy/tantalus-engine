@@ -744,3 +744,121 @@ fn sweep_compare_classifies_outcome_spoils_and_error_changes() {
     );
     assert_eq!(report["same_shape"], false);
 }
+
+#[test]
+fn chain_and_handoff_paths_agree_on_the_same_scene() {
+    use std::collections::BTreeMap;
+    use tantalus_assets::pc::battle_scene::BattleBundleData;
+    use tantalus_contracts::EntityId;
+    use tantalus_game::FieldWorld;
+    use tantalus_legacy::battle::WeaponStats;
+    use tantalus_tools::battle_run::run_world_battle;
+    use tantalus_tools::field_battle::{Equipment, FieldBattles, PartyFighter};
+
+    let mut scene = scene();
+    for monster in &mut scene.monster_types {
+        monster.max_hp = 60;
+        monster.stats.spirit = 10;
+    }
+    let mut script = b"EV\x02\x00".to_vec();
+    script.resize(128, 0);
+
+    // Opus's chain path: FieldBattles::fight.
+    let engine = FieldBattles::from_parts(
+        BattleBundleData {
+            scenes: BTreeMap::from([("EVT_BATTLE_TEST".to_owned(), Ok(scene.clone()))]),
+            sequences: BTreeMap::new(),
+            sequence_bytes: BTreeMap::new(),
+            infos: BTreeMap::new(),
+        },
+        BTreeMap::from([("EVT_BATTLE_TEST".to_owned(), script.clone())]),
+        BTreeMap::from([(1, "BSC_TEST".to_owned())]),
+        Equipment::default(),
+    );
+    let base_stats = tantalus_game::new_game::BaseStats {
+        speed: 23,
+        strength: 21,
+        magic: 18,
+        spirit: 23,
+        gems: 18,
+    };
+    let report = engine.fight(
+        &tantalus_game::field::world::EncounterRequest {
+            rush: 0,
+            group: None,
+            battle: 1,
+            steiner_state: false,
+        },
+        &[PartyFighter {
+            character: 0,
+            hp: 500,
+            max_hp: 500,
+            mp: 100,
+            max_mp: 100,
+            base: base_stats,
+        }],
+    );
+    assert_eq!(report.error, None);
+    assert_eq!(report.outcome.as_deref(), Some("victory"));
+
+    // My hand-off path: run_world_battle over the same scene.
+    let mut world = FieldWorld::new();
+    world.party = vec![0];
+    world.gil = 0;
+    world.character_stats.insert(
+        0,
+        tantalus_game::field::CharacterStats {
+            current_hp: 500,
+            max_hp: 500,
+            current_mp: 100,
+            max_mp: 100,
+        },
+    );
+    let outcome = run_world_battle(
+        &mut world,
+        &[EntityId::new(201)],
+        &scene,
+        0,
+        &script,
+        &|_| tantalus_game::battle::legacy::PlayerBase {
+            level: 20,
+            strength: 30,
+            magic: 30,
+            dexterity: 30,
+            will: 20,
+            physical_defence: 10,
+            physical_evade: 5,
+            magic_defence: 12,
+            magic_evade: 6,
+            weapon: Some(WeaponStats {
+                power: 25,
+                rate: 0,
+                elements: tantalus_legacy::battle::Elements::NONE,
+                category: WeaponStats::SHORT_RANGE,
+                status: 0,
+            }),
+            learnable: Vec::new(),
+            equipped_abilities: Vec::new(),
+        },
+        9,
+    );
+    assert_eq!(
+        outcome,
+        Some(tantalus_game::battle::BattleOutcome::Victory),
+        "both paths agree on the outcome"
+    );
+
+    // Gil and EXP are draw-independent: both paths must agree exactly.
+    assert_eq!(
+        report.reward_gil, world.gil,
+        "both paths pay the same gil ({} vs {})",
+        report.reward_gil, world.gil
+    );
+    let chain_exp: u32 = report.reward_exp.iter().map(|(_, exp)| *exp).sum();
+    let handoff_exp: u64 = world.character_exp.values().copied().sum::<u64>() as u32 as u64;
+    assert_eq!(
+        u64::from(chain_exp),
+        handoff_exp,
+        "both paths split EXP identically"
+    );
+}

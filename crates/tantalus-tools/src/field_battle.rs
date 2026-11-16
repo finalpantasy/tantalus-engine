@@ -270,6 +270,21 @@ impl FieldBattles {
         })
     }
 
+    /// Test and tooling constructor from already-loaded parts (no disk).
+    pub fn from_parts(
+        data: BattleBundleData,
+        scripts: BTreeMap<String, Vec<u8>>,
+        scene_ids: BTreeMap<u16, String>,
+        equipment: Equipment,
+    ) -> Self {
+        Self {
+            data,
+            scripts,
+            scene_ids,
+            equipment,
+        }
+    }
+
     /// Fights `request` with `party`. [`save_party`] and [`pay_rewards`] carry
     /// the result back to the field.
     pub fn fight(&self, request: &EncounterRequest, party: &[PartyFighter]) -> FightReport {
