@@ -53,6 +53,13 @@ pub fn basic_spec(cmd_no: u32) -> Option<CommandSpec> {
                 for_dead: false,
             })
         }
+        // `TryEscape` (script 56): only the machine's flee paths may queue
+        // it, so the catalog entry exists solely for those.
+        cmd::SYS_ESCAPE => Some(CommandSpec {
+            command: BattleCommand::new(56),
+            default_ally: false,
+            for_dead: false,
+        }),
         _ => None,
     }
 }
@@ -183,6 +190,24 @@ impl LegacyBattleAdapter {
             outcome: None,
             log_cursor: 0,
         }
+    }
+
+    /// The party flee-key roll (`btl_sys.CheckEscape(true)`, script 56):
+    /// rolls the escape rate and queues `SysEscape` on success. Returns
+    /// false when escape is impossible or the roll failed.
+    pub fn flee_attempt(&mut self, services: &mut dyn GameServices) -> Result<bool, EngineError> {
+        let mut rng = ServicesRandom { services };
+        self.battle
+            .flee_attempt(&mut *self.hooks, &mut rng)
+            .map_err(|error| battle_error(format!("flee attempt failed: {error:?}"), false))
+    }
+
+    /// The Flee ability (script 57): queues `SysEscape` without a roll when
+    /// the party can escape.
+    pub fn flee_ability(&mut self) -> Result<bool, EngineError> {
+        self.battle
+            .flee_ability(&mut *self.hooks)
+            .map_err(|error| battle_error(format!("flee ability failed: {error:?}"), false))
     }
 
     /// Replaces the hooks (e.g. with `EnemyAiHooks` driving enemy AI from
