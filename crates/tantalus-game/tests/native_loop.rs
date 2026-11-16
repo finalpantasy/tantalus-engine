@@ -313,12 +313,12 @@ fn walk_input_moves_the_player_by_the_configured_direction_bits() {
         [0.0; 3]
     );
     director.world_mut().user_control = true;
-    // Right at the default walk speed (16) per tick.
+    // Right at run speed: two walk steps of 30 per tick.
     director.set_input_mask(0x08);
     director.step().unwrap();
     assert_eq!(
         director.world().actors[&EntityId::new(1)].position,
-        [16.0, 0.0, 0.0]
+        [60.0, 0.0, 0.0]
     );
     // Up moves positive Z (FieldMapActorController.UpdateMovement);
     // diagonals normalize.
@@ -326,13 +326,13 @@ fn walk_input_moves_the_player_by_the_configured_direction_bits() {
     director.step().unwrap();
     assert_eq!(
         director.world().actors[&EntityId::new(1)].position,
-        [16.0, 0.0, 16.0]
+        [60.0, 0.0, 60.0]
     );
     director.set_input_mask(0x08 | 0x02);
     let before = director.world().actors[&EntityId::new(1)].position;
     director.step().unwrap();
     let after = director.world().actors[&EntityId::new(1)].position;
-    let expected = 16.0f32 * std::f32::consts::FRAC_1_SQRT_2;
+    let expected = 60.0f32 * std::f32::consts::FRAC_1_SQRT_2;
     assert!((after[0] - before[0] - expected).abs() < 1e-4);
     assert!((after[2] - before[2] + expected).abs() < 1e-4);
     // A control twist of 90 degrees turns up (+z) into +x.
@@ -341,6 +341,20 @@ fn walk_input_moves_the_player_by_the_configured_direction_bits() {
     let before = director.world().actors[&EntityId::new(1)].position;
     director.step().unwrap();
     let after = director.world().actors[&EntityId::new(1)].position;
-    assert!((after[0] - before[0] - 16.0).abs() < 1e-3);
+    assert!((after[0] - before[0] - 60.0).abs() < 1e-3);
     assert!((after[2] - before[2]).abs() < 1e-3);
+    // Holding the walk button, or `DASHOFF`, walks at 30.
+    director.world_mut().control_twist = 0.0;
+    director.set_walk_hold_bit(Some(0x10));
+    director.set_input_mask(0x08 | 0x10);
+    let before = director.world().actors[&EntityId::new(1)].position;
+    director.step().unwrap();
+    let after = director.world().actors[&EntityId::new(1)].position;
+    assert!((after[0] - before[0] - 30.0).abs() < 1e-3);
+    director.world_mut().run_disabled = true;
+    director.set_input_mask(0x08);
+    let before = director.world().actors[&EntityId::new(1)].position;
+    director.step().unwrap();
+    let after = director.world().actors[&EntityId::new(1)].position;
+    assert!((after[0] - before[0] - 30.0).abs() < 1e-3);
 }

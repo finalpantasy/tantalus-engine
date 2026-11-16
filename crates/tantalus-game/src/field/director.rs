@@ -163,6 +163,10 @@ impl FieldDirector {
         self.world.set_walk_bits(bits);
     }
 
+    pub fn set_walk_hold_bit(&mut self, bit: Option<i32>) {
+        self.world.set_walk_hold_bit(bit);
+    }
+
     /// Observed per-entry VM state (entity, pc, status, wait).
     pub fn entry_states(
         &self,

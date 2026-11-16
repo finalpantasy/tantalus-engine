@@ -641,6 +641,8 @@ impl LegacyEventHost for FieldHost<'_> {
                 HostEvent::SetUserControl { enabled } => {
                     self.world.user_control = *enabled;
                 }
+                HostEvent::DisableRun => self.world.run_disabled = true,
+                HostEvent::SetRunEnabled { enabled } => self.world.run_disabled = !*enabled,
                 // `SetControlDirection` (0x67) calls `SetTwistAD(arrow,
                 // analog)`; key walking turns by `twist.y`, the second
                 // argument (FieldMapActorController.cs:712).

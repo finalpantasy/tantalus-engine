@@ -386,6 +386,7 @@ impl PlayGame {
         session
             .director
             .set_walk_bits(Some((pad::UP, pad::DOWN, pad::LEFT, pad::RIGHT)));
+        session.director.set_walk_hold_bit(Some(pad::CANCEL));
         self.session = Some(session);
         self.shown.clear();
         self.cursor = 0;

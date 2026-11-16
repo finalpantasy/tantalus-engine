@@ -39,6 +39,9 @@ pub struct ActorState {
     /// so the renderer plays the walk loop. Runtime-only.
     #[serde(skip)]
     pub input_walking: bool,
+    /// The input move this tick was a run (`isRunning`). Runtime-only.
+    #[serde(skip)]
+    pub input_running: bool,
     pub exit_walk: bool,
     pub turn: Option<Turn>,
     pub animation_frames: u16,
@@ -107,6 +110,14 @@ pub struct ActorLook {
 }
 
 impl ActorLook {
+    /// Like [`Self::current`], but a run picks the run loop first.
+    pub fn current_moving(&self, playing: bool, moving: bool, running: bool) -> Option<u16> {
+        if running && !(playing && self.playing.is_some()) {
+            return self.run.or(self.walk).or(self.idle);
+        }
+        self.current(playing, moving)
+    }
+
     /// The animation to draw: the one `ANIM` started while it still runs,
     /// else walk while moving, else the stand animation.
     pub fn current(&self, playing: bool, moving: bool) -> Option<u16> {
@@ -127,6 +138,7 @@ impl ActorState {
             position,
             movement: None,
             input_walking: false,
+            input_running: false,
             exit_walk: false,
             turn: None,
             animation_frames: 0,
@@ -358,6 +370,13 @@ pub struct FieldWorld {
     /// Direction-bit mapping `(up, down, left, right)` for player movement;
     /// none means input never moves the player (no layout guessed).
     walk_bits: Option<(i32, i32, i32, i32)>,
+    /// The button that makes the player walk instead of run while held
+    /// (`Control.Cancel` with the default `cfg.move == 1`); none never walks.
+    #[serde(skip)]
+    walk_hold_bit: Option<i32>,
+    /// `DASHOFF` (`dashinh`): the player always walks. Cleared on field load.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub run_disabled: bool,
     /// How often scenes have read the player actor's facing (member 3) -
     /// a rising count means a facing gate is polling.
     pub player_facing_polls: u64,
@@ -463,6 +482,8 @@ impl PartialEq for FieldWorld {
             && self.random_battles == other.random_battles
             && self.input_mask == other.input_mask
             && self.walk_speed == other.walk_speed
+            && self.walk_hold_bit == other.walk_hold_bit
+            && self.run_disabled == other.run_disabled
             && self.control_twist == other.control_twist
             && self.animation_default_ticks == other.animation_default_ticks
             && self.exit_arrivals == other.exit_arrivals
@@ -541,6 +562,8 @@ impl FieldWorld {
             player: None,
             confirm_mask: None,
             walk_bits: None,
+            walk_hold_bit: None,
+            run_disabled: false,
             player_facing_polls: 0,
             fmv_frame_counts: None,
             item_id_map: None,
@@ -583,6 +606,8 @@ impl FieldWorld {
     /// field: its regions, windows, pending requests, shared scripts and
     /// member overrides go with it. Party, items, globals and actors stay.
     pub fn begin_field(&mut self) {
+        // `EventEngine` clears `dashinh` when a field starts.
+        self.run_disabled = false;
         self.regions.clear();
         self.windows.clear();
         self.window_texts.clear();
@@ -634,6 +659,11 @@ impl FieldWorld {
         self.walk_bits = bits;
     }
 
+    /// The button that switches running to walking while held.
+    pub fn set_walk_hold_bit(&mut self, bit: Option<i32>) {
+        self.walk_hold_bit = bit;
+    }
+
     /// Move the player actor by the configured direction bits the way
     /// `FieldMapActorController.UpdateMovement` does: up +z, down -z, left
     /// -x, right +x, normalized, turned by the control twist about +y, at
@@ -643,6 +673,7 @@ impl FieldWorld {
         // control (scenes disable it while they drive the actor).
         if let Some(state) = self.player.and_then(|player| self.actors.get_mut(&player)) {
             state.input_walking = false;
+            state.input_running = false;
         }
         if !self.user_control {
             return;
@@ -669,10 +700,18 @@ impl FieldWorld {
         if length == 0.0 {
             return;
         }
+        // `FieldMapActorController.Update`: the player runs unless the walk
+        // button is held or `DASHOFF` is on; a run is two walk steps of
+        // `speed` (30) in one frame.
+        let walking = self.run_disabled
+            || self
+                .walk_hold_bit
+                .is_some_and(|bit| self.input_mask & bit != 0);
+        let step = PLAYER_WALK_SPEED * if walking { 1.0 } else { 2.0 };
         // Unity's `Quaternion.Euler(0, y, 0) * v`.
         let (sin, cos) = self.control_twist.to_radians().sin_cos();
-        let dx = (x * cos + z * sin) / length * self.walk_speed;
-        let dz = (z * cos - x * sin) / length * self.walk_speed;
+        let dx = (x * cos + z * sin) / length * step;
+        let dz = (z * cos - x * sin) / length * step;
         // `ProcessEvents.cs:252`: the controlled actor's walked distance
         // feeds the encounter timer while the rate is above 0.
         self.player_walked(dx.hypot(dz));
@@ -681,6 +720,7 @@ impl FieldWorld {
             state.position[2] += dz;
             state.movement = None;
             state.input_walking = true;
+            state.input_running = !walking;
             // Input walking faces the movement direction like scripted
             // walks (reference facing scale, 0 south .. 192 east).
             if dx != 0.0 || dz != 0.0 {
@@ -1275,8 +1315,9 @@ mod random_battle_tests {
     #[test]
     fn walking_with_a_rate_starts_a_field_battle() {
         let mut world = walking_world(255);
-        // The first 1440 units are safe; then a check every 960.
-        for _ in 0..90 {
+        // The first 1440 units are safe (24 run ticks of 60); then a check
+        // every 960.
+        for _ in 0..24 {
             world.advance();
         }
         assert!(world.encounters.is_empty());
@@ -1406,6 +1447,9 @@ mod party_slot_tests {
         assert!(saw_wide, "no 16-bit draw exceeded 255 in 64 seeds");
     }
 }
+
+/// `FieldMapActorController.speed`: player units per walk step.
+pub const PLAYER_WALK_SPEED: f32 = 30.0;
 
 fn is_zero(value: &u8) -> bool {
     *value == 0
