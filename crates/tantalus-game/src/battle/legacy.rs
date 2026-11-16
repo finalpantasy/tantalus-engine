@@ -295,64 +295,53 @@ impl<H: BattleHooks> LegacyBattleAdapter<H> {
 
     /// Advances the machine one tick, queueing a player command first when
     /// the input carries one and the unit is ready (`ReadyQueue`).
+    ///
+    /// A defeat decided in MenuOff (phase entered, defeat sequence running)
+    /// is reported as `Defeat` WITHOUT ticking further: the machine has
+    /// decided; only the close animation waits on un-injected `Timing`
+    /// death/fade ticks, and ticking past the decision would schedule enemy
+    /// AI against a dead party — which the reference never does and which
+    /// crashes multi-pattern ATB scripts that extract members from a
+    /// selection the wiped party invalidates. Escape menu-offs do not need
+    /// this (`escape_fade` counts down numerically); victories publish
+    /// within the tick budget.
     pub fn advance(
         &mut self,
         input: &CombatInput,
-        _services: &mut dyn GameServices,
+        services: &mut dyn GameServices,
     ) -> Result<CombatUpdate, EngineError> {
-        if let Some(command) = &input.command {
-            let Some(&(cmd_no, sub_no)) = self.action_map.get(&command.action) else {
-                return Err(battle_error(
-                    format!("no legacy mapping for action `{}`", command.action.as_str()),
-                    true,
-                ));
-            };
-            let Some(&unit) = self.unit_map.get(&command.actor) else {
-                return Err(battle_error("commanding actor is not a battle unit", true));
-            };
-            if self.battle.ready_players.contains(&unit) {
-                let tar_id = command.targets.iter().fold(0u16, |mask, target| {
-                    mask | self.target_bits.get(target).copied().unwrap_or(0)
-                });
+        if self.outcome.is_none() {
+            if self.decided_defeat() {
+                self.outcome = Some(BattleOutcome::Defeat);
+            } else {
+                self.queue_command(input)?;
+                let mut rng = ServicesRandom { services };
                 self.battle
-                    .player_command(unit, cmd_no, sub_no, tar_id, 0, &mut self.hooks)
+                    .tick(&mut self.hooks, &mut rng)
                     .map_err(|error| {
-                        battle_error(format!("legacy command rejected: {error:?}"), false)
+                        battle_error(format!("legacy battle tick failed: {error:?}"), false)
                     })?;
-            }
-        }
-        let mut rng = ServicesRandom {
-            services: _services,
-        };
-        self.battle
-            .tick(&mut self.hooks, &mut rng)
-            .map_err(|error| {
-                battle_error(format!("legacy battle tick failed: {error:?}"), false)
-            })?;
-        // A defeat decided in MenuOff whose close animation cannot play
-        // (un-injected `Timing` death/fade ticks) still reports `Defeat`:
-        // the machine has decided; only the presentation loop stalls.
-        // Escape menu-offs do not need this — `escape_fade` counts down
-        // numerically — and victories publish within the tick budget.
-        if self.outcome.is_none()
-            && self.battle.phase == tantalus_legacy::battle::machine::Phase::MenuOff
-            && self.battle.menu_off_seq == tantalus_legacy::battle::machine::MenuOffSeq::Defeat
-        {
-            self.outcome = Some(BattleOutcome::Defeat);
-        }
-        if self.battle.over && self.outcome.is_none() {
-            self.outcome = Some(match self.battle.result {
-                Some(result::VICTORY) | Some(result::VICTORY_NO_POSE) => BattleOutcome::Victory,
-                Some(result::DEFEAT) => BattleOutcome::Defeat,
-                Some(result::ESCAPE) => BattleOutcome::Escape,
-                Some(result::ENEMY_FLEE) => BattleOutcome::EnemyFlee,
-                other => {
-                    return Err(battle_error(
-                        format!("unmapped legacy battle result {other:?}"),
-                        false,
-                    ));
+                if self.battle.over {
+                    self.outcome = Some(match self.battle.result {
+                        Some(result::VICTORY) | Some(result::VICTORY_NO_POSE) => {
+                            BattleOutcome::Victory
+                        }
+                        Some(result::DEFEAT) => BattleOutcome::Defeat,
+                        Some(result::ESCAPE) => BattleOutcome::Escape,
+                        Some(result::ENEMY_FLEE) => BattleOutcome::EnemyFlee,
+                        other => {
+                            return Err(battle_error(
+                                format!("unmapped legacy battle result {other:?}"),
+                                false,
+                            ));
+                        }
+                    });
+                } else if self.decided_defeat() {
+                    // Decided mid-tick (the close animation stalls without
+                    // Timing data): report the decision.
+                    self.outcome = Some(BattleOutcome::Defeat);
                 }
-            });
+            }
         }
         Ok(CombatUpdate {
             tick: input.tick,
@@ -362,6 +351,37 @@ impl<H: BattleHooks> LegacyBattleAdapter<H> {
             rewards: None,
             active_action: false,
         })
+    }
+
+    fn decided_defeat(&self) -> bool {
+        self.battle.phase == tantalus_legacy::battle::machine::Phase::MenuOff
+            && self.battle.menu_off_seq == tantalus_legacy::battle::machine::MenuOffSeq::Defeat
+    }
+
+    fn queue_command(&mut self, input: &CombatInput) -> Result<(), EngineError> {
+        let Some(command) = &input.command else {
+            return Ok(());
+        };
+        let Some(&(cmd_no, sub_no)) = self.action_map.get(&command.action) else {
+            return Err(battle_error(
+                format!("no legacy mapping for action `{}`", command.action.as_str()),
+                true,
+            ));
+        };
+        let Some(&unit) = self.unit_map.get(&command.actor) else {
+            return Err(battle_error("commanding actor is not a battle unit", true));
+        };
+        if self.battle.ready_players.contains(&unit) {
+            let tar_id = command.targets.iter().fold(0u16, |mask, target| {
+                mask | self.target_bits.get(target).copied().unwrap_or(0)
+            });
+            self.battle
+                .player_command(unit, cmd_no, sub_no, tar_id, 0, &mut self.hooks)
+                .map_err(|error| {
+                    battle_error(format!("legacy command rejected: {error:?}"), false)
+                })?;
+        }
+        Ok(())
     }
 }
 
