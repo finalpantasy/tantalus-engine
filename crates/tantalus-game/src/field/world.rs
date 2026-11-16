@@ -724,8 +724,20 @@ impl FieldWorld {
             // Input walking faces the movement direction like scripted
             // walks (reference facing scale, 0 south .. 192 east).
             if dx != 0.0 || dz != 0.0 {
+                // `MovePC` eases the turn: `Lerp(rotAngle, moveAngle, 0.4)`
+                // the short way round, each frame.
                 let degrees = dx.atan2(-dz).to_degrees();
-                state.facing = (128.0 + degrees * 128.0 / 180.0).round().rem_euclid(256.0) as i16;
+                let target = (128.0 + degrees * 128.0 / 180.0).rem_euclid(256.0);
+                let current = f32::from(state.facing).rem_euclid(256.0);
+                let turn = (target - current + 128.0).rem_euclid(256.0) - 128.0;
+                // The reference turns in floats; on the integer scale the
+                // last unit would never close, so it snaps.
+                let next = if turn.abs() <= 1.0 {
+                    target
+                } else {
+                    current + turn * 0.4
+                };
+                state.facing = next.round().rem_euclid(256.0) as i16;
             }
         }
     }

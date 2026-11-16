@@ -358,3 +358,20 @@ fn walk_input_moves_the_player_by_the_configured_direction_bits() {
     let after = director.world().actors[&EntityId::new(1)].position;
     assert!((after[0] - before[0] - 30.0).abs() < 1e-3);
 }
+
+#[test]
+fn walk_input_eases_the_turn_the_short_way() {
+    let mut director = FieldDirector::new(FieldWorld::new());
+    director.world_mut().add_actor(EntityId::new(1), [0.0; 3]);
+    director.set_player(EntityId::new(1));
+    director.set_walk_bits(Some((0x01, 0x02, 0x04, 0x08)));
+    director.world_mut().user_control = true;
+    // Facing 0 (south) to east (192) is -64 the short way; 40% of it.
+    director.set_input_mask(0x08);
+    director.step().unwrap();
+    assert_eq!(director.world().actors[&EntityId::new(1)].facing, 230);
+    for _ in 0..20 {
+        director.step().unwrap();
+    }
+    assert_eq!(director.world().actors[&EntityId::new(1)].facing, 192);
+}
