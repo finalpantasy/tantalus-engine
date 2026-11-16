@@ -513,8 +513,9 @@ fn run_world_battle_plays_a_scene_through_the_field_world() {
         equipped_abilities: Vec::new(),
     };
 
-    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 7, false)
-        .expect("world battle runs clean");
+    let (outcome, _ticks) =
+        run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 7, false)
+            .expect("world battle runs clean");
     assert_eq!(outcome, Some(tantalus_game::battle::BattleOutcome::Victory));
     assert_eq!(world.gil, 10 + 300, "scene spoils committed to the world");
     // 300 EXP splits over the two participating party lines (the
@@ -572,8 +573,9 @@ fn after_event_battles_pay_nothing() {
         }),
         ..PlayerBase::default()
     };
-    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 3, false)
-        .expect("world battle runs clean");
+    let (outcome, _ticks) =
+        run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 3, false)
+            .expect("world battle runs clean");
     assert_eq!(outcome, Some(tantalus_game::battle::BattleOutcome::Victory));
     assert_eq!(world.gil, 500, "after-event battles pay nothing");
     assert!(world.character_exp.is_empty(), "no EXP either");
@@ -629,8 +631,9 @@ fn run_world_battle_applies_ap_to_equipped_learnables() {
         learnable: vec![(200, 2)],
         equipped_abilities: vec![200],
     };
-    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 11, false)
-        .expect("world battle runs clean");
+    let (outcome, _ticks) =
+        run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 11, false)
+            .expect("world battle runs clean");
     assert_eq!(outcome, Some(tantalus_game::battle::BattleOutcome::Victory));
     assert_eq!(world.ability_pa[&0][&200], 2, "AP reached max");
     assert!(
@@ -691,8 +694,9 @@ fn run_world_battle_applies_the_field_min_hp_rule() {
         learnable: Vec::new(),
         equipped_abilities: Vec::new(),
     };
-    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 5, false)
-        .expect("world battle runs clean");
+    let (outcome, _ticks) =
+        run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 5, false)
+            .expect("world battle runs clean");
     assert_eq!(
         outcome,
         Some(tantalus_game::battle::BattleOutcome::Victory),
@@ -989,7 +993,7 @@ fn chain_and_handoff_paths_agree_on_the_same_scene() {
                 max_mp: 100,
             },
         );
-        let outcome = run_world_battle(
+        let (outcome, _ticks) = run_world_battle(
             &mut world,
             &[EntityId::new(201)],
             &scene,

@@ -3247,8 +3247,9 @@ fn run_battle_world_run(
         learnable: Vec::new(),
         equipped_abilities: Vec::new(),
     };
-    let outcome = run_world_battle(&mut world, &entities, scene, 0, bytes, &base, 0x5EED, false)
-        .map_err(|error| format!("world battle failed: {error}"))?;
+    let (outcome, _ticks) =
+        run_world_battle(&mut world, &entities, scene, 0, bytes, &base, 0x5EED, false)
+            .map_err(|error| format!("world battle failed: {error}"))?;
     let report = serde_json::json!({
         "scene": key,
         "outcome": outcome,

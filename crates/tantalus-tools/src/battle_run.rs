@@ -341,7 +341,7 @@ pub fn run_scene_battle(
             let mut services = WorldGameServices::new(&mut world);
             if let Err(error) = adapter.advance(&input, &mut services) {
                 report.error = Some(format!("tick {tick}: {error}"));
-                report.ticks = tick;
+                report.ticks = tick + 1;
                 return report;
             }
         }
@@ -350,7 +350,7 @@ pub fn run_scene_battle(
         apply_unit_views(adapter.battle_mut(), &dirty);
         if let Some(error) = &adapter.hooks().error {
             report.error = Some(format!("tick {tick}: AI: {error:?}"));
-            report.ticks = tick;
+            report.ticks = tick + 1;
             return report;
         }
         // Deaths pay their bonus row (reference on-kill hook shape).
@@ -367,7 +367,7 @@ pub fn run_scene_battle(
         }
         if let Some(outcome) = adapter.outcome() {
             report.outcome = Some(outcome);
-            report.ticks = tick;
+            report.ticks = tick + 1;
             break;
         }
     }
@@ -442,7 +442,7 @@ pub fn run_world_battle(
     base: &dyn Fn(i32) -> tantalus_game::battle::legacy::PlayerBase,
     seed: u64,
     flee_first: bool,
-) -> Result<Option<BattleOutcome>, String> {
+) -> Result<(Option<BattleOutcome>, u64), String> {
     use tantalus_game::battle::GameServices;
     use tantalus_game::battle::legacy::{NoEnemyAi, party_machine_units};
     use tantalus_legacy::EventBinary;
@@ -538,6 +538,7 @@ pub fn run_world_battle(
     let mut outcome = None;
 
     let mut fled = false;
+    let mut ticks = 0u64;
     for tick in 0..MAX_TICKS {
         let mut input = tantalus_game::battle::CombatInput::new(Tick::new(tick));
         // The machine gates the flee roll on the ATB running (`atb_runs`),
@@ -590,6 +591,7 @@ pub fn run_world_battle(
         }
         if let Some(done) = adapter.outcome() {
             outcome = Some(done);
+            ticks = tick + 1;
             break;
         }
     }
@@ -699,7 +701,7 @@ pub fn run_world_battle(
         let mut services = WorldGameServices::new(world);
         let _ = services.commit_rewards(&bundle);
     }
-    Ok(outcome)
+    Ok((outcome, ticks))
 }
 
 /// World-hand-off twin of [`run_scene_battle`]: a fresh scratch world whose
@@ -799,12 +801,15 @@ pub fn run_world_battle_report(
     match run_world_battle(
         &mut world, &entities, scene, pattern, script, &base, seed, flee_first,
     ) {
-        Ok(Some(outcome)) => {
+        Ok((Some(outcome), ticks)) => {
             report.outcome = Some(outcome);
+            report.ticks = ticks;
             report.bonus_gil = world.gil;
             report.bonus_exp = world.character_exp.values().copied().sum::<u64>() as u32;
         }
-        Ok(None) => {}
+        Ok((None, ticks)) => {
+            report.ticks = ticks;
+        }
         Err(error) => report.error = Some(error),
     }
     report.players_alive = world
