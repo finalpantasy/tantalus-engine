@@ -505,6 +505,9 @@ impl LegacyEventHost for FieldHost<'_> {
             self.record_overlay(event);
             self.record_overlay_motion(event);
             self.record_light(event);
+            if let HostEvent::SetMenuControl { enabled } = event {
+                self.world.menu_disabled = !*enabled;
+            }
             self.record_camera(event);
             self.record_tile_animation(event);
             match event {

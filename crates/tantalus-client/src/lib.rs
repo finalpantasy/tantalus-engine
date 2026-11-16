@@ -10,6 +10,7 @@ pub mod field_assets;
 pub mod field_light;
 pub mod legacy_compositor;
 pub mod live;
+pub mod menu_view;
 pub mod overlay_motion;
 pub mod projection;
 pub mod psx_blend;

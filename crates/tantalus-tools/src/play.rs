@@ -85,6 +85,7 @@ pub struct PlayData {
     battles: Option<FieldBattles>,
     battle_base: BTreeMap<i32, BaseStats>,
     new_game: FieldWorld,
+    menu: crate::field_menu::MenuTables,
 }
 
 fn read_text(path: &Path) -> Result<String, String> {
@@ -117,6 +118,13 @@ impl PlayData {
         let atan = std::fs::read(&paths.atan_table)
             .map_err(|error| format!("cannot read {}: {error}", paths.atan_table.display()))?;
         let mut new_game = new_game_world(&base, &levels, atan);
+        let menu = crate::field_menu::MenuTables::load(
+            memoria,
+            base.clone(),
+            levels.iter().map(|row| row.experience).collect(),
+            item_names.clone(),
+        )?;
+        menu.seed_equipment(&mut new_game);
         new_game.items = tantalus_game::new_game::parse_initial_items(&read_text(
             &characters.join("../Items/InitialItems.csv"),
         )?)?;
@@ -140,6 +148,7 @@ impl PlayData {
             battles,
             battle_base: base,
             new_game,
+            menu,
         })
     }
 
@@ -275,7 +284,7 @@ fn keyword_character(keyword: &str) -> i32 {
 
 /// Default name of a `CharacterId` (`CharacterParameters.csv`; the game has
 /// no rename screen here).
-fn character_name(id: i32) -> &'static str {
+pub(crate) fn character_name(id: i32) -> &'static str {
     match id {
         1 => "Vivi",
         2 => "Dagger",
@@ -311,6 +320,8 @@ pub struct PlayGame {
     /// replay ([`crate::battle_stage`]). Take it after a
     /// [`PlayEvent::Battle`].
     pub last_battle: Option<crate::battle_stage::BattleStage>,
+    /// The open main menu; the field does not run while it is open.
+    menu: Option<crate::field_menu::FieldMenu>,
 }
 
 impl PlayGame {
@@ -333,6 +344,7 @@ impl PlayGame {
             ticks: 0,
             floor: None,
             last_battle: None,
+            menu: None,
         };
         let mut events = Vec::new();
         game.enter(start, &mut events)?;
@@ -552,6 +564,65 @@ impl PlayGame {
             .collect()
     }
 
+    /// Runs the main menu for this tick. True while it is open (the field
+    /// is paused) or just opened.
+    fn tick_menu(&mut self, held: i32, pressed: i32) -> bool {
+        let Some(session) = self.session.as_mut() else {
+            return false;
+        };
+        let world = session.director.world_mut();
+        if let Some(menu) = self.menu.as_mut() {
+            if pressed != 0 && !menu.press(pressed, world, &self.data.menu) {
+                self.menu = None;
+            }
+            return true;
+        }
+        let allowed =
+            world.user_control && !world.menu_disabled && !world.windows.values().any(|open| *open);
+        if pressed & pad::START != 0 && allowed && held & pad::START != 0 {
+            self.menu = Some(crate::field_menu::FieldMenu::new());
+            return true;
+        }
+        false
+    }
+
+    /// Replaces the party (a test and demo aid; scripts set it in play).
+    pub fn set_party(&mut self, ids: &[i32]) {
+        self.world.party = ids.to_vec();
+        if let Some(session) = self.session.as_mut() {
+            session.director.world_mut().party = ids.to_vec();
+        }
+    }
+
+    /// Adds one of each item id (a test aid for the equip screen).
+    pub fn give_items(&mut self, ids: &[i32]) {
+        let world = match self.session.as_mut() {
+            Some(session) => session.director.world_mut(),
+            None => &mut self.world,
+        };
+        for id in ids {
+            *world.items.entry(*id).or_insert(0) += 1;
+        }
+    }
+
+    /// Drops every party member to a quarter of their HP (a test aid for
+    /// the item screen).
+    pub fn hurt_party(&mut self) {
+        let world = match self.session.as_mut() {
+            Some(session) => session.director.world_mut(),
+            None => &mut self.world,
+        };
+        for stats in world.character_stats.values_mut() {
+            stats.current_hp = (stats.max_hp / 4).max(1);
+        }
+    }
+
+    /// The main menu to draw, with a number that changes when it does.
+    pub fn menu_frame(&self) -> Option<(u64, crate::field_menu::MenuFrame)> {
+        let menu = self.menu.as_ref()?;
+        Some((menu.revision, menu.frame(self.world(), &self.data.menu)))
+    }
+
     /// One field tick (30 a second) with `held` pad bits.
     pub fn tick(&mut self, held: i32) -> Result<Vec<PlayEvent>, String> {
         let mut events = Vec::new();
@@ -561,6 +632,9 @@ impl PlayGame {
         let pressed = held & !self.previous;
         self.previous = held;
         self.ticks += 1;
+        if self.tick_menu(held, pressed) {
+            return Ok(events);
+        }
         let map = self.map().unwrap_or(0);
         let Some(session) = self.session.as_mut() else {
             return Ok(events);

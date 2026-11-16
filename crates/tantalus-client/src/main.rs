@@ -12,7 +12,7 @@ fn main() -> ExitCode {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--scale N]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] --output <png> [--size WxH]
+            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--scale N]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] [--party 0,1,2,3] [--hurt 1] [--give 2,3] --output <png> [--size WxH]
 tantalus-client capture-battle <play flags> --battles <tsv> [--ticks N] [--hold ...] [--auto-confirm N] [--battle N] [--at SECONDS,...] --output <png> [--size WxH]"
         );
         return ExitCode::SUCCESS;
@@ -444,7 +444,16 @@ fn parse_holds(list: Option<&String>) -> Result<Vec<(u64, u64, i32)>, String> {
 /// actors to a PNG.
 fn run_play_capture(args: &[std::ffi::OsString]) -> ExitCode {
     let mut allowed = PLAY_FLAGS.to_vec();
-    allowed.extend(["--ticks", "--hold", "--auto-confirm", "--output", "--size"]);
+    allowed.extend([
+        "--ticks",
+        "--hold",
+        "--auto-confirm",
+        "--output",
+        "--size",
+        "--party",
+        "--hurt",
+        "--give",
+    ]);
     let Some(values) = flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
     };
@@ -478,6 +487,17 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     };
     let holds = parse_holds(values.get("--hold"))?;
     let mut game = load_game(values)?;
+    if let Some(party) = values.get("--party") {
+        let ids: Vec<i32> = party.split(',').filter_map(|id| id.parse().ok()).collect();
+        game.set_party(&ids);
+    }
+    if let Some(give) = values.get("--give") {
+        let ids: Vec<i32> = give.split(',').filter_map(|id| id.parse().ok()).collect();
+        game.give_items(&ids);
+    }
+    if values.contains_key("--hurt") {
+        game.hurt_party();
+    }
     let mut open_for = 0u64;
     let mut last_confirm = false;
     let mut view = tantalus_client::view_scroll::ViewScroll::default();
@@ -622,6 +642,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                 state.place_sprites(world, &field.scene);
             }
             tantalus_client::dialog_view::sync_dialogs(world, &game, &field.scene.camera, &frame);
+            tantalus_client::menu_view::sync_menu(world, &game);
         },
     )
     .map_err(|error| error.to_string())?;

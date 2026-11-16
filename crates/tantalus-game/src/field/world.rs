@@ -527,6 +527,10 @@ pub struct FieldWorld {
     /// view (runtime-only: the view depends on the field projection).
     #[serde(skip)]
     pub camera_log: Vec<CameraRequest>,
+    /// `MENUOFF` was run: the main menu cannot open (runtime-only; the
+    /// script turns it back on with `MENUON`).
+    #[serde(skip)]
+    pub menu_disabled: bool,
     /// The layer scroll scripts this field ran, in order (runtime-only).
     #[serde(skip)]
     pub overlay_motion: Vec<OverlayMotion>,
@@ -689,6 +693,7 @@ impl FieldWorld {
             field_camera: 0,
             camera_log: Vec::new(),
             overlay_motion: Vec::new(),
+            menu_disabled: false,
             actor_shadows: BTreeMap::new(),
             light_changes: Vec::new(),
             level_growth: None,

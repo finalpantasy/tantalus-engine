@@ -8,6 +8,7 @@ pub mod battle_stage;
 pub mod field_animation_cli;
 pub mod field_battle;
 pub mod field_data;
+pub mod field_menu;
 pub mod field_models_cli;
 pub mod field_session;
 pub mod model_cli;

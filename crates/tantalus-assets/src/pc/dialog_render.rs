@@ -934,6 +934,89 @@ impl DialogAssets {
     }
 }
 
+/// One run of text for [`DialogAssets::render_window`]: position in
+/// resource pixels from the window body's top left (`y` is the line top).
+#[derive(Debug, Clone, PartialEq)]
+pub struct WindowText {
+    pub x: f32,
+    pub y: f32,
+    pub text: String,
+    pub color: [f32; 4],
+    /// `x` is the right edge of the text.
+    pub right: bool,
+}
+
+impl DialogAssets {
+    /// Draws a framed window of `body_width` x `body_height` resource pixels
+    /// with `texts` in the game's font, the way a dialog page is drawn.
+    pub fn render_window(&self, body_width: i32, body_height: i32, texts: &[WindowText]) -> Image {
+        let pad = BORDER_PADDING;
+        let canvas_w = body_width + pad * 2;
+        let canvas_h = body_height + pad * 2;
+        let mut image = Image::new(canvas_w.max(1) as usize, canvas_h.max(1) as usize);
+        self.window.draw_tiled(
+            &mut image,
+            (pad, pad, body_width, body_height),
+            (body_width / 2, body_height / 2),
+        );
+        self.window
+            .draw_sliced(&mut image, (0, 0, canvas_w, canvas_h));
+        let baseline = measure_baseline(&self.glyphs, FONT_SIZE);
+        let to_u8 = |c: f32| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
+        for run in texts {
+            let width: i32 = run
+                .text
+                .chars()
+                .filter_map(|ch| self.glyphs.glyph(ch))
+                .map(|glyph| glyph.advance + SPACING_X)
+                .sum();
+            let mut pen = pad as f32
+                + PHRASE_X_PADDING
+                + if run.right {
+                    run.x - width as f32
+                } else {
+                    run.x
+                };
+            let top = pad as f32 + PHRASE_Y_PADDING / 2.0 + run.y;
+            for ch in run.text.chars() {
+                let Some(glyph) = self.glyphs.glyph(ch) else {
+                    continue;
+                };
+                if glyph.width > 0 && glyph.height > 0 {
+                    let left = pen + glyph.min_x as f32;
+                    let y = top + (baseline - glyph.max_y()) as f32;
+                    draw_coverage(
+                        &mut image,
+                        &glyph,
+                        (left + SHADOW_DISTANCE.0).round() as i32,
+                        (y + SHADOW_DISTANCE.1).round() as i32,
+                        [
+                            to_u8(SHADOW_COLOR[0]),
+                            to_u8(SHADOW_COLOR[1]),
+                            to_u8(SHADOW_COLOR[2]),
+                        ],
+                        SHADOW_COLOR[3] * run.color[3],
+                    );
+                    draw_coverage(
+                        &mut image,
+                        &glyph,
+                        left.round() as i32,
+                        y.round() as i32,
+                        [
+                            to_u8(run.color[0]),
+                            to_u8(run.color[1]),
+                            to_u8(run.color[2]),
+                        ],
+                        run.color[3],
+                    );
+                }
+                pen += (glyph.advance + SPACING_X) as f32;
+            }
+        }
+        image
+    }
+}
+
 /// Reads font, `.mes` entry and window atlas from an install and renders one page.
 pub fn render_from_install(
     request: &RenderRequest<'_>,

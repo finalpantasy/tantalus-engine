@@ -29,14 +29,14 @@ use tantalus_tools::play::{OpenDialog, PlayGame};
 use crate::track::TrackFrame;
 
 /// Field frame the camera projects (`window::FIELD_FRAME`).
-const FRAME: Vec2 = Vec2::new(320.0, 240.0);
+pub(crate) const FRAME: Vec2 = Vec2::new(320.0, 240.0);
 /// The PSX screen sits centered in the frame vertically.
-const PSX: Vec2 = Vec2::new(320.0, 224.0);
+pub(crate) const PSX: Vec2 = Vec2::new(320.0, 224.0);
 /// Texels per frame pixel of the drawn window (the UI art is ~4.8 per PSX
 /// pixel; this keeps it sharp at 2x and 3x windows).
-const TEXELS: f32 = 3.0;
+pub(crate) const TEXELS: f32 = 3.0;
 /// In front of the field scene, which the camera sees up to its own z.
-const WINDOW_Z: f32 = -1.0;
+pub(crate) const WINDOW_Z: f32 = -1.0;
 /// `Dialog.DialogLimitLeft/Right/Top/Bottom`, PSX pixels.
 const LIMIT_LEFT: f32 = 8.0;
 const LIMIT_RIGHT: f32 = 312.0;
@@ -246,7 +246,7 @@ fn render(
 }
 
 /// Area-average resample of straight-alpha RGBA8 (averaged premultiplied).
-fn downscale(src: &[u8], sw: usize, sh: usize, dw: usize, dh: usize) -> Vec<u8> {
+pub(crate) fn downscale(src: &[u8], sw: usize, sh: usize, dw: usize, dh: usize) -> Vec<u8> {
     let mut out = vec![0u8; dw * dh * 4];
     for dy in 0..dh {
         let y0 = dy * sh / dh;

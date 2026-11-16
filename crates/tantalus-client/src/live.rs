@@ -467,6 +467,7 @@ fn live_tick(world: &mut World) {
             motion.place_sprites(world, scene);
         }
         crate::dialog_view::sync_dialogs(world, &game, &scene.camera, &frame);
+        crate::menu_view::sync_menu(world, &game);
     }
     let mut title = format!(
         "Tantalus Engine: {} ({})",
