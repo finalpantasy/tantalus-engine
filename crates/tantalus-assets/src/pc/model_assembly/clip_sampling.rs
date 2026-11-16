@@ -64,6 +64,62 @@ fn poses_finite(poses: &[pose::NodePose]) -> bool {
     })
 }
 
+/// One clip's decoded duration record: raw material for battle
+/// animation timing (death sequences, effect loops).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ClipDuration {
+    pub geo_id: u32,
+    pub name: String,
+    /// Last key time over every transform curve, in clip seconds.
+    pub end_time: f32,
+    pub rotation_curves: usize,
+    pub position_curves: usize,
+    pub scale_curves: usize,
+}
+
+/// Durations for every clip entry of an animations bundle (p0data5).
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct ClipDurationsReport {
+    pub clips: usize,
+    pub decoded: usize,
+    pub decode_failed: Vec<String>,
+    pub durations: Vec<ClipDuration>,
+    /// Longest clip end time seen.
+    pub max_end_time: f32,
+}
+
+/// Decodes every clip entry and records its duration. No model
+/// assembly is needed, so this runs without p0data4. Decode failures
+/// are named, not fatal.
+pub fn clip_durations(
+    animations: &super::SerializedStore<'_, '_>,
+    clips: &[super::ClipEntry],
+) -> ClipDurationsReport {
+    let mut report = ClipDurationsReport {
+        clips: clips.len(),
+        ..ClipDurationsReport::default()
+    };
+    for entry in clips {
+        let name = format!("{}/{}", entry.geo_id, entry.name);
+        let Ok(Some(clip)) = animations.clip(entry.path_id) else {
+            report.decode_failed.push(name);
+            continue;
+        };
+        let end_time = clip_end_time(&clip);
+        report.max_end_time = report.max_end_time.max(end_time);
+        report.decoded += 1;
+        report.durations.push(ClipDuration {
+            geo_id: entry.geo_id,
+            name: entry.name.clone(),
+            end_time,
+            rotation_curves: clip.rotation_curves.len(),
+            position_curves: clip.position_curves.len(),
+            scale_curves: clip.scale_curves.len(),
+        });
+    }
+    report
+}
+
 /// Last key time over every transform curve of the clip.
 fn clip_end_time(clip: &AnimationClip) -> f32 {
     let mut end = 0.0_f32;

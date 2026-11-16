@@ -34,7 +34,10 @@ mod clip_sampling;
 mod geo_names;
 pub mod pose;
 
-pub use clip_sampling::{ClipSamplingReport, SAMPLING_TOLERANCE, clip_sampling_report};
+pub use clip_sampling::{
+    ClipDuration, ClipDurationsReport, ClipSamplingReport, SAMPLING_TOLERANCE, clip_durations,
+    clip_sampling_report,
+};
 
 use pose::{
     Interpolation, Mat4, NodePose, bind_clip_paths, bounds_of, rest_pose, sample_clip,

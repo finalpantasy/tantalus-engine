@@ -235,6 +235,39 @@ fn run_all(
     Ok(())
 }
 
+/// Dumps every clip's decoded duration (last key time over transform
+/// curves) from an animations bundle. No model assembly required -- this
+/// is raw material for battle animation timing (death sequences, effect
+/// loops). Decode failures are named, not fatal.
+pub fn run_clip_durations(clip_path: &Path, out: &Path) -> Result<(), String> {
+    use tantalus_assets::pc::model_assembly::{clip_durations, clip_entries};
+    let source = clip_path.to_string_lossy().into_owned();
+    let bundle = UnityRawBundle::open(clip_path).map_err(|error| error.to_string())?;
+    let bytes = bundle
+        .read_entry(0, MAX_BUNDLE_BYTES)
+        .map_err(|error| error.to_string())?;
+    let file = SerializedFile::parse(&bytes, &source).map_err(|error| error.to_string())?;
+    let store = SerializedStore::new(&file, &source).map_err(|error| error.to_string())?;
+    let (clips, _other) = clip_entries(&store.container().map_err(|e| e.to_string())?);
+    let report = clip_durations(&store, &clips);
+    let text = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?;
+    std::fs::write(
+        out,
+        text + "
+",
+    )
+    .map_err(|e| format!("{}: {e}", out.display()))?;
+    eprintln!(
+        "clip durations: {} decoded, {} failed of {}; max end {}s; wrote {}",
+        report.decoded,
+        report.decode_failed.len(),
+        report.clips,
+        report.max_end_time,
+        out.display()
+    );
+    Ok(())
+}
+
 fn run_clips(
     clip_path: &Path,
     catalog: &ModelCatalog,
