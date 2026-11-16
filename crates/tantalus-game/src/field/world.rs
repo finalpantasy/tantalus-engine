@@ -103,6 +103,9 @@ pub struct CharacterStats {
 
 pub(crate) const MAX_GIL: u32 = 9_999_999;
 
+/// Tetra Master collection size (`Configuration.TetraMaster.MaxCardCount`).
+pub const MAX_CARDS: usize = 100;
+
 /// Runtime movie frame-count lookup for the FMV service, keyed by
 /// `(disc, number)`. Behavior, not state: snapshots do not carry it.
 pub type FmvFrameCounts = std::sync::Arc<dyn Fn(i32, i32) -> Option<u32> + Send + Sync>;
@@ -244,6 +247,10 @@ pub struct FieldWorld {
     /// (this world stores ownership only).
     #[serde(default)]
     pub equipment: BTreeMap<i32, [Option<u16>; 5]>,
+    /// Tetra Master cards owned, by card id, in the order won
+    /// (`QuadMistDatabase.MiniGame_SetCard`).
+    #[serde(default)]
+    pub cards: Vec<u32>,
     /// Experience-to-stats provider (runtime-only).
     #[serde(skip)]
     pub level_growth: Option<LevelGrowth>,
@@ -373,6 +380,7 @@ impl FieldWorld {
             ability_pa: BTreeMap::new(),
             learned_abilities: BTreeMap::new(),
             equipment: BTreeMap::new(),
+            cards: Vec::new(),
             level_growth: None,
         }
     }
@@ -857,6 +865,18 @@ impl FieldWorld {
     pub fn add_item_amount(&mut self, item: i32, amount: i32) {
         let entry = self.items.entry(item).or_insert(0);
         *entry = entry.saturating_add(amount).min(99);
+    }
+
+    /// `BattleResultUI` card pay-out: the card is kept only while the
+    /// collection holds fewer than [`MAX_CARDS`]
+    /// (`Configuration.TetraMaster.MaxCardCount`, 100). Returns whether it
+    /// was added.
+    pub fn add_card(&mut self, card: u32) -> bool {
+        if self.cards.len() >= MAX_CARDS {
+            return false;
+        }
+        self.cards.push(card);
+        true
     }
 
     pub fn add_gil(&mut self, amount: u32) {

@@ -36,13 +36,17 @@ use tantalus_legacy::battle::status::DEATH;
 use tantalus_legacy::battle::{BattleUnit, Elements, StatusDataRow, StatusTable, WeaponStats};
 
 use tantalus_legacy::battle::rewards::{
-    BattleBonus, BattleReward, LevelBonus, PartyMember, PartySnapshot,
+    BattleBonus, BattleReward, LevelBonus, PaEntry, PartyMember, PartySnapshot,
 };
 
 use crate::battle_scene_rewards::{pattern_machine_units, pattern_rewards};
 
 /// Ticks a battle may run before the chain gives up on it.
 pub const BATTLE_TICK_LIMIT: u64 = 20_000;
+
+/// One line's AP: character, AP earned, and `(ability, max AP)` for each
+/// equipped learnable ability.
+pub type ApLine = (i32, u16, Vec<(i32, i32)>);
 
 /// One fought battle, as the chain reports it.
 #[derive(Debug, Clone, Default, serde::Serialize)]
@@ -78,6 +82,10 @@ pub struct FightReport {
     pub reward_ap: u16,
     pub reward_items: Vec<(u32, u32)>,
     pub reward_card: Option<u32>,
+    /// AP per line that earns it: character, AP, and each equipped ability
+    /// the character can learn with its AP goal `(ability, max AP)`, once
+    /// per equipped item that carries it.
+    pub reward_ap_lines: Vec<ApLine>,
 }
 
 /// One party member going into battle.
@@ -118,6 +126,32 @@ pub struct Equipment {
     bonus_ids: BTreeMap<i32, i32>,
     /// `BonusId` -> speed, strength, magic, spirit (`Stats.csv`).
     bonuses: BTreeMap<i32, [i32; 4]>,
+    /// Item id -> ability ids (`Items.csv` `AbilityIds`: `AA:X` is X,
+    /// `SA:X` is 192 + X, `ff9abil.cs:24-25`).
+    item_abilities: BTreeMap<i32, Vec<i32>>,
+    /// Character id -> preset id (`CharacterParameters.csv`
+    /// `DefaultCommandSet`, which equals the `CharacterPresetId`).
+    presets: BTreeMap<i32, i32>,
+    /// Preset id -> learnable abilities (`Abilities/<Preset>.csv`).
+    learnable: BTreeMap<i32, Vec<PaEntry>>,
+}
+
+/// `CharacterPresetId` names, which are the ability file names.
+const PRESET_FILES: [&str; 16] = [
+    "Zidane", "Vivi", "Garnet", "Steiner", "Freya", "Quina", "Eiko", "Amarant", "Cinna1", "Cinna2",
+    "Marcus1", "Marcus2", "Blank1", "Blank2", "Beatrix1", "Beatrix2",
+];
+
+/// `AA:X` -> X, `SA:X` -> 192 + X, a bare number as is; 0 is the void entry.
+fn ability_id(text: &str) -> Option<i32> {
+    let text = text.trim();
+    if let Some(value) = text.strip_prefix("AA:") {
+        value.trim().parse().ok()
+    } else if let Some(value) = text.strip_prefix("SA:") {
+        value.trim().parse::<i32>().ok().map(|id| 192 + id)
+    } else {
+        text.parse().ok()
+    }
 }
 
 impl Equipment {
@@ -135,6 +169,23 @@ impl Equipment {
             if let (Some(id), Some(set)) = (int(&row, 0), int(&row, 5)) {
                 equipment.sets.insert(id, set);
             }
+            if let (Some(id), Some(preset)) = (int(&row, 0), int(&row, 4)) {
+                equipment.presets.insert(id, preset);
+            }
+        }
+        // Id;AP per row; `0` rows are void and keep their place.
+        for (preset, name) in PRESET_FILES.iter().enumerate() {
+            let path = characters.join("Abilities").join(format!("{name}.csv"));
+            let Ok(text) = read(path) else { continue };
+            let rows = csv_rows(&text)
+                .filter_map(|row| {
+                    Some(PaEntry {
+                        id: ability_id(row.first()?)?,
+                        max_ap: int(&row, 1)?,
+                    })
+                })
+                .collect();
+            equipment.learnable.insert(preset as i32, rows);
         }
         for row in csv_rows(&read(characters.join("DefaultEquipment.csv"))?) {
             let Some(id) = int(&row, 1) else { continue };
@@ -176,6 +227,12 @@ impl Equipment {
             if let (Some(id), Some(bonus)) = (int(&row, 0), int(&row, 9)) {
                 equipment.bonus_ids.insert(id, bonus);
             }
+            if let (Some(id), Some(abilities)) = (int(&row, 0), row.get(10)) {
+                let abilities: Vec<i32> = abilities.split(',').filter_map(ability_id).collect();
+                if abilities.iter().any(|&ability| ability != 0) {
+                    equipment.item_abilities.insert(id, abilities);
+                }
+            }
         }
         // Comment;Id;Speed;Strength;Magic;Spirit;...
         for row in csv_rows(&read(items_dir.join("Stats.csv"))?) {
@@ -208,6 +265,31 @@ impl Equipment {
             }
         }
         (weapon, defence)
+    }
+
+    /// `itemData.ability` of every default-equipped item, slot order, and
+    /// the character's learnable table (`_FF9Abil_PaData[PresetId]`).
+    fn abilities(&self, character: i32) -> (Vec<i32>, Vec<PaEntry>) {
+        let equipped = self
+            .sets
+            .get(&character)
+            .and_then(|set| self.items.get(set))
+            .map(|slots| {
+                slots
+                    .iter()
+                    .filter_map(|item| self.item_abilities.get(item))
+                    .flatten()
+                    .copied()
+                    .collect()
+            })
+            .unwrap_or_default();
+        let learnable = self
+            .presets
+            .get(&character)
+            .and_then(|preset| self.learnable.get(preset))
+            .cloned()
+            .unwrap_or_default();
+        (equipped, learnable)
     }
 
     /// The equipment half of `ff9play.FF9Play_Update`: speed, strength,
@@ -538,7 +620,12 @@ impl FieldBattles {
         if report.outcome.as_deref() == Some("victory") {
             let mut members: [Option<PartyMember>; 4] = Default::default();
             for (slot, (fighter, unit)) in party.iter().zip(&machine.units).take(4).enumerate() {
-                members[slot] = Some(reward_member(fighter, unit.cur_hp, unit.cur_mp));
+                members[slot] = Some(reward_member(
+                    fighter,
+                    unit.cur_hp,
+                    unit.cur_mp,
+                    &self.equipment,
+                ));
             }
             let snapshot = PartySnapshot {
                 gil: 0,
@@ -555,6 +642,25 @@ impl FieldBattles {
                 .collect();
             // `AfterEvent` scenes show no result screen and pay no AP.
             report.reward_ap = if bonus.event { 0 } else { bonus.ap };
+            report.reward_ap_lines = party
+                .iter()
+                .zip(reward.shares)
+                .filter_map(|(fighter, share)| {
+                    let ap = share.ap?;
+                    let (equipped, learnable) = self.equipment.abilities(fighter.character);
+                    let goals = equipped
+                        .into_iter()
+                        .filter(|&ability| ability != 0)
+                        .filter_map(|ability| {
+                            learnable
+                                .iter()
+                                .find(|entry| entry.id == ability)
+                                .map(|entry| (ability, entry.max_ap))
+                        })
+                        .collect();
+                    Some((fighter.character, ap, goals))
+                })
+                .collect();
             report.reward_items = reward.items;
             report.reward_card = reward.card;
         }
@@ -644,7 +750,8 @@ pub fn save_party(report: &FightReport, stats: &mut BTreeMap<i32, CharacterStats
 /// The `PLAYER` fields `BattleReward::from_bonus` reads: who is enabled
 /// (alive) and still below the EXP cap. The field does not track EXP per
 /// level yet, so every line counts as under the cap.
-fn reward_member(fighter: &PartyFighter, hp: u32, mp: u32) -> PartyMember {
+fn reward_member(fighter: &PartyFighter, hp: u32, mp: u32, equipment: &Equipment) -> PartyMember {
+    let (equipped_abilities, learnable) = equipment.abilities(fighter.character);
     let stats = fighter.base;
     let base = tantalus_legacy::battle::rewards::BaseStats {
         dex: stats.speed,
@@ -670,15 +777,16 @@ fn reward_member(fighter: &PartyFighter, hp: u32, mp: u32) -> PartyMember {
         cur_capa: u32::from(base.gems),
         elem: basis,
         equip_stat_bonus: [0; 4],
-        equipped_abilities: Vec::new(),
-        learnable: Vec::new(),
-        pa: Vec::new(),
+        pa: vec![0; learnable.len()],
+        equipped_abilities,
+        learnable,
     }
 }
 
 /// `BattleResultUI` pay-out into the field world: gil (`UpdateGil`), item
-/// stacks (`UpdateItem`, legacy ids), and each line's EXP share. AP and
-/// cards are reported but not applied (no ability or card state yet).
+/// stacks (`UpdateItem`, legacy ids), each line's EXP share, AP toward
+/// each equipped learnable ability (`AddAp`, once per item carrying it),
+/// and the card (`MiniGame_SetCard`, while the collection has room).
 pub fn pay_rewards(report: &FightReport, world: &mut FieldWorld) {
     if report.outcome.as_deref() != Some("victory") {
         return;
@@ -691,6 +799,14 @@ pub fn pay_rewards(report: &FightReport, world: &mut FieldWorld) {
     }
     for &(character, exp) in &report.reward_exp {
         world.apply_experience(character, u64::from(exp));
+    }
+    for (character, ap, goals) in &report.reward_ap_lines {
+        for &(ability, max_ap) in goals {
+            world.apply_ap(*character, ability, max_ap, i32::from(*ap));
+        }
+    }
+    if let Some(card) = report.reward_card {
+        world.add_card(card);
     }
 }
 
@@ -755,6 +871,22 @@ mod tests {
     /// Reads the Memoria tables when `TANTALUS_MEMORIA` points at the
     /// reference checkout.
     #[test]
+    fn pay_rewards_applies_ap_and_cards() {
+        let mut world = FieldWorld::new();
+        let report = FightReport {
+            outcome: Some("victory".to_owned()),
+            reward_ap_lines: vec![(0, 25, vec![(101, 40), (102, 40), (101, 40)])],
+            reward_card: Some(7),
+            ..FightReport::default()
+        };
+        pay_rewards(&report, &mut world);
+        // An ability on two items gains twice: 25 + 25 reaches 40.
+        assert!(world.learned_abilities[&0].contains(&101));
+        assert_eq!(world.ability_pa[&0][&102], 25);
+        assert_eq!(world.cards, vec![7]);
+    }
+
+    #[test]
     fn stat_bonus_reads_memoria_tables_when_present() {
         let Some(root) = std::env::var_os("TANTALUS_MEMORIA") else {
             return;
@@ -767,6 +899,14 @@ mod tests {
         // carries none.
         assert_eq!(equipment.stat_bonus(11), [1, 2, 3, 8]);
         assert_eq!(equipment.stat_bonus(0), [0; 4]);
+        // Zidane starts with a Dagger (Flee, 40 AP to learn).
+        let (equipped, learnable) = equipment.abilities(0);
+        assert!(equipped.contains(&101), "{equipped:?}");
+        assert!(learnable.contains(&PaEntry {
+            id: 101,
+            max_ap: 40
+        }));
+        assert_eq!(ability_id("SA:17"), Some(209));
     }
 
     #[test]

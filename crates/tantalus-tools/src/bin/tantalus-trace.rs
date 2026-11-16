@@ -33,7 +33,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -50,6 +50,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut explore = false;
     let mut walk_demo = false;
     let mut actor_track: Option<PathBuf> = None;
+    let mut world_exits: Vec<(i32, i32, i32)> = Vec::new();
     let mut character_data: Option<PathBuf> = None;
     let mut game_data: Option<PathBuf> = None;
     let mut mes_map: Option<PathBuf> = None;
@@ -83,6 +84,20 @@ fn run(args: Vec<String>) -> Result<(), String> {
             "--explore" => explore = true,
             "--walk-demo" => walk_demo = true,
             "--actor-track" => actor_track = Some(PathBuf::from(value()?)),
+            "--world-exits" => {
+                for part in value()?.split(',') {
+                    let (step, from) = match part.trim().split_once('@') {
+                        Some((step, from)) => (step, from.parse().ok()),
+                        None => (part.trim(), Some(i32::MIN)),
+                    };
+                    let parsed = step.split_once(':').and_then(|(map, location)| {
+                        Some((map.parse().ok()?, location.parse().ok()?, from?))
+                    });
+                    world_exits.push(parsed.ok_or_else(|| {
+                        format!("bad --world-exits entry `{part}`, want WORLD:LOCATION[@SCENARIO]")
+                    })?);
+                }
+            }
             "--game-data" => game_data = Some(PathBuf::from(value()?)),
             "--mes-map" => mes_map = Some(PathBuf::from(value()?)),
             "--language" => language = value()?,
@@ -295,6 +310,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     explore,
                     walk_demo,
                     actor_track,
+                    world_exits,
                     stats,
                     text,
                     choices,
@@ -431,6 +447,88 @@ type Pool = Vec<Vec<(u16, EventProgram)>>;
 /// Registers one function of `entry` as a scene VM (key = entry * 256 +
 /// function ordinal) acting on the entry's object. Returns `None` when the tag is absent or the VM is
 /// already registered.
+/// The world map stand-in. The world script (`EVT_WORLD_WORLD00` for map
+/// 9000) leaves for a field through one `JumpSwitch` on the location the
+/// party stands at (map variable 29, copied from 24) whose cases end in
+/// `ChangeField`. This runs that code with the real VM: it sets the
+/// location, starts after the exit fade (`ApplyFadeFilter`) that precedes
+/// the switch, and returns the field the script changes to. Walking the
+/// world, encounters and the other world opcodes are not modeled.
+fn world_exit(
+    bundle: &Path,
+    name: &str,
+    location: i32,
+    world: &mut tantalus_game::field::FieldWorld,
+) -> Result<Option<i32>, String> {
+    use tantalus_legacy::{InstructionKind, VariableType};
+    let binary = load_event(bundle, &format!("{name}.eb"))?;
+    let (pool, _) = decode_pool(&binary)?;
+    let program = pool
+        .iter()
+        .flatten()
+        .map(|(_, program)| program)
+        .find(|program| {
+            let has_switch = program
+                .instructions
+                .values()
+                .any(|i| matches!(i.kind, InstructionKind::JumpSwitch { .. }));
+            let changes = program
+                .instructions
+                .values()
+                .filter(|i| matches!(i.kind, InstructionKind::ChangeField(_)))
+                .count();
+            has_switch && changes > 8
+        })
+        .ok_or("no world exit switch in the world script")?;
+    let switch = program
+        .instructions
+        .values()
+        .filter(|i| matches!(i.kind, InstructionKind::JumpSwitch { .. }))
+        .max_by_key(|i| match &i.kind {
+            InstructionKind::JumpSwitch { case_relative, .. } => case_relative.len(),
+            _ => 0,
+        })
+        .ok_or("no switch")?;
+    let start = program
+        .instructions
+        .range(..switch.offset)
+        .rev()
+        .find(|(_, i)| matches!(i.kind, InstructionKind::ApplyFadeFilter { .. }))
+        .and_then(|(offset, _)| program.instructions.range(offset + 1..).next())
+        .map_or(switch.offset, |(offset, _)| *offset);
+    world
+        .map_memory
+        .set(29, VariableType::Byte, location)
+        .ok_or("map variable 29 out of range")?;
+    world
+        .map_memory
+        .set(24, VariableType::Byte, location)
+        .ok_or("map variable 24 out of range")?;
+    let mut vm = tantalus_legacy::EventVm::resume(
+        program.clone(),
+        EntityId::new(0),
+        start,
+        VmStatus::Running,
+        None,
+    )
+    .map_err(|error| error.to_string())?;
+    let mut host = tantalus_game::field::FieldHost::new(world);
+    for tick in 0..600u64 {
+        let report = vm
+            .step(tantalus_contracts::Tick::new(tick), &mut host)
+            .map_err(|error| error.to_string())?;
+        for event in &report.events {
+            if let tantalus_legacy::HostEvent::ChangeField { field } = event {
+                return Ok(Some(i32::from(*field)));
+            }
+        }
+        if report.status == VmStatus::Completed {
+            return Ok(None);
+        }
+    }
+    Err("world exit code did not reach ChangeField in 600 ticks".to_owned())
+}
+
 fn register(
     director: &mut tantalus_game::FieldDirector,
     pool: &Pool,
@@ -870,6 +968,11 @@ struct ChainOptions {
     /// with the background name, then actor positions every two ticks, for
     /// `tantalus-client view-track`.
     actor_track: Option<PathBuf>,
+    /// World map stand-in: on `ChangeWorldMap WORLD`, the first unused
+    /// entry for WORLD (from SCENARIO on) picks the world location the
+    /// party enters, and the world script's own exit code for that location
+    /// names the next field.
+    world_exits: Vec<(i32, i32, i32)>,
     stats: BTreeMap<i32, tantalus_game::field::CharacterStats>,
     text: Option<FieldText>,
     /// Scripted answers for choice windows by (field map, text id); 0 when
@@ -1175,6 +1278,7 @@ fn chain(
         explore,
         walk_demo,
         actor_track,
+        world_exits,
         stats,
         text,
         choices,
@@ -1285,6 +1389,7 @@ fn chain(
     if let Some(dir) = &actor_track {
         std::fs::create_dir_all(dir).map_err(|error| format!("{}: {error}", dir.display()))?;
     }
+    let mut world_exits_used = vec![false; world_exits.len()];
     for field_number in 0..max_fields {
         let Some(name) = db.get(&map) else {
             println!(
@@ -2153,6 +2258,32 @@ fn chain(
             route_used[index] = true;
         }
         world = director.world().clone();
+        if transition.is_none()
+            && let Some(world_map) = world_map
+        {
+            let scenario_now = scenario_counter;
+            let index = world_exits.iter().enumerate().position(|(index, entry)| {
+                entry.0 == world_map && !world_exits_used[index] && scenario_now >= entry.2
+            });
+            if let Some(index) = index {
+                world_exits_used[index] = true;
+                let location = world_exits[index].1;
+                let outcome = match db.get(&world_map) {
+                    Some(name) => world_exit(bundle, name, location, &mut world),
+                    None => Err(format!("world map {world_map} not in EventDB")),
+                };
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "world_map": world_map,
+                        "location": location,
+                        "next_map": outcome.as_ref().ok().copied().flatten(),
+                        "error": outcome.as_ref().err(),
+                    })
+                );
+                transition = outcome.ok().flatten();
+            }
+        }
         match transition {
             Some(next) => map = next,
             None => return Ok(()),

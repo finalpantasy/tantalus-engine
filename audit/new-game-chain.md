@@ -406,3 +406,30 @@ placed through the field camera. On `006_103` (Alexandria main street) the
 player walks the street between ticks 100 and 600. Some cyan boxes sit on
 roofs; those objects are probably hidden or off-stage, and the track does not
 record visibility yet.
+
+## Fourteenth run (AP, cards, and past the world map)
+
+Victories now pay AP. Each character's learnable table comes from Memoria's
+`Abilities/<Preset>.csv` (preset from `CharacterParameters.csv`), and the
+abilities on their default equipment come from the `AbilityIds` column of
+`Items.csv` (`AA:X` is X, `SA:X` is 192 + X). `pay_rewards` calls
+`FieldWorld::apply_ap` once per equipped item carrying the ability, as
+`BattleResultUI.AddAp` does. A card goes to `FieldWorld::cards` while the
+collection holds fewer than 100. In run 85, Zidane earned AP toward Flee
+(40 AP to learn) from the Evil Forest fights. No fight in the slice dropped a
+card, so the card path is covered only by a unit test.
+
+The chain no longer stops at `ChangeWorldMap 9000`. With
+`--world-exits 9000:4`, it runs the world script's own exit code
+(`EVT_WORLD_WORLD00`, a `JumpSwitch` on the party's location in map variable
+29) with the real VM and follows its `ChangeField`. Location 4 is the Ice
+Cavern: run 86 went from the Evil Forest to field 300 (`IC_ENT`) and on to
+301 (`IC_STP`) at scenario 2500. Walking the world map is not modeled.
+
+Two fights are still wrong under the stand-in "attack the first enemy"
+policy:
+
+| Battle | Scene | Result | What the run shows |
+| --- | --- | --- | --- |
+| 335 | TH_E004 | defeat at tick 2368 | Enemy HP starts at 10033, 10167 and 10038; the first falls to 8347 before the party dies. The script's scripted win (code 33, value 1) never runs. |
+| 302 | EF_E006 | no result after 20000 ticks | Enemy HP stays at 10513 and 10068; the party never damages them. |
