@@ -426,13 +426,34 @@ The chain no longer stops at `ChangeWorldMap 9000`. With
 Cavern: run 86 went from the Evil Forest to field 300 (`IC_ENT`) and on to
 301 (`IC_STP`) at scenario 2500. Walking the world map is not modeled.
 
-Two fights are still wrong under the stand-in "attack the first enemy"
-policy:
+Run 90 fixes four gaps in field battles:
 
-| Battle | Scene | Result | What the run shows |
+- Member 66 (`MODEL_TYPE`) now reads the player's `CharacterSerialNumber`
+  (`GetHackedSerialNumber`, `btl_scrp.cs:861`), computed with the
+  `CharacterParameters.csv` formulas from the default weapon's `GraphicsId`
+  and the scenario counter. It used to read 0 for everyone, so the scripts
+  put the whole party in every "who is Zidane / Garnet / Steiner" variable.
+- Enemy commands read the scene's attack list (`enemy_attack[sub_no]`,
+  `btl_util.cs:422`): script, power, rate, elements, status set
+  (`Battle/StatusSets.csv`), category and target. Before this every enemy
+  command was a basic script-1 hit.
+- Script 96 (Trance Full) is ported, and the trance gauge follows
+  `btl_init.cs:371`: on only when `gEventGlobal[16]` is set, not for
+  category-16 guests, not for Garnet while `gEventGlobal[17]` is set.
+- Every command takes a stand-in 75 ticks (its effect lands at tick 40),
+  since SFX lengths are not ported. The caster's ATB is still while it
+  runs (`sel_mode`), as in `HonoluluBattleMain.cs:445`. With 0 ticks the
+  Prison Cage acted three times per party turn.
+
+| Battle | Scene | Run 89 | Run 90 |
 | --- | --- | --- | --- |
-| 335 | TH_E004 | defeat at tick 2368 | Enemy HP starts at 10033, 10167 and 10038; the first falls to 8347 before the party dies. The script's scripted win (code 33, value 1) never runs. |
-| 302 | EF_E006 | no result after 20000 ticks | Enemy HP stays at 10513 and 10068; the party never damages them. |
+| 335 | TH_E004 | defeat | victory |
+| 302 | EF_E006 | no result after 20000 ticks | defeat: the Trance tutorial plays out, then the cage drains Garnet below 10000 HP with 421 of its 513 HP gone |
+| 303 | EF_E009 | victory | defeat: Plant Brain at 404 of 916 HP |
+
+302 and 303 lose because the stand-in party policy only uses Attack. A
+player would use Zidane's Trance skills on the cage and Vivi's Fire on the
+Plant Brain. Player abilities are not in the field battle command list yet.
 
 ## Playing it
 

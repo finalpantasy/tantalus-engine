@@ -15,7 +15,7 @@ use tantalus_contracts::Point3;
 use tantalus_game::field::FieldWorld;
 use tantalus_game::new_game::BaseStats;
 
-use crate::field_battle::{FieldBattles, PartyFighter, pay_rewards, save_party};
+use crate::field_battle::{FieldBattles, PartyFighter, PartyGlobals, pay_rewards, save_party};
 use crate::field_data::{FieldText, load_navigation, parse_background_map, parse_event_db};
 use crate::field_session::{
     CONFIRM, FieldSession, decode_pool, load_event, prepare_field_world, world_exit,
@@ -354,6 +354,7 @@ impl PlayGame {
                     mp: stats.current_mp.max(0) as u32,
                     max_mp: stats.max_mp.max(0) as u32,
                     base,
+                    globals: PartyGlobals::from_globals(world.global_memory.bytes()),
                 })
             })
             .collect()

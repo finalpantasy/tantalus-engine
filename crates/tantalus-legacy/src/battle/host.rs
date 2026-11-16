@@ -766,6 +766,12 @@ fn unit_view(unit: &BattleUnit, sched: &UnitSched, index: usize) -> UnitView {
         bonus_exp: sched.bonus_exp as i32,
         out_of_reach: sched.out_of_reach,
         die_fade_rate: i32::from(sched.die_fade_rate),
+        // `GetHackedSerialNumber` (`btl_scrp.cs:861`): the player's serial.
+        model_type: if unit.is_player {
+            i32::from(unit.serial_no)
+        } else {
+            0
+        },
         ..UnitView::default()
     }
 }

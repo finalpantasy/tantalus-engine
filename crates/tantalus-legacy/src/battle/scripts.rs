@@ -5,7 +5,7 @@
 //! estimators (enemy AI scoring) are separate code paths.
 //!
 //! Ported ids: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 19 20 22 25 27 42 62
-//! 63 64 69 70 71 72 73 74 75 76 77 100 103 109. Every other id returns
+//! 63 64 69 70 71 72 73 74 75 76 77 96 100 103 109. Every other id returns
 //! [`CalcError::UnportedScript`].
 
 use super::calc::{AttackBonus, CalcError, CalcFlags, Calculator, UnitFlags};
@@ -54,6 +54,7 @@ pub fn perform(id: i32, v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Calc
         75 => dead_pepper(v),
         76 => tent(v, rng),
         77 => dark_matter(v),
+        96 => trance_full(v, rng),
         100 => precise_enemy_physical_attack(v, rng),
         103 => magic_apply_positive_status(v, rng),
         109 => mini(v, rng),
@@ -533,6 +534,24 @@ fn tent(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
     if item.hit_rate < rng.random16() % 100 {
         v.target_try_alter_statuses(item.status, false, rng);
     }
+    Ok(())
+}
+
+/// Script 96, Trance Full (`0096_TranceFullScript.cs:21`): a miss without
+/// a trance gauge (`HasTrance` = `bi.t_gauge != 0`), else a full gauge and
+/// the Trance status. The Evil Forest cage (`EVT_BATTLE_EF_E006`) uses it to
+/// start the Trance tutorial.
+fn trance_full(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
+    if !v.t().has_trance_gauge {
+        v.flags.0 |= CalcFlags::MISS;
+        return Ok(());
+    }
+    v.t_mut().trance = u8::MAX;
+    let ctx = status::StatusCtx {
+        table: v.table,
+        env: &v.env.status,
+    };
+    status::alter_status(&mut v.units[v.target], 14, false, &ctx, rng);
     Ok(())
 }
 

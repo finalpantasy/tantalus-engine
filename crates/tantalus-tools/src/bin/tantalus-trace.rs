@@ -38,7 +38,7 @@ fn main() -> ExitCode {
 }
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
-       tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10]
+       tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--globals SCENARIO:TRANCE:DEPRESS]
        tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
@@ -69,6 +69,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut hold: BTreeMap<i32, i32> = BTreeMap::new();
     let mut fight_battle: Option<i32> = None;
     let mut fight_party: Vec<i32> = vec![0];
+    let mut fight_globals = tantalus_tools::field_battle::PartyGlobals::default();
     let mut battle_ids: Option<PathBuf> = None;
     let mut waypoints: BTreeMap<i32, Vec<[f32; 2]>> = BTreeMap::new();
     while let Some(flag) = iter.next() {
@@ -185,6 +186,21 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     .map(|id| parse_number(id.trim(), "--party"))
                     .collect::<Result<_, _>>()?;
             }
+            "--globals" => {
+                let text = value()?;
+                let parts: Vec<i32> = text
+                    .split(':')
+                    .map(|part| parse_number(part.trim(), "--globals"))
+                    .collect::<Result<_, _>>()?;
+                let [scenario, trance, depress] = parts[..] else {
+                    return Err("--globals wants SCENARIO:TRANCE:DEPRESS".into());
+                };
+                fight_globals = tantalus_tools::field_battle::PartyGlobals {
+                    scenario,
+                    trance_gauge: trance as u8,
+                    garnet_depress: depress as u8,
+                };
+            }
             other => return Err(format!("unrecognized argument `{other}`\n{USAGE}")),
         }
     }
@@ -227,6 +243,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                         mp: stats.current_mp.max(0) as u32,
                         max_mp: stats.max_mp.max(0) as u32,
                         base: *base.get(character)?,
+                        globals: fight_globals,
                     })
                 })
                 .collect();
@@ -1216,6 +1233,10 @@ fn chain(
                                     mp: stats.current_mp.max(0) as u32,
                                     max_mp: stats.max_mp.max(0) as u32,
                                     base,
+                                    globals:
+                                        tantalus_tools::field_battle::PartyGlobals::from_globals(
+                                            world.global_memory.bytes(),
+                                        ),
                                 })
                             })
                             .collect();

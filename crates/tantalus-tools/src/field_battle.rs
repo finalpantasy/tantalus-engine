@@ -18,7 +18,7 @@ use std::path::Path;
 use tantalus_assets::pc::battle_scene::{BattleBundleData, BattleScene};
 use tantalus_contracts::{ContentId, EntityId, Tick};
 use tantalus_game::FieldWorld;
-use tantalus_game::battle::legacy::{LegacyBattleAdapter, NoEnemyAi, unit_mappings};
+use tantalus_game::battle::legacy::{LegacyBattleAdapter, unit_mappings};
 use tantalus_game::battle::{
     BattleCommand, BattleOutcome, CombatEvent, CombatInput, WorldGameServices,
 };
@@ -26,13 +26,16 @@ use tantalus_game::field::world::{CharacterStats, EncounterRequest};
 use tantalus_game::new_game::BaseStats;
 use tantalus_legacy::EventBinary;
 use tantalus_legacy::battle::host::{apply_unit_views, battle_views};
-use tantalus_legacy::battle::machine::{ABILITY_ATTACK, Battle, BattleConfig, Phase};
-use tantalus_legacy::battle::queue::cmd;
+use tantalus_legacy::battle::machine::{
+    ABILITY_ATTACK, Battle, BattleConfig, BattleHooks, EnemyAction, Phase,
+};
+use tantalus_legacy::battle::queue::{CommandSpec, cmd};
 use tantalus_legacy::battle::rng::SplitMix64Random;
 use tantalus_legacy::battle::script_host::{
     AiEvent, BattleScriptDriver, BattleScriptState, EnemyAiHooks, SceneOverlay, ScriptTable,
 };
 use tantalus_legacy::battle::status::DEATH;
+use tantalus_legacy::battle::targeting::target_type;
 use tantalus_legacy::battle::{BattleUnit, Elements, StatusDataRow, StatusTable, WeaponStats};
 
 use tantalus_legacy::battle::rewards::{
@@ -97,6 +100,31 @@ pub struct PartyFighter {
     pub mp: u32,
     pub max_mp: u32,
     pub base: BaseStats,
+    /// Event globals the battle setup reads.
+    pub globals: PartyGlobals,
+}
+
+/// The event globals `btl_init` reads when it sets up a party member.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PartyGlobals {
+    /// Scenario counter (global bytes 0-1), for the serial number formulas.
+    pub scenario: i32,
+    /// `battle.TRANCE_GAUGE_FLAG` (`gEventGlobal[16]`).
+    pub trance_gauge: u8,
+    /// `battle.GARNET_DEPRESS_FLAG` (`gEventGlobal[17]`).
+    pub garnet_depress: u8,
+}
+
+impl PartyGlobals {
+    /// From the field's global event memory.
+    pub fn from_globals(bytes: &[u8]) -> Self {
+        let byte = |index: usize| bytes.get(index).copied().unwrap_or(0);
+        Self {
+            scenario: i32::from(byte(0)) | (i32::from(byte(1) as i8) << 8),
+            trance_gauge: byte(16),
+            garnet_depress: byte(17),
+        }
+    }
 }
 
 pub struct FieldBattles {
@@ -124,6 +152,8 @@ pub struct Equipment {
     armors: BTreeMap<i32, [i32; 4]>,
     /// Item id -> `BonusId` (`Items.csv`).
     bonus_ids: BTreeMap<i32, i32>,
+    /// Item id -> `GraphicsId` (`ff9item.shape`).
+    shapes: BTreeMap<i32, u8>,
     /// `BonusId` -> speed, strength, magic, spirit (`Stats.csv`).
     bonuses: BTreeMap<i32, [i32; 4]>,
     /// Item id -> ability ids (`Items.csv` `AbilityIds`: `AA:X` is X,
@@ -134,6 +164,9 @@ pub struct Equipment {
     presets: BTreeMap<i32, i32>,
     /// Preset id -> learnable abilities (`Abilities/<Preset>.csv`).
     learnable: BTreeMap<i32, Vec<PaEntry>>,
+    /// `FF9Battle.add_status` (`Battle/StatusSets.csv`): set id -> status
+    /// mask. Empty when the file is missing; every set is then no status.
+    status_sets: BTreeMap<i32, u64>,
 }
 
 /// `CharacterPresetId` names, which are the ability file names.
@@ -141,6 +174,83 @@ const PRESET_FILES: [&str; 16] = [
     "Zidane", "Vivi", "Garnet", "Steiner", "Freya", "Quina", "Eiko", "Amarant", "Cinna1", "Cinna2",
     "Marcus1", "Marcus2", "Blank1", "Blank2", "Beatrix1", "Beatrix2",
 ];
+
+/// Stand-in command lengths. The source holds a command in
+/// `CMD_MODE_LOOP` until its SFX and sequence end, and the caster's ATB stays
+/// still meanwhile (`sel_mode != 0`, `HonoluluBattleMain.cs:445`). The SFX
+/// data is not ported, so every command takes the same 75 ticks (about 2.5 s
+/// at 30 ticks a second) and applies its effect at tick 40. With 0 a fast
+/// enemy acted about three times per party turn.
+const COMMAND_TIMING: tantalus_legacy::battle::machine::Timing =
+    tantalus_legacy::battle::machine::Timing {
+        enemy_death_anim_ticks: 0,
+        player_death_ticks: 0,
+        effect_after_loop_ticks: 40,
+        loop_total_ticks: 75,
+    };
+
+/// `Poison(16), Sleep(17)` -> bits 16 and 17.
+fn status_mask(list: &str) -> u64 {
+    list.split(',')
+        .filter_map(|item| {
+            let open = item.find('(')?;
+            let close = item[open..].find(')')? + open;
+            item[open + 1..close].trim().parse::<u32>().ok()
+        })
+        .filter(|&bit| bit < 64)
+        .fold(0, |mask, bit| mask | 1u64 << bit)
+}
+
+/// The enemy side of `btl_util.GetCommandAction` (`btl_util.cs:422`):
+/// every command an enemy issues reads `FF9Battle.enemy_attack[sub_no]`,
+/// the scene's attack list, through `CMD_DATA.SetAAData`
+/// (`CMD_DATA.cs:39-55`). Player commands keep the basic catalog.
+struct SceneAttacks {
+    attacks: Vec<tantalus_assets::pc::battle_scene::Attack>,
+    status_sets: BTreeMap<i32, u64>,
+}
+
+impl BattleHooks for SceneAttacks {
+    fn spec(&mut self, cmd_no: u32, sub_no: i32, caster: &BattleUnit) -> Option<CommandSpec> {
+        if caster.is_player && cmd_no != cmd::MAGIC_COUNTER {
+            return tantalus_game::battle::legacy::basic_spec(cmd_no);
+        }
+        let attack = self.attacks.get(usize::try_from(sub_no).ok()?)?;
+        let mut command = tantalus_legacy::battle::BattleCommand::new(attack.script_id);
+        command.command_id = cmd_no;
+        command.power = attack.power;
+        command.hit_rate = attack.rate;
+        let element = match attack.elements {
+            tantalus_assets::pc::battle_scene::ByteOrTokens::Byte(bits) => bits,
+            _ => 0,
+        };
+        command.element = Elements(element);
+        command.element_for_bonus = command.element;
+        command.ability_status = self
+            .status_sets
+            .get(&attack.add_status_no)
+            .copied()
+            .unwrap_or(0);
+        command.ability_category = attack.category;
+        command.ability_type = attack.attack_type;
+        command.target_type = attack.target;
+        command.is_many_target =
+            !(attack.target <= target_type::MANY_ENEMY || attack.target >= target_type::SELF);
+        // `IsAttackShortRange` (`btl_util.cs:311-326`): an enemy caster has
+        // no weapon, so every enemy attack counts as short range.
+        command.is_short_range = true;
+        command.mp_cost = attack.mp;
+        Some(CommandSpec {
+            command,
+            default_ally: attack.default_ally,
+            for_dead: attack.for_dead,
+        })
+    }
+
+    fn enemy_atb(&mut self, _battle: &Battle, _unit: usize) -> Option<EnemyAction> {
+        None
+    }
+}
 
 /// `AA:X` -> X, `SA:X` -> 192 + X, a bare number as is; 0 is the void entry.
 fn ability_id(text: &str) -> Option<i32> {
@@ -227,6 +337,9 @@ impl Equipment {
             if let (Some(id), Some(bonus)) = (int(&row, 0), int(&row, 9)) {
                 equipment.bonus_ids.insert(id, bonus);
             }
+            if let (Some(id), Some(shape)) = (int(&row, 0), int(&row, 6)) {
+                equipment.shapes.insert(id, shape.clamp(0, 255) as u8);
+            }
             if let (Some(id), Some(abilities)) = (int(&row, 0), row.get(10)) {
                 let abilities: Vec<i32> = abilities.split(',').filter_map(ability_id).collect();
                 if abilities.iter().any(|&ability| ability != 0) {
@@ -243,7 +356,26 @@ impl Equipment {
             }
             equipment.bonuses.insert(id, stats);
         }
+        // Comment;Id;Statuses, each status `Name(id)` (`#! UnshiftStatuses`:
+        // the id is the bit index).
+        if let Ok(text) = read(characters.join("../Battle/StatusSets.csv")) {
+            for row in csv_rows(&text) {
+                let Some(id) = int(&row, 1) else { continue };
+                let mask = row.get(2).map(|list| status_mask(list)).unwrap_or(0);
+                equipment.status_sets.insert(id, mask);
+            }
+        }
         Ok(equipment)
+    }
+
+    /// The default weapon's `GraphicsId` (`WeaponShape`), 0 without one.
+    fn weapon_shape(&self, character: i32) -> u8 {
+        self.sets
+            .get(&character)
+            .and_then(|set| self.items.get(set))
+            .and_then(|slots| self.shapes.get(&slots[0]))
+            .copied()
+            .unwrap_or(0)
     }
 
     /// The character's default weapon and summed armor defences.
@@ -450,7 +582,10 @@ impl FieldBattles {
         let entities: Vec<EntityId> = pairs.iter().map(|pair| pair.0).collect();
         let mut battle = Battle::new(
             units,
-            BattleConfig::default(),
+            BattleConfig {
+                timing: COMMAND_TIMING,
+                ..BattleConfig::default()
+            },
             StatusTable::new(vec![StatusDataRow::default(); 32]),
         );
         // `SB2_FLG_SPECIAL` is `Info.SpecialStart`: the script opens the
@@ -484,7 +619,10 @@ impl FieldBattles {
             target_bits,
         );
         let hooks = EnemyAiHooks::new(
-            NoEnemyAi,
+            SceneAttacks {
+                attacks: scene.attacks.clone(),
+                status_sets: self.equipment.status_sets.clone(),
+            },
             driver,
             SceneOverlay {
                 battle_map_no: report.battle,
@@ -825,6 +963,18 @@ fn party_unit(slot: usize, fighter: &PartyFighter, equipment: &Equipment) -> Bat
     let (weapon, defence) = equipment.outfit(fighter.character);
     let mut unit = BattleUnit::new(1 << slot, true);
     unit.character_id = fighter.character as u8;
+    unit.serial_no = tantalus_legacy::battle::unit::default_serial_number(
+        unit.character_id,
+        equipment.weapon_shape(fighter.character),
+        fighter.globals.scenario,
+    )
+    .unwrap_or(255);
+    // `btl_init.cs:371-379`: no gauge before the scenario turns it on, for
+    // category 16 (guest characters) or for Garnet while she is depressed.
+    let category = tantalus_legacy::battle::unit::default_player_category(unit.character_id);
+    unit.has_trance_gauge = fighter.globals.trance_gauge != 0
+        && category.is_some_and(|category| category & 16 == 0)
+        && !(fighter.character == 2 && fighter.globals.garnet_depress != 0);
     unit.level = 1;
     unit.cur_hp = fighter.hp.max(1);
     unit.max_hp = fighter.max_hp.max(1);
@@ -957,5 +1107,23 @@ mod tests {
         };
         save_party(&failed, &mut stats);
         assert_eq!(stats[&0].current_hp, 40);
+    }
+
+    #[test]
+    fn status_sets_and_serial_numbers() {
+        assert_eq!(status_mask(""), 0);
+        assert_eq!(status_mask("Venom(1), Poison(16)"), (1 << 1) | (1 << 16));
+        use tantalus_legacy::battle::unit::default_serial_number as serial;
+        // Zidane: dagger (shape 1) 0, sword 1; Garnet: rod 3 / racket 4
+        // before scenario 10300, 5 / 6 after; Blank: armor 17 in 1500-1599.
+        assert_eq!(serial(0, 1, 0), Some(0));
+        assert_eq!(serial(0, 2, 0), Some(1));
+        assert_eq!(serial(2, 8, 2000), Some(3));
+        assert_eq!(serial(2, 7, 2000), Some(4));
+        assert_eq!(serial(2, 7, 10300), Some(6));
+        assert_eq!(serial(3, 0, 0), Some(7));
+        assert_eq!(serial(10, 0, 1550), Some(17));
+        assert_eq!(serial(10, 0, 2000), Some(16));
+        assert_eq!(serial(12, 0, 0), None);
     }
 }

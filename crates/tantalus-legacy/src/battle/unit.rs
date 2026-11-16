@@ -70,6 +70,46 @@ pub fn default_player_category(character_id: u8) -> Option<u8> {
     TABLE.get(usize::from(character_id)).copied()
 }
 
+/// `PLAYER.info.serial_no` (`CharacterSerialNumber`, Zidane dagger 0 ..
+/// Beatrix 18) from the `BattleParameterFormula` column of the shipped
+/// `Data/Characters/CharacterParameters.csv`: `weapon_shape` is the
+/// equipped weapon's `GraphicsId` (`ff9item.shape`), `scenario` the
+/// scenario counter. `None` for an id outside that table.
+pub fn default_serial_number(character_id: u8, weapon_shape: u8, scenario: i32) -> Option<u8> {
+    Some(match character_id {
+        0 => u8::from(weapon_shape != 1),
+        1 => 2,
+        2 => match (scenario < 10300, weapon_shape == 7) {
+            (true, true) => 4,
+            (true, false) => 3,
+            (false, true) => 6,
+            (false, false) => 5,
+        },
+        3 => 7,
+        4 => 12,
+        5 => 9,
+        6 => {
+            if weapon_shape == 7 {
+                11
+            } else {
+                10
+            }
+        }
+        7 => 13,
+        8 => 14,
+        9 => 15,
+        10 => {
+            if (1500..1600).contains(&scenario) {
+                17
+            } else {
+                16
+            }
+        }
+        11 => 18,
+        _ => return None,
+    })
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct BattleUnit {
     /// `BTL_DATA.btl_id` (bit mask id).
@@ -78,6 +118,9 @@ pub struct BattleUnit {
     pub is_player: bool,
     /// `bi.slot_no` for players (`CharacterId`, Steiner = 3); 255 = NONE.
     pub character_id: u8,
+    /// `info.serial_no` (`CharacterSerialNumber`) for players, read by
+    /// battle scripts as member 66 (`MODEL_TYPE`); 255 = NONE.
+    pub serial_no: u8,
     /// `Data.level` (Byte).
     pub level: u8,
     /// `Data.cur.hp` / `Data.max.hp` (raw; with `CustomBattleFlagsMeaning = 0`
@@ -178,6 +221,7 @@ impl BattleUnit {
             id,
             is_player,
             character_id: 255,
+            serial_no: 255,
             level: 1,
             cur_hp: 0,
             max_hp: 0,
