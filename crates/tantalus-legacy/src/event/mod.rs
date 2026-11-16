@@ -1,7 +1,7 @@
 mod binary;
 mod decode;
 mod memory;
-mod probe;
+pub(crate) mod probe;
 mod types;
 mod vm;
 

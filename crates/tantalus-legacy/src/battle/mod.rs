@@ -21,6 +21,7 @@ pub mod calc;
 pub mod command;
 pub mod cost;
 pub mod flee;
+pub mod host;
 pub mod machine;
 pub mod queue;
 pub mod rewards;

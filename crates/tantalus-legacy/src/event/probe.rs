@@ -61,7 +61,7 @@ fn event_name(event: &HostEvent) -> String {
         .to_owned()
 }
 
-struct ProbeHost;
+pub(crate) struct ProbeHost;
 
 impl LegacyEventHost for ProbeHost {
     fn apply(&mut self, _events: &[HostEvent]) -> Result<(), EngineError> {
