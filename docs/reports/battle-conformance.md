@@ -23,13 +23,13 @@ Three independent engine paths execute real battles from the owned install
 |---|---|---|
 | `audit/battle-run-all-patterns.json` (report path, seed 0x5EED) | 1054 | 1002 / 38 / 0 |
 | `audit/battle-world-run-all-patterns.json` (world hand-off, seed 0x5EED) | 1054 | 1002 / 38 / 0 |
-| `audit/battle-run-all-patterns-weak.json` (report path, unarmed level-8 party) | 1054 | 460 / 544 / 0 |
-| `audit/battle-world-run-all-patterns-weak.json` (world hand-off, weak party) | 1054 | 460 / 544 / 0 |
-| `audit/battle-run-all-patterns-flee.json` (report path, flee-key at tick 0) | 1054 | 3 / 387 / 593 escapes |
-| `audit/battle-world-run-all-patterns-flee.json` (world hand-off, flee-first) | 1054 | 3 / 387 / 593 escapes |
+| `audit/battle-run-all-patterns-weak.json` (report path, unarmed level-8 party) | 1054 | 455 / 549 / 0 |
+| `audit/battle-world-run-all-patterns-weak.json` (world hand-off, weak party) | 1054 | 455 / 549 / 0 |
+| `audit/battle-run-all-patterns-flee.json` (report path, one flee-key press, no attacks) | 1054 | 32 / 489 / 171 escapes |
+| `audit/battle-world-run-all-patterns-flee.json` (world hand-off, flee-first) | 1054 | 32 / 489 / 171 escapes |
 
 The 38 armed defeats are the endgame superboss set (the armed level-20 demo
-party wipes). The weak pair deliberately loses most battles (544 defeats) so
+party wipes). The weak pair deliberately loses most battles (549 defeats) so
 the defeat path — the decided-defeat gate, reward suppression, HP carry-back
 under mass defeat — is covered at corpus scale, not just by the superboss
 set. The 5 fog battles (`TH_E005`, `WM_9900-9903`) assemble clean and reach
@@ -48,9 +48,17 @@ be.
 
 The weak pair is also cross-path identical (zero deltas over 1054
 mass-defeat battles), and the flee-first pair is cross-path identical over
-593 escapes + 387 defeats — the escape family (flee-key roll, SysEscape
+171 escapes + 489 defeats — the escape family (flee-key roll, SysEscape
 fade, escape-pays-nothing economics, no HP/MP loss beyond battle damage) is
-covered at corpus scale. Getting there required fixing two real divergences
+covered at corpus scale. Getting there required the runaway fix: the scene's
+`no_run_away` flag (SB2 bit 0x20) now sets `config.runaway`
+(`Info.Runaway = (flags & 32) == 0`, `BTL_SCENE.cs:322`), so bosses are
+unescapable and a failed single press ends as a defeat. Battle start is
+reference-shaped too: `btl_sys.StartType` (btl_sys.cs:181) forces
+BackAttack on the back-attack flag and rolls random8 for back (24/256) /
+preemptive (16/256) on non-special scenes, then per-unit initial ATB
+gauges are rolled (`random16 % max`) — no battle starts from an all-zero
+gauge, and both draw from the calculator stream through GameServices. Getting there required fixing two real divergences
 the weak mode exposed: (1) the two paths passed different battle-script
 party lists (`&[0]` vs `&[]`) so enemy scripts saw different player
 objects — both now pass the machine units' character ids (Zidane..Steiner,
