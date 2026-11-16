@@ -3,6 +3,7 @@ pub mod effects;
 pub mod event;
 pub mod saves;
 pub mod shop;
+pub mod sound;
 pub mod world;
 
 pub use event::*;
