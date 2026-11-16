@@ -69,8 +69,12 @@ is exactly why the weak gate exists).
 - `tantalusctl audit summary --deny-fail` — all six battle corpora gated
   (armed / weak / flee-first × both paths); any sweep error or stale audit
   fails.
-- `tantalusctl audit compare-sweeps <a> <b>` — the standard regression
-  check after any behavioral landing.
+- `tantalusctl audit compare-sweeps <a> <b>` — pairwise delta check.
+- `tantalusctl assets inspect-bundle --path p0data2.bin
+  --battle-run-everything <out dir> --scripts-bundle p0data7.bin` — the
+  standard post-landing triage: regenerates all six corpora in one
+  process and prints each against its committed baseline. A clean tree
+  prints `identical=true` on all six lines.
 
 ## Performance
 
