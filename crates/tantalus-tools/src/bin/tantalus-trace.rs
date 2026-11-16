@@ -1112,8 +1112,7 @@ fn chain(
             },
             None => "not loaded".to_owned(),
         };
-        let mut director =
-            tantalus_tools::field_session::new_director(world.clone(), pool.len(), held);
+        let mut director = tantalus_tools::field_session::new_director(world.clone(), &pool, held);
         let mut scheduler = EntryScheduler::start(&mut director, &pool)?;
         // Scripted player: with --confirm-after N, a window open for N ticks
         // is closed as if confirm were pressed (0 disables).

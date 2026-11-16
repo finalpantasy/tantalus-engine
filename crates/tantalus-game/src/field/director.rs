@@ -218,12 +218,16 @@ impl FieldDirector {
         // `NEW` appends the object at the tail of the active list.
         let mut initialized = Vec::new();
         for event in steps.iter().flat_map(|step| step.report.events.iter()) {
-            if let HostEvent::InitializeObject { source, .. }
-            | HostEvent::InitializeRegion { source, .. }
-            | HostEvent::InitializeCode { source, .. } = event
-            {
-                self.scene.requeue_object(EntityId::new(u64::from(*source)));
-                initialized.push(*source);
+            let source = match event {
+                // `NEW3` resolves party slots; `NEW` and `NEW2` do not.
+                HostEvent::InitializeObject { source, .. } => self.world.object_source(*source),
+                HostEvent::InitializeRegion { source, .. }
+                | HostEvent::InitializeCode { source, .. } => Some(*source),
+                _ => None,
+            };
+            if let Some(source) = source {
+                self.scene.requeue_object(EntityId::new(u64::from(source)));
+                initialized.push(source);
             }
         }
         self.world.advance();

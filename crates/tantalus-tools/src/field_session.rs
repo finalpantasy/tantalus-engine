@@ -153,8 +153,12 @@ pub fn rerun(
 
 /// The field-load half of `EventEngine.StartEvents` for `world`: pending
 /// transitions dropped, every window closed, one actor per entry (uid =
-/// entry) plus the party slots 251-255.
-pub fn new_director(mut world: FieldWorld, entries: usize, held: i32) -> FieldDirector {
+/// entry) plus the party slots 251-255, and `SetupPartyUID` over `pool`.
+pub fn new_director(mut world: FieldWorld, pool: &Pool, held: i32) -> FieldDirector {
+    let entries = pool.len();
+    world.set_entry_links(tantalus_legacy::event::party::vanilla_links(
+        pool.iter().map(|functions| !functions.is_empty()),
+    ));
     world.take_field_transitions();
     world.windows.clear();
     world.window_texts.clear();
@@ -405,7 +409,7 @@ impl FieldSession {
     /// Starts field `map` on `world`, which the caller has prepared
     /// ([`prepare_field_world`], navigation, text).
     pub fn start(map: i32, world: FieldWorld, pool: Pool) -> Result<Self, String> {
-        let mut director = new_director(world, pool.len(), 0);
+        let mut director = new_director(world, &pool, 0);
         director.set_confirm_mask(Some(CONFIRM));
         let scheduler = EntryScheduler::start(&mut director, &pool)?;
         Ok(Self {

@@ -2023,6 +2023,13 @@ pub trait LegacyEventHost {
         None
     }
 
+    /// The object of party slot `slot` (0-3, local uids 251-254) through
+    /// `partyUID`, if the slot is filled and the host models it.
+    fn party_object(&mut self, slot: u8) -> Option<EntityId> {
+        let _ = slot;
+        None
+    }
+
     /// True once the object was deleted (`DisposeObj`); the scene then
     /// stops every function that runs against it.
     fn object_deleted(&mut self, entity: EntityId) -> bool {

@@ -405,13 +405,17 @@ impl LegacyEventHost for FieldHost<'_> {
                     self.world.set_system_variable(11, z);
                 }
                 HostEvent::InitializeObject { source, unique_id } => {
-                    // `NewThread`: uid 0 defaults to the entry's own id; the
-                    // object is the entry.
-                    let uid = if *unique_id == 0 { *source } else { *unique_id };
-                    let entity = EntityId::new(u64::from(*source));
-                    self.world.map_uid(i32::from(uid), entity);
-                    self.world.restore_object(entity);
+                    // `NEW3`: a party slot (251-254) names its `partyUID`
+                    // entry, and an empty slot creates nothing. uid 0
+                    // defaults to the entry's own id; the object is the entry.
+                    if let Some(source) = self.world.object_source(*source) {
+                        let uid = if *unique_id == 0 { source } else { *unique_id };
+                        let entity = EntityId::new(u64::from(source));
+                        self.world.map_uid(i32::from(uid), entity);
+                        self.world.restore_object(entity);
+                    }
                 }
+                HostEvent::SyncPartyUid => self.world.setup_party_uid(),
                 HostEvent::DefineRegion { region, vertices } => {
                     self.world.regions.insert(
                         *region,
@@ -665,6 +669,7 @@ impl LegacyEventHost for FieldHost<'_> {
             return Ok(true);
         }
         self.world.party.push(character);
+        self.world.setup_party_uid();
         Ok(false)
     }
 
@@ -674,6 +679,7 @@ impl LegacyEventHost for FieldHost<'_> {
         // refilling the emptied slot.
         let character = character_old_index_to_id(character);
         self.world.party.retain(|member| *member != character);
+        self.world.setup_party_uid();
         Ok(())
     }
 
@@ -787,6 +793,11 @@ impl LegacyEventHost for FieldHost<'_> {
 
     fn control_object(&mut self) -> Option<EntityId> {
         self.world.control_actor.or(self.world.player())
+    }
+
+    fn party_object(&mut self, slot: u8) -> Option<EntityId> {
+        let uid = i32::from(tantalus_legacy::event::party::PARTY_SLOT_FIRST + slot);
+        self.world.party_slot_object(uid)
     }
 
     fn object_deleted(&mut self, entity: EntityId) -> bool {

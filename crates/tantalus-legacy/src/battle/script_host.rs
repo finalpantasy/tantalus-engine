@@ -698,16 +698,8 @@ struct AiObject {
 /// party character (`CharacterId` 0-7, 11 = Beatrix) in a script of
 /// `entry_count` entries (`GetEventCharacterSId` returns the first match).
 pub fn character_entry(entry_count: usize, character: u8) -> Option<usize> {
-    (0..entry_count).find(|&index| {
-        let link = if index + 1 >= entry_count {
-            Some(11u8)
-        } else if index + 9 >= entry_count {
-            Some((index + 9 - entry_count) as u8)
-        } else {
-            None
-        };
-        link == Some(character)
-    })
+    (0..entry_count)
+        .find(|&index| crate::event::party::player_link(entry_count, index) == Some(character))
 }
 
 /// One script entry: its local-variable byte count and decoded functions.

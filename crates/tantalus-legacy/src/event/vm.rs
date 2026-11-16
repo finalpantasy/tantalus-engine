@@ -89,12 +89,13 @@ impl EventVm {
     }
 
     /// `GetUIDFromLocalUID` for script-request targets: 255 is the running
-    /// object, 250 the controlled object (`controlUID`). Party slots
-    /// (251-254) are left to the host.
+    /// object, 250 the controlled object (`controlUID`), 251-254 the party
+    /// slots (`partyUID`). A slot the host does not resolve keeps its uid.
     fn local_uid(&self, host: &mut dyn LegacyEventHost, uid: i32) -> i32 {
         let object = match uid {
             255 => self.entity,
             250 => host.control_object(),
+            251..=254 => host.party_object((uid - 251) as u8),
             _ => None,
         };
         match object {

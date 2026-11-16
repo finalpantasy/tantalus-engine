@@ -9,6 +9,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use tantalus_contracts::{EntityId, FieldNavigationMesh, Point3};
+use tantalus_legacy::event::party::{EntryLink, PARTY_SLOT_FIRST, PARTY_SLOT_LAST, party_uid};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Movement {
@@ -236,6 +237,15 @@ pub struct FieldWorld {
     object_members: BTreeMap<(EntityId, u8), i32>,
     member_target: Option<EntityId>,
     uid_map: BTreeMap<i32, EntityId>,
+    /// The field script's entries as `SetupPartyUID` reads them. Empty when
+    /// the caller did not load a script table; party uids then stay plain
+    /// uids.
+    #[serde(default)]
+    entry_links: Vec<EntryLink>,
+    /// `EventContext.partyUID`: the entry behind each party slot (local
+    /// uids 251-254).
+    #[serde(default)]
+    party_uid: [Option<usize>; 4],
     /// Objects removed by `DELETE` (`DisposeObj`): every function of a
     /// deleted object stops until the object is initialized again.
     #[serde(default)]
@@ -346,6 +356,8 @@ impl PartialEq for FieldWorld {
             && self.object_members == other.object_members
             && self.member_target == other.member_target
             && self.uid_map == other.uid_map
+            && self.entry_links == other.entry_links
+            && self.party_uid == other.party_uid
             && self.deleted_objects == other.deleted_objects
             && self.rng == other.rng
             && self.random_battles == other.random_battles
@@ -410,6 +422,8 @@ impl FieldWorld {
             object_members: BTreeMap::new(),
             member_target: None,
             uid_map: BTreeMap::new(),
+            entry_links: Vec::new(),
+            party_uid: [None; 4],
             deleted_objects: BTreeSet::new(),
             rng: 0x9E37_79B9_7F4A_7C15,
             random_battles: RandomBattles::default(),
@@ -886,8 +900,59 @@ impl FieldWorld {
         self.member_target = target;
     }
 
+    /// `GetUIDFromLocalUID` then `FindObjByUID`. A party slot names the
+    /// object of its `partyUID` entry; an empty slot keeps the plain uid.
     pub(crate) fn resolve_uid(&self, uid: i32) -> Option<EntityId> {
-        self.uid_map.get(&uid).copied()
+        self.party_slot_object(uid)
+            .or_else(|| self.uid_map.get(&uid).copied())
+    }
+
+    /// The object behind party-slot uid `uid` (251-254), if the slot is
+    /// filled.
+    pub(crate) fn party_slot_object(&self, uid: i32) -> Option<EntityId> {
+        let slot = u8::try_from(uid).ok()?;
+        let entry = self.party_slot(slot)??;
+        self.uid_map.get(&i32::try_from(entry).ok()?).copied()
+    }
+
+    /// `Some(partyUID[slot])` when `uid` is a party slot (251-254) and a
+    /// script table is loaded; `None` for any other uid.
+    fn party_slot(&self, uid: u8) -> Option<Option<usize>> {
+        if self.entry_links.is_empty() || !(PARTY_SLOT_FIRST..=PARTY_SLOT_LAST).contains(&uid) {
+            return None;
+        }
+        Some(self.party_uid[usize::from(uid - PARTY_SLOT_FIRST)])
+    }
+
+    /// The entry `InitObject` (NEW3) creates for `source`: party slots
+    /// resolve through `partyUID`, and an empty slot creates nothing (the
+    /// reference logs a warning and skips the instruction).
+    pub fn object_source(&self, source: u8) -> Option<u8> {
+        match self.party_slot(source) {
+            Some(entry) => entry.and_then(|entry| u8::try_from(entry).ok()),
+            None => Some(source),
+        }
+    }
+
+    /// Loads the field script's entry table and builds `partyUID` from it.
+    pub fn set_entry_links(&mut self, links: Vec<EntryLink>) {
+        self.entry_links = links;
+        self.setup_party_uid();
+    }
+
+    /// `SetupPartyUID`: field start, party changes, and `SYNCPARTY`.
+    pub fn setup_party_uid(&mut self) {
+        let party: Vec<u8> = self
+            .party
+            .iter()
+            .filter_map(|&character| u8::try_from(character).ok())
+            .collect();
+        self.party_uid = party_uid(&self.entry_links, &party);
+    }
+
+    /// `partyUID` slots (local uids 251-254).
+    pub fn party_uids(&self) -> [Option<usize>; 4] {
+        self.party_uid
     }
 
     pub(crate) fn push_world_transition(&mut self, destination: i16) {
@@ -1100,5 +1165,55 @@ mod random_battle_tests {
         assert_eq!(world.random_battles.base, 0);
         assert_eq!(world.random_battles.timer, -1440.0);
         assert_eq!(world.random_battles.scenes, [301, 302, 303, 304]);
+    }
+}
+
+#[cfg(test)]
+mod party_slot_tests {
+    use super::*;
+    use tantalus_legacy::event::party::vanilla_links;
+
+    /// 20 entries mapped uid = entry, party Vivi and Zidane.
+    fn field_world() -> FieldWorld {
+        let mut world = FieldWorld::new();
+        for entry in 0..20 {
+            world.map_uid(entry, EntityId::new(entry as u64));
+        }
+        for slot in 251..256 {
+            world.map_uid(slot, EntityId::new(slot as u64));
+        }
+        world.party = vec![1, 0];
+        world.set_entry_links(vanilla_links(std::iter::repeat_n(true, 20)));
+        world
+    }
+
+    #[test]
+    fn party_slots_name_party_entries_in_priority_order() {
+        let world = field_world();
+        // Zidane's entry is 11, Vivi's 12; Zidane takes slot 0.
+        assert_eq!(world.party_uids(), [Some(11), Some(12), None, None]);
+        assert_eq!(world.resolve_uid(251), Some(EntityId::new(11)));
+        assert_eq!(world.resolve_uid(252), Some(EntityId::new(12)));
+        assert_eq!(world.object_source(251), Some(11));
+        // An empty slot creates nothing and keeps its placeholder uid.
+        assert_eq!(world.object_source(253), None);
+        assert_eq!(world.resolve_uid(253), Some(EntityId::new(253)));
+        // Other uids are untouched.
+        assert_eq!(world.object_source(5), Some(5));
+        assert_eq!(world.resolve_uid(5), Some(EntityId::new(5)));
+    }
+
+    #[test]
+    fn party_changes_rebuild_the_slots_and_no_table_keeps_plain_uids() {
+        let mut world = field_world();
+        world.party = vec![3];
+        world.setup_party_uid();
+        assert_eq!(world.resolve_uid(251), Some(EntityId::new(14)));
+        let mut plain = FieldWorld::new();
+        plain.party = vec![0];
+        plain.map_uid(251, EntityId::new(251));
+        plain.setup_party_uid();
+        assert_eq!(plain.object_source(251), Some(251));
+        assert_eq!(plain.resolve_uid(251), Some(EntityId::new(251)));
     }
 }
