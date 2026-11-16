@@ -420,6 +420,19 @@ pub fn run_world_battle(
         }
     }
 
+    // Escape economics: the Flee ability costs a tenth of the would-be
+    // spoils (the party flee key is free). `apply_flee_ability_cost` is a
+    // no-op unless the escape came from the ability.
+    if outcome == Some(BattleOutcome::Escape) {
+        let enemy_bonus_gil: u32 = rows.iter().map(|row| row.gil).sum();
+        tantalus_game::battle::legacy::apply_flee_ability_cost(
+            world,
+            adapter.fled_by_ability(),
+            bonus.gil.max(0) as u32,
+            enemy_bonus_gil,
+        );
+    }
+
     // Script-paid bonuses (`SetBattleCharData` member 71 -> `btl_sys.SetBonus`)
     // for enemies that end the battle alive; `set_bonus`'s `bonus_given`
     // guard skips rows already paid by death.
