@@ -404,6 +404,24 @@ pub fn run_world_battle(
         }
     }
 
+    // Carry surviving HP/MP back to the field (the reference keeps current
+    // HP/MP after battle; Opus's `field_battle::save_party` does the same for
+    // the chain's report path). Party units occupy the machine list head in
+    // party order.
+    for (index, &character) in world.party.clone().iter().enumerate() {
+        let Some(unit) = adapter.battle().units.get(index) else {
+            break;
+        };
+        if let Some(stats) = world.character_stats.get_mut(&character) {
+            stats.current_hp = i32::try_from(unit.cur_hp)
+                .unwrap_or(i32::MAX)
+                .clamp(0, stats.max_hp);
+            stats.current_mp = i32::try_from(unit.cur_mp)
+                .unwrap_or(i32::MAX)
+                .clamp(0, stats.max_mp);
+        }
+    }
+
     if outcome == Some(BattleOutcome::Victory) {
         let members: [Option<PartyMember>; 4] = [
             Some(demo_member(500)),

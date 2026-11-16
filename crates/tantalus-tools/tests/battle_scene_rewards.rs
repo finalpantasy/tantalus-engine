@@ -514,6 +514,10 @@ fn run_world_battle_plays_a_scene_through_the_field_world() {
     let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 7);
     assert_eq!(outcome, Some(tantalus_game::battle::BattleOutcome::Victory));
     assert_eq!(world.gil, 10 + 300, "scene spoils committed to the world");
+    // Surviving HP/MP carried back to the field world (the unhurt party
+    // keeps its full current values, clamped to max).
+    let stats = &world.character_stats[&0];
+    assert_eq!((stats.current_hp, stats.current_mp), (500, 100));
     // 300 EXP over four eligible lines = 75 each.
     assert_eq!(world.character_exp.get(&0).copied(), Some(75));
 }
