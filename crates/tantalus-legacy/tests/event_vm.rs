@@ -2657,6 +2657,25 @@ fn logical_operand_scan_treats_first_member_pick_as_a_two_operand_op() {
 }
 
 #[test]
+fn member_compare_accepts_a_system_list_entry_below_the_comparison() {
+    // Battle counter scripts emit `SysList(3) Member(57) SysList(1) Member(57) ==_E`. Memoria's
+    // `OperatorExtract` takes the entries at -3, -2 and -1 whatever their kind, so the stack
+    // may hold an extra entry below them and the member check must not refuse it.
+    let result = variable(VariableScope::Global, VariableType::Int16, 10);
+    let compare = vec![121, 3, 41, 57, 121, 1, 41, 57, 34];
+    let expression = assign(result, compare);
+    let program = decode_program(&[evaluate(expression), vec![4]].concat()).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.member_target = Some(EntityId::new(10));
+    for slot in 0..8 {
+        host.slots.insert(slot, EntityId::new(10));
+    }
+    vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(vm.status(), VmStatus::Completed);
+}
+
+#[test]
 fn empty_member_increment_and_decrement_follow_the_reference_stack_path() {
     for opcode in [8, 11] {
         let program = decode_program(&[evaluate(vec![0, 0, opcode, 0]), vec![4]].concat()).unwrap();
