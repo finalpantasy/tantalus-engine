@@ -201,3 +201,25 @@ pub fn event_asset_name(scene_key: &str) -> Option<String> {
         .strip_prefix("BSC_")
         .map(|name| format!("EVT_BATTLE_{name}"))
 }
+
+/// `HonoluluBattleMain.ChoicePattern` (`HonoluluBattleMain.cs:369-385`): a
+/// 0..100 roll walks the cumulative pattern rates; ENCOUNT2's group
+/// (`btlSubMapNo`, `Option` — `None` is the -1 no-override) replaces the
+/// choice, clamped to the pattern count. Rates are expected to sum to at
+/// least 100 (vanilla scenes do); a short table returns the last pattern
+/// instead of the reference's out-of-bounds read.
+pub fn choose_pattern(scene: &BattleScene, sub_map_no: Option<i8>, roll_0_100: u32) -> usize {
+    let mut index = 0usize;
+    let mut cumulative = u32::from(scene.patterns.first().map_or(0, |pattern| pattern.rate));
+    while roll_0_100 >= cumulative && index + 1 < scene.patterns.len() {
+        cumulative = cumulative.saturating_add(u32::from(scene.patterns[index + 1].rate));
+        index += 1;
+    }
+    if let Some(group) = sub_map_no {
+        index = usize::try_from(group).unwrap_or(0);
+    }
+    if index >= scene.patterns.len() {
+        index = 0;
+    }
+    index
+}

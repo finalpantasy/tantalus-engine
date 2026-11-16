@@ -419,3 +419,44 @@ fn run_scene_battle_drives_a_full_battle_with_empty_ai() {
     assert_eq!(report.bonus_exp, 300);
     assert!(report.ticks < 20_000);
 }
+
+#[test]
+fn choose_pattern_ports_the_reference_roll_and_group_override() {
+    use tantalus_tools::battle_scene_rewards::choose_pattern;
+
+    let mut scene = scene();
+    let base = scene.patterns[0].clone();
+    scene.patterns = vec![
+        Pattern {
+            rate: 60,
+            ap: 1,
+            ..base.clone()
+        },
+        Pattern {
+            rate: 30,
+            ap: 2,
+            ..base.clone()
+        },
+        Pattern {
+            rate: 10,
+            ap: 3,
+            ..base
+        },
+    ];
+    // Cumulative walk: 60/30/10.
+    assert_eq!(choose_pattern(&scene, None, 0), 0);
+    assert_eq!(choose_pattern(&scene, None, 59), 0);
+    assert_eq!(choose_pattern(&scene, None, 60), 1);
+    assert_eq!(choose_pattern(&scene, None, 89), 1);
+    assert_eq!(choose_pattern(&scene, None, 90), 2);
+    assert_eq!(choose_pattern(&scene, None, 99), 2);
+    // ENCOUNT2 group override, including the reference's clamps.
+    assert_eq!(choose_pattern(&scene, Some(2), 0), 2);
+    assert_eq!(choose_pattern(&scene, Some(9), 0), 0, ">= count -> 0");
+    assert_eq!(choose_pattern(&scene, Some(-1), 99), 0, "negative -> 0");
+    // A short-rate table returns the last pattern instead of reading out of
+    // bounds (vanilla sums to 100; this is the guard).
+    let mut short = scene.clone();
+    short.patterns[2].rate = 0;
+    assert_eq!(choose_pattern(&short, None, 99), 2);
+}

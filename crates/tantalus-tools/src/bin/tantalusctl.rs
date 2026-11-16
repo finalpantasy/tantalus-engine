@@ -2722,7 +2722,9 @@ fn run_battle_run_all(
             Ok(scene) => match table.get(name) {
                 None => serde_json::json!({"scene": name, "error": "no battle script"}),
                 Some(bytes) => {
-                    let report = run_scene_battle_caught(name, scene, 0, bytes, 0x5EED);
+                    use tantalus_tools::battle_scene_rewards::choose_pattern;
+                    let pattern = choose_pattern(scene, None, 50);
+                    let report = run_scene_battle_caught(name, scene, pattern, bytes, 0x5EED);
                     serde_json::to_value(report).map_err(|error| error.to_string())?
                 }
             },
