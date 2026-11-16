@@ -35,6 +35,10 @@ pub struct Jump {
 pub struct ActorState {
     pub position: [f32; 3],
     pub movement: Option<Movement>,
+    /// Moved by pad input this tick (`FieldMapActorController.isMoving`),
+    /// so the renderer plays the walk loop. Runtime-only.
+    #[serde(skip)]
+    pub input_walking: bool,
     pub exit_walk: bool,
     pub turn: Option<Turn>,
     pub animation_frames: u16,
@@ -122,6 +126,7 @@ impl ActorState {
         Self {
             position,
             movement: None,
+            input_walking: false,
             exit_walk: false,
             turn: None,
             animation_frames: 0,
@@ -636,6 +641,9 @@ impl FieldWorld {
     pub(crate) fn apply_walk_input(&mut self) {
         // Input only moves the character while the engine has granted user
         // control (scenes disable it while they drive the actor).
+        if let Some(state) = self.player.and_then(|player| self.actors.get_mut(&player)) {
+            state.input_walking = false;
+        }
         if !self.user_control {
             return;
         }
@@ -672,6 +680,7 @@ impl FieldWorld {
             state.position[0] += dx;
             state.position[2] += dz;
             state.movement = None;
+            state.input_walking = true;
             // Input walking faces the movement direction like scripted
             // walks (reference facing scale, 0 south .. 192 east).
             if dx != 0.0 || dz != 0.0 {

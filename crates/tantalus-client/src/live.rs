@@ -77,7 +77,9 @@ pub fn world_frame(world: &FieldWorld, tick: u64) -> (TrackFrame, BTreeSet<u64>)
                 crate::actor_models::ActorPose {
                     facing: actor.facing.rem_euclid(256) as u8,
                     model: actor.look.model,
-                    animation: actor.look.current(playing, actor.movement.is_some()),
+                    animation: actor
+                        .look
+                        .current(playing, actor.movement.is_some() || actor.input_walking),
                     time,
                     visible: actor.flags & 1 != 0,
                     hidden_meshes: actor.look.hidden_meshes,
