@@ -72,6 +72,20 @@ is exactly why the weak gate exists).
 - `tantalusctl audit compare-sweeps <a> <b>` — the standard regression
   check after any behavioral landing.
 
+## Performance
+
+Absolute capacity numbers (no comparison claim; Memoria has no headless
+equivalent harness). Windows 11, release build, 2026-11-16:
+
+- Full armed all-patterns sweep (1054 battles incl. scene/script parse):
+  ~37 s cold, ~21 s warm file cache — roughly 20 ms per battle average.
+- The world-hand-off path (party from world state, exactly-once commit)
+  runs at the same order of magnitude; flee-first sweeps run longer
+  because failed flee rolls let battles play out to defeat.
+
+These are simulation-through-reward numbers with script-driven enemy AI,
+not presentation frame rates.
+
 ## Known limits
 
 - Defeat *presentation* (Timing-injected close sequence) is Claude's lane;
