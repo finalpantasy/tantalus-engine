@@ -502,9 +502,15 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     let background = game
         .background()
         .ok_or("the run ended on no field background")?;
-    let field =
+    let mut field =
         tantalus_client::window::find_field(std::path::Path::new(&values["--assets"]), background)
             .map_err(|error| error.to_string())?;
+    if let Some(scene) = field
+        .scene
+        .with_camera(u32::from(game.world().field_camera))
+    {
+        field.scene = scene;
+    }
     let (frame, placed) = tantalus_client::live::world_frame(game.world(), game.ticks);
     let mut models =
         tantalus_client::actor_models::ActorModels::new(std::path::Path::new(&values["--assets"]));

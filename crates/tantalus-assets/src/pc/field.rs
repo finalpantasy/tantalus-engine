@@ -140,26 +140,28 @@ impl FieldMapper {
                 sprites,
             });
         }
+        let convert = |camera: &crate::pc::bgs::BgsCamera| LegacyFieldCamera {
+            projection: camera.projection,
+            rotation: camera
+                .rotation
+                .concat()
+                .try_into()
+                .expect("3x3 camera matrix"),
+            translation: Point3 {
+                x: camera.translation[0],
+                y: camera.translation[1],
+                z: camera.translation[2],
+            },
+            center_offset: camera.center_offset,
+            size: [camera.width as u16, camera.height as u16],
+            viewport_x: camera.viewport_x,
+            viewport_y: camera.viewport_y,
+            depth_offset: camera.depth_offset,
+        };
         Ok(FieldSceneDescription {
             camera_index,
-            camera: LegacyFieldCamera {
-                projection: camera.projection,
-                rotation: camera
-                    .rotation
-                    .concat()
-                    .try_into()
-                    .expect("3x3 camera matrix"),
-                translation: Point3 {
-                    x: camera.translation[0],
-                    y: camera.translation[1],
-                    z: camera.translation[2],
-                },
-                center_offset: camera.center_offset,
-                size: [camera.width as u16, camera.height as u16],
-                viewport_x: camera.viewport_x,
-                viewport_y: camera.viewport_y,
-                depth_offset: camera.depth_offset,
-            },
+            camera: convert(camera),
+            cameras: scene.cameras.iter().map(convert).collect(),
             actor_anchor: Point3 {
                 x: navigation.character[0] as i32,
                 y: navigation.character[1] as i32,

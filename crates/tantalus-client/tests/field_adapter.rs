@@ -58,6 +58,7 @@ fn field(atlas: &ContentId) -> FieldSceneDescription {
             ],
         }],
         scene_offset: [0; 2],
+        cameras: Vec::new(),
     }
 }
 

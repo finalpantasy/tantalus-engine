@@ -71,4 +71,20 @@ pub struct FieldSceneDescription {
     /// tile block follows the player.
     #[serde(default)]
     pub scene_offset: [i16; 2],
+    /// Every camera of the scene; `camera` is entry `camera_index`.
+    #[serde(default)]
+    pub cameras: Vec<LegacyFieldCamera>,
+}
+
+impl FieldSceneDescription {
+    /// The same scene seen through camera `index` (`SetFieldCamera`), or
+    /// `None` when the scene has no such camera.
+    pub fn with_camera(&self, index: u32) -> Option<Self> {
+        let camera = self.cameras.get(index as usize)?.clone();
+        Some(Self {
+            camera_index: index,
+            camera,
+            ..self.clone()
+        })
+    }
 }

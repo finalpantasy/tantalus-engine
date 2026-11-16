@@ -133,10 +133,20 @@ pub fn player_position(frame: &TrackFrame) -> Option<[f32; 3]> {
 }
 
 pub fn follow_player(world: &mut World, camera: &LegacyFieldCamera, frame: &TrackFrame) {
+    // `SceneService3DScroll` aims `charAimHeight` above the player.
     let target = frame
         .player
         .and_then(|player| frame.actors.iter().find(|(id, _)| *id == player))
-        .and_then(|(_, position)| crate::projection::project_field_point(camera, *position));
+        .and_then(|(_, position)| {
+            crate::projection::project_field_point(
+                camera,
+                [
+                    position[0],
+                    position[1] + crate::scene_adapter::CHAR_AIM_HEIGHT,
+                    position[2],
+                ],
+            )
+        });
     let Some(target) = target else {
         return;
     };
@@ -176,6 +186,9 @@ struct Live {
     streaming_assets: std::path::PathBuf,
     background: Option<String>,
     field: Option<tantalus_contracts::FieldSceneDescription>,
+    /// The loaded field, kept to re-show it when the script switches
+    /// cameras.
+    bundled: Option<BundledField>,
     scene: Vec<Entity>,
     elapsed: f64,
     models: crate::actor_models::ActorModels,
@@ -212,6 +225,7 @@ pub fn play(
             streaming_assets,
             background: None,
             field: None,
+            bundled: None,
             scene: Vec::new(),
             elapsed: 0.0,
             models,
@@ -278,19 +292,29 @@ fn live_tick(world: &mut World) {
     if background != live.background {
         live.background = background.clone();
         live.field = None;
+        live.bundled = None;
         if let Some(name) = &background {
             match find_field(&live.streaming_assets, name) {
-                Ok(field) => {
-                    let mut scene = std::mem::take(&mut live.scene);
-                    if let Err(error) = show_field(world, &field, &mut scene) {
-                        println!("!! cannot show {name}: {error}");
-                    }
-                    live.scene = scene;
-                    live.field = Some(field.scene.clone());
-                }
+                Ok(field) => live.bundled = Some(field),
                 Err(error) => println!("!! no background {name}: {error}"),
             }
         }
+    }
+    let camera = u32::from(game.world().field_camera);
+    if let Some(field) = &mut live.bundled
+        && live.field.as_ref().is_none_or(|shown| {
+            shown.camera_index != camera && (camera as usize) < field.scene.cameras.len()
+        })
+    {
+        if let Some(scene) = field.scene.with_camera(camera) {
+            field.scene = scene;
+        }
+        let mut scene = std::mem::take(&mut live.scene);
+        if let Err(error) = show_field(world, field, &mut scene) {
+            println!("!! cannot show {}: {error}", field.name);
+        }
+        live.scene = scene;
+        live.field = Some(field.scene.clone());
     }
     if let Some(scene) = &live.field {
         let (frame, placed) = world_frame(game.world(), game.ticks);
