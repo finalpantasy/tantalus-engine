@@ -2023,4 +2023,14 @@ pub trait LegacyEventHost {
         let _ = entity;
         false
     }
+
+    /// Called by the VM at the moment a battle instruction executes
+    /// (`QueueEnemyAttack`, `QueueSpecialAttack`, `RunBattleCode`,
+    /// `ShowBattleMessage`, `TerminateBattle`), before the step's batched
+    /// [`LegacyEventHost::apply`]. A battle host reads system-list state here:
+    /// the reference acts on `SV_Target` at the instruction, and a batched
+    /// `apply` would see the value after later instructions of the same step.
+    fn note_event(&mut self, event: &HostEvent) {
+        let _ = event;
+    }
 }

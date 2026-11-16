@@ -26,6 +26,7 @@ pub mod machine;
 pub mod queue;
 pub mod rewards;
 pub mod rng;
+pub mod script_host;
 pub mod scripts;
 pub mod status;
 pub mod targeting;

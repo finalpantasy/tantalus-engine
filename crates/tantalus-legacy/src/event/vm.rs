@@ -1382,7 +1382,9 @@ impl EventVm {
                 InstructionKind::ShowBattleMessage(text) => {
                     let text = self.evaluate(host, &text, instruction.offset, opcode)?;
                     self.pc = next;
-                    events.push(HostEvent::ShowBattleMessage { text });
+                    let event = HostEvent::ShowBattleMessage { text };
+                    host.note_event(&event);
+                    events.push(event);
                 }
                 InstructionKind::SetObjectScale { actor, x, z, y } => {
                     let actor = self.evaluate(host, &actor, instruction.offset, opcode)?;
@@ -2388,6 +2390,7 @@ impl EventVm {
                 }
                 InstructionKind::TerminateBattle => {
                     self.pc = next;
+                    host.note_event(&HostEvent::TerminateBattle);
                     events.push(HostEvent::TerminateBattle);
                 }
                 InstructionKind::ResetIdleTimer => {
@@ -2431,7 +2434,9 @@ impl EventVm {
                     // SV_Target reads and ATB/counter queueing are host-owned.
                     let attack = self.evaluate(host, &attack, instruction.offset, opcode)?;
                     self.pc = next;
-                    events.push(HostEvent::QueueEnemyAttack { attack });
+                    let event = HostEvent::QueueEnemyAttack { attack };
+                    host.note_event(&event);
+                    events.push(event);
                 }
                 InstructionKind::ShowObjectWindow {
                     object,
@@ -2587,7 +2592,9 @@ impl EventVm {
                     // SV_Target reads and battle-state checks are host-owned.
                     let attack = self.evaluate(host, &attack, instruction.offset, opcode)?;
                     self.pc = next;
-                    events.push(HostEvent::QueueSpecialAttack { attack });
+                    let event = HostEvent::QueueSpecialAttack { attack };
+                    host.note_event(&event);
+                    events.push(event);
                 }
                 InstructionKind::ChangeDisc { destination } => {
                     let destination =
@@ -2844,7 +2851,9 @@ impl EventVm {
                     let code = self.evaluate(host, &code, instruction.offset, opcode)? as u32;
                     let value = self.evaluate(host, &value, instruction.offset, opcode)?;
                     self.pc = next;
-                    events.push(HostEvent::RunBattleCode { code, value });
+                    let event = HostEvent::RunBattleCode { code, value };
+                    host.note_event(&event);
+                    events.push(event);
                 }
                 InstructionKind::SetBattleMusicContinuation(enabled) => {
                     let enabled = self.evaluate(host, &enabled, instruction.offset, opcode)? != 0;

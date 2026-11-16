@@ -115,7 +115,7 @@ pub struct UnitView {
 
 /// `btl_scrp.GetCharacterData` (btl_scrp.cs): unknown ids return the
 /// `16777215` (0xFFFFFF) default.
-fn character_data(unit: &UnitView, id: u8) -> i32 {
+pub(super) fn character_data(unit: &UnitView, id: u8) -> i32 {
     let low24 = |value: u64| (value & 0xFF_FFFF) as i32;
     let high24 = |value: u64| ((value >> 24) & 0xFF_FFFF) as i32;
     match id {
@@ -192,7 +192,7 @@ fn character_data(unit: &UnitView, id: u8) -> i32 {
 /// are not modeled and fall through silently, mirroring the reference's
 /// no-default switch. Enemy-only members are ignored for players, as the
 /// reference's `btl.bi.player == 0` guard does.
-fn set_character_data(unit: &mut UnitView, id: u8, val: i32) {
+pub(super) fn set_character_data(unit: &mut UnitView, id: u8, val: i32) {
     let low24 = 0xFF_FFFFu64;
     match id {
         35 => unit.max_hp = val,
@@ -300,6 +300,71 @@ pub struct BattleDataView {
     pub enemy_id_mask: u32,
     /// System-list element 4: mask of every `btl_id` (`GetBattleID(2)`).
     pub all_id_mask: u32,
+}
+
+/// `EventEngine.GetSysvar` battle cases + `btl_scrp.GetBattleData` over one
+/// [`BattleDataView`]. `cmd_params` is the `_btlCmdPrmCmd`/`_btlCmdPrmSub` pair
+/// the reference reads for sysvars 28/29 when `gExec.level <= 2`; `draw` is
+/// `Comn.random8` (sysvar 0).
+pub(super) fn battle_sysvar(
+    data: &BattleDataView,
+    variable: u8,
+    cmd_params: Option<(i32, i32)>,
+    draw: &mut dyn FnMut() -> u8,
+) -> i32 {
+    match variable {
+        0 => i32::from(draw()),
+        6 | 33 => data.gil as i32,
+        24 => data.battle_map_no,
+        25 => i32::from(data.seq_busy),
+        26 => i32::from(data.result_mode),
+        27 => data.battle_result,
+        // GetAttackCommandId / GetAttackId: invocation parameters win on
+        // the `gExec.level <= 2` path (`_btlCmdPrmCmd`/`_btlCmdPrmSub`).
+        28 => cmd_params.map_or_else(
+            || data.current_command.as_ref().map_or(0, |c| c.cmd_no),
+            |p| p.0,
+        ),
+        29 => cmd_params.map_or_else(
+            || data.current_command.as_ref().map_or(0, |c| c.sub_no),
+            |p| p.1,
+        ),
+        30 | 34 => data.btl_phase as i32,
+        31 => data.pattern_id,
+        32 => i32::from(data.start_type),
+        35 => data.btl_seq as i32,
+        36 => data
+            .current_command
+            .as_ref()
+            .map_or(-1, |c| i32::from(c.regist_btl_id)),
+        37 => data
+            .current_command
+            .as_ref()
+            .map_or(-1, |c| c.tar_id as i32),
+        38 => data
+            .current_command
+            .as_ref()
+            .map_or(-1, |c| i32::from(c.weapon_element)),
+        39 => data
+            .current_command
+            .as_ref()
+            .map_or(-1, |c| i32::from(c.cmd_element)),
+        40 => data.load_status as i32,
+        41 => data.bonus_exp as i32,
+        42 => i32::from(data.phoenix_used),
+        43 => data
+            .current_command
+            .as_ref()
+            .map_or(-1, |c| c.effect_counter as i32),
+        44 => i32::from(data.bonus_ap),
+        // Field-context sysvars (1-23, 191, 192+): not modeled in the
+        // battle host, answered with the probe default (documented
+        // deviation).
+        1..=23 | 191..=255 => 0,
+        // `GetBattleData` codes below 192 with no case fall through to
+        // the `UInt32::MAX` default, read back as -1.
+        45..=190 => -1,
+    }
 }
 
 /// `LegacyEventHost` for battle script execution.
@@ -419,60 +484,10 @@ impl LegacyEventHost for BattleScriptHost<'_> {
     /// (documented deviation).
     fn read_system_variable(&mut self, variable: u8) -> Result<i32, EngineError> {
         let data = self.data;
-        let value = match variable {
-            0 => i32::from(self.rng_draw()),
-            6 | 33 => data.gil as i32,
-            24 => data.battle_map_no,
-            25 => i32::from(data.seq_busy),
-            26 => i32::from(data.result_mode),
-            27 => data.battle_result,
-            // GetAttackCommandId / GetAttackId: invocation parameters win on
-            // the `gExec.level <= 2` path (`_btlCmdPrmCmd`/`_btlCmdPrmSub`).
-            28 => self.cmd_params.map_or_else(
-                || data.current_command.as_ref().map_or(0, |c| c.cmd_no),
-                |p| p.0,
-            ),
-            29 => self.cmd_params.map_or_else(
-                || data.current_command.as_ref().map_or(0, |c| c.sub_no),
-                |p| p.1,
-            ),
-            30 | 34 => data.btl_phase as i32,
-            31 => data.pattern_id,
-            32 => i32::from(data.start_type),
-            35 => data.btl_seq as i32,
-            36 => data
-                .current_command
-                .as_ref()
-                .map_or(-1, |c| i32::from(c.regist_btl_id)),
-            37 => data
-                .current_command
-                .as_ref()
-                .map_or(-1, |c| c.tar_id as i32),
-            38 => data
-                .current_command
-                .as_ref()
-                .map_or(-1, |c| i32::from(c.weapon_element)),
-            39 => data
-                .current_command
-                .as_ref()
-                .map_or(-1, |c| i32::from(c.cmd_element)),
-            40 => data.load_status as i32,
-            41 => data.bonus_exp as i32,
-            42 => i32::from(data.phoenix_used),
-            43 => data
-                .current_command
-                .as_ref()
-                .map_or(-1, |c| c.effect_counter as i32),
-            44 => i32::from(data.bonus_ap),
-            // Field-context sysvars (1-23, 191, 192+): not modeled in the
-            // battle host, answered with the probe default (documented
-            // deviation).
-            1..=23 | 191..=255 => 0,
-            // `GetBattleData` codes below 192 with no case fall through to
-            // the `UInt32::MAX` default, read back as -1.
-            45..=190 => -1,
-        };
-        Ok(value)
+        let params = self.cmd_params;
+        Ok(battle_sysvar(data, variable, params, &mut || {
+            self.rng_draw()
+        }))
     }
 
     /// `EventEngine.GetSysList`: element numbers mask with 7; elements 2/3/4

@@ -1,3 +1,4 @@
+pub mod battle_ai_demo;
 pub mod battle_models_cli;
 pub mod battle_scene_rewards;
 pub mod field_animation_cli;

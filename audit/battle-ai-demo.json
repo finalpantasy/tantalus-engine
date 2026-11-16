@@ -1,0 +1,195 @@
+{
+  "enemies": [
+    {
+      "btl_id": 16,
+      "object_slot": 4,
+      "rounds": [
+        {
+          "attack_index": 2,
+          "request_accepted": true,
+          "round": 0,
+          "scene_attack": {
+            "mp": 12,
+            "power": 22,
+            "rate": 0,
+            "script_id": 9,
+            "target": 0
+          },
+          "target_mask": 1
+        },
+        {
+          "attack_index": 0,
+          "request_accepted": true,
+          "round": 1,
+          "scene_attack": {
+            "mp": 0,
+            "power": 22,
+            "rate": 100,
+            "script_id": 8,
+            "target": 0
+          },
+          "target_mask": 4
+        },
+        {
+          "attack_index": 3,
+          "request_accepted": true,
+          "round": 2,
+          "scene_attack": {
+            "mp": 12,
+            "power": 22,
+            "rate": 0,
+            "script_id": 9,
+            "target": 0
+          },
+          "target_mask": 2
+        },
+        {
+          "attack_index": 1,
+          "request_accepted": true,
+          "round": 3,
+          "scene_attack": {
+            "mp": 12,
+            "power": 22,
+            "rate": 0,
+            "script_id": 9,
+            "target": 0
+          },
+          "target_mask": 1
+        },
+        {
+          "attack_index": 0,
+          "request_accepted": true,
+          "round": 4,
+          "scene_attack": {
+            "mp": 0,
+            "power": 22,
+            "rate": 100,
+            "script_id": 8,
+            "target": 0
+          },
+          "target_mask": 8
+        },
+        {
+          "attack_index": 2,
+          "request_accepted": true,
+          "round": 5,
+          "scene_attack": {
+            "mp": 12,
+            "power": 22,
+            "rate": 0,
+            "script_id": 9,
+            "target": 0
+          },
+          "target_mask": 4
+        }
+      ],
+      "script_entry": 1
+    },
+    {
+      "btl_id": 32,
+      "object_slot": 5,
+      "rounds": [
+        {
+          "attack_index": 0,
+          "request_accepted": true,
+          "round": 0,
+          "scene_attack": {
+            "mp": 0,
+            "power": 22,
+            "rate": 100,
+            "script_id": 8,
+            "target": 0
+          },
+          "target_mask": 4
+        },
+        {
+          "attack_index": 3,
+          "request_accepted": true,
+          "round": 1,
+          "scene_attack": {
+            "mp": 12,
+            "power": 22,
+            "rate": 0,
+            "script_id": 9,
+            "target": 0
+          },
+          "target_mask": 2
+        },
+        {
+          "attack_index": 0,
+          "request_accepted": true,
+          "round": 2,
+          "scene_attack": {
+            "mp": 0,
+            "power": 22,
+            "rate": 100,
+            "script_id": 8,
+            "target": 0
+          },
+          "target_mask": 8
+        },
+        {
+          "attack_index": 0,
+          "request_accepted": true,
+          "round": 3,
+          "scene_attack": {
+            "mp": 0,
+            "power": 22,
+            "rate": 100,
+            "script_id": 8,
+            "target": 0
+          },
+          "target_mask": 1
+        },
+        {
+          "attack_index": 2,
+          "request_accepted": true,
+          "round": 4,
+          "scene_attack": {
+            "mp": 12,
+            "power": 22,
+            "rate": 0,
+            "script_id": 9,
+            "target": 0
+          },
+          "target_mask": 4
+        },
+        {
+          "attack_index": 1,
+          "request_accepted": true,
+          "round": 5,
+          "scene_attack": {
+            "mp": 12,
+            "power": 22,
+            "rate": 0,
+            "script_id": 9,
+            "target": 0
+          },
+          "target_mask": 2
+        }
+      ],
+      "script_entry": 1
+    }
+  ],
+  "other_events": [],
+  "party_character_ids": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "pattern": 0,
+  "random8_sequence": [
+    17,
+    203,
+    64,
+    141,
+    250,
+    3,
+    99,
+    180
+  ],
+  "scene": "EVT_BATTLE_AC_E028F",
+  "scope": "enemy ATB function (tag 5) run through the battle script host with stand-in party and enemy stats and a fixed random8 sequence; not a recording of a real battle and not a gameplay claim",
+  "uses_random_and_queues_attack": true
+}
