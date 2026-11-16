@@ -60,6 +60,29 @@ pub fn world_frame(world: &FieldWorld, tick: u64) -> (TrackFrame, BTreeSet<u64>)
     let navigation = world
         .navigation()
         .and_then(|mesh| tantalus_game::navigation::FieldNavigation::new(mesh).ok());
+    let poses = world
+        .actors
+        .iter()
+        .map(|(id, actor)| {
+            let playing = actor.animation_frames > 0;
+            // Field animations run at the 30 Hz logic rate: a playing `ANIM`
+            // is on its own frame counter, loops run off the clock.
+            let time = if playing {
+                f32::from(actor.animation_frame) / TICKS_PER_SECOND as f32
+            } else {
+                tick as f32 / TICKS_PER_SECOND as f32
+            };
+            (
+                id.get(),
+                crate::actor_models::ActorPose {
+                    facing: actor.facing.rem_euclid(256) as u8,
+                    model: actor.look.model,
+                    animation: actor.look.current(playing, actor.movement.is_some()),
+                    time,
+                },
+            )
+        })
+        .collect();
     let actors: Vec<(u64, [f32; 3])> = world
         .actors
         .iter()
@@ -87,6 +110,7 @@ pub fn world_frame(world: &FieldWorld, tick: u64) -> (TrackFrame, BTreeSet<u64>)
         tick,
         player: world.player().map(|player| player.get()),
         actors,
+        poses,
     };
     (frame, placed)
 }
@@ -139,6 +163,7 @@ struct Live {
     camera: Option<LegacyFieldCamera>,
     scene: Vec<Entity>,
     elapsed: f64,
+    models: crate::actor_models::ActorModels,
 }
 
 /// Opens the play window. `game` is already on its first field.
@@ -148,6 +173,7 @@ pub fn play(
     scale: u32,
 ) -> Result<(), ClientError> {
     let scale = scale.clamp(1, 8);
+    let models = crate::actor_models::ActorModels::new(&streaming_assets);
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb_u8(18, 24, 36)))
         .add_plugins(
@@ -172,6 +198,7 @@ pub fn play(
             camera: None,
             scene: Vec::new(),
             elapsed: 0.0,
+            models,
         })
         .add_systems(Update, live_tick);
     app.run();
@@ -251,7 +278,10 @@ fn live_tick(world: &mut World) {
     }
     if let Some(camera) = &live.camera {
         let (frame, placed) = world_frame(game.world(), game.ticks);
-        spawn_frame_markers(world, camera, &frame, &placed);
+        for problem in live.models.prepare(frame.poses.values()) {
+            println!("!! actor models: {problem}");
+        }
+        spawn_frame_markers(world, camera, &frame, &placed, Some(&live.models));
         follow_player(world, camera, &frame);
     }
     let mut title = format!(

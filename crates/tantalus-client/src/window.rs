@@ -77,7 +77,7 @@ fn advance_playback(world: &mut World) {
             playback.placed.clone(),
         )
     };
-    spawn_frame_markers(world, &camera, &frame, &placed);
+    spawn_frame_markers(world, &camera, &frame, &placed, None);
 }
 
 fn field_window(field: &BundledField, scale: u32) -> Result<ClientSceneAdapter, ClientError> {

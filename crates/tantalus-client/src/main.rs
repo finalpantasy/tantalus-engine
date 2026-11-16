@@ -313,7 +313,9 @@ fn run_track_capture(args: &[std::ffi::OsString]) -> ExitCode {
                     &field.scene.camera,
                     &frame,
                     &placed,
-                );
+                    None,
+                )
+                .actors;
             },
         )
         .map_err(|error| error.to_string())?;
@@ -504,7 +506,12 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         tantalus_client::window::find_field(std::path::Path::new(&values["--assets"]), background)
             .map_err(|error| error.to_string())?;
     let (frame, placed) = tantalus_client::live::world_frame(game.world(), game.ticks);
-    let mut drawn = 0;
+    let mut models =
+        tantalus_client::actor_models::ActorModels::new(std::path::Path::new(&values["--assets"]));
+    for problem in models.prepare(frame.poses.values()) {
+        println!("!! actor models: {problem}");
+    }
+    let mut drawn = tantalus_client::track::Drawn::default();
     tantalus_client::capture::capture_field_scene(
         &field,
         &output,
@@ -519,6 +526,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                 &field.scene.camera,
                 &frame,
                 &placed,
+                Some(&models),
             );
             tantalus_client::live::follow_player(world, &field.scene.camera, &frame);
         },
@@ -530,10 +538,12 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         .and_then(|player| game.world().actors.get(&player))
         .map(|actor| actor.position);
     Ok(format!(
-        "saved field {} ({}) after {} ticks with {drawn} actors, player at {player:?}, to {}",
+        "saved field {} ({}) after {} ticks with {} actors ({} as models), player at {player:?}, to {}",
         game.map().unwrap_or(-1),
         game.field_name().unwrap_or("-"),
         game.ticks,
+        drawn.actors,
+        drawn.models,
         output.display()
     ))
 }

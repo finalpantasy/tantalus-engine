@@ -3,10 +3,11 @@
 //! actor positions every two ticks. The viewer draws each actor as a marker
 //! at its projected foot position over the field background.
 
+use crate::actor_models::{ActorModels, ActorPose};
 use crate::projection::project_field_point;
 use crate::scene_adapter::ClientError;
 use bevy::prelude::*;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use tantalus_contracts::LegacyFieldCamera;
 
@@ -20,6 +21,8 @@ pub struct TrackFrame {
     pub tick: u64,
     pub player: Option<u64>,
     pub actors: Vec<(u64, [f32; 3])>,
+    /// Model, animation and facing per actor; empty for recorded tracks.
+    pub poses: BTreeMap<u64, ActorPose>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -70,6 +73,7 @@ impl ActorTrack {
                 tick: value["tick"].as_u64().unwrap_or(0),
                 player: value["player"].as_u64(),
                 actors,
+                poses: BTreeMap::new(),
             });
         }
         Ok(Self { map, field, frames })
@@ -95,23 +99,65 @@ fn parse_line(line: &str) -> Result<serde_json::Value, ClientError> {
 #[derive(Component)]
 pub struct TrackMarker;
 
-/// Draws `frame`'s placed actors: the controlled character in amber, the
-/// rest in cyan, each a 12x24 standing box whose bottom edge is the foot
-/// point. Returns how many were drawn.
+/// What [`spawn_frame_markers`] drew.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Drawn {
+    pub actors: usize,
+    /// Of those, the ones drawn as their model rather than a box.
+    pub models: usize,
+}
+
+/// Draws `frame`'s placed actors. An actor whose model `models` has
+/// loaded is drawn as that model; the rest are 12x24 standing boxes whose
+/// bottom edge is the foot point, the controlled character in amber, the
+/// others in cyan.
 pub fn spawn_frame_markers(
     world: &mut World,
     camera: &LegacyFieldCamera,
     frame: &TrackFrame,
     placed: &BTreeSet<u64>,
-) -> usize {
+    models: Option<&ActorModels>,
+) -> Drawn {
     let mut old = world.query_filtered::<Entity, With<TrackMarker>>();
     let old: Vec<Entity> = old.iter(world).collect();
     for entity in old {
         world.entity_mut(entity).despawn();
     }
-    let mut drawn = 0;
+    let mut drawn = Drawn::default();
     for (id, position) in &frame.actors {
         if !placed.contains(id) {
+            continue;
+        }
+        let raster = models
+            .zip(frame.poses.get(id))
+            .and_then(|(models, pose)| models.render(camera, *position, pose));
+        if let Some(raster) = raster {
+            let ([x, y], size) = raster.placement();
+            let image = Image::new(
+                bevy::render::render_resource::Extent3d {
+                    width: raster.width,
+                    height: raster.height,
+                    depth_or_array_layers: 1,
+                },
+                bevy::render::render_resource::TextureDimension::D2,
+                raster.rgba,
+                bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
+                bevy::asset::RenderAssetUsages::default(),
+            );
+            let handle = world.resource_mut::<Assets<Image>>().add(image);
+            // Nearer actors draw over farther ones, all above the background.
+            let z = 460.0 + 10.0 / (1.0 + raster.depth.max(0.0) / 1024.0);
+            world.spawn((
+                Sprite {
+                    image: handle,
+                    custom_size: Some(Vec2::new(size[0], size[1])),
+                    ..default()
+                },
+                Transform::from_xyz(x, y, z),
+                TrackMarker,
+            ));
+            drawn.actors += 1;
+            drawn.models += 1;
             continue;
         }
         let Some([x, y]) = project_field_point(camera, *position) else {
@@ -127,7 +173,7 @@ pub fn spawn_frame_markers(
             Transform::from_xyz(x, y + 12.0, 460.0),
             TrackMarker,
         ));
-        drawn += 1;
+        drawn.actors += 1;
     }
     drawn
 }

@@ -116,6 +116,36 @@ impl FieldHost<'_> {
     }
 }
 
+impl FieldHost<'_> {
+    /// Keeps the model and animation ids the renderer needs. Events for an
+    /// actor that does not exist are ignored here; the handlers below
+    /// report them where the reference does.
+    fn record_look(&mut self, event: &HostEvent) {
+        let (actor, apply): (EntityId, &dyn Fn(&mut super::world::ActorLook)) = match event {
+            HostEvent::SetActorModel { actor, model, .. } => {
+                (*actor, &|look| look.model = Some(*model))
+            }
+            HostEvent::SetIdleAnimation { actor, animation } => {
+                (*actor, &|look| look.idle = Some(*animation))
+            }
+            HostEvent::SetWalkAnimation { actor, animation } => {
+                (*actor, &|look| look.walk = Some(*animation))
+            }
+            HostEvent::SetRunAnimation { actor, animation } => {
+                (*actor, &|look| look.run = Some(*animation))
+            }
+            HostEvent::PlayAnimation { actor, animation } => {
+                (*actor, &|look| look.playing = Some(*animation))
+            }
+            HostEvent::StopAnimation { actor } => (*actor, &|look| look.playing = None),
+            _ => return,
+        };
+        if let Some(state) = self.world.actors.get_mut(&actor) {
+            apply(&mut state.look);
+        }
+    }
+}
+
 impl LegacyEventHost for FieldHost<'_> {
     fn apply(&mut self, events: &[HostEvent]) -> Result<(), EngineError> {
         for event in events {
@@ -136,6 +166,7 @@ impl LegacyEventHost for FieldHost<'_> {
                 }
                 _ => {}
             }
+            self.record_look(event);
             match event {
                 HostEvent::ShowWindow { window, text, .. } => {
                     self.world.windows.insert(*window, true);

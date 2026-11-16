@@ -52,6 +52,33 @@ pub struct ActorState {
     pub in_frame: u8,
     #[serde(default = "full_out_frame")]
     pub out_frame: u8,
+    /// What the renderer draws; the scripts never read it back.
+    #[serde(default)]
+    pub look: ActorLook,
+}
+
+/// An actor's model and animation ids from `SetActorModel` (`SETMODEL`),
+/// the stand, walk and run animations, and the one `ANIM` last started.
+/// Ids are `FF9DBAll` model and animation ids.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActorLook {
+    pub model: Option<u16>,
+    pub idle: Option<u16>,
+    pub walk: Option<u16>,
+    pub run: Option<u16>,
+    /// The animation `PlayAnimation` started, until `StopAnimation`.
+    pub playing: Option<u16>,
+}
+
+impl ActorLook {
+    /// The animation to draw: the one `ANIM` started while it still runs,
+    /// else walk while moving, else the stand animation.
+    pub fn current(&self, playing: bool, moving: bool) -> Option<u16> {
+        self.playing
+            .filter(|_| playing)
+            .or(if moving { self.walk.or(self.run) } else { None })
+            .or(self.idle)
+    }
 }
 
 fn full_out_frame() -> u8 {
@@ -75,6 +102,7 @@ impl ActorState {
             jump: None,
             in_frame: 0,
             out_frame: u8::MAX,
+            look: ActorLook::default(),
         }
     }
 }

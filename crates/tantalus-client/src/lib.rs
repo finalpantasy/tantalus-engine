@@ -1,3 +1,4 @@
+pub mod actor_models;
 pub mod animation_adapter;
 pub mod capture;
 pub mod effects;

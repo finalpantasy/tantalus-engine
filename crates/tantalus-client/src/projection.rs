@@ -12,6 +12,15 @@ use tantalus_contracts::{FieldNavigationMesh, LegacyFieldCamera, Point3};
 /// The GTE result is already y-up here: `RTPT_POS` flips y on the way in
 /// and back out.
 pub fn project_field_point(camera: &LegacyFieldCamera, point: [f32; 3]) -> Option<[f32; 2]> {
+    project_field_point_depth(camera, point).map(|(screen, _)| screen)
+}
+
+/// [`project_field_point`] plus the view depth (`|z|` after the camera
+/// transform; smaller is nearer).
+pub fn project_field_point_depth(
+    camera: &LegacyFieldCamera,
+    point: [f32; 3],
+) -> Option<([f32; 2], f32)> {
     let r = |row: usize, column: usize| f32::from(camera.rotation[row * 3 + column]) / 4096.0;
     let t = [
         camera.translation.x as f32,
@@ -31,10 +40,13 @@ pub fn project_field_point(camera: &LegacyFieldCamera, point: [f32; 3]) -> Optio
     }
     let view = f32::from(camera.projection);
     let offset = projection_offset(camera);
-    Some([
-        out[0] * view / depth + offset[0],
-        out[1] * view / depth + offset[1],
-    ])
+    Some((
+        [
+            out[0] * view / depth + offset[0],
+            out[1] * view / depth + offset[1],
+        ],
+        depth,
+    ))
 }
 
 /// Half the PSX field frame (`FieldMap.HalfFieldWidth`/`HalfFieldHeight`).
