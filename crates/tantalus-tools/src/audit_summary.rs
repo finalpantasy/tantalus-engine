@@ -391,6 +391,13 @@ pub fn summarize(dir: &Path) -> Vec<SummaryRow> {
             "battle-world-run-all-patterns-flee.json",
         ),
         row(
+            "Animation clip durations decode",
+            "clips",
+            "clip-durations.json",
+            |r| of(number(r, "clips"), number(r, "decoded")),
+            dir,
+        ),
+        row(
             "Sound asset decode",
             "assets",
             "audio-decode.json",
