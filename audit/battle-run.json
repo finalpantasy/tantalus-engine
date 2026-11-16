@@ -1,0 +1,9049 @@
+{
+  "defeats": 0,
+  "errors": 0,
+  "escapes": 0,
+  "results": [
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1256,
+      "bonus_gil": 672,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AC_E028F",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1256,
+      "bonus_gil": 672,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AC_E028H",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 784,
+      "bonus_gil": 347,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AC_E028I",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 7,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AC_E031",
+      "ticks": 667
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 712,
+      "bonus_gil": 584,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AC_E076A",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 712,
+      "bonus_gil": 584,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AC_E076B",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 712,
+      "bonus_gil": 584,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AC_E076C",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 744,
+      "bonus_gil": 642,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AC_E076D",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 712,
+      "bonus_gil": 584,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AC_E076E",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 7,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AC_E077",
+      "ticks": 1042
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1256,
+      "bonus_gil": 672,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AC_E085A",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6932,
+      "bonus_gil": 1279,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AC_E085B",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 30,
+      "bonus_exp": 12584,
+      "bonus_gil": 4472,
+      "bonus_items": [
+        [
+          198,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AC_E092",
+      "ticks": 1524
+    },
+    {
+      "bonus_ap": 5,
+      "bonus_exp": 0,
+      "bonus_gil": 441,
+      "bonus_items": [
+        [
+          238,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AP_E012",
+      "ticks": 798
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2548,
+      "bonus_gil": 747,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AT_E040A",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2548,
+      "bonus_gil": 747,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_AT_E040B",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 17096,
+      "bonus_gil": 2049,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BB_R000",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 18816,
+      "bonus_gil": 1868,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BB_R001",
+      "ticks": 789
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BR_E008",
+      "ticks": 789
+    },
+    {
+      "bonus_ap": 5,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_E015",
+      "ticks": 918
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 228,
+      "bonus_gil": 398,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_E072",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 956,
+      "bonus_gil": 1494,
+      "bonus_items": [
+        [
+          238,
+          2
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_R002",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 956,
+      "bonus_gil": 1494,
+      "bonus_items": [
+        [
+          238,
+          2
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_R004",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 576,
+      "bonus_gil": 269,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_R005",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 576,
+      "bonus_gil": 269,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_R006",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 576,
+      "bonus_gil": 269,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_R008",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 164,
+      "bonus_gil": 233,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_R010",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 164,
+      "bonus_gil": 233,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_R011",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 164,
+      "bonus_gil": 233,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_R012",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 164,
+      "bonus_gil": 233,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_R013",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 164,
+      "bonus_gil": 233,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_R014",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 212,
+      "bonus_gil": 239,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_R015",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 212,
+      "bonus_gil": 239,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_R016",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 212,
+      "bonus_gil": 239,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BU_R017",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1368,
+      "bonus_gil": 726,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BV_R000",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2092,
+      "bonus_gil": 889,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_BV_R001",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 5,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CA_E013",
+      "ticks": 911
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CH_E093",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CH_E093B",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 9,
+      "bonus_exp": 0,
+      "bonus_gil": 2136,
+      "bonus_items": [
+        [
+          253,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CM_E051",
+      "ticks": 667
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2092,
+      "bonus_gil": 845,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CM_R000",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2092,
+      "bonus_gil": 845,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CM_R001",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2092,
+      "bonus_gil": 845,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CM_R002",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1368,
+      "bonus_gil": 691,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CM_R003",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1368,
+      "bonus_gil": 691,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CM_R004",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1368,
+      "bonus_gil": 691,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CM_R005",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 2092,
+      "bonus_gil": 854,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CM_R006",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 2092,
+      "bonus_gil": 854,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CM_R007",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 2092,
+      "bonus_gil": 854,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CM_R008",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_E060",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_E061",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_E062",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 10,
+      "bonus_exp": 0,
+      "bonus_gil": 17376,
+      "bonus_items": [
+        [
+          249,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_E063",
+      "ticks": 6407
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_E064",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_E065",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_E066",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_E086",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_E0XX",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_R000",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 42784,
+      "bonus_gil": 2732,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R001",
+      "ticks": 1521
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 40328,
+      "bonus_gil": 2748,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R002",
+      "ticks": 1524
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_R003",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 15180,
+      "bonus_gil": 1971,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R004",
+      "ticks": 670
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 15180,
+      "bonus_gil": 1971,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R005",
+      "ticks": 670
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 40328,
+      "bonus_gil": 2748,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R006",
+      "ticks": 1524
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_R007",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_R008",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_R009",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 42784,
+      "bonus_gil": 2732,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R010",
+      "ticks": 1521
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_R011",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_R012",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_R013",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_R014",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_R015",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 15180,
+      "bonus_gil": 1971,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R016",
+      "ticks": 670
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 42784,
+      "bonus_gil": 2732,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R017",
+      "ticks": 1521
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 42784,
+      "bonus_gil": 2732,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R018",
+      "ticks": 1521
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 40328,
+      "bonus_gil": 2748,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R019",
+      "ticks": 1524
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 53168,
+      "bonus_gil": 2764,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R020",
+      "ticks": 1535
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 53168,
+      "bonus_gil": 2764,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R021",
+      "ticks": 1535
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 53168,
+      "bonus_gil": 2764,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R022",
+      "ticks": 1535
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 53168,
+      "bonus_gil": 2764,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R023",
+      "ticks": 1535
+    },
+    {
+      "bonus_ap": 7,
+      "bonus_exp": 0,
+      "bonus_gil": 2860,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R024",
+      "ticks": 1655
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_R025",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 7,
+      "bonus_exp": 0,
+      "bonus_gil": 4338,
+      "bonus_items": [
+        [
+          247,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R026",
+      "ticks": 1534
+    },
+    {
+      "bonus_ap": 7,
+      "bonus_exp": 0,
+      "bonus_gil": 2828,
+      "bonus_items": [
+        [
+          253,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R027",
+      "ticks": 1530
+    },
+    {
+      "bonus_ap": 7,
+      "bonus_exp": 0,
+      "bonus_gil": 2860,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R028",
+      "ticks": 1655
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_R029",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 7,
+      "bonus_exp": 0,
+      "bonus_gil": 4338,
+      "bonus_items": [
+        [
+          247,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R030",
+      "ticks": 1534
+    },
+    {
+      "bonus_ap": 7,
+      "bonus_exp": 0,
+      "bonus_gil": 2828,
+      "bonus_items": [
+        [
+          253,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R031",
+      "ticks": 1530
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 53168,
+      "bonus_gil": 2764,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CW_R032",
+      "ticks": 1535
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_CW_R033",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 5,
+      "bonus_exp": 0,
+      "bonus_gil": 1616,
+      "bonus_items": [
+        [
+          248,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CY_E018",
+      "ticks": 1033
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 800,
+      "bonus_gil": 622,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CY_E021A",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 800,
+      "bonus_gil": 622,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CY_E021B",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 5,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_CY_E022",
+      "ticks": 1042
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_EF_E006",
+      "ticks": 1399
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 0,
+      "bonus_gil": 436,
+      "bonus_items": [
+        [
+          244,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_EF_E007",
+      "ticks": 1408
+    },
+    {
+      "bonus_ap": 5,
+      "bonus_exp": 0,
+      "bonus_gil": 468,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_EF_E009",
+      "ticks": 798
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 20,
+      "bonus_gil": 91,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_EF_E010",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 36,
+      "bonus_gil": 99,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_EF_R002",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 36,
+      "bonus_gil": 99,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_EF_R003",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 20,
+      "bonus_gil": 88,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_EF_R004",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 20,
+      "bonus_gil": 88,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_EF_R005",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 20,
+      "bonus_gil": 88,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_EF_R007",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6932,
+      "bonus_gil": 1279,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_EG_R000",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6932,
+      "bonus_gil": 1279,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_EG_R001",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 11,
+      "bonus_exp": 0,
+      "bonus_gil": 4512,
+      "bonus_items": [
+        [
+          249,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_ES_E058",
+      "ticks": 1408
+    },
+    {
+      "bonus_ap": 7,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_E033",
+      "ticks": 1165
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 808,
+      "bonus_gil": 474,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_E081",
+      "ticks": 1158
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R000",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R001",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R003",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R004",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R005",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 2516,
+      "bonus_gil": 1512,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R008",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 912,
+      "bonus_gil": 388,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R012",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 912,
+      "bonus_gil": 388,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R013",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 912,
+      "bonus_gil": 388,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R014",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 912,
+      "bonus_gil": 388,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R015",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 912,
+      "bonus_gil": 388,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R016",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 912,
+      "bonus_gil": 388,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R017",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 896,
+      "bonus_gil": 732,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R018",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 896,
+      "bonus_gil": 732,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R019",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 896,
+      "bonus_gil": 732,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_FR_R020",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 7,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GR_E017",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 7,
+      "bonus_exp": 0,
+      "bonus_gil": 1404,
+      "bonus_items": [
+        [
+          238,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GR_E032",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 480,
+      "bonus_gil": 323,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GR_R000",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 480,
+      "bonus_gil": 323,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GR_R001",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 248,
+      "bonus_gil": 307,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GR_R002",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 400,
+      "bonus_gil": 311,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_E019A",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 400,
+      "bonus_gil": 315,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_E082",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 320,
+      "bonus_gil": 384,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R000",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 320,
+      "bonus_gil": 384,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R002",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 320,
+      "bonus_gil": 384,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R003",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 676,
+      "bonus_gil": 589,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R004",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 676,
+      "bonus_gil": 589,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R006",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 676,
+      "bonus_gil": 589,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R007",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 248,
+      "bonus_gil": 307,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R008",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 248,
+      "bonus_gil": 307,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R009",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 248,
+      "bonus_gil": 307,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R010",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 248,
+      "bonus_gil": 307,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R011",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 248,
+      "bonus_gil": 307,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R012",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 248,
+      "bonus_gil": 307,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R013",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 248,
+      "bonus_gil": 307,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R014",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 328,
+      "bonus_gil": 319,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R017",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 328,
+      "bonus_gil": 319,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GT_R018",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 11,
+      "bonus_exp": 0,
+      "bonus_gil": 6428,
+      "bonus_items": [
+        [
+          246,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_E054",
+      "ticks": 1652
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 22376,
+      "bonus_gil": 5156,
+      "bonus_items": [
+        [
+          238,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_E089A",
+      "ticks": 670
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 44752,
+      "bonus_gil": 10312,
+      "bonus_items": [
+        [
+          238,
+          2
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_E089B",
+      "ticks": 1045
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 44752,
+      "bonus_gil": 10312,
+      "bonus_items": [
+        [
+          238,
+          2
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_E089C",
+      "ticks": 1045
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_E090",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_E091",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 8008,
+      "bonus_gil": 1345,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_R001",
+      "ticks": 548
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 8008,
+      "bonus_gil": 1345,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_R002",
+      "ticks": 548
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 8008,
+      "bonus_gil": 1345,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_R004",
+      "ticks": 548
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 8008,
+      "bonus_gil": 1345,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_R005",
+      "ticks": 548
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 16960,
+      "bonus_gil": 2999,
+      "bonus_items": [
+        [
+          233,
+          1
+        ],
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_R006",
+      "ticks": 673
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 16960,
+      "bonus_gil": 2999,
+      "bonus_items": [
+        [
+          233,
+          1
+        ],
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_R011",
+      "ticks": 673
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6932,
+      "bonus_gil": 1326,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_R012",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6932,
+      "bonus_gil": 1326,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_R013",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6932,
+      "bonus_gil": 1326,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_R014",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6932,
+      "bonus_gil": 1326,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_R015",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6932,
+      "bonus_gil": 1326,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_R016",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6932,
+      "bonus_gil": 1326,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GV_R017",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 5,
+      "bonus_exp": 0,
+      "bonus_gil": 800,
+      "bonus_items": [
+        [
+          253,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GZ_E014",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 228,
+      "bonus_gil": 398,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GZ_E071",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 176,
+      "bonus_gil": 388,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GZ_R000",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 204,
+      "bonus_gil": 494,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GZ_R001",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 104,
+      "bonus_gil": 209,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_GZ_R002",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 5,
+      "bonus_exp": 0,
+      "bonus_gil": 339,
+      "bonus_items": [
+        [
+          240,
+          1
+        ],
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IC_E011",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 80,
+      "bonus_gil": 220,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IC_R000",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 80,
+      "bonus_gil": 220,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IC_R001",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 80,
+      "bonus_gil": 220,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IC_R002",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 80,
+      "bonus_gil": 220,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IC_R003",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 44,
+      "bonus_gil": 116,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IC_R004",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 44,
+      "bonus_gil": 116,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IC_R005",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 9,
+      "bonus_exp": 0,
+      "bonus_gil": 3800,
+      "bonus_items": [
+        [
+          249,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_E034",
+      "ticks": 917
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2548,
+      "bonus_gil": 747,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_E087",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2548,
+      "bonus_gil": 747,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_E088",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1368,
+      "bonus_gil": 726,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_R000",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1368,
+      "bonus_gil": 726,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_R001",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_R002",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_R003",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_R004",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2344,
+      "bonus_gil": 915,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_R005",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2344,
+      "bonus_gil": 915,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_R006",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2344,
+      "bonus_gil": 915,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_R007",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2344,
+      "bonus_gil": 915,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_R008",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2888,
+      "bonus_gil": 1416,
+      "bonus_items": [
+        [
+          245,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_R010",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2888,
+      "bonus_gil": 1416,
+      "bonus_items": [
+        [
+          245,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_R011",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2888,
+      "bonus_gil": 1416,
+      "bonus_items": [
+        [
+          245,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_R012",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2888,
+      "bonus_gil": 1416,
+      "bonus_items": [
+        [
+          245,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_R013",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2888,
+      "bonus_gil": 1416,
+      "bonus_items": [
+        [
+          245,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IF_R014",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_IP_E070",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 53188,
+      "bonus_gil": 6052,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IP_R000",
+      "ticks": 12020
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 53188,
+      "bonus_gil": 6052,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IP_R001",
+      "ticks": 12020
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 53188,
+      "bonus_gil": 6052,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IP_R002",
+      "ticks": 12020
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 15180,
+      "bonus_gil": 1971,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IP_R006",
+      "ticks": 670
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 15180,
+      "bonus_gil": 1971,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IP_R007",
+      "ticks": 670
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 15180,
+      "bonus_gil": 1971,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IP_R008",
+      "ticks": 670
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 29460,
+      "bonus_gil": 3903,
+      "bonus_items": [
+        [
+          225,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IP_R009",
+      "ticks": 917
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 29460,
+      "bonus_gil": 3903,
+      "bonus_items": [
+        [
+          225,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IP_R010",
+      "ticks": 917
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 29460,
+      "bonus_gil": 3903,
+      "bonus_items": [
+        [
+          225,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IP_R011",
+      "ticks": 917
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 15180,
+      "bonus_gil": 1984,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IP_R012",
+      "ticks": 667
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 15180,
+      "bonus_gil": 1984,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_IP_R013",
+      "ticks": 667
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_KM_E073",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1368,
+      "bonus_gil": 684,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_KM_R000",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 104,
+      "bonus_gil": 236,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_KM_R001",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 176,
+      "bonus_gil": 288,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_KM_R002",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 5080,
+      "bonus_gil": 1137,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_KM_R003",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_LB_E080A",
+      "ticks": 911
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_LB_E080B",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_LB_E080C",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_LB_E080D",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 64,
+      "bonus_gil": 198,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_LB_E080E",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 64,
+      "bonus_gil": 198,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_LB_E080F",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 64,
+      "bonus_gil": 198,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_LB_E080G",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_LB_E080H",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_LB_E080I",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_LB_E080J",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 9,
+      "bonus_exp": 0,
+      "bonus_gil": 4790,
+      "bonus_items": [
+        [
+          253,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_MS_E075",
+      "ticks": 1206
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_PD_E055",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 26376,
+      "bonus_gil": 2316,
+      "bonus_items": [
+        [
+          238,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_PD_E067",
+      "ticks": 1405
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 26376,
+      "bonus_gil": 2348,
+      "bonus_items": [
+        [
+          238,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_PD_E068",
+      "ticks": 1405
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_PD_E069",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_PD_E078",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_PD_E079",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 23800,
+      "bonus_gil": 2300,
+      "bonus_items": [
+        [
+          233,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_PD_R000",
+      "ticks": 1408
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 23800,
+      "bonus_gil": 2300,
+      "bonus_items": [
+        [
+          233,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_PD_R001",
+      "ticks": 1408
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 30576,
+      "bonus_gil": 2572,
+      "bonus_items": [
+        [
+          254,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_PD_R004",
+      "ticks": 798
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 30576,
+      "bonus_gil": 2572,
+      "bonus_items": [
+        [
+          254,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_PD_R005",
+      "ticks": 798
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 30576,
+      "bonus_gil": 2572,
+      "bonus_items": [
+        [
+          254,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_PD_R006",
+      "ticks": 798
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 30576,
+      "bonus_gil": 2572,
+      "bonus_items": [
+        [
+          254,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_PD_R007",
+      "ticks": 798
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 32072,
+      "bonus_gil": 2604,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_PD_R009",
+      "ticks": 920
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 32072,
+      "bonus_gil": 2604,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_PD_R010",
+      "ticks": 920
+    },
+    {
+      "bonus_ap": 4,
+      "bonus_exp": 32072,
+      "bonus_gil": 2604,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_PD_R011",
+      "ticks": 920
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_PD_R013",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_PD_R014",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 400,
+      "bonus_gil": 315,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_PR_R000",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 1260,
+      "bonus_gil": 546,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_PR_R001",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 5,
+      "bonus_exp": 0,
+      "bonus_gil": 864,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_SG_E016",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 11,
+      "bonus_exp": 0,
+      "bonus_gil": 4089,
+      "bonus_items": [
+        [
+          239,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_SP_E053",
+      "ticks": 4572
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 5672,
+      "bonus_gil": 1118,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_SP_R000",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 5672,
+      "bonus_gil": 1118,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_SP_R007",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 5672,
+      "bonus_gil": 1118,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_SP_R008",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 5672,
+      "bonus_gil": 1118,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_SP_R009",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 5672,
+      "bonus_gil": 1118,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_SP_R012",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 5672,
+      "bonus_gil": 1118,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_SP_R013",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 5672,
+      "bonus_gil": 1118,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_SP_R014",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 13220,
+      "bonus_gil": 2726,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_SP_R015",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 13220,
+      "bonus_gil": 2726,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_SP_R016",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 13220,
+      "bonus_gil": 2726,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_SP_R017",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 5148,
+      "bonus_gil": 1281,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_SP_R018",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 17096,
+      "bonus_gil": 2049,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TA_R000",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 17096,
+      "bonus_gil": 2049,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TA_R001",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 17096,
+      "bonus_gil": 2049,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TA_R002",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 23800,
+      "bonus_gil": 2300,
+      "bonus_items": [
+        [
+          233,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TA_R003",
+      "ticks": 1408
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 23800,
+      "bonus_gil": 2300,
+      "bonus_items": [
+        [
+          233,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TA_R004",
+      "ticks": 1408
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 23800,
+      "bonus_gil": 2300,
+      "bonus_items": [
+        [
+          233,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TA_R005",
+      "ticks": 1408
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 18816,
+      "bonus_gil": 1868,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TA_R006",
+      "ticks": 789
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 18816,
+      "bonus_gil": 1868,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TA_R007",
+      "ticks": 789
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 18816,
+      "bonus_gil": 1868,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TA_R008",
+      "ticks": 789
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 0,
+      "bonus_gil": 805,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TH_E001",
+      "ticks": 798
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TH_E002",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TH_E003",
+      "ticks": 789
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 0,
+      "bonus_gil": 500,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TH_E004",
+      "ticks": 1896
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TH_E005",
+      "ticks": 1399
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TR_E074A",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 6608,
+      "bonus_gil": 1421,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TR_E074B",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TR_E074C",
+      "ticks": 667
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 53168,
+      "bonus_gil": 2764,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_TR_E074D",
+      "ticks": 1535
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 104,
+      "bonus_gil": 209,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UF_R000",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 104,
+      "bonus_gil": 209,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UF_R001",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 48,
+      "bonus_gil": 126,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UF_R002",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 48,
+      "bonus_gil": 126,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UF_R003",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 11,
+      "bonus_exp": 0,
+      "bonus_gil": 5964,
+      "bonus_items": [
+        [
+          210,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UV_E052",
+      "ticks": 3351
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 5504,
+      "bonus_gil": 1204,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UV_R000",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 5504,
+      "bonus_gil": 1204,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UV_R001",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 5504,
+      "bonus_gil": 1204,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UV_R003",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 29736,
+      "bonus_gil": 6654,
+      "bonus_items": [
+        [
+          235,
+          1
+        ],
+        [
+          233,
+          1
+        ],
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UV_R007",
+      "ticks": 914
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 29736,
+      "bonus_gil": 6654,
+      "bonus_items": [
+        [
+          232,
+          1
+        ],
+        [
+          233,
+          1
+        ],
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UV_R008",
+      "ticks": 914
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 29736,
+      "bonus_gil": 6654,
+      "bonus_items": [
+        [
+          237,
+          4
+        ],
+        [
+          233,
+          2
+        ]
+      ],
+      "card": 30,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UV_R009",
+      "ticks": 914
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 29736,
+      "bonus_gil": 6654,
+      "bonus_items": [
+        [
+          235,
+          1
+        ],
+        [
+          233,
+          1
+        ],
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UV_R010",
+      "ticks": 914
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 29736,
+      "bonus_gil": 6654,
+      "bonus_items": [
+        [
+          237,
+          4
+        ],
+        [
+          231,
+          1
+        ],
+        [
+          233,
+          1
+        ]
+      ],
+      "card": 30,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UV_R011",
+      "ticks": 914
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 29736,
+      "bonus_gil": 6654,
+      "bonus_items": [
+        [
+          234,
+          1
+        ],
+        [
+          233,
+          1
+        ],
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UV_R012",
+      "ticks": 914
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 29736,
+      "bonus_gil": 6654,
+      "bonus_items": [
+        [
+          240,
+          3
+        ],
+        [
+          225,
+          1
+        ],
+        [
+          233,
+          1
+        ],
+        [
+          237,
+          1
+        ]
+      ],
+      "card": 30,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UV_R013",
+      "ticks": 914
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 29736,
+      "bonus_gil": 6654,
+      "bonus_items": [
+        [
+          240,
+          3
+        ],
+        [
+          231,
+          1
+        ],
+        [
+          233,
+          1
+        ],
+        [
+          237,
+          1
+        ]
+      ],
+      "card": 30,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_UV_R015",
+      "ticks": 914
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 68,
+      "bonus_gil": 208,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0000",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 68,
+      "bonus_gil": 208,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0001",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 10,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0002",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 10,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0003",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 40,
+      "bonus_gil": 106,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0004",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 40,
+      "bonus_gil": 106,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0005",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 40,
+      "bonus_gil": 106,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0006",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 40,
+      "bonus_gil": 106,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0007",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 40,
+      "bonus_gil": 106,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0008",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 40,
+      "bonus_gil": 106,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0009",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 68,
+      "bonus_gil": 208,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0010",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 10,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0011",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 10,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0102",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 80,
+      "bonus_gil": 212,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0104",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 80,
+      "bonus_gil": 212,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0105",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 80,
+      "bonus_gil": 212,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0106",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 136,
+      "bonus_gil": 184,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0200",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 136,
+      "bonus_gil": 184,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0201",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 136,
+      "bonus_gil": 184,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0202",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 136,
+      "bonus_gil": 184,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0203",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 136,
+      "bonus_gil": 184,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0204",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 136,
+      "bonus_gil": 184,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0205",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 136,
+      "bonus_gil": 184,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0206",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 136,
+      "bonus_gil": 184,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0207",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 128,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0208",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 128,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0210",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 128,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0212",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 128,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0214",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          238,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0216",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 32,
+      "bonus_gil": 66,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0217",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          238,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0218",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 128,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0219",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 96,
+      "bonus_gil": 252,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0220",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 32,
+      "bonus_gil": 66,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0221",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 96,
+      "bonus_gil": 252,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0222",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 128,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0223",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 128,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0226",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 128,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0227",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          238,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0228",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 96,
+      "bonus_gil": 252,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0229",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 612,
+      "bonus_gil": 1190,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0230",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 612,
+      "bonus_gil": 1190,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0231",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 80,
+      "bonus_gil": 190,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0232",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 80,
+      "bonus_gil": 190,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0233",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          238,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0234",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 172,
+      "bonus_gil": 218,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0300",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 172,
+      "bonus_gil": 218,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0301",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 172,
+      "bonus_gil": 218,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0302",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 172,
+      "bonus_gil": 218,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0303",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 172,
+      "bonus_gil": 218,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0305",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 172,
+      "bonus_gil": 218,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0306",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 172,
+      "bonus_gil": 218,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0307",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 172,
+      "bonus_gil": 218,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0308",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          239,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0310",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          239,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0311",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 132,
+      "bonus_gil": 221,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0315",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 132,
+      "bonus_gil": 221,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0316",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 124,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0400",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 124,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0401",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 124,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0402",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 124,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0403",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 124,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0404",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 10,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0408",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 10,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0409",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 10,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0410",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 10,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0411",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 10,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0412",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 400,
+      "bonus_gil": 315,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0503",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 400,
+      "bonus_gil": 315,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0504",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 400,
+      "bonus_gil": 315,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0508",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 400,
+      "bonus_gil": 315,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0509",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 30,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          228,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0510",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 30,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          228,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0511",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 328,
+      "bonus_gil": 303,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0515",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 328,
+      "bonus_gil": 303,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0516",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 30,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          228,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0517",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 176,
+      "bonus_gil": 235,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0601",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 48,
+      "bonus_gil": 124,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0604",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 48,
+      "bonus_gil": 124,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0605",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 48,
+      "bonus_gil": 124,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0606",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 576,
+      "bonus_gil": 269,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0700",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 576,
+      "bonus_gil": 269,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0701",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 576,
+      "bonus_gil": 269,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0704",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 576,
+      "bonus_gil": 269,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0705",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 576,
+      "bonus_gil": 269,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0706",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 576,
+      "bonus_gil": 269,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0709",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 136,
+      "bonus_gil": 184,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0711",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 136,
+      "bonus_gil": 184,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0716",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 128,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0720",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 128,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0721",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 128,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0723",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 128,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0725",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 128,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0726",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 48,
+      "bonus_gil": 128,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0728",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 784,
+      "bonus_gil": 347,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0800",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 784,
+      "bonus_gil": 347,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0801",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 784,
+      "bonus_gil": 347,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0803",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 6096,
+      "bonus_gil": 1840,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0900",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 6096,
+      "bonus_gil": 1840,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0901",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 116,
+      "bonus_gil": 187,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0904",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 116,
+      "bonus_gil": 187,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0905",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 116,
+      "bonus_gil": 187,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0910",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 116,
+      "bonus_gil": 187,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0911",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 6608,
+      "bonus_gil": 1528,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0915",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 6608,
+      "bonus_gil": 1528,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_0916",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 35208,
+      "bonus_gil": 2604,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1000",
+      "ticks": 1037
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 35208,
+      "bonus_gil": 2604,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1001",
+      "ticks": 1037
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 35208,
+      "bonus_gil": 2604,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1002",
+      "ticks": 1037
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1100",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1101",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1102",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1103",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1104",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1105",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1106",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1107",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1108",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1856,
+      "bonus_gil": 602,
+      "bonus_items": [
+        [
+          231,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1109",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          238,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1111",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          238,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1113",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          238,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1116",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          238,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1118",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1260,
+      "bonus_gil": 546,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1120",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1260,
+      "bonus_gil": 546,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1121",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1260,
+      "bonus_gil": 546,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1122",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1260,
+      "bonus_gil": 546,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1123",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 1260,
+      "bonus_gil": 546,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1124",
+      "ticks": 185
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1125",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1126",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1127",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1128",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1129",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 912,
+      "bonus_gil": 568,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1130",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 912,
+      "bonus_gil": 568,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1131",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 912,
+      "bonus_gil": 568,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1132",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 912,
+      "bonus_gil": 568,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1133",
+      "ticks": 182
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 4208,
+      "bonus_gil": 1021,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1134",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 4208,
+      "bonus_gil": 1021,
+      "bonus_items": [
+        [
+          237,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1135",
+      "ticks": 188
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1548,
+      "bonus_gil": 740,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1200",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1548,
+      "bonus_gil": 740,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1201",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1548,
+      "bonus_gil": 740,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1202",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1548,
+      "bonus_gil": 740,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1203",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1548,
+      "bonus_gil": 740,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1205",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1548,
+      "bonus_gil": 740,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1207",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          239,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1208",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          239,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1210",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          239,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1212",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          239,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1214",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 30,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          228,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1306",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 30,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          228,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1308",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 30,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          228,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1309",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 30,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          228,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1311",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 35208,
+      "bonus_gil": 2604,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1401",
+      "ticks": 1037
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 35208,
+      "bonus_gil": 2604,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1402",
+      "ticks": 1037
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 35208,
+      "bonus_gil": 2604,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1403",
+      "ticks": 1037
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 35208,
+      "bonus_gil": 2604,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1406",
+      "ticks": 1037
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 35208,
+      "bonus_gil": 2604,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1407",
+      "ticks": 1037
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 35208,
+      "bonus_gil": 2604,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1408",
+      "ticks": 1037
+    },
+    {
+      "bonus_ap": 30,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          235,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1411",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 47704,
+      "bonus_gil": 59630,
+      "bonus_items": [
+        [
+          209,
+          2
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1413",
+      "ticks": 3851
+    },
+    {
+      "bonus_ap": 30,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          235,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1416",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 47704,
+      "bonus_gil": 59630,
+      "bonus_items": [
+        [
+          209,
+          2
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1418",
+      "ticks": 3851
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 5148,
+      "bonus_gil": 1316,
+      "bonus_items": [
+        [
+          254,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1420",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 5148,
+      "bonus_gil": 1316,
+      "bonus_items": [
+        [
+          254,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1421",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 332,
+      "bonus_gil": 54,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1427",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 332,
+      "bonus_gil": 54,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1428",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 2516,
+      "bonus_gil": 1512,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1429",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 2516,
+      "bonus_gil": 1512,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 4,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1430",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 35208,
+      "bonus_gil": 2604,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1431",
+      "ticks": 1037
+    },
+    {
+      "bonus_ap": 40,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          229,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1501",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 40,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          229,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1502",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 40,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          229,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1503",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 12624,
+      "bonus_gil": 3063,
+      "bonus_items": [
+        [
+          237,
+          3
+        ],
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1504",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 12624,
+      "bonus_gil": 3063,
+      "bonus_items": [
+        [
+          237,
+          3
+        ],
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1505",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 40,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          229,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1509",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 40,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          229,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1510",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 40,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          229,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1511",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 12624,
+      "bonus_gil": 3063,
+      "bonus_items": [
+        [
+          237,
+          3
+        ],
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1512",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 12624,
+      "bonus_gil": 3063,
+      "bonus_items": [
+        [
+          237,
+          3
+        ],
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1513",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 7148,
+      "bonus_gil": 1456,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1517",
+      "ticks": 673
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 7148,
+      "bonus_gil": 1456,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1518",
+      "ticks": 673
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 7148,
+      "bonus_gil": 1456,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1519",
+      "ticks": 673
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 7148,
+      "bonus_gil": 1456,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1520",
+      "ticks": 673
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 7148,
+      "bonus_gil": 1456,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1521",
+      "ticks": 673
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 7148,
+      "bonus_gil": 1456,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1522",
+      "ticks": 673
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 7148,
+      "bonus_gil": 1456,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1523",
+      "ticks": 673
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 7148,
+      "bonus_gil": 1456,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1524",
+      "ticks": 673
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6608,
+      "bonus_gil": 1421,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1528",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6608,
+      "bonus_gil": 1421,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1529",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6608,
+      "bonus_gil": 1421,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1530",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6608,
+      "bonus_gil": 1421,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1531",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1534",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1535",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1536",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1537",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1538",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1539",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 17096,
+      "bonus_gil": 2049,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1544",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 17096,
+      "bonus_gil": 2049,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1545",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 17096,
+      "bonus_gil": 2049,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1546",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 17096,
+      "bonus_gil": 2049,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1547",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 5096,
+      "bonus_gil": 4433,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1548",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 5096,
+      "bonus_gil": 4433,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1549",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 4672,
+      "bonus_gil": 1156,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1550",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 5096,
+      "bonus_gil": 4433,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1551",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 5096,
+      "bonus_gil": 4433,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1552",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 2888,
+      "bonus_gil": 1416,
+      "bonus_items": [
+        [
+          245,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1600",
+      "ticks": 307
+    },
+    {
+      "bonus_ap": 40,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          227,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1604",
+      "ticks": 548
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6932,
+      "bonus_gil": 1279,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1606",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 13220,
+      "bonus_gil": 2726,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1710",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 13220,
+      "bonus_gil": 2726,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1711",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 13220,
+      "bonus_gil": 2726,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1712",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 13220,
+      "bonus_gil": 2726,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1713",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 30576,
+      "bonus_gil": 2572,
+      "bonus_items": [
+        [
+          254,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1715",
+      "ticks": 798
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 13220,
+      "bonus_gil": 2726,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1716",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 13220,
+      "bonus_gil": 2726,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1717",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 8008,
+      "bonus_gil": 1345,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1718",
+      "ticks": 548
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 13220,
+      "bonus_gil": 2726,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1800",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 13220,
+      "bonus_gil": 2726,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1802",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 35208,
+      "bonus_gil": 2604,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1808",
+      "ticks": 1037
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1810",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 13220,
+      "bonus_gil": 2726,
+      "bonus_items": [
+        [
+          234,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 2,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1816",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1818",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 4,
+      "bonus_gil": 5000,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1819",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 4,
+      "bonus_gil": 5000,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1820",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 4,
+      "bonus_gil": 5000,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1821",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 4,
+      "bonus_gil": 5000,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1822",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 4,
+      "bonus_gil": 5000,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1823",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 4,
+      "bonus_gil": 5000,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1824",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 30576,
+      "bonus_gil": 2572,
+      "bonus_items": [
+        [
+          254,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1825",
+      "ticks": 798
+    },
+    {
+      "bonus_ap": 20,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [
+        [
+          239,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1902",
+      "ticks": 179
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 4672,
+      "bonus_gil": 1156,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1903",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6432,
+      "bonus_gil": 1270,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1907",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6432,
+      "bonus_gil": 1270,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1908",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6432,
+      "bonus_gil": 1270,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1909",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 6432,
+      "bonus_gil": 1270,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1910",
+      "ticks": 426
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 6608,
+      "bonus_gil": 1528,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1911",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 3228,
+      "bonus_gil": 941,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1913",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 47704,
+      "bonus_gil": 59630,
+      "bonus_items": [
+        [
+          209,
+          2
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1914",
+      "ticks": 3851
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 17096,
+      "bonus_gil": 2049,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1916",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 17096,
+      "bonus_gil": 2049,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1917",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 47704,
+      "bonus_gil": 59630,
+      "bonus_items": [
+        [
+          209,
+          2
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1918",
+      "ticks": 3851
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 6096,
+      "bonus_gil": 1840,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1919",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 6096,
+      "bonus_gil": 1840,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1920",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 6608,
+      "bonus_gil": 1528,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_1921",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 6608,
+      "bonus_gil": 1528,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2111",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 17096,
+      "bonus_gil": 2049,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2112",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 17096,
+      "bonus_gil": 2049,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2113",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 17096,
+      "bonus_gil": 2049,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2114",
+      "ticks": 795
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 6096,
+      "bonus_gil": 1840,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2115",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 6096,
+      "bonus_gil": 1840,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2116",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 6608,
+      "bonus_gil": 1528,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2117",
+      "ticks": 310
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 5504,
+      "bonus_gil": 1204,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2212",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 5504,
+      "bonus_gil": 1204,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2213",
+      "ticks": 423
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1548,
+      "bonus_gil": 740,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2214",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 1,
+      "bonus_exp": 1548,
+      "bonus_gil": 740,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2215",
+      "ticks": 304
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 42672,
+      "bonus_gil": 2218,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2300",
+      "ticks": 1409
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 42672,
+      "bonus_gil": 2218,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2301",
+      "ticks": 1409
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 42672,
+      "bonus_gil": 2218,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2302",
+      "ticks": 1409
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 42672,
+      "bonus_gil": 2218,
+      "bonus_items": [
+        [
+          240,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2303",
+      "ticks": 1409
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_WM_2304",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 0,
+      "bonus_gil": 0,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 0,
+      "error": null,
+      "outcome": null,
+      "pattern": 0,
+      "players_alive": 0,
+      "scene": "EVT_BATTLE_WM_2305",
+      "ticks": 0
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 8008,
+      "bonus_gil": 1345,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2400",
+      "ticks": 548
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 8008,
+      "bonus_gil": 1345,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2401",
+      "ticks": 548
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 5096,
+      "bonus_gil": 4433,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2404",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 3,
+      "bonus_exp": 5096,
+      "bonus_gil": 4433,
+      "bonus_items": [
+        [
+          236,
+          1
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_2405",
+      "ticks": 551
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 47704,
+      "bonus_gil": 59630,
+      "bonus_items": [
+        [
+          209,
+          2
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_9900",
+      "ticks": 3851
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 47704,
+      "bonus_gil": 59630,
+      "bonus_items": [
+        [
+          209,
+          2
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_9901",
+      "ticks": 3851
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 47704,
+      "bonus_gil": 59630,
+      "bonus_items": [
+        [
+          209,
+          2
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_9902",
+      "ticks": 3851
+    },
+    {
+      "bonus_ap": 0,
+      "bonus_exp": 47704,
+      "bonus_gil": 59630,
+      "bonus_items": [
+        [
+          209,
+          2
+        ]
+      ],
+      "card": null,
+      "enemy_deaths": 3,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_9903",
+      "ticks": 3851
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 24276,
+      "bonus_gil": 2023,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_9904",
+      "ticks": 1164
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 24276,
+      "bonus_gil": 2023,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_9905",
+      "ticks": 1164
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 24276,
+      "bonus_gil": 2023,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_9906",
+      "ticks": 1164
+    },
+    {
+      "bonus_ap": 2,
+      "bonus_exp": 24276,
+      "bonus_gil": 2023,
+      "bonus_items": [],
+      "card": null,
+      "enemy_deaths": 1,
+      "error": null,
+      "outcome": "victory",
+      "pattern": 0,
+      "players_alive": 4,
+      "scene": "EVT_BATTLE_WM_9907",
+      "ticks": 1164
+    }
+  ],
+  "scenes": 562,
+  "unfinished": 0,
+  "victories": 529
+}

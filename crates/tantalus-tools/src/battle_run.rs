@@ -108,6 +108,34 @@ pub struct BattleRunReport {
     pub card: Option<u32>,
 }
 
+/// Batch-safe wrapper: catches panics (debug-build arithmetic edge cases on
+/// untested scenes) and reports them instead of aborting the sweep.
+pub fn run_scene_battle_caught(
+    scene_name: &str,
+    scene: &BattleScene,
+    pattern: usize,
+    script: &[u8],
+    seed: u64,
+) -> BattleRunReport {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        run_scene_battle(scene_name, scene, pattern, script, seed)
+    }))
+    .unwrap_or_else(|_| BattleRunReport {
+        scene: scene_name.to_owned(),
+        pattern,
+        outcome: None,
+        ticks: 0,
+        error: Some("panic during run".to_owned()),
+        enemy_deaths: 0,
+        players_alive: 0,
+        bonus_gil: 0,
+        bonus_exp: 0,
+        bonus_ap: 0,
+        bonus_items: Vec::new(),
+        card: None,
+    })
+}
+
 /// Runs `scene` pattern `pattern` to completion. `script` is the decoded
 /// `EVT_BATTLE_<name>.eb` bytecode driving enemy AI.
 pub fn run_scene_battle(
