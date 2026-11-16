@@ -547,3 +547,53 @@ fn battle_machine_snapshots_into_script_views() {
     assert_eq!(data.battle_result, 1);
     assert!(data.result_mode);
 }
+
+#[test]
+fn script_writes_apply_back_onto_the_machine() {
+    use tantalus_contracts::EntityId;
+    use tantalus_legacy::battle::host::{apply_unit_views, battle_views};
+    use tantalus_legacy::battle::machine::{Battle, BattleConfig};
+    use tantalus_legacy::battle::{BattleUnit, StatusDataRow, StatusTable};
+
+    let mut player = BattleUnit::new(1, true);
+    player.cur_hp = 500;
+    player.max_hp = 500;
+    player.guard_elements = tantalus_legacy::battle::Elements(3);
+    let mut enemy = BattleUnit::new(16, false);
+    enemy.cur_hp = 300;
+    enemy.max_hp = 300;
+    let mut battle = Battle::new(
+        vec![player, enemy],
+        BattleConfig::default(),
+        StatusTable::new(vec![StatusDataRow::default(); 32]),
+    );
+
+    // Snapshot, mutate through the host the way a battle script would, apply.
+    let (_, mut units) = battle_views(&battle);
+    {
+        let unit = units.get_mut(&EntityId::new(16)).unwrap();
+        unit.hp = 120;
+        unit.targetable = 0;
+        unit.element_weak = 8;
+        unit.status_current = 0xFF;
+    }
+    // Views for an unknown entity are ignored.
+    units.insert(EntityId::new(99), Default::default());
+    apply_unit_views(&mut battle, &units);
+
+    assert_eq!(battle.units[1].cur_hp, 120, "script hp write lands");
+    assert!(!battle.sched[1].targetable, "targetable write lands");
+    assert_eq!(battle.units[1].weak_elements.0, 8);
+    assert_eq!(battle.units[1].status_current, 0xFF);
+    assert_eq!(battle.units[0].cur_hp, 500, "untouched unit unchanged");
+    assert_eq!(
+        battle.units[0].guard_elements.0, 3,
+        "untouched element kept"
+    );
+
+    // A second snapshot observes the applied writes: the script loop is
+    // round-trip consistent.
+    let (_, views) = battle_views(&battle);
+    assert_eq!(views[&EntityId::new(16)].hp, 120);
+    assert_eq!(views[&EntityId::new(16)].targetable, 0);
+}

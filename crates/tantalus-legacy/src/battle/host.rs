@@ -709,3 +709,42 @@ fn unit_view(unit: &BattleUnit, sched: &UnitSched, index: usize) -> UnitView {
         ..UnitView::default()
     }
 }
+
+/// Applies script-mutated unit views back onto the machine (the write-back
+/// half of [`battle_views`]). Fields the machine does not own (position,
+/// model, motion, steal/bonus tables, level) are dropped, as are views for
+/// unknown entities.
+///
+/// Faithfulness notes: hp/mp/ATB and stat writes use the reference's raw
+/// casts (`(UInt32)val`, `(Int16)val`, `(Byte)val`); a negative hp write
+/// wraps like the source. Trance is not carried by the machine and is not
+/// written back.
+pub fn apply_unit_views(battle: &mut Battle, units: &BTreeMap<EntityId, UnitView>) {
+    for (unit, sched) in battle.units.iter_mut().zip(battle.sched.iter_mut()) {
+        let Some(view) = units.get(&EntityId::new(u64::from(unit.id))) else {
+            continue;
+        };
+        unit.cur_hp = view.hp as u32;
+        unit.cur_mp = view.mp as u32;
+        unit.cur_atb = view.atb as i16;
+        unit.status_current = view.status_current;
+        unit.status_permanent = view.status_permanent;
+        unit.status_resist = view.status_invalid;
+        unit.guard_elements.0 = view.element_invalid;
+        unit.absorb_elements.0 = view.element_absorb;
+        unit.half_elements.0 = view.element_half;
+        unit.weak_elements.0 = view.element_weak;
+        unit.strength = view.strength as u8;
+        unit.magic = view.magic as u8;
+        unit.physical_defence = view.physical_defence;
+        unit.physical_evade = view.physical_evade;
+        unit.magic_defence = view.magical_defence;
+        unit.magic_evade = view.magical_evade;
+        unit.row = view.row as u8;
+        sched.targetable = view.targetable != 0;
+        sched.disappeared = view.disappear != 0;
+        sched.out_of_reach = view.out_of_reach;
+        sched.die_fade_rate = view.die_fade_rate as u8;
+        sched.bonus_exp = view.bonus_exp as u32;
+    }
+}
