@@ -111,7 +111,10 @@ impl PlayData {
             tantalus_game::new_game::parse_leveling(&read_text(&characters.join("Leveling.csv"))?)?;
         let atan = std::fs::read(&paths.atan_table)
             .map_err(|error| format!("cannot read {}: {error}", paths.atan_table.display()))?;
-        let new_game = new_game_world(&base, &levels, atan);
+        let mut new_game = new_game_world(&base, &levels, atan);
+        new_game.items = tantalus_game::new_game::parse_initial_items(&read_text(
+            &characters.join("../Items/InitialItems.csv"),
+        )?)?;
         let battles = match &paths.battles {
             Some(ids) => Some(FieldBattles::load(
                 sa,
@@ -443,7 +446,8 @@ impl PlayGame {
             for request in &step.encounters {
                 let outcome = match &self.data.battles {
                     Some(battles) => {
-                        let report = battles.fight(request, &party);
+                        let items = session.director.world().items.clone();
+                        let report = battles.fight_with_items(request, &party, &items);
                         save_party(&report, &mut session.director.world_mut().character_stats);
                         pay_rewards(&report, session.director.world_mut());
                         report.outcome.unwrap_or_else(|| "no result".to_owned())

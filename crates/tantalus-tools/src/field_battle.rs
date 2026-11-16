@@ -55,6 +55,9 @@ pub type ApLine = (i32, u16, Vec<(i32, i32)>);
 #[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct FightReport {
     pub battle: i32,
+    /// Items the party used, `(item id, count)`. [`pay_rewards`] takes them
+    /// out of the field inventory whatever the outcome.
+    pub items_used: Vec<(i32, u32)>,
     pub scene: Option<String>,
     pub pattern: usize,
     pub outcome: Option<String>,
@@ -169,6 +172,22 @@ pub struct Equipment {
     status_sets: BTreeMap<i32, u64>,
     /// `FF9Battle.aa_data` (`Battle/Actions.csv`): ability id -> row.
     actions: BTreeMap<i32, ActionRow>,
+    /// Item id -> its `ITEM_DATA` (`Items.csv` `EffectId` into
+    /// `ItemEffects.csv`), for usable items only.
+    item_effects: BTreeMap<i32, ItemRow>,
+}
+
+/// The `ITEM_DATA` fields an Item command reads (`ItemEffects.csv`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct ItemRow {
+    target: u8,
+    default_ally: bool,
+    for_dead: bool,
+    script_id: i32,
+    power: i32,
+    rate: i32,
+    elements: u8,
+    status: u64,
 }
 
 /// The `AA_DATA` fields `CMD_DATA.SetAAData` copies (`Actions.csv`).
@@ -214,6 +233,11 @@ const INSIDE_TRICK: u32 = 26;
 const ABILITY_FIRE: i32 = 25;
 const ABILITY_FLEE: i32 = 101;
 const ABILITY_FREE_ENERGY: i32 = 109;
+const ITEM_POTION: i32 = 236;
+const ITEM_HI_POTION: i32 = 237;
+const ITEM_PHOENIX_DOWN: i32 = 240;
+const ITEM_PHOENIX_PINION: i32 = 249;
+const ITEM_REMEDY: i32 = 247;
 
 /// `ManyAny(3)` -> `3`, a bare number as is.
 fn paren_or_number(text: &str) -> String {
@@ -243,6 +267,7 @@ struct SceneAttacks {
     attacks: Vec<tantalus_assets::pc::battle_scene::Attack>,
     status_sets: BTreeMap<i32, u64>,
     actions: BTreeMap<i32, ActionRow>,
+    item_effects: BTreeMap<i32, ItemRow>,
 }
 
 impl SceneAttacks {
@@ -275,6 +300,18 @@ impl BattleHooks for SceneAttacks {
         if caster.is_player && cmd_no != cmd::MAGIC_COUNTER {
             return match cmd_no {
                 BLACK_MAGIC | INSIDE_TRICK => self.player_spec(cmd_no, sub_no),
+                // The base the machine's `item_spec` fills in: the item's
+                // cursor and default side.
+                cmd::ITEM => self.item_effects.get(&sub_no).map(|item| {
+                    let mut command = tantalus_legacy::battle::BattleCommand::new(item.script_id);
+                    command.command_id = cmd_no;
+                    command.target_type = item.target;
+                    CommandSpec {
+                        command,
+                        default_ally: item.default_ally,
+                        for_dead: item.for_dead,
+                    }
+                }),
                 _ => tantalus_game::battle::legacy::basic_spec(cmd_no),
             };
         }
@@ -312,6 +349,21 @@ impl BattleHooks for SceneAttacks {
 
     fn enemy_atb(&mut self, _battle: &Battle, _unit: usize) -> Option<EnemyAction> {
         None
+    }
+
+    /// `ff9item.GetItemEffect` (`ITEM_DATA`).
+    fn item(&mut self, item_id: i32) -> Option<tantalus_legacy::battle::command::ItemData> {
+        let item = self.item_effects.get(&item_id)?;
+        Some(tantalus_legacy::battle::command::ItemData {
+            effect: tantalus_legacy::battle::command::ItemEffect {
+                power: item.power,
+                hit_rate: item.rate,
+                status: item.status,
+                elements: Elements(item.elements),
+            },
+            script_id: item.script_id,
+            for_dead: item.for_dead,
+        })
     }
 }
 
@@ -426,6 +478,40 @@ impl Equipment {
                 let Some(id) = int(&row, 1) else { continue };
                 let mask = row.get(2).map(|list| status_mask(list)).unwrap_or(0);
                 equipment.status_sets.insert(id, mask);
+            }
+        }
+        // Id;Targets;DefaultAlly;Display;AnimationId;ForDead;DefaultDead;
+        // ScriptId;Power;Rate;Elements;Status, keyed through Items.csv's
+        // EffectId (column 3).
+        if let (Ok(items), Ok(effects)) = (
+            read(items_dir.join("Items.csv")),
+            read(items_dir.join("ItemEffects.csv")),
+        ) {
+            let mut rows = BTreeMap::new();
+            for row in csv_rows(&effects) {
+                let Some(id) = int(&row, 0) else { continue };
+                let field = |index: usize| row.get(index).copied().unwrap_or("");
+                let flag = |index: usize| matches!(field(index).trim(), "1" | "True" | "true");
+                rows.insert(
+                    id,
+                    ItemRow {
+                        target: paren_or_number(field(1)).parse().unwrap_or(0),
+                        default_ally: flag(2),
+                        for_dead: flag(5),
+                        script_id: int(&row, 7).unwrap_or(0),
+                        power: int(&row, 8).unwrap_or(0),
+                        rate: int(&row, 9).unwrap_or(0),
+                        elements: status_mask(field(10)) as u8,
+                        status: status_mask(field(11)),
+                    },
+                );
+            }
+            for row in csv_rows(&items) {
+                if let (Some(id), Some(effect)) = (int(&row, 0), int(&row, 3))
+                    && let Some(item) = rows.get(&effect)
+                {
+                    equipment.item_effects.insert(id, *item);
+                }
             }
         }
         // Comment;Id;Display;Targets;DefaultAlly;ForDead;DefaultDead;
@@ -592,6 +678,17 @@ impl FieldBattles {
     /// Fights `request` with `party`. [`save_party`] and [`pay_rewards`] carry
     /// the result back to the field.
     pub fn fight(&self, request: &EncounterRequest, party: &[PartyFighter]) -> FightReport {
+        self.fight_with_items(request, party, &BTreeMap::new())
+    }
+
+    /// [`Self::fight`] with the field inventory (`item id -> count`), which
+    /// the Item command reads. The report lists what was used.
+    pub fn fight_with_items(
+        &self,
+        request: &EncounterRequest,
+        party: &[PartyFighter],
+        items: &BTreeMap<i32, i32>,
+    ) -> FightReport {
         let pattern = request.group.and_then(|group| usize::try_from(group).ok());
         let mut report = FightReport {
             battle: request.battle,
@@ -613,7 +710,7 @@ impl FieldBattles {
             error: None,
             ..FightReport::default()
         };
-        if let Err(error) = self.run(request, party, &mut report) {
+        if let Err(error) = self.run(request, party, items, &mut report) {
             report.error = Some(error);
         }
         report
@@ -623,6 +720,7 @@ impl FieldBattles {
         &self,
         request: &EncounterRequest,
         party: &[PartyFighter],
+        items: &BTreeMap<i32, i32>,
         report: &mut FightReport,
     ) -> Result<(), String> {
         let id = u16::try_from(request.battle).map_err(|_| "battle id out of range")?;
@@ -642,7 +740,14 @@ impl FieldBattles {
         report.pattern = pattern;
         let script = self.scripts.get(&name);
         report.ai_script = script.is_some();
-        self.battle(scene, pattern, script.map(Vec::as_slice), party, report)
+        self.battle(
+            scene,
+            pattern,
+            script.map(Vec::as_slice),
+            party,
+            items,
+            report,
+        )
     }
 
     fn battle(
@@ -651,6 +756,7 @@ impl FieldBattles {
         pattern: usize,
         script: Option<&[u8]>,
         party: &[PartyFighter],
+        items: &BTreeMap<i32, i32>,
         report: &mut FightReport,
     ) -> Result<(), String> {
         let mut units: Vec<BattleUnit> = party
@@ -678,6 +784,11 @@ impl FieldBattles {
             },
             StatusTable::new(vec![StatusDataRow::default(); 32]),
         );
+        battle.inventory = items
+            .iter()
+            .filter(|&(_, &count)| count > 0)
+            .map(|(&item, &count)| (item, count as u32))
+            .collect();
         // `SB2_FLG_SPECIAL` is `Info.SpecialStart`: the script opens the
         // battle in the event phase.
         if scene.header.flags & 0x1 != 0 {
@@ -705,6 +816,13 @@ impl FieldBattles {
         let fire = ContentId::parse("tantalus:action/fire").map_err(|e| e.to_string())?;
         let free_energy =
             ContentId::parse("tantalus:action/free-energy").map_err(|e| e.to_string())?;
+        let potion = ContentId::parse("tantalus:action/potion").map_err(|e| e.to_string())?;
+        let hi_potion = ContentId::parse("tantalus:action/hi-potion").map_err(|e| e.to_string())?;
+        let pinion =
+            ContentId::parse("tantalus:action/phoenix-pinion").map_err(|e| e.to_string())?;
+        let remedy = ContentId::parse("tantalus:action/remedy").map_err(|e| e.to_string())?;
+        let phoenix =
+            ContentId::parse("tantalus:action/phoenix-down").map_err(|e| e.to_string())?;
         // Abilities each member's default gear gives (`AA:X` ids under 192).
         let gear: Vec<Vec<i32>> = party
             .iter()
@@ -716,6 +834,11 @@ impl FieldBattles {
                 (attack.clone(), (cmd::ATTACK, ABILITY_ATTACK)),
                 (fire.clone(), (BLACK_MAGIC, ABILITY_FIRE)),
                 (free_energy.clone(), (INSIDE_TRICK, ABILITY_FREE_ENERGY)),
+                (potion.clone(), (cmd::ITEM, ITEM_POTION)),
+                (hi_potion.clone(), (cmd::ITEM, ITEM_HI_POTION)),
+                (pinion.clone(), (cmd::ITEM, ITEM_PHOENIX_PINION)),
+                (remedy.clone(), (cmd::ITEM, ITEM_REMEDY)),
+                (phoenix.clone(), (cmd::ITEM, ITEM_PHOENIX_DOWN)),
             ]),
             unit_map,
             target_bits,
@@ -725,6 +848,7 @@ impl FieldBattles {
                 attacks: scene.attacks.clone(),
                 status_sets: self.equipment.status_sets.clone(),
                 actions: self.equipment.actions.clone(),
+                item_effects: self.equipment.item_effects.clone(),
             },
             driver,
             SceneOverlay {
@@ -776,14 +900,77 @@ impl FieldBattles {
                 // `AbilityTranceList`). Everything else attacks.
                 let unit = &machine.units[actor];
                 let has = |id: i32| gear[actor].contains(&id);
-                let action = match party[actor].character {
-                    1 if has(ABILITY_FIRE) && unit.cur_mp >= 6 => fire.clone(),
-                    0 if has(ABILITY_FLEE)
-                        && unit.is_under_any_status(tantalus_legacy::battle::status::TRANCE) =>
-                    {
-                        free_energy.clone()
+                let count = |item: i32| machine.inventory.get(&item).copied().unwrap_or(0);
+                // A fallen member gets a Phoenix Down or Pinion (Vivi first, the
+                // damage dealer, who never stops to heal), then the member under 60% HP with the least
+                // left gets a Potion, or a Hi-Potion once those run out.
+                // An ally already named by a queued or running Item command
+                // is skipped, so two members do not spend turns on one heal.
+                let healing = |i: usize| {
+                    let id = machine.units[i].id;
+                    machine.cmds.queue.iter().chain(&machine.running).any(|&c| {
+                        let slot = &machine.cmds.slots[c];
+                        slot.cmd_no == cmd::ITEM && slot.tar_id & id != 0
+                    })
+                };
+                let downed = (0..party.len())
+                    .filter(|&i| {
+                        machine.sched[i].in_list && machine.units[i].cur_hp == 0 && !healing(i)
+                    })
+                    .min_by_key(|&i| party[i].character != 1);
+                let hurt = (0..party.len())
+                    .filter(|&i| {
+                        let u = &machine.units[i];
+                        machine.sched[i].in_list
+                            && u.cur_hp > 0
+                            && u.cur_hp * 5 < u.max_hp * 3
+                            && !healing(i)
+                    })
+                    .min_by_key(|&i| {
+                        machine.units[i].cur_hp * 1000 / machine.units[i].max_hp.max(1)
+                    });
+                // Vivi keeps casting while he has the MP; the others heal.
+                let caster = party[actor].character == 1 && has(ABILITY_FIRE) && unit.cur_mp >= 6;
+                let heal = match (downed, hurt) {
+                    _ if caster => None,
+                    (Some(ally), _) if count(ITEM_PHOENIX_DOWN) > 0 => {
+                        Some((phoenix.clone(), ally))
                     }
-                    _ => attack.clone(),
+                    (Some(ally), _) if count(ITEM_PHOENIX_PINION) > 0 => {
+                        Some((pinion.clone(), ally))
+                    }
+                    (_, Some(ally)) if count(ITEM_POTION) > 0 => Some((potion.clone(), ally)),
+                    (_, Some(ally)) if count(ITEM_HI_POTION) > 0 => Some((hi_potion.clone(), ally)),
+                    // A blinded fighter's attacks mostly miss: Remedy.
+                    _ if count(ITEM_REMEDY) > 0 => (0..party.len())
+                        .find(|&i| {
+                            machine.sched[i].in_list
+                                && machine.units[i].cur_hp > 0
+                                && party[i].character != 1
+                                && machine.units[i]
+                                    .is_under_any_status(tantalus_legacy::battle::status::BLIND)
+                                && !healing(i)
+                        })
+                        .map(|ally| (remedy.clone(), ally)),
+                    _ => None,
+                };
+                let (action, target) = if let Some(heal) = heal {
+                    heal
+                } else {
+                    (
+                        match party[actor].character {
+                            1 if has(ABILITY_FIRE) && unit.cur_mp >= 6 => fire.clone(),
+                            0 if has(ABILITY_FLEE)
+                                && unit.is_under_any_status(
+                                    tantalus_legacy::battle::status::TRANCE,
+                                ) =>
+                            {
+                                free_energy.clone()
+                            }
+                            _ => attack.clone(),
+                        },
+                        target,
+                    )
                 };
                 input.command = Some(BattleCommand {
                     actor: entities[actor],
@@ -845,6 +1032,14 @@ impl FieldBattles {
                 }
             }
             events_seen = events.len();
+            report.items_used = items
+                .iter()
+                .filter_map(|(&item, &count)| {
+                    let left = adapter.battle().inventory.get(&item).copied().unwrap_or(0);
+                    let used = (count.max(0) as u32).saturating_sub(left);
+                    (used > 0).then_some((item, used))
+                })
+                .collect();
             if let Some(outcome) = adapter.outcome() {
                 report.outcome = Some(outcome_name(outcome).to_owned());
                 break;
@@ -1044,6 +1239,12 @@ fn reward_member(fighter: &PartyFighter, hp: u32, mp: u32, equipment: &Equipment
 /// each equipped learnable ability (`AddAp`, once per item carrying it),
 /// and the card (`MiniGame_SetCard`, while the collection has room).
 pub fn pay_rewards(report: &FightReport, world: &mut FieldWorld) {
+    for &(item, used) in &report.items_used {
+        world.add_item_amount(item, -(used.min(99) as i32));
+        if world.items.get(&item).is_some_and(|&count| count <= 0) {
+            world.items.remove(&item);
+        }
+    }
     if report.outcome.as_deref() != Some("victory") {
         return;
     }

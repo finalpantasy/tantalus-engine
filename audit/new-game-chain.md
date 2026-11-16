@@ -462,6 +462,30 @@ Evil Forest, so the party reaches the Plant Brain at level 1. Even at full
 HP that party takes off only 610 HP before it wipes. A player would arrive
 a few levels higher and would heal with Potions; the policy does neither.
 
+Run 93 adds items:
+
+- A new game starts with the `InitialItems.csv` inventory (7 Potion,
+  2 Hi-Potion, 2 Ether, 2 Phoenix Down, 2 Remedy, 1 Phoenix Pinion, 1 Tent).
+  It used to start empty.
+- The Item command reads `ItemEffects.csv` through `Items.csv`'s `EffectId`,
+  draws from the field inventory, and the items used leave it after the
+  fight, won or lost.
+- The policy revives a fallen member with a Phoenix Down or Pinion (Vivi
+  first), gives a Potion or Hi-Potion to the member under 60% HP with the
+  least left, and a Remedy to a blinded fighter. Vivi never stops casting to
+  heal. An ally already named by a queued Item command is skipped; without
+  that, three members spent their turns on one Potion.
+
+The Plant Brain script sets its HP to 458 (`(max - 10000) / 2`) after its
+sixth turn or once Zidane is low or down, so damage before that is lost.
+Its Thunder on the whole party deals about 70 to each level-1 member, which
+matches Memoria's magic formula. `tantalus-trace fight --hp` reproduces the
+chain's start (Zidane at 48 HP). It wins now,
+as does a full-HP start. In run 93 the chain still loses it with the boss at 8 HP
+(run 91: 404): the Prison Cage fights spent two Potions first. The party is
+still level 1; random encounters in the Evil Forest would give a player the
+levels this fight expects.
+
 ## Playing it
 
 The chain's field loop now lives in the library (`tantalus_tools::field_session`

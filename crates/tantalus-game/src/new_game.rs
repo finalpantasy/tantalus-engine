@@ -80,6 +80,18 @@ pub fn parse_base_stats(text: &str) -> Result<BTreeMap<i32, BaseStats>, String> 
     Ok(stats)
 }
 
+/// `InitialItems.csv` (`ff9item.LoadInitialItems`): `ItemID;Count` rows, the
+/// inventory a new game starts with.
+pub fn parse_initial_items(text: &str) -> Result<BTreeMap<i32, i32>, String> {
+    let mut items = BTreeMap::new();
+    for row in rows(text) {
+        let item: i32 = field(&row, 0, "InitialItems.csv")?;
+        let count: i32 = field(&row, 1, "InitialItems.csv")?;
+        *items.entry(item).or_insert(0) += count;
+    }
+    Ok(items)
+}
+
 pub fn parse_leveling(text: &str) -> Result<Vec<LevelRow>, String> {
     let levels = rows(text)
         .map(|row| {
@@ -197,5 +209,13 @@ mod tests {
         assert!(parse_base_stats("Zidane;0;1;2;3;4;5\n").is_err());
         assert!(parse_leveling("0;250;200\n").is_err());
         assert!(parse_base_stats("Zidane;x;1;2;3;4;5\n").is_err());
+    }
+
+    #[test]
+    fn initial_items_sum_repeats_and_skip_comments() {
+        let text = "\u{feff}# ItemID;Count\n236;7;# Potion\n240;2;# Phoenix Down\n236;1\n";
+        let items = parse_initial_items(text).unwrap();
+        assert_eq!(items, BTreeMap::from([(236, 8), (240, 2)]));
+        assert!(parse_initial_items("236\n").is_err());
     }
 }

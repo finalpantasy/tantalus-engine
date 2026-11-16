@@ -38,7 +38,7 @@ fn main() -> ExitCode {
 }
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
-       tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--globals SCENARIO:TRANCE:DEPRESS]
+       tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
        tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
@@ -70,6 +70,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut fight_battle: Option<i32> = None;
     let mut fight_party: Vec<i32> = vec![0];
     let mut fight_globals = tantalus_tools::field_battle::PartyGlobals::default();
+    let mut fight_items: std::collections::BTreeMap<i32, i32> = Default::default();
+    let mut fight_hp: std::collections::BTreeMap<i32, u32> = Default::default();
     let mut battle_ids: Option<PathBuf> = None;
     let mut waypoints: BTreeMap<i32, Vec<[f32; 2]>> = BTreeMap::new();
     while let Some(flag) = iter.next() {
@@ -186,6 +188,27 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     .map(|id| parse_number(id.trim(), "--party"))
                     .collect::<Result<_, _>>()?;
             }
+            "--hp" => {
+                let value = value()?;
+                for pair in value.split(',') {
+                    let (character, hp) =
+                        pair.split_once(':').ok_or("--hp wants CHARACTER:HP,...")?;
+                    fight_hp.insert(
+                        parse_number(character.trim(), "--hp")?,
+                        parse_number(hp.trim(), "--hp")?,
+                    );
+                }
+            }
+            "--items" => {
+                let value = value()?;
+                for pair in value.split(',') {
+                    let (item, count) = pair.split_once(':').ok_or("--items wants ID:COUNT,...")?;
+                    fight_items.insert(
+                        parse_number(item.trim(), "--items")?,
+                        parse_number(count.trim(), "--items")?,
+                    );
+                }
+            }
             "--globals" => {
                 let text = value()?;
                 let parts: Vec<i32> = text
@@ -238,7 +261,10 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     let stats = stats.get(character)?;
                     Some(tantalus_tools::field_battle::PartyFighter {
                         character: *character,
-                        hp: stats.current_hp.max(0) as u32,
+                        hp: fight_hp
+                            .get(character)
+                            .copied()
+                            .unwrap_or(stats.current_hp.max(0) as u32),
                         max_hp: stats.max_hp.max(0) as u32,
                         mp: stats.current_mp.max(0) as u32,
                         max_mp: stats.max_mp.max(0) as u32,
@@ -253,7 +279,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 battle,
                 steiner_state: false,
             };
-            let report = battles.fight(&request, &party);
+            let report = battles.fight_with_items(&request, &party, &fight_items);
             println!(
                 "{}",
                 serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?
@@ -273,6 +299,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 ),
                 None => None,
             };
+            let mut initial_items = BTreeMap::new();
             let mut growth_tables: Option<(
                 BTreeMap<i32, tantalus_game::new_game::BaseStats>,
                 Vec<tantalus_game::new_game::LevelRow>,
@@ -287,6 +314,9 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     let base = tantalus_game::new_game::parse_base_stats(&read("BaseStats.csv")?)?;
                     let levels = tantalus_game::new_game::parse_leveling(&read("Leveling.csv")?)?;
                     growth_tables = Some((base.clone(), levels.clone()));
+                    initial_items = tantalus_game::new_game::parse_initial_items(&read(
+                        "../Items/InitialItems.csv",
+                    )?)?;
                     tantalus_game::new_game::new_game_character_stats(&base, &levels)
                 }
                 None => BTreeMap::new(),
@@ -339,6 +369,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     choices,
                     game_data,
                     growth_tables,
+                    initial_items,
                     item_ids,
                     route,
                     skip_talk,
@@ -801,6 +832,8 @@ struct ChainOptions {
         BTreeMap<i32, tantalus_game::new_game::BaseStats>,
         Vec<tantalus_game::new_game::LevelRow>,
     )>,
+    /// `InitialItems.csv`: the new-game inventory.
+    initial_items: BTreeMap<i32, i32>,
     /// Vanilla item-table legacy ids for the reward-item identity mapping.
     item_ids: Option<Vec<i32>>,
     /// Free-roam route: while MAP's first unused entry is DEST, the explorer
@@ -889,6 +922,7 @@ fn chain(
         choices,
         game_data,
         growth_tables,
+        initial_items,
         item_ids,
         route,
         skip_talk,
@@ -970,6 +1004,7 @@ fn chain(
     }
     // FF9Play_Init: every character has a player record from new game on.
     world.character_stats = stats;
+    world.items = initial_items;
     if let Some(ids) = item_ids {
         world.item_id_map = Some(tantalus_game::field::world::default_item_id_map(ids));
     }
@@ -1241,7 +1276,8 @@ fn chain(
                             })
                             .collect();
                         for request in &step.encounters {
-                            let report = field_battles.fight(request, &party);
+                            let items = director.world().items.clone();
+                            let report = field_battles.fight_with_items(request, &party, &items);
                             tantalus_tools::field_battle::save_party(
                                 &report,
                                 &mut director.world_mut().character_stats,
