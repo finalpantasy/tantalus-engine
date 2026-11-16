@@ -178,3 +178,26 @@ pub fn assemble_legacy_battle(
             .collect(),
     })
 }
+
+/// Parses the battle-id -> scene-key table (`audit/battle-scene-ids.tsv`,
+/// extracted from the pinned `FF9BattleDB.SceneData`). Blank lines and `#`
+/// comments are skipped; malformed rows are ignored. The battle hand-off
+/// resolves `ENCOUNT id -> "BSC_<name>" -> EVT_BATTLE_<name[4:]>` this way;
+/// ids missing from the table return `None` (a modded or unknown battle).
+pub fn parse_scene_id_table(tsv: &str) -> std::collections::BTreeMap<u16, String> {
+    tsv.lines()
+        .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
+        .filter_map(|line| {
+            let (id, key) = line.split_once('\t')?;
+            Some((id.trim().parse().ok()?, key.trim().to_owned()))
+        })
+        .collect()
+}
+
+/// Event asset name for a scene key (`"BSC_AC_E028F"` ->
+/// `"EVT_BATTLE_AC_E028F"`).
+pub fn event_asset_name(scene_key: &str) -> Option<String> {
+    scene_key
+        .strip_prefix("BSC_")
+        .map(|name| format!("EVT_BATTLE_{name}"))
+}

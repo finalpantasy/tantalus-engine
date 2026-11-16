@@ -365,3 +365,32 @@ fn assemble_legacy_battle_runs_a_scene_battle_to_victory() {
         "300 EXP over the single eligible line"
     );
 }
+
+#[test]
+fn scene_id_table_resolves_encounter_ids_to_event_assets() {
+    use tantalus_tools::battle_scene_rewards::{event_asset_name, parse_scene_id_table};
+
+    let tsv = "\
+# comment line
+id\tscene_key
+66\tBSC_AC_E028F
+85\tBSC_FR_R015
+191\tBSC_AB_E039
+";
+    let table = parse_scene_id_table(tsv);
+    assert_eq!(table.len(), 3);
+    assert_eq!(table[&66], "BSC_AC_E028F");
+    assert_eq!(table.get(&67), None);
+    assert_eq!(event_asset_name(&table[&85]).unwrap(), "EVT_BATTLE_FR_R015");
+    assert_eq!(event_asset_name("NO_PREFIX"), None);
+
+    // The checked-in audit table parses with the same helper.
+    let audit = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../audit/battle-scene-ids.tsv"
+    ))
+    .unwrap();
+    let full = parse_scene_id_table(&audit);
+    assert_eq!(full.len(), 856, "pinned SceneData row count");
+    assert_eq!(full[&66], "BSC_AC_E028F");
+}
