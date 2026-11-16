@@ -45,6 +45,16 @@ pub struct ActorState {
     pub flags: i32,
     pub level: i32,
     pub jump: Option<Jump>,
+    /// `AFRAME` (`inFrame`/`outFrame`): the frames the next `ANIM` plays
+    /// from and to; 0 and 255 play the whole animation.
+    #[serde(default)]
+    pub in_frame: u8,
+    #[serde(default = "full_out_frame")]
+    pub out_frame: u8,
+}
+
+fn full_out_frame() -> u8 {
+    u8::MAX
 }
 
 impl ActorState {
@@ -62,6 +72,8 @@ impl ActorState {
             flags: 0,
             level: 0,
             jump: None,
+            in_frame: 0,
+            out_frame: u8::MAX,
         }
     }
 }
@@ -376,6 +388,20 @@ impl FieldWorld {
         self.deleted_objects.clear();
     }
 
+    /// `InitEvents` (EventEngine.cs:556) frees every object of the old
+    /// field: its regions, windows, pending requests, shared scripts and
+    /// member overrides go with it. Party, items, globals and actors stay.
+    pub fn begin_field(&mut self) {
+        self.regions.clear();
+        self.windows.clear();
+        self.window_texts.clear();
+        self.pending_requests.clear();
+        self.pending_callers.clear();
+        self.shared_scripts.clear();
+        self.object_members.clear();
+        self.deleted_objects.clear();
+    }
+
     /// `NEW` of a deleted object makes it run again.
     pub fn restore_object(&mut self, entity: EntityId) {
         self.deleted_objects.remove(&entity);
@@ -596,7 +622,14 @@ impl FieldWorld {
                 // starts at frame 0 (`animFrame`, `getvobj` member 7).
                 // Scripts wait for that with `while member 7 != 0`.
                 if state.animation_frames == 0 {
-                    state.animation_frame = 0;
+                    // A ranged animation (`AFRAME`) stops on its out
+                    // frame (map 115's rope climb steps one frame per
+                    // `ANIM` and reads it back).
+                    state.animation_frame = if state.out_frame == u8::MAX {
+                        0
+                    } else {
+                        u16::from(state.out_frame)
+                    };
                 }
             }
         }
@@ -635,6 +668,10 @@ impl FieldWorld {
 
     pub(crate) fn system_variable(&self, variable: u8) -> Option<i32> {
         self.system_variables.get(&variable).copied()
+    }
+
+    pub(crate) fn set_system_variable(&mut self, variable: u8, value: i32) {
+        self.system_variables.insert(variable, value);
     }
 
     pub(crate) fn system_list(&self, index: u8) -> Option<i32> {

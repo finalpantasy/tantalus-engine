@@ -8,6 +8,43 @@ Goal: from a new game (`fldMapNo` 70, zeroed state), follow each field change un
 
 It runs each field's archive under the orchestrated `FieldDirector` (each entry's tag-0 function, requested tags spawned on demand, as in `tantalusctl --orchestrate`), stops a field at its first `MAPJUMP` (`world.field_transitions`), and carries `FieldWorld` into the next field. The EventDB table is read from the pinned Memoria source at run time and is not copied into the repository. `tantalus-trace disasm --bundle <p0data7.bin> --event <NAME>.eb [--entry N]` prints decoded instructions.
 
+## Result on 2026-11-17, seventh run (object order, exit position, floors)
+
+Same command as the sixth run, with `--route` gaining `153>150`, `--waypoints` gaining `154@-807:-5081`, and `--max-fields 60`.
+
+The new game now runs 40 fields with zero VM errors, past the castle guard (map 150), through the castle and the Pluto Knight towers, then back to the theater ship: Garnet joins, the Steiner chase plays out, and the party reaches the second act on stage (map 65). Scenario goes from 1155 to 1600. Map 65 stops at the tick limit inside a scripted scene, with no player control, while King Leo's dialog plays.
+
+| Map | Archive | Ticks | Ops | Next | Scenario |
+|---|---|---|---|---|---|
+| 153/150 | `AC_H2F` / `AC_GUARD` | 304 / 776 | | 150, 153 | 1155 (guard scene) |
+| 154 | `EVT_ALEX1_AC_ENT_2F` | 258 | 12,538 | 158 | 1155 (ground floor exit) |
+| 158-160 | `AC_OUT_E` / `OUT_C` / `OUT_L` | 62 / 438 / 482 | | 159, 160, 162 | 1155 |
+| 162-166 | `AC_TOWER_L1` to `L5` | 62 to 662 | | 163 to 55 | 1155 (spiral tower, height-gated exit) |
+| 55 | `EVT_ALEX1_TS_ORCHE` | 670 | 17,131 | 54 | 1400 |
+| 54 | `EVT_ALEX1_TS_UPPER` | 933 | 21,820 | 51 | 1420 |
+| 51 | `EVT_ALEX1_TS_CARGO_3` | 2919 | 148,002 | 53 | 1500 (Garnet) |
+| 53 | `EVT_ALEX1_TS_MEET_1` | 1304 | 36,939 | 56 | 1500 |
+| 56/57 | `TS_ENGIN_UP` / `TS_ENGIN` | 443 / 318 | | 57, 58 | 1500 |
+| 58 | `EVT_ALEX1_TS_STORAGE` | 1116 | 45,587 | 65 | 1600 (battle 337 skipped) |
+| 65 | `EVT_ALEX1_TS_STAGE_2A` | 4000 | 143,746 | none | 1600 (tick limit, scene still running) |
+
+Engine fixes behind this run, each from the Memoria source:
+
+- Objects step in creation order. `Obj` appends to the tail of `activeObj` (`Obj.cs:32-45`) and `ProcessCode` walks from the head, so an object created by `InitializeObject` runs after the ones already alive. `FieldScene` now keeps a rank per object and steps in rank order. Map 150 had read byte 26 before the entry that sets it, and its stage stuck at 15.
+- `MJPOS` (`DoEventCode.cs:2200`) is implemented. The player's position is projected onto the region's first edge, clamped to 0..256, and stored in `sMapJumpX/Z` (system variables 10 and 11). Since the VM hands it to the host at once, the facing test that follows in the same function reads the new values. Before this, every exit script that compares the player's facing with the exit direction read 0 and refused.
+- `AFRAME` (0x3D) sets an actor's first and last animation frame, `StartTurn` resets them to 0/255, and an animation that ends holds its last frame. The rope climb in map 115 depends on it.
+- A field start clears regions, windows, pending requests, shared scripts, object members and deleted objects from the last field.
+
+Explorer changes in `tantalus-trace` (they drive the player; the game rules stay in the engine):
+
+- Facing: toward an exit's `MJPOS` point while in the region, and toward each target the player jumps to.
+- Exit choice: the explorer records where each exit led and picks the one whose destination has the fewest visits. This ends the 153⇄154 and 153⇄64 loops.
+- Floors: walkmesh heights now apply, and a jump keeps the actor on its own floor. A target that only another floor covers is reached by walking the mesh triangle by triangle (breadth-first over shared edges), so map 154's ground floor and its exit to 158 are reachable from the upper floor. An actor standing past the mesh edge starts from the nearest triangle.
+- An exit region that does not fire after its dwell is retried on each other floor under it. Map 164's spiral tower leaves upward only above height 12000.
+- Region targets use a point `IsInQuad` actually contains. Map 164 region 2's vertex average falls outside it.
+
+Open items: name text variables are empty ("Captain , do you climb..."); battles are skipped; scene object order is not saved in snapshots yet; the walk facing in `world.rs` (`128 + atan2(dx,-dz)`) has not been checked against `Angle2` (0 = −z, 64 = west).
+
 ## Result on 2026-11-17, sixth run (object lifecycle, sequences, walkmeshes)
 
 `tantalus-trace chain ... --character-data <Memoria>/Memoria.Patcher/StreamingAssets/Data/Characters --game-data <install>/x64/FF9_Data --mes-map <Memoria>/Assembly-CSharp/Global/Event/Engine/EventEngineUtils.cs --start 70 --ticks 4000 --explore --confirm-after 30 --route 100>101,101>102,102>103,103>105,105>106,106>115 --skip-talk 103:8 --hold 115:16 --choices 52:66=1 --waypoints 116@2000:-137/1400:-137/800:-137/-339:1000/-339:1800/-339:2500/1000:5000/2500:8000/3300:10800/3400:11000 --max-fields 20`

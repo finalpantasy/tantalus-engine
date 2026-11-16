@@ -474,12 +474,272 @@ fn snap_to_walkmesh(
     nearest.map_or(point, |(_, center)| center)
 }
 
-fn centroid(vertices: &[[i16; 2]]) -> [f32; 2] {
+/// World heights (`pos[1]`, the negated BGI height) of every walkmesh
+/// triangle under `point`, one per floor that covers it.
+fn walkmesh_heights(
+    mesh: Option<&tantalus_contracts::FieldNavigationMesh>,
+    point: [f32; 2],
+) -> Vec<f32> {
+    let Some(mesh) = mesh else {
+        return Vec::new();
+    };
+    let mut heights = Vec::new();
+    for triangle in &mesh.triangles {
+        let corners: Vec<[f32; 3]> = triangle
+            .vertices
+            .iter()
+            .filter_map(|index| mesh.vertices.get(*index as usize))
+            .map(|vertex| {
+                [
+                    (vertex.x + triangle.offset.x) as f32,
+                    -((vertex.y + triangle.offset.y) as f32),
+                    (vertex.z + triangle.offset.z) as f32,
+                ]
+            })
+            .collect();
+        let [a, b, c] = corners[..] else {
+            continue;
+        };
+        let det = (b[2] - c[2]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[2] - c[2]);
+        if det == 0.0 {
+            continue;
+        }
+        let wa = ((b[2] - c[2]) * (point[0] - c[0]) + (c[0] - b[0]) * (point[1] - c[2])) / det;
+        let wb = ((c[2] - a[2]) * (point[0] - c[0]) + (a[0] - c[0]) * (point[1] - c[2])) / det;
+        let wc = 1.0 - wa - wb;
+        if wa >= 0.0 && wb >= 0.0 && wc >= 0.0 {
+            heights.push(wa * a[1] + wb * b[1] + wc * c[1]);
+        }
+    }
+    heights
+}
+
+/// The walkmesh height under `point` nearest `current`, so a walk stays on
+/// its floor where floors overlap. With no height set yet (32768,
+/// `POS_COMMAND_DEFAULTY`), the first floor found.
+fn walkmesh_height(
+    mesh: Option<&tantalus_contracts::FieldNavigationMesh>,
+    point: [f32; 2],
+    current: f32,
+) -> Option<f32> {
+    let heights = walkmesh_heights(mesh, point);
+    if current.abs() >= 32000.0 {
+        return heights.first().copied();
+    }
+    heights
+        .into_iter()
+        .min_by(|a, b| (a - current).abs().total_cmp(&(b - current).abs()))
+}
+
+/// One step of a walk over the walkmesh toward `target`: the centre of the
+/// next triangle on the shortest triangle path, with its height, and
+/// whether the actor has arrived. The walk starts on the triangle nearest
+/// the actor in 3D, so it keeps to the floor the actor stands on and
+/// changes floors only by stairs or ramps (map 154 region 8 leaves to 158
+/// from the ground floor and to 153 from the upper one). `None` when the
+/// actor is off the mesh, as on map 115's tower top.
+fn walkmesh_step(
+    mesh: Option<&tantalus_contracts::FieldNavigationMesh>,
+    position: [f32; 3],
+    target: [f32; 2],
+) -> Option<([f32; 3], bool)> {
+    const OFF_MESH: f32 = 300.0;
+    type Corners = [[f32; 3]; 3];
+    let mesh = mesh?;
+    let corners: Vec<Corners> = mesh
+        .triangles
+        .iter()
+        .filter_map(|triangle| {
+            let mut out = [[0.0f32; 3]; 3];
+            for (slot, index) in out.iter_mut().zip(triangle.vertices) {
+                let vertex = mesh.vertices.get(index as usize)?;
+                *slot = [
+                    (vertex.x + triangle.offset.x) as f32,
+                    -((vertex.y + triangle.offset.y) as f32),
+                    (vertex.z + triangle.offset.z) as f32,
+                ];
+            }
+            Some(out)
+        })
+        .collect();
+    let centre = |t: &Corners| {
+        [
+            (t[0][0] + t[1][0] + t[2][0]) / 3.0,
+            (t[0][1] + t[1][1] + t[2][1]) / 3.0,
+            (t[0][2] + t[1][2] + t[2][2]) / 3.0,
+        ]
+    };
+    let covers = |t: &Corners, x: f32, z: f32| -> Option<f32> {
+        let [a, b, c] = *t;
+        let det = (b[2] - c[2]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[2] - c[2]);
+        if det == 0.0 {
+            return None;
+        }
+        let wa = ((b[2] - c[2]) * (x - c[0]) + (c[0] - b[0]) * (z - c[2])) / det;
+        let wb = ((c[2] - a[2]) * (x - c[0]) + (a[0] - c[0]) * (z - c[2])) / det;
+        let wc = 1.0 - wa - wb;
+        (wa >= 0.0 && wb >= 0.0 && wc >= 0.0).then(|| wa * a[1] + wb * b[1] + wc * c[1])
+    };
+    // The triangle the actor stands on: one under it at its height, else
+    // the nearest in 3D (a doorway just past the mesh edge).
+    let unset = position[1].abs() >= 32000.0;
+    let (start, distance) = corners
+        .iter()
+        .enumerate()
+        .map(|(index, t)| {
+            let distance = match covers(t, position[0], position[2]) {
+                Some(_) if unset => 0.0,
+                Some(height) => (height - position[1]).abs(),
+                None => {
+                    // Distance to the nearest point of the triangle's
+                    // edges, measured in 3D.
+                    let mut best = f32::MAX;
+                    for (i, j) in [(0, 1), (1, 2), (2, 0)] {
+                        let (a, b) = (t[i], t[j]);
+                        let d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+                        let length = d[0] * d[0] + d[2] * d[2];
+                        let along = if length == 0.0 {
+                            0.0
+                        } else {
+                            (((position[0] - a[0]) * d[0] + (position[2] - a[2]) * d[2]) / length)
+                                .clamp(0.0, 1.0)
+                        };
+                        let p = [
+                            a[0] + d[0] * along,
+                            a[1] + d[1] * along,
+                            a[2] + d[2] * along,
+                        ];
+                        let dy = if unset { 0.0 } else { p[1] - position[1] };
+                        let distance = ((p[0] - position[0]).powi(2)
+                            + dy.powi(2)
+                            + (p[2] - position[2]).powi(2))
+                        .sqrt();
+                        best = best.min(distance);
+                    }
+                    best
+                }
+            };
+            (index, distance)
+        })
+        .min_by(|a, b| a.1.total_cmp(&b.1))?;
+    if distance > OFF_MESH {
+        return None;
+    }
+    // Triangles sharing an edge (two corners at the same world point).
+    type Key = (i32, i32, i32);
+    let key = |p: [f32; 3]| -> Key {
+        (
+            p[0].round() as i32,
+            p[1].round() as i32,
+            p[2].round() as i32,
+        )
+    };
+    let mut edges: BTreeMap<(Key, Key), Vec<usize>> = BTreeMap::new();
+    for (index, t) in corners.iter().enumerate() {
+        for (i, j) in [(0, 1), (1, 2), (2, 0)] {
+            let (a, b) = (key(t[i]), key(t[j]));
+            edges
+                .entry(if a < b { (a, b) } else { (b, a) })
+                .or_default()
+                .push(index);
+        }
+    }
+    let mut neighbours = vec![Vec::new(); corners.len()];
+    for shared in edges.values() {
+        for &a in shared {
+            for &b in shared {
+                if a != b {
+                    neighbours[a].push(b);
+                }
+            }
+        }
+    }
+    // Breadth-first to the nearest reachable triangle under the target;
+    // when none is reachable, to the reachable triangle closest to it.
+    let mut previous = vec![usize::MAX; corners.len()];
+    previous[start] = start;
+    let mut queue = std::collections::VecDeque::from([start]);
+    let mut goal = None;
+    let mut closest = (f32::MAX, start);
+    while let Some(index) = queue.pop_front() {
+        if covers(&corners[index], target[0], target[1]).is_some() {
+            goal = Some(index);
+            break;
+        }
+        let c = centre(&corners[index]);
+        let distance = (c[0] - target[0]).powi(2) + (c[2] - target[1]).powi(2);
+        if distance < closest.0 {
+            closest = (distance, index);
+        }
+        for &next in &neighbours[index] {
+            if previous[next] == usize::MAX {
+                previous[next] = index;
+                queue.push_back(next);
+            }
+        }
+    }
+    let goal = goal.unwrap_or(closest.1);
+    if goal == start {
+        return Some(match covers(&corners[start], target[0], target[1]) {
+            Some(height) => ([target[0], height, target[1]], true),
+            // Closest reachable point; nothing nearer to walk to.
+            None => (centre(&corners[start]), true),
+        });
+    }
+    let mut step = goal;
+    while previous[step] != start {
+        step = previous[step];
+    }
+    Some((centre(&corners[step]), false))
+}
+
+/// `MJPOS` (EventEngine.DoEventCode.cs:2200): `position` projected onto
+/// the region's first edge, clamped to it. Exit scripts compare the
+/// player's facing with the direction to this point.
+fn exit_point(vertices: &[[i16; 2]], position: [f32; 3]) -> Option<[f32; 2]> {
+    let [first, second] = [vertices.first()?, vertices.get(1)?];
+    let (x1, z1) = (f32::from(first[0]), f32::from(first[1]));
+    let (dx, dz) = (f32::from(second[0]) - x1, f32::from(second[1]) - z1);
+    let length = dx * dx + dz * dz;
+    if length == 0.0 {
+        return Some([x1, z1]);
+    }
+    let along = ((dx * (position[0] - x1) + dz * (position[2] - z1)) / length).clamp(0.0, 1.0);
+    Some([x1 + along * dx, z1 + along * dz])
+}
+
+/// Facing (member 3, 256 steps: 0 south, 64 west, 128 north, 192 east,
+/// the `Angle2` convention) from `position` toward `target`.
+fn facing_toward(position: [f32; 3], target: [f32; 2]) -> Option<i16> {
+    let (dx, dz) = (target[0] - position[0], target[1] - position[2]);
+    if dx.abs() < 1.0 && dz.abs() < 1.0 {
+        return None;
+    }
+    let turns = (-dx).atan2(-dz) / std::f32::consts::TAU;
+    Some(((turns * 256.0).round() as i32 & 255) as i16)
+}
+
+/// A point inside `region`: the vertex average when `IsInQuad` holds
+/// there, else the centre of the first of its triangles that contains its
+/// own centre (map 164 region 2's average falls outside it).
+fn inside_point(region: &tantalus_game::field::region::Region) -> [f32; 2] {
+    let vertices = &region.vertices;
     let n = vertices.len().max(1) as f32;
     let (x, z) = vertices.iter().fold((0.0, 0.0), |(x, z), [vx, vz]| {
         (x + f32::from(*vx), z + f32::from(*vz))
     });
-    [x / n, z / n]
+    let average = [x / n, z / n];
+    if region.contains(average[0], average[1]) {
+        return average;
+    }
+    (0..vertices.len())
+        .map(|i| {
+            let corner = |k: usize| vertices[(i + k) % vertices.len()].map(f32::from);
+            let (a, b, c) = (corner(0), corner(1), corner(2));
+            [(a[0] + b[0] + c[0]) / 3.0, (a[1] + b[1] + c[1]) / 3.0]
+        })
+        .find(|point| region.contains(point[0], point[1]))
+        .unwrap_or(average)
 }
 
 struct ChainOptions {
@@ -545,6 +805,27 @@ fn exit_destination(functions: &[(u16, EventProgram)]) -> Option<i32> {
             },
             _ => None,
         })
+}
+
+/// Every constant `ChangeField` destination in a region's tag-2 function:
+/// one region can branch (map 154 region 8 leaves to 153 or 158 by height).
+fn exit_destinations(functions: &[(u16, EventProgram)]) -> Vec<i32> {
+    let Some((_, program)) = functions.iter().find(|(tag, _)| *tag == 2) else {
+        return Vec::new();
+    };
+    let mut destinations: Vec<i32> = program
+        .instructions
+        .values()
+        .filter_map(|instruction| match &instruction.kind {
+            InstructionKind::ChangeField(Expression(ops)) => match ops.as_slice() {
+                [ExpressionOp::Constant(map), ExpressionOp::End] => Some(*map),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    destinations.dedup();
+    destinations
 }
 
 /// Per-field text facts the scripted player needs.
@@ -668,6 +949,13 @@ impl FieldText {
                 .iter()
                 .filter_map(|token| match token {
                     MesToken::Tag(tag) if tag.code == "Signal" => tag.params.first()?.parse().ok(),
+                    // `DialogBoxSymbols`: both increase tags raise
+                    // `OnSignal(-1)`, which adds one to `gMesSignal`.
+                    MesToken::Tag(tag)
+                        if tag.code == "IncreaseSignal" || tag.code == "IncreaseSignalEx" =>
+                    {
+                        Some(-1)
+                    }
                     _ => None,
                 })
                 .collect();
@@ -786,6 +1074,14 @@ fn chain(
         })
         .collect();
     let mut route_used = vec![false; route.len()];
+    // Field visits so far: with no route entry, the explorer leaves through
+    // the exit to the least visited field, so two fields whose first exits
+    // lead to each other do not hand control back and forth forever.
+    let mut visits: BTreeMap<i32, usize> = BTreeMap::new();
+    // Where each (map, exit region) actually led. A region whose script
+    // branches (map 153 region 25: 151 or 64 by height) is judged by what
+    // it did, not by every destination in its code.
+    let mut observed_exits: BTreeMap<(i32, usize), BTreeSet<i32>> = BTreeMap::new();
     // Talks across visits as (map, entry, scenario counter): talking to the
     // same object again at the same story point repeats what it said.
     let mut talked_before: BTreeSet<(i32, usize, i32)> = BTreeSet::new();
@@ -878,6 +1174,10 @@ fn chain(
             }
         };
         let (pool, decode_errors) = decode_pool(&binary)?;
+        let exit_choices: BTreeMap<usize, Vec<i32>> = (0..pool.len())
+            .map(|entry| (entry, exit_destinations(&pool[entry])))
+            .filter(|(_, destinations)| !destinations.is_empty())
+            .collect();
         let exits: BTreeMap<usize, i32> = (0..pool.len())
             .filter_map(|entry| Some((entry, exit_destination(&pool[entry])?)))
             .collect();
@@ -888,11 +1188,12 @@ fn chain(
             .enumerate()
             .position(|(index, (from, _))| *from == map && !route_used[index]);
         let route_target = route_index.map(|index| route[index].1);
+        *visits.entry(map).or_default() += 1;
         world.field_map_no = map;
         let held = hold.get(&map).copied().unwrap_or(0);
         // EventEngine.InitEvents zeroes mapvar for every field (EventEngine.cs:556).
         world.map_memory.clear();
-        world.clear_deleted_objects();
+        world.begin_field();
         let navigation_status = match backgrounds.get(&map) {
             Some(name) => match load_navigation(&field_bundles, name) {
                 Ok(mesh) => {
@@ -977,6 +1278,7 @@ fn chain(
             director.set_walk_bits(Some((0x01, 0x02, 0x04, 0x08)));
         }
         let mut triggered: BTreeSet<usize> = BTreeSet::new();
+        let mut last_exit_region: Option<usize> = None;
         let scenario_at_start = scenario_counter(&world);
         let mut talked: BTreeSet<usize> = skip_talk
             .iter()
@@ -993,6 +1295,7 @@ fn chain(
             .collect();
         let mut talk_dwell: BTreeMap<usize, u64> = BTreeMap::new();
         let field_waypoints = waypoints.get(&map).cloned().unwrap_or_default();
+        let mut floors_tried: BTreeMap<usize, Vec<f32>> = BTreeMap::new();
         let mut waypoint_index = 0usize;
         let mut waypoint_dwell = 0u64;
         let mut talk_scenario = scenario_at_start;
@@ -1060,9 +1363,20 @@ fn chain(
                             talked.retain(|entry| skipped.contains(entry));
                             talk_dwell.clear();
                         }
+                        // One confirm starts one talk (`EventCollision`
+                        // requests a single object), and none while another
+                        // talk function is still running.
+                        let states = director.entry_states();
+                        let mut talk_busy = (0..pool.len()).any(|entry| {
+                            function_entity(&pool, entry, 3).is_some_and(|entity| {
+                                states.iter().any(|(e, _, status, _)| {
+                                    *e == entity && *status != VmStatus::Completed
+                                })
+                            })
+                        });
                         for trigger in &step.talk_triggers {
                             let entry = trigger.get() as usize;
-                            if entry >= pool.len() || talked.contains(&entry) {
+                            if talk_busy || entry >= pool.len() || talked.contains(&entry) {
                                 continue;
                             }
                             // Rerun a finished talk function from its start.
@@ -1074,6 +1388,7 @@ fn chain(
                                 director.remove_entry(entity);
                             }
                             if register(&mut director, &pool, entry, Some(3))?.is_some() {
+                                talk_busy = true;
                                 talked.insert(entry);
                                 talks.push((ticks_run, entry));
                                 talked_before.insert((
@@ -1179,6 +1494,23 @@ fn chain(
                     loops_started += 1;
                 }
             }
+            // A confirm press lasts one tick.
+            if pressed {
+                director.world_mut().set_input(held);
+                pressed = false;
+            }
+            // Through a cutscene the player keeps tapping confirm; scenes
+            // that skip ahead on `KeyOn` (map 150 entry 23) wait for a
+            // press that comes after the line has shown.
+            if confirm_after > 0
+                && !director.world().user_control
+                && ticks_run > 0
+                && ticks_run.is_multiple_of(CONFIRM_PERIOD)
+            {
+                director.world_mut().set_input(CONFIRM | held);
+                pressed = true;
+                presses += 1;
+            }
             if confirm_after > 0 {
                 let open: Vec<u8> = director
                     .world()
@@ -1200,14 +1532,15 @@ fn chain(
                         director.world_mut().close_window(window);
                         open_since.remove(&window);
                         confirms += 1;
+                        // Closing a window is a confirm press, which
+                        // scripts polling `KeyOn` also see (map 150 entry
+                        // 23 waits for one after text 229).
+                        director.world_mut().set_input(CONFIRM | held);
+                        pressed = true;
                     }
                 }
             }
             if explore {
-                if pressed {
-                    director.world_mut().set_input(held);
-                    pressed = false;
-                }
                 let world = director.world();
                 // A player cannot reach a region within a few frames of
                 // getting control; scenes often grant it for one or two
@@ -1222,12 +1555,36 @@ fn chain(
                     .flatten()
                     .and_then(|actor| Some((actor, world.actors.get(&actor)?.position)));
                 if let Some((actor, position)) = controlled {
+                    // The one exit the explorer heads for: the routed
+                    // destination, else the least visited one.
+                    let chosen_exit = world
+                        .regions
+                        .keys()
+                        .map(|region| region.get() as usize)
+                        .filter(|entry| !triggered.contains(entry))
+                        .filter_map(|entry| {
+                            let observed = observed_exits.get(&(map, entry));
+                            let dests: Vec<i32> = match observed {
+                                Some(seen) if !seen.is_empty() => seen.iter().copied().collect(),
+                                _ => exit_choices.get(&entry)?.clone(),
+                            };
+                            Some((entry, dests))
+                        })
+                        .filter(|(_, dests)| {
+                            route_target.is_none_or(|target| dests.contains(&target))
+                        })
+                        .min_by_key(|(entry, dests)| {
+                            let least = dests
+                                .iter()
+                                .map(|dest| visits.get(dest).copied().unwrap_or(0))
+                                .min()
+                                .unwrap_or(0);
+                            (least, *entry)
+                        })
+                        .map(|(entry, _)| entry);
                     let has_tag2 = |region: &EntityId| {
                         let entry = region.get() as usize;
-                        let routed = match (route_target, exits.get(&entry)) {
-                            (Some(target), Some(dest)) => *dest == target,
-                            _ => true,
-                        };
+                        let routed = !exits.contains_key(&entry) || chosen_exit == Some(entry);
                         routed && entry < pool.len() && pool[entry].iter().any(|(tag, _)| *tag == 2)
                     };
                     let hit = tantalus_game::field::region::regions_at(
@@ -1253,7 +1610,7 @@ fn chain(
                                     && !triggered.contains(&entry)
                                     && exits.contains_key(&entry) == exit
                             })
-                            .map(|(_, region)| centroid(&region.vertices))
+                            .map(|(_, region)| inside_point(region))
                     };
                     let pending_talk = (0..pool.len())
                         .filter(|entry| {
@@ -1277,8 +1634,21 @@ fn chain(
                     let walking = pending_region(false).is_none()
                         && talk_target.is_none()
                         && waypoint.is_some();
+                    // A player leaving through an exit walks toward it, so
+                    // exit scripts that check facing (map 150 entry 18) see
+                    // the player facing the exit point.
+                    let exit_facing = hit
+                        .filter(|entry| exits.contains_key(entry))
+                        .and_then(|entry| world.regions.get(&EntityId::new(entry as u64)))
+                        .and_then(|region| exit_point(&region.vertices, position))
+                        .and_then(|point| facing_toward(position, point));
                     match hit {
                         Some(entry) => {
+                            if let (Some(facing), Some(state)) =
+                                (exit_facing, director.world_mut().actors.get_mut(&actor))
+                            {
+                                state.facing = facing;
+                            }
                             // Request(quad, 1, 2) every frame while inside: rerun
                             // the region function once the previous run finished.
                             let entity = function_entity(&pool, entry, 2);
@@ -1289,25 +1659,81 @@ fn chain(
                             if finished {
                                 director.remove_entry(entity.expect("tag-2 function exists"));
                             }
+                            if exits.contains_key(&entry) {
+                                last_exit_region = Some(entry);
+                            }
                             if register(&mut director, &pool, entry, Some(2))?.is_some() {
                                 region_triggers += 1;
                             }
                             let dwell = dwell_ticks.entry(entry).or_insert(0);
                             *dwell += 1;
                             if *dwell >= REGION_DWELL {
-                                triggered.insert(entry);
+                                // Exit scripts can test the height (map 164's
+                                // spiral tower leaves upward only from above
+                                // 12000), so try each other floor under the
+                                // region before giving up on it.
+                                let mesh = director.world().navigation();
+                                let tried = floors_tried.entry(entry).or_default();
+                                tried.push(position[1]);
+                                let untried = walkmesh_heights(mesh, [position[0], position[2]])
+                                    .into_iter()
+                                    .filter(|height| {
+                                        tried.iter().all(|old| (old - height).abs() > 100.0)
+                                    })
+                                    .min_by(|a, b| a.total_cmp(b));
+                                match (untried, director.world_mut().actors.get_mut(&actor)) {
+                                    (Some(height), Some(state)) if exits.contains_key(&entry) => {
+                                        state.position[1] = height;
+                                        *dwell = 0;
+                                    }
+                                    _ => {
+                                        triggered.insert(entry);
+                                    }
+                                }
                             }
                         }
                         None => {
+                            // Only an actor standing on the walkmesh follows it;
+                            // one a script put elsewhere (map 115's tower top)
+                            // keeps its height.
+                            let mesh = director.world().navigation();
+                            // Jump straight to a target on the actor's floor;
+                            // walk the mesh only to reach another floor.
+                            let on_mesh = position[1].abs() >= 32000.0
+                                || walkmesh_height(mesh, [position[0], position[2]], position[1])
+                                    .is_some();
+                            let same_floor = |[x, z]: [f32; 2]| {
+                                walkmesh_height(mesh, [x, z], position[1]).filter(|height| {
+                                    on_mesh || (height - position[1]).abs() < 100.0
+                                })
+                            };
+                            let direct = next.and_then(same_floor);
+                            // A target off the mesh (a talk spot, a region
+                            // centre) keeps the plain jump.
+                            let step = next
+                                .filter(|_| direct.is_none())
+                                .filter(|[x, z]| {
+                                    walkmesh_height(mesh, [*x, *z], position[1]).is_some()
+                                })
+                                .and_then(|target| walkmesh_step(mesh, position, target));
+                            let arrived = step.is_none_or(|(_, arrived)| arrived);
                             if let (Some([x, z]), Some(state)) =
                                 (next, director.world_mut().actors.get_mut(&actor))
                             {
-                                state.position = [x, state.position[1], z];
+                                let [x, y, z] = match (direct, step) {
+                                    (Some(height), _) => [x, height, z],
+                                    (None, Some((point, _))) => point,
+                                    (None, None) => [x, state.position[1], z],
+                                };
+                                if let Some(facing) = facing_toward(state.position, [x, z]) {
+                                    state.facing = facing;
+                                }
+                                state.position = [x, y, z];
                                 state.movement = None;
                             }
                             // Give up on an object that never answers (out of
                             // range, hidden, or not placed yet).
-                            if walking {
+                            if walking && arrived {
                                 waypoint_dwell += 1;
                                 if waypoint_dwell >= WAYPOINT_DWELL {
                                     waypoint_dwell = 0;
@@ -1333,6 +1759,12 @@ fn chain(
             let transitions = director.world_mut().take_field_transitions();
             if let Some(next) = transitions.first() {
                 transition = Some(i32::from(*next));
+                if let Some(entry) = last_exit_region {
+                    observed_exits
+                        .entry((map, entry))
+                        .or_default()
+                        .insert(i32::from(*next));
+                }
                 break;
             }
         }

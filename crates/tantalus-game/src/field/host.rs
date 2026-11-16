@@ -84,6 +84,38 @@ impl<'a> FieldHost<'a> {
     }
 }
 
+impl FieldHost<'_> {
+    /// `MJPOS` (EventEngine.DoEventCode.cs:2200): the controlled object's
+    /// position projected onto the region's first edge, clamped to it.
+    fn exit_position(&self, region: Option<EntityId>) -> (i32, i32) {
+        let Some(position) = self
+            .world
+            .control_actor
+            .and_then(|actor| self.world.actors.get(&actor))
+            .map(|state| state.position)
+        else {
+            return (0, 0);
+        };
+        let Some(vertices) = region
+            .and_then(|region| self.world.regions.get(&region))
+            .map(|region| &region.vertices)
+            .filter(|vertices| vertices.len() >= 2)
+        else {
+            return (0, 0);
+        };
+        let (x1, z1) = (i32::from(vertices[0][0]), i32::from(vertices[0][1]));
+        let dx = i32::from(vertices[1][0]) - x1;
+        let dz = i32::from(vertices[1][1]) - z1;
+        let mut val = (dx * dx + dz * dz) >> 8;
+        if val != 0 {
+            let along = (dx as f32 * (position[0] - x1 as f32)) as i32
+                + (dz as f32 * (position[2] - z1 as f32)) as i32;
+            val = (along / val).clamp(0, 256);
+        }
+        (((val * dx) >> 8) + x1, ((val * dz) >> 8) + z1)
+    }
+}
+
 impl LegacyEventHost for FieldHost<'_> {
     fn apply(&mut self, events: &[HostEvent]) -> Result<(), EngineError> {
         for event in events {
@@ -200,8 +232,19 @@ impl LegacyEventHost for FieldHost<'_> {
                 HostEvent::PlayAnimation { actor, .. } => {
                     let frames = self.world.animation_default_ticks;
                     let state = self.actor_mut(*actor, "play animation")?;
-                    state.animation_frames = frames;
-                    state.animation_frame = 0;
+                    // `ExecAnim` (EventEngine.cs:1313) starts on `inFrame`;
+                    // a ranged animation lasts its frame span.
+                    state.animation_frame = u16::from(state.in_frame);
+                    state.animation_frames = if state.out_frame == u8::MAX {
+                        frames
+                    } else {
+                        u16::from(state.out_frame.abs_diff(state.in_frame)).max(1)
+                    };
+                }
+                HostEvent::SetAnimationRange { actor, start, end } => {
+                    let state = self.actor_mut(*actor, "set animation range")?;
+                    state.in_frame = *start;
+                    state.out_frame = *end;
                 }
                 HostEvent::StopAnimation { actor } => {
                     let state = self.actor_mut(*actor, "stop animation")?;
@@ -214,6 +257,9 @@ impl LegacyEventHost for FieldHost<'_> {
                 } => {
                     let ticks = 1 + ((*speed).max(1) as u32);
                     let state = self.actor_mut(*actor, "turn")?;
+                    // `StartTurn` (DoEventCode.cs:3356) clears the `AFRAME` range.
+                    state.in_frame = 0;
+                    state.out_frame = u8::MAX;
                     state.facing = facing_from_fixed_point(*angle);
                     state.turn = Some(Turn {
                         target: *angle,
@@ -334,6 +380,11 @@ impl LegacyEventHost for FieldHost<'_> {
                 }
                 HostEvent::RunSharedScript { actor, .. } => {
                     self.world.start_shared_script(*actor);
+                }
+                HostEvent::CalculateExitPosition { region } => {
+                    let (x, z) = self.exit_position(*region);
+                    self.world.set_system_variable(10, x);
+                    self.world.set_system_variable(11, z);
                 }
                 HostEvent::InitializeObject { source, unique_id } => {
                     // `NewThread`: uid 0 defaults to the entry's own id; the

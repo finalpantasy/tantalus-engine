@@ -1351,7 +1351,10 @@ pub enum HostEvent {
         level: i32,
         tag: u8,
     },
-    CalculateExitPosition,
+    /// `MJPOS`: `region` is the executing quad (`gCur`).
+    CalculateExitPosition {
+        region: Option<EntityId>,
+    },
     CalculateScreenPosition {
         object: i32,
     },

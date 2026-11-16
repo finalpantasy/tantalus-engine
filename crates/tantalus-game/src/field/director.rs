@@ -202,6 +202,12 @@ impl FieldDirector {
                 true,
             )
         })?;
+        // `NEW` appends the object at the tail of the active list.
+        for event in steps.iter().flat_map(|step| step.report.events.iter()) {
+            if let HostEvent::InitializeObject { source, .. } = event {
+                self.scene.requeue_object(EntityId::new(u64::from(*source)));
+            }
+        }
         self.world.advance();
         self.tick += 1;
         let operations: u64 = steps

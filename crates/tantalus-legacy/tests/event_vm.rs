@@ -223,7 +223,7 @@ impl LegacyEventHost for Host {
                 HostEvent::RestoreAllVisibility => {}
                 HostEvent::SetTimerRunning { .. } => {}
                 HostEvent::RequestCallerAsync { .. } => {}
-                HostEvent::CalculateExitPosition => {}
+                HostEvent::CalculateExitPosition { .. } => {}
                 HostEvent::CalculateScreenPosition { .. } => {}
                 HostEvent::RequestCallerSync { .. } => {}
                 HostEvent::RequestScriptSync { .. } => {}
@@ -5680,7 +5680,10 @@ fn mjpos_requests_exit_position_calculation() {
 
     let report = vm.step(Tick::new(0), &mut host).unwrap();
 
-    assert_eq!(report.events, [HostEvent::CalculateExitPosition]);
+    assert_eq!(
+        report.events,
+        [HostEvent::CalculateExitPosition { region: None }]
+    );
     assert_eq!(vm.status(), VmStatus::Completed);
 }
 

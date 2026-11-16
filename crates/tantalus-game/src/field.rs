@@ -26,13 +26,43 @@ use tantalus_legacy::{EventProgram, EventVm, LegacyEventHost, VmError, VmStepRep
 #[derive(Debug)]
 pub struct FieldScene {
     entries: BTreeMap<EntityId, EventVm>,
+    /// Place of each object in the reference's active object list
+    /// (`_context.activeObj`). `Obj`'s constructor (Obj.cs:32-45) appends a
+    /// new object at the tail and `ProcessCode` walks the list from the
+    /// head, so objects run in creation order, not entry order.
+    ranks: BTreeMap<EntityId, u64>,
+    next_rank: u64,
 }
 
 impl FieldScene {
     pub fn new() -> Self {
         Self {
             entries: BTreeMap::new(),
+            ranks: BTreeMap::new(),
+            next_rank: 0,
         }
+    }
+
+    /// `NEW` (or `STARTSEQ`) of `object`: it moves to the tail of the
+    /// active list, so it runs after every object created before it.
+    pub fn requeue_object(&mut self, object: EntityId) {
+        self.ranks.insert(object, self.next_rank);
+        self.next_rank += 1;
+    }
+
+    /// Objects never created through `NEW` (entry 0, set up by the engine
+    /// before any script runs) come first, then the rest by creation.
+    fn run_order(&self) -> Vec<EntityId> {
+        let mut order: Vec<(Option<u64>, EntityId)> = self
+            .entries
+            .iter()
+            .map(|(key, vm)| {
+                let object = vm.own_object().or(vm.entity()).unwrap_or(*key);
+                (self.ranks.get(&object).copied(), *key)
+            })
+            .collect();
+        order.sort();
+        order.into_iter().map(|(_, key)| key).collect()
     }
 
     pub fn add_resumed(&mut self, entity: EntityId, vm: EventVm) -> Result<(), EngineError> {
@@ -102,6 +132,7 @@ impl FieldScene {
         if let Some(vm) = self.entries.remove(&key) {
             self.entries.insert(key, vm.with_own_object(key));
         }
+        self.requeue_object(key);
         Ok(())
     }
 
@@ -116,7 +147,10 @@ impl FieldScene {
         host: &mut dyn LegacyEventHost,
     ) -> Result<Vec<FieldStep>, FieldError> {
         let mut reports = Vec::new();
-        for (entity, vm) in &mut self.entries {
+        for entity in self.run_order() {
+            let Some(vm) = self.entries.get_mut(&entity) else {
+                continue;
+            };
             // `DisposeObj` unlinks the object: none of its functions run
             // until a `NEW` initializes it again.
             if vm
@@ -125,14 +159,10 @@ impl FieldScene {
             {
                 continue;
             }
-            let report = vm.step(tick, host).map_err(|error| FieldError {
-                entity: *entity,
-                error,
-            })?;
-            reports.push(FieldStep {
-                entity: *entity,
-                report,
-            });
+            let report = vm
+                .step(tick, host)
+                .map_err(|error| FieldError { entity, error })?;
+            reports.push(FieldStep { entity, report });
         }
         Ok(reports)
     }

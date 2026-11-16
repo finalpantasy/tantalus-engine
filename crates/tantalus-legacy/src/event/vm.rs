@@ -127,6 +127,11 @@ impl EventVm {
         self.entity
     }
 
+    /// The object a shared script owns (`with_own_object`), if any.
+    pub fn own_object(&self) -> Option<EntityId> {
+        self.own_object
+    }
+
     pub fn pc(&self) -> u32 {
         self.pc
     }
@@ -385,6 +390,8 @@ impl EventVm {
 
         let mut operations = 0;
         let mut events = Vec::new();
+        // Events up to this index were already applied mid-step.
+        let mut flushed = 0;
         let mut last_opcode = None;
         while self.status == VmStatus::Running {
             if operations >= self.instruction_budget {
@@ -1536,7 +1543,14 @@ impl EventVm {
                 }
                 InstructionKind::CalculateExitPosition => {
                     self.pc = next;
-                    events.push(HostEvent::CalculateExitPosition);
+                    events.push(HostEvent::CalculateExitPosition {
+                        region: self.entity,
+                    });
+                    // The next instructions read `sMapJumpX/Z` (system
+                    // variables 10 and 11) at once, so apply now.
+                    host.apply(&events[flushed..])
+                        .map_err(|error| VmError::host(error, self.pc, last_opcode.unwrap_or(0)))?;
+                    flushed = events.len();
                 }
                 InstructionKind::WalkToExit => {
                     let Some(actor) = self.entity else {
@@ -3151,8 +3165,8 @@ impl EventVm {
             }
         }
 
-        if !events.is_empty() {
-            host.apply(&events)
+        if events.len() > flushed {
+            host.apply(&events[flushed..])
                 .map_err(|error| VmError::host(error, self.pc, last_opcode.unwrap_or(0)))?;
         }
         Ok(self.report(tick, operations, events))
