@@ -1224,4 +1224,22 @@ mod party_slot_tests {
         assert_eq!(plain.object_source(251), Some(251));
         assert_eq!(plain.resolve_uid(251), Some(EntityId::new(251)));
     }
+    #[test]
+    fn seeded_world_streams_differ() {
+        use crate::battle::GameServices;
+        let mix = 0xC0FF_EE11_DEAD_BEEFu64;
+        let mut a = FieldWorld::new();
+        a.seed_rng(0x5EED ^ mix);
+        let mut b = FieldWorld::new();
+        b.seed_rng(48879 ^ mix);
+        let draws_a: Vec<u32> = {
+            let mut s = crate::battle::WorldGameServices::new(&mut a);
+            (0..4).map(|_| s.random_below(65_536)).collect()
+        };
+        let draws_b: Vec<u32> = {
+            let mut s = crate::battle::WorldGameServices::new(&mut b);
+            (0..4).map(|_| s.random_below(65_536)).collect()
+        };
+        assert_ne!(draws_a, draws_b, "seeded world streams must differ");
+    }
 }
