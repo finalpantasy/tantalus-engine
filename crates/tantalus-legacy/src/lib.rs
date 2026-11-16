@@ -1,4 +1,5 @@
 pub mod battle;
+pub mod chocobo;
 pub mod effects;
 pub mod event;
 pub mod movie;
