@@ -460,3 +460,60 @@ fn choose_pattern_ports_the_reference_roll_and_group_override() {
     short.patterns[2].rate = 0;
     assert_eq!(choose_pattern(&short, None, 99), 2);
 }
+
+#[test]
+fn run_world_battle_plays_a_scene_through_the_field_world() {
+    use tantalus_contracts::EntityId;
+    use tantalus_game::FieldWorld;
+    use tantalus_game::battle::legacy::PlayerBase;
+    use tantalus_legacy::battle::WeaponStats;
+    use tantalus_tools::battle_run::run_world_battle;
+
+    let mut scene = scene();
+    for monster in &mut scene.monster_types {
+        monster.max_hp = 60;
+        monster.stats.spirit = 10;
+    }
+    let mut script = b"EV\x02\x00".to_vec();
+    script.resize(128, 0);
+
+    let mut world = FieldWorld::new();
+    world.party = vec![0, 1];
+    world.gil = 10;
+    for character in [0, 1] {
+        world.character_stats.insert(
+            character,
+            tantalus_game::field::CharacterStats {
+                current_hp: 500,
+                max_hp: 500,
+                current_mp: 100,
+                max_mp: 100,
+            },
+        );
+    }
+    let entities = vec![EntityId::new(201), EntityId::new(202)];
+    let base = |_| PlayerBase {
+        level: 20,
+        strength: 30,
+        magic: 30,
+        dexterity: 30,
+        will: 20,
+        physical_defence: 10,
+        physical_evade: 5,
+        magic_defence: 12,
+        magic_evade: 6,
+        weapon: Some(WeaponStats {
+            power: 25,
+            rate: 0,
+            elements: tantalus_legacy::battle::Elements::NONE,
+            category: WeaponStats::SHORT_RANGE,
+            status: 0,
+        }),
+    };
+
+    let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 7);
+    assert_eq!(outcome, Some(tantalus_game::battle::BattleOutcome::Victory));
+    assert_eq!(world.gil, 10 + 300, "scene spoils committed to the world");
+    // 300 EXP over four eligible lines = 75 each.
+    assert_eq!(world.character_exp.get(&0).copied(), Some(75));
+}

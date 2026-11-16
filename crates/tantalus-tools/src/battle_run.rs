@@ -297,3 +297,140 @@ pub fn run_scene_battle(
     }
     report
 }
+
+/// The definitive field hand-off: runs a battle for `scene`/`pattern`
+/// against `world` with the party built from world state, script-driven
+/// enemy AI, death-driven `set_bonus`, and the reference split committed
+/// exactly once. Returns the outcome. (Drives the typed adapter directly;
+/// the coordinator wrapper around the default-typed adapter is exercised in
+/// the tantalus-game integration tests.)
+pub fn run_world_battle(
+    world: &mut tantalus_game::FieldWorld,
+    entities: &[tantalus_contracts::EntityId],
+    scene: &BattleScene,
+    pattern: usize,
+    script: &[u8],
+    base: &dyn Fn(i32) -> tantalus_game::battle::legacy::PlayerBase,
+    seed: u64,
+) -> Option<BattleOutcome> {
+    use tantalus_game::battle::GameServices;
+    use tantalus_game::battle::legacy::{NoEnemyAi, party_machine_units};
+    use tantalus_legacy::EventBinary;
+    use tantalus_legacy::battle::host::{apply_unit_views, battle_views};
+    use tantalus_legacy::battle::machine::{ABILITY_ATTACK, BattleConfig};
+    use tantalus_legacy::battle::queue::cmd;
+    use tantalus_legacy::battle::rewards::{BattleBonus, BattleReward, PartySnapshot};
+    use tantalus_legacy::battle::script_host::{
+        BattleScriptDriver, BattleScriptState, EnemyAiHooks, SceneOverlay, ScriptTable,
+    };
+
+    let players = party_machine_units(world, entities, base);
+    if players.is_empty() {
+        return None;
+    }
+    let setup = crate::battle_scene_rewards::assemble_legacy_battle(
+        scene,
+        pattern,
+        &BattleConfig::default(),
+        &tantalus_legacy::battle::StatusTable::new(vec![
+            tantalus_legacy::battle::StatusDataRow::default();
+            32
+        ]),
+        &players,
+        std::collections::BTreeMap::from([(
+            tantalus_contracts::ContentId::parse(ATTACK_ACTION).unwrap(),
+            (cmd::ATTACK, ABILITY_ATTACK),
+        )]),
+    )?;
+    let (data, units) = battle_views(setup.adapter.battle());
+    let binary = EventBinary::parse(script).ok()?;
+    let driver = BattleScriptDriver::new(
+        ScriptTable::from_binary(&binary),
+        BattleScriptState::new(data, units),
+        Box::new(SplitMix64Random::new(seed)),
+        &[],
+    );
+    let hooks = EnemyAiHooks::new(NoEnemyAi, driver, SceneOverlay::default());
+    let mut adapter = setup.adapter.with_hooks(hooks);
+
+    let mut bonus = BattleBonus::new(setup.pattern_ap, 0x0F, false);
+    let mut rows = setup.reward_rows.clone();
+    let mut deaths = 0usize;
+    let mut draw_rng: Box<dyn BattleRandom> = Box::new(SplitMix64Random::new(seed ^ 0xD1AA));
+    let attack = tantalus_contracts::ContentId::parse(ATTACK_ACTION).unwrap();
+    let mut outcome = None;
+
+    for tick in 0..MAX_TICKS {
+        let mut input = tantalus_game::battle::CombatInput::new(Tick::new(tick));
+        if let Some(unit_index) = adapter.battle().ready_players.first().copied() {
+            let target = adapter
+                .battle()
+                .units
+                .iter()
+                .enumerate()
+                .find(|(_, unit)| !unit.is_player && unit.cur_hp > 0)
+                .map(|(index, _)| {
+                    tantalus_contracts::EntityId::new(u64::from(adapter.battle().units[index].id))
+                });
+            if let Some(target) = target {
+                input.command = Some(tantalus_game::battle::BattleCommand {
+                    actor: entities[unit_index],
+                    action: attack.clone(),
+                    targets: vec![target],
+                });
+            }
+        }
+        {
+            let mut services = WorldGameServices::new(world);
+            if let Err(error) = adapter.advance(&input, &mut services) {
+                eprintln!("run_world_battle tick {tick}: {error}");
+                return None;
+            }
+        }
+        let dirty = adapter.hooks_mut().take_dirty_views();
+        apply_unit_views(adapter.battle_mut(), &dirty);
+        for event in adapter.take_events() {
+            if let tantalus_game::battle::CombatEvent::UnitDefeated { unit } = event
+                && setup.enemy_entities.contains(&unit)
+                && deaths < rows.len()
+                && bonus.set_bonus(&mut rows, deaths, &mut *draw_rng)
+            {
+                deaths += 1;
+            }
+        }
+        if let Some(done) = adapter.outcome() {
+            outcome = Some(done);
+            break;
+        }
+    }
+
+    if outcome == Some(BattleOutcome::Victory) {
+        let members: [Option<PartyMember>; 4] = [
+            Some(demo_member(500)),
+            Some(demo_member(500)),
+            Some(demo_member(500)),
+            Some(demo_member(500)),
+        ];
+        let party = PartySnapshot {
+            gil: world.gil,
+            members,
+            items: Vec::new(),
+            cards: Vec::new(),
+        };
+        let reward = BattleReward::from_bonus(&bonus, &party);
+        let lines: [Option<i32>; 4] = [
+            world.party.first().copied(),
+            world.party.get(1).copied(),
+            world.party.get(2).copied(),
+            world.party.get(3).copied(),
+        ];
+        let bundle = tantalus_game::battle::bridge::bundle_from_battle_reward(
+            &reward,
+            lines,
+            (seed % 1000) + 1,
+        );
+        let mut services = WorldGameServices::new(world);
+        let _ = services.commit_rewards(&bundle);
+    }
+    outcome
+}
