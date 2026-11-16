@@ -457,6 +457,39 @@ fn read_prefab(context: &mut Context<'_, '_>, root_path_id: i64) -> Result<Prefa
     Ok(PrefabRaw { fields, slots })
 }
 
+/// Bytes of one raw `TextAsset` under `worldmap/wmap/` (for example `disc.img.bytes`).
+pub fn extract_wmap_asset(
+    file: &SerializedFile<'_>,
+    source: &str,
+    file_name: &str,
+) -> Result<Option<Vec<u8>>, ImportError> {
+    let objects = &file.report().objects;
+    let bundle_index = objects
+        .iter()
+        .position(|object| object.class_id == 142)
+        .ok_or_else(|| ImportError::invalid(source, "AssetBundle metadata object is missing"))?;
+    let metadata = AssetBundleMetadata::parse(file.object_data(bundle_index)?, source)?;
+    let wanted = format!("{PREFIX}wmap/{file_name}");
+    for (path, info) in &metadata.container {
+        if *path != wanted {
+            continue;
+        }
+        let Some(index) = objects
+            .iter()
+            .position(|object| object.path_id == info.path_id)
+        else {
+            continue;
+        };
+        if objects[index].class_id != TEXT_ASSET {
+            continue;
+        }
+        return Ok(Some(
+            TextAsset::parse(file.object_data(index)?, path)?.script,
+        ));
+    }
+    Ok(None)
+}
+
 pub fn analyze_world_map(
     file: &SerializedFile<'_>,
     source: &str,
