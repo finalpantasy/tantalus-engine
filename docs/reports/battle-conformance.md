@@ -92,23 +92,25 @@ not presentation frame rates.
 
 ## Seed sensitivity
 
-Cross-seed verification (0xBEEF vs the committed 0x5EED baselines) across
-all six corpora shows a precise property:
+`--battle-seed` controls all three random streams: script AI
+(`SplitMix64(seed)`), drop draws (`SplitMix64(seed ^ 0xD1AA)`), and the
+calculator stream through `GameServices` (the battle world's RNG, seeded
+`seed ^ 0xC0FFEE11DEADBEEF`). Before the world stream was seed-controlled,
+hit rolls and flee rolls used a fixed stream regardless of the knob.
 
-- Armed and flee-first outcomes are seed-invariant: identical rows across
-  seeds (the armed party dominates; the flee roll is level-based, not
-  draw-gated).
-- Weak-party outcomes are seed-sensitive: 17 of 1054 mass-defeat battles
-  flip outcome between seeds, because a marginal party's survival is
-  genuinely stochastic. This is honest behavior, not noise.
-- Cross-path agreement holds at EVERY seed: at 0xBEEF both engine paths
-  still agree with each other on all six corpora, including the 17
-  flipped weak battles.
+Outcomes are seed-sensitive to a degree that depends on the policy:
+the armed party flips only a couple of marginal battles between seeds;
+the weak party flips a small set (its survival is stochastic); flee-first
+flips several hundred (the flee roll runs through the calculator, so
+re-seeding changes escape success per battle). None of this is noise --
+it is the engine's stochasticity finally visible on every stream.
 
-Consequence: the committed weak baselines are seed-specific (0x5EED).
-Always regenerate or compare weak corpora at the same seed (`--battle-seed`
-defaults to 0x5EED); the gate does. Armed and flee corpora may be compared
-across seeds.
+The invariant that holds at EVERY seed is cross-path agreement: both
+engine paths flip the same battles in lockstep, so the corpora compare
+bit-identical between report and world under any seed. Consequence: all
+committed baselines are seed-specific (0x5EED); always regenerate or
+compare at the same seed (`--battle-seed` defaults to 0x5EED), which is
+what the gate and the run-everything triage do.
 
 ## Known limits
 

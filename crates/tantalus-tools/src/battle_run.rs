@@ -246,7 +246,11 @@ pub fn run_scene_battle(
     let pattern_ap = setup.pattern_ap;
     let enemy_entities = setup.enemy_entities;
 
+    // All three random streams answer to the run seed: script AI
+    // (SplitMix64(seed)), drop draws (SplitMix64(seed ^ 0xD1AA)), and the
+    // calculator/hit-roll stream through GameServices (world RNG here).
     let mut world = FieldWorld::new();
+    world.seed_rng(seed ^ 0xC0FF_EE11_DEAD_BEEF);
     // `SB2_HEAD` 0x800 (`after_event`): story battles pay nothing.
     let event = scene.header.flags & 0x800 != 0;
     let mut bonus = BattleBonus::new(pattern_ap, 0x0F, event);
@@ -632,7 +636,11 @@ pub fn run_world_battle_report(
         bonus_items: Vec::new(),
         card: None,
     };
+    // All three random streams answer to the run seed: script AI
+    // (SplitMix64(seed)), drop draws (SplitMix64(seed ^ 0xD1AA)), and the
+    // calculator/hit-roll stream through GameServices (world RNG here).
     let mut world = FieldWorld::new();
+    world.seed_rng(seed ^ 0xC0FF_EE11_DEAD_BEEF);
     world.party = vec![0, 1, 2, 3];
     world.gil = 0;
     let (hp, mp) = if weak_party { (120, 50) } else { (500, 100) };

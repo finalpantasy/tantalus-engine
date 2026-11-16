@@ -825,6 +825,14 @@ impl FieldWorld {
         self.random_battles.scenes[slot]
     }
 
+    /// Seeds the world RNG (deterministic xorshift over `GameServices`
+    /// random draws). Battle/sweep runners set this from their run seed so
+    /// every random stream is knob-controlled; the default keeps the
+    /// historical fixed stream.
+    pub fn seed_rng(&mut self, seed: u64) {
+        self.rng = seed;
+    }
+
     pub(crate) fn next_random_u8(&mut self) -> u8 {
         // xorshift64* for deterministic synthetic randomness.
         self.rng ^= self.rng >> 12;

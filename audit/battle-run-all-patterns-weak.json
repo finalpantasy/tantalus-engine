@@ -1,6 +1,6 @@
 {
   "battles": 1054,
-  "defeats": 544,
+  "defeats": 560,
   "errors": 0,
   "escapes": 0,
   "results": [
@@ -18,7 +18,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E028F",
-          "ticks": 3204
+          "ticks": 3201
         },
         {
           "bonus_ap": 0,
@@ -32,7 +32,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E028F",
-          "ticks": 3204
+          "ticks": 3201
         },
         {
           "bonus_ap": 0,
@@ -46,7 +46,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E028F",
-          "ticks": 3204
+          "ticks": 3201
         },
         {
           "bonus_ap": 0,
@@ -60,7 +60,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E028F",
-          "ticks": 3204
+          "ticks": 3201
         },
         {
           "bonus_ap": 0,
@@ -74,7 +74,7 @@
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E028F",
-          "ticks": 3204
+          "ticks": 3201
         },
         {
           "bonus_ap": 2,
@@ -91,9 +91,9 @@
           "error": null,
           "outcome": "victory",
           "pattern": 5,
-          "players_alive": 1,
+          "players_alive": 2,
           "scene": "EVT_BATTLE_AC_E028F",
-          "ticks": 6327
+          "ticks": 5721
         }
       ],
       "scene": "EVT_BATTLE_AC_E028F"
@@ -112,7 +112,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E028H",
-          "ticks": 3204
+          "ticks": 3201
         },
         {
           "bonus_ap": 0,
@@ -126,7 +126,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E028H",
-          "ticks": 3204
+          "ticks": 3201
         },
         {
           "bonus_ap": 0,
@@ -140,7 +140,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E028H",
-          "ticks": 3204
+          "ticks": 3201
         },
         {
           "bonus_ap": 0,
@@ -154,7 +154,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E028H",
-          "ticks": 3204
+          "ticks": 3201
         },
         {
           "bonus_ap": 0,
@@ -168,7 +168,7 @@
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E028H",
-          "ticks": 3204
+          "ticks": 3201
         },
         {
           "bonus_ap": 2,
@@ -185,9 +185,9 @@
           "error": null,
           "outcome": "victory",
           "pattern": 5,
-          "players_alive": 1,
+          "players_alive": 2,
           "scene": "EVT_BATTLE_AC_E028H",
-          "ticks": 6327
+          "ticks": 5721
         },
         {
           "bonus_ap": 0,
@@ -201,7 +201,7 @@
           "pattern": 6,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E028H",
-          "ticks": 3204
+          "ticks": 3201
         }
       ],
       "scene": "EVT_BATTLE_AC_E028H"
@@ -209,23 +209,18 @@
     {
       "patterns": [
         {
-          "bonus_ap": 2,
-          "bonus_exp": 784,
-          "bonus_gil": 347,
-          "bonus_items": [
-            [
-              240,
-              1
-            ]
-          ],
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
+          "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 0,
-          "players_alive": 1,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E028I",
-          "ticks": 6327
+          "ticks": 6565
         }
       ],
       "scene": "EVT_BATTLE_AC_E028I"
@@ -244,7 +239,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_AC_E031",
-          "ticks": 13368
+          "ticks": 13225
         }
       ],
       "scene": "EVT_BATTLE_AC_E031"
@@ -404,7 +399,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_AC_E076D",
-          "ticks": 4711
+          "ticks": 4500
         },
         {
           "bonus_ap": 2,
@@ -423,7 +418,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_AC_E076D",
-          "ticks": 7744
+          "ticks": 7530
         }
       ],
       "scene": "EVT_BATTLE_AC_E076D"
@@ -489,7 +484,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E077",
-          "ticks": 1047
+          "ticks": 995
         }
       ],
       "scene": "EVT_BATTLE_AC_E077"
@@ -508,7 +503,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E085A",
-          "ticks": 3204
+          "ticks": 3206
         },
         {
           "bonus_ap": 0,
@@ -522,7 +517,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E085A",
-          "ticks": 3204
+          "ticks": 3206
         },
         {
           "bonus_ap": 0,
@@ -536,7 +531,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E085A",
-          "ticks": 3204
+          "ticks": 3206
         },
         {
           "bonus_ap": 0,
@@ -550,7 +545,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E085A",
-          "ticks": 3204
+          "ticks": 3206
         },
         {
           "bonus_ap": 0,
@@ -564,26 +559,21 @@
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E085A",
-          "ticks": 3204
+          "ticks": 3206
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 784,
-          "bonus_gil": 347,
-          "bonus_items": [
-            [
-              240,
-              1
-            ]
-          ],
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
+          "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 5,
-          "players_alive": 1,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E085A",
-          "ticks": 5926
+          "ticks": 6405
         }
       ],
       "scene": "EVT_BATTLE_AC_E085A"
@@ -602,7 +592,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E085B",
-          "ticks": 1541
+          "ticks": 1681
         },
         {
           "bonus_ap": 0,
@@ -628,9 +618,9 @@
           "error": null,
           "outcome": "victory",
           "pattern": 2,
-          "players_alive": 4,
+          "players_alive": 3,
           "scene": "EVT_BATTLE_AC_E085B",
-          "ticks": 14404
+          "ticks": 18441
         }
       ],
       "scene": "EVT_BATTLE_AC_E085B"
@@ -649,7 +639,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AC_E092",
-          "ticks": 1914
+          "ticks": 1776
         }
       ],
       "scene": "EVT_BATTLE_AC_E092"
@@ -668,7 +658,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AP_E012",
-          "ticks": 8859
+          "ticks": 9020
         }
       ],
       "scene": "EVT_BATTLE_AP_E012"
@@ -687,7 +677,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AT_E040A",
-          "ticks": 4107
+          "ticks": 3803
         },
         {
           "bonus_ap": 0,
@@ -701,7 +691,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AT_E040A",
-          "ticks": 4107
+          "ticks": 3803
         },
         {
           "bonus_ap": 0,
@@ -715,7 +705,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AT_E040A",
-          "ticks": 4107
+          "ticks": 3803
         }
       ],
       "scene": "EVT_BATTLE_AT_E040A"
@@ -734,7 +724,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AT_E040B",
-          "ticks": 4107
+          "ticks": 3803
         },
         {
           "bonus_ap": 0,
@@ -748,7 +738,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_AT_E040B",
-          "ticks": 4107
+          "ticks": 3803
         }
       ],
       "scene": "EVT_BATTLE_AT_E040B"
@@ -767,7 +757,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_BB_R000",
-          "ticks": 2818
+          "ticks": 3586
         }
       ],
       "scene": "EVT_BATTLE_BB_R000"
@@ -786,7 +776,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_BB_R001",
-          "ticks": 2690
+          "ticks": 2946
         },
         {
           "bonus_ap": 0,
@@ -800,7 +790,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_BB_R001",
-          "ticks": 2690
+          "ticks": 2946
         }
       ],
       "scene": "EVT_BATTLE_BB_R001"
@@ -838,7 +828,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_BU_E015",
-          "ticks": 1441
+          "ticks": 1521
         }
       ],
       "scene": "EVT_BATTLE_BU_E015"
@@ -855,9 +845,9 @@
           "error": null,
           "outcome": "victory",
           "pattern": 0,
-          "players_alive": 3,
+          "players_alive": 2,
           "scene": "EVT_BATTLE_BU_E072",
-          "ticks": 4904
+          "ticks": 5115
         }
       ],
       "scene": "EVT_BATTLE_BU_E072"
@@ -876,7 +866,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_BU_R002",
-          "ticks": 2303
+          "ticks": 2145
         }
       ],
       "scene": "EVT_BATTLE_BU_R002"
@@ -895,7 +885,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_BU_R004",
-          "ticks": 2303
+          "ticks": 2145
         }
       ],
       "scene": "EVT_BATTLE_BU_R004"
@@ -914,7 +904,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_BU_R005",
-          "ticks": 5285
+          "ticks": 5445
         }
       ],
       "scene": "EVT_BATTLE_BU_R005"
@@ -933,7 +923,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_BU_R006",
-          "ticks": 5285
+          "ticks": 5445
         }
       ],
       "scene": "EVT_BATTLE_BU_R006"
@@ -952,7 +942,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_BU_R008",
-          "ticks": 5285
+          "ticks": 5445
         }
       ],
       "scene": "EVT_BATTLE_BU_R008"
@@ -995,7 +985,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_BU_R010",
-          "ticks": 4102
+          "ticks": 4108
         },
         {
           "bonus_ap": 2,
@@ -1018,7 +1008,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_BU_R010",
-          "ticks": 6119
+          "ticks": 6324
         }
       ],
       "scene": "EVT_BATTLE_BU_R010"
@@ -1061,7 +1051,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_BU_R011",
-          "ticks": 4102
+          "ticks": 4108
         },
         {
           "bonus_ap": 2,
@@ -1084,7 +1074,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_BU_R011",
-          "ticks": 6119
+          "ticks": 6324
         }
       ],
       "scene": "EVT_BATTLE_BU_R011"
@@ -1127,7 +1117,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_BU_R012",
-          "ticks": 4102
+          "ticks": 4108
         },
         {
           "bonus_ap": 2,
@@ -1150,7 +1140,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_BU_R012",
-          "ticks": 6119
+          "ticks": 6324
         }
       ],
       "scene": "EVT_BATTLE_BU_R012"
@@ -1193,7 +1183,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_BU_R013",
-          "ticks": 4102
+          "ticks": 4108
         },
         {
           "bonus_ap": 2,
@@ -1216,7 +1206,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_BU_R013",
-          "ticks": 6119
+          "ticks": 6324
         }
       ],
       "scene": "EVT_BATTLE_BU_R013"
@@ -1259,7 +1249,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_BU_R014",
-          "ticks": 4102
+          "ticks": 4108
         },
         {
           "bonus_ap": 2,
@@ -1282,7 +1272,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_BU_R014",
-          "ticks": 6119
+          "ticks": 6324
         }
       ],
       "scene": "EVT_BATTLE_BU_R014"
@@ -1301,7 +1291,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_BU_R015",
-          "ticks": 1476
+          "ticks": 1479
         },
         {
           "bonus_ap": 2,
@@ -1334,7 +1324,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_BU_R016",
-          "ticks": 1476
+          "ticks": 1479
         },
         {
           "bonus_ap": 2,
@@ -1367,7 +1357,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_BU_R017",
-          "ticks": 1476
+          "ticks": 1479
         },
         {
           "bonus_ap": 2,
@@ -1400,7 +1390,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_BV_R000",
-          "ticks": 5150
+          "ticks": 5462
         },
         {
           "bonus_ap": 0,
@@ -1452,7 +1442,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CA_E013",
-          "ticks": 7877
+          "ticks": 8205
         }
       ],
       "scene": "EVT_BATTLE_CA_E013"
@@ -1471,7 +1461,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CH_E093",
-          "ticks": 265
+          "ticks": 309
         }
       ],
       "scene": "EVT_BATTLE_CH_E093"
@@ -1490,7 +1480,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CH_E093B",
-          "ticks": 265
+          "ticks": 309
         }
       ],
       "scene": "EVT_BATTLE_CH_E093B"
@@ -1509,7 +1499,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CM_E051",
-          "ticks": 1230
+          "ticks": 1298
         }
       ],
       "scene": "EVT_BATTLE_CM_E051"
@@ -1528,7 +1518,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CM_R000",
-          "ticks": 2965
+          "ticks": 2891
         }
       ],
       "scene": "EVT_BATTLE_CM_R000"
@@ -1547,7 +1537,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CM_R001",
-          "ticks": 2965
+          "ticks": 2891
         }
       ],
       "scene": "EVT_BATTLE_CM_R001"
@@ -1566,7 +1556,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CM_R002",
-          "ticks": 2965
+          "ticks": 2891
         }
       ],
       "scene": "EVT_BATTLE_CM_R002"
@@ -1599,7 +1589,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CM_R003",
-          "ticks": 2610
+          "ticks": 2483
         }
       ],
       "scene": "EVT_BATTLE_CM_R003"
@@ -1632,7 +1622,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CM_R004",
-          "ticks": 2610
+          "ticks": 2483
         }
       ],
       "scene": "EVT_BATTLE_CM_R004"
@@ -1665,7 +1655,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CM_R005",
-          "ticks": 2610
+          "ticks": 2483
         }
       ],
       "scene": "EVT_BATTLE_CM_R005"
@@ -1684,7 +1674,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CM_R006",
-          "ticks": 2965
+          "ticks": 2809
         },
         {
           "bonus_ap": 0,
@@ -1698,7 +1688,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CM_R006",
-          "ticks": 2892
+          "ticks": 2744
         }
       ],
       "scene": "EVT_BATTLE_CM_R006"
@@ -1717,7 +1707,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CM_R007",
-          "ticks": 2965
+          "ticks": 2809
         },
         {
           "bonus_ap": 0,
@@ -1731,7 +1721,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CM_R007",
-          "ticks": 2892
+          "ticks": 2744
         }
       ],
       "scene": "EVT_BATTLE_CM_R007"
@@ -1750,7 +1740,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CM_R008",
-          "ticks": 2965
+          "ticks": 2809
         },
         {
           "bonus_ap": 0,
@@ -1764,7 +1754,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CM_R008",
-          "ticks": 2892
+          "ticks": 2744
         }
       ],
       "scene": "EVT_BATTLE_CM_R008"
@@ -1783,7 +1773,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_E060",
-          "ticks": 221
+          "ticks": 265
         }
       ],
       "scene": "EVT_BATTLE_CW_E060"
@@ -1821,7 +1811,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_E062",
-          "ticks": 1058
+          "ticks": 1154
         }
       ],
       "scene": "EVT_BATTLE_CW_E062"
@@ -1878,7 +1868,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_E065",
-          "ticks": 751
+          "ticks": 839
         }
       ],
       "scene": "EVT_BATTLE_CW_E065"
@@ -1897,7 +1887,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_E066",
-          "ticks": 433
+          "ticks": 337
         }
       ],
       "scene": "EVT_BATTLE_CW_E066"
@@ -1916,7 +1906,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_E086",
-          "ticks": 961
+          "ticks": 964
         }
       ],
       "scene": "EVT_BATTLE_CW_E086"
@@ -1935,7 +1925,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_E0XX",
-          "ticks": 441
+          "ticks": 485
         }
       ],
       "scene": "EVT_BATTLE_CW_E0XX"
@@ -1954,7 +1944,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R000",
-          "ticks": 1154
+          "ticks": 1298
         }
       ],
       "scene": "EVT_BATTLE_CW_R000"
@@ -1973,7 +1963,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R001",
-          "ticks": 427
+          "ticks": 421
         }
       ],
       "scene": "EVT_BATTLE_CW_R001"
@@ -2011,7 +2001,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R003",
-          "ticks": 1154
+          "ticks": 1298
         }
       ],
       "scene": "EVT_BATTLE_CW_R003"
@@ -2030,7 +2020,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R004",
-          "ticks": 4885
+          "ticks": 5149
         }
       ],
       "scene": "EVT_BATTLE_CW_R004"
@@ -2049,7 +2039,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R005",
-          "ticks": 4885
+          "ticks": 5149
         }
       ],
       "scene": "EVT_BATTLE_CW_R005"
@@ -2087,7 +2077,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R007",
-          "ticks": 1154
+          "ticks": 1298
         }
       ],
       "scene": "EVT_BATTLE_CW_R007"
@@ -2106,7 +2096,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R008",
-          "ticks": 1154
+          "ticks": 1298
         }
       ],
       "scene": "EVT_BATTLE_CW_R008"
@@ -2125,7 +2115,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R009",
-          "ticks": 1154
+          "ticks": 1298
         }
       ],
       "scene": "EVT_BATTLE_CW_R009"
@@ -2144,7 +2134,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R010",
-          "ticks": 427
+          "ticks": 421
         }
       ],
       "scene": "EVT_BATTLE_CW_R010"
@@ -2163,7 +2153,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R011",
-          "ticks": 1225
+          "ticks": 1153
         }
       ],
       "scene": "EVT_BATTLE_CW_R011"
@@ -2182,7 +2172,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R012",
-          "ticks": 1225
+          "ticks": 1153
         }
       ],
       "scene": "EVT_BATTLE_CW_R012"
@@ -2201,7 +2191,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R013",
-          "ticks": 1225
+          "ticks": 1153
         }
       ],
       "scene": "EVT_BATTLE_CW_R013"
@@ -2220,7 +2210,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R014",
-          "ticks": 1225
+          "ticks": 1153
         }
       ],
       "scene": "EVT_BATTLE_CW_R014"
@@ -2239,7 +2229,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R015",
-          "ticks": 1225
+          "ticks": 1153
         }
       ],
       "scene": "EVT_BATTLE_CW_R015"
@@ -2258,7 +2248,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R016",
-          "ticks": 4885
+          "ticks": 5149
         }
       ],
       "scene": "EVT_BATTLE_CW_R016"
@@ -2277,7 +2267,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R017",
-          "ticks": 427
+          "ticks": 421
         }
       ],
       "scene": "EVT_BATTLE_CW_R017"
@@ -2296,7 +2286,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R018",
-          "ticks": 427
+          "ticks": 421
         }
       ],
       "scene": "EVT_BATTLE_CW_R018"
@@ -2334,7 +2324,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R020",
-          "ticks": 1232
+          "ticks": 1096
         }
       ],
       "scene": "EVT_BATTLE_CW_R020"
@@ -2353,7 +2343,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R021",
-          "ticks": 1232
+          "ticks": 1096
         }
       ],
       "scene": "EVT_BATTLE_CW_R021"
@@ -2372,7 +2362,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R022",
-          "ticks": 1232
+          "ticks": 1096
         }
       ],
       "scene": "EVT_BATTLE_CW_R022"
@@ -2391,7 +2381,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R023",
-          "ticks": 1232
+          "ticks": 1096
         }
       ],
       "scene": "EVT_BATTLE_CW_R023"
@@ -2429,7 +2419,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R025",
-          "ticks": 385
+          "ticks": 433
         }
       ],
       "scene": "EVT_BATTLE_CW_R025"
@@ -2448,7 +2438,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R026",
-          "ticks": 529
+          "ticks": 481
         }
       ],
       "scene": "EVT_BATTLE_CW_R026"
@@ -2467,7 +2457,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R027",
-          "ticks": 631
+          "ticks": 579
         }
       ],
       "scene": "EVT_BATTLE_CW_R027"
@@ -2505,7 +2495,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R029",
-          "ticks": 385
+          "ticks": 433
         }
       ],
       "scene": "EVT_BATTLE_CW_R029"
@@ -2524,7 +2514,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R030",
-          "ticks": 529
+          "ticks": 481
         }
       ],
       "scene": "EVT_BATTLE_CW_R030"
@@ -2543,7 +2533,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R031",
-          "ticks": 631
+          "ticks": 579
         }
       ],
       "scene": "EVT_BATTLE_CW_R031"
@@ -2562,7 +2552,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R032",
-          "ticks": 1232
+          "ticks": 1096
         }
       ],
       "scene": "EVT_BATTLE_CW_R032"
@@ -2581,7 +2571,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R033",
-          "ticks": 1225
+          "ticks": 1153
         }
       ],
       "scene": "EVT_BATTLE_CW_R033"
@@ -2600,7 +2590,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E018",
-          "ticks": 4208
+          "ticks": 4519
         }
       ],
       "scene": "EVT_BATTLE_CY_E018"
@@ -2613,13 +2603,13 @@
           "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
           "outcome": "defeat",
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E021A",
-          "ticks": 4166
+          "ticks": 3685
         },
         {
           "bonus_ap": 0,
@@ -2627,13 +2617,13 @@
           "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
           "outcome": "defeat",
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E021A",
-          "ticks": 4166
+          "ticks": 3685
         },
         {
           "bonus_ap": 0,
@@ -2641,13 +2631,13 @@
           "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
           "outcome": "defeat",
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E021A",
-          "ticks": 4166
+          "ticks": 3685
         },
         {
           "bonus_ap": 0,
@@ -2655,13 +2645,13 @@
           "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
           "outcome": "defeat",
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E021A",
-          "ticks": 4166
+          "ticks": 3685
         },
         {
           "bonus_ap": 0,
@@ -2669,13 +2659,13 @@
           "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
           "outcome": "defeat",
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E021A",
-          "ticks": 4166
+          "ticks": 3685
         },
         {
           "bonus_ap": 0,
@@ -2683,13 +2673,13 @@
           "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
           "outcome": "defeat",
           "pattern": 5,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E021A",
-          "ticks": 4166
+          "ticks": 3685
         },
         {
           "bonus_ap": 0,
@@ -2697,13 +2687,13 @@
           "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
           "outcome": "defeat",
           "pattern": 6,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E021A",
-          "ticks": 4166
+          "ticks": 3685
         },
         {
           "bonus_ap": 1,
@@ -2717,7 +2707,7 @@
           "pattern": 7,
           "players_alive": 4,
           "scene": "EVT_BATTLE_CY_E021A",
-          "ticks": 3095
+          "ticks": 3288
         }
       ],
       "scene": "EVT_BATTLE_CY_E021A"
@@ -2730,13 +2720,13 @@
           "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
           "outcome": "defeat",
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E021B",
-          "ticks": 4166
+          "ticks": 3685
         },
         {
           "bonus_ap": 0,
@@ -2744,13 +2734,13 @@
           "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
           "outcome": "defeat",
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E021B",
-          "ticks": 4166
+          "ticks": 3685
         },
         {
           "bonus_ap": 0,
@@ -2758,13 +2748,13 @@
           "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
           "outcome": "defeat",
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E021B",
-          "ticks": 4166
+          "ticks": 3685
         },
         {
           "bonus_ap": 0,
@@ -2772,13 +2762,13 @@
           "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
           "outcome": "defeat",
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E021B",
-          "ticks": 4166
+          "ticks": 3685
         },
         {
           "bonus_ap": 0,
@@ -2786,13 +2776,13 @@
           "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
           "outcome": "defeat",
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E021B",
-          "ticks": 4166
+          "ticks": 3685
         },
         {
           "bonus_ap": 0,
@@ -2800,13 +2790,13 @@
           "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
           "outcome": "defeat",
           "pattern": 5,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E021B",
-          "ticks": 4166
+          "ticks": 3685
         },
         {
           "bonus_ap": 0,
@@ -2814,13 +2804,13 @@
           "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
           "outcome": "defeat",
           "pattern": 6,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E021B",
-          "ticks": 4166
+          "ticks": 3685
         },
         {
           "bonus_ap": 1,
@@ -2834,7 +2824,7 @@
           "pattern": 7,
           "players_alive": 4,
           "scene": "EVT_BATTLE_CY_E021B",
-          "ticks": 3095
+          "ticks": 3288
         }
       ],
       "scene": "EVT_BATTLE_CY_E021B"
@@ -2853,7 +2843,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_CY_E022",
-          "ticks": 1370
+          "ticks": 1446
         }
       ],
       "scene": "EVT_BATTLE_CY_E022"
@@ -2910,7 +2900,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_EF_E009",
-          "ticks": 4921
+          "ticks": 5085
         }
       ],
       "scene": "EVT_BATTLE_EF_E009"
@@ -2943,7 +2933,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_EF_E010",
-          "ticks": 662
+          "ticks": 469
         },
         {
           "bonus_ap": 2,
@@ -2962,7 +2952,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_EF_E010",
-          "ticks": 864
+          "ticks": 671
         },
         {
           "bonus_ap": 2,
@@ -3000,7 +2990,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_EF_R002",
-          "ticks": 1076
+          "ticks": 1272
         }
       ],
       "scene": "EVT_BATTLE_EF_R002"
@@ -3019,7 +3009,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_EF_R003",
-          "ticks": 1076
+          "ticks": 1272
         }
       ],
       "scene": "EVT_BATTLE_EF_R003"
@@ -3052,7 +3042,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_EF_R004",
-          "ticks": 662
+          "ticks": 469
         },
         {
           "bonus_ap": 1,
@@ -3085,7 +3075,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_EF_R004",
-          "ticks": 469
+          "ticks": 662
         },
         {
           "bonus_ap": 1,
@@ -3104,7 +3094,7 @@
           "pattern": 4,
           "players_alive": 4,
           "scene": "EVT_BATTLE_EF_R004",
-          "ticks": 873
+          "ticks": 1069
         }
       ],
       "scene": "EVT_BATTLE_EF_R004"
@@ -3137,7 +3127,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_EF_R005",
-          "ticks": 662
+          "ticks": 469
         },
         {
           "bonus_ap": 1,
@@ -3170,7 +3160,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_EF_R005",
-          "ticks": 469
+          "ticks": 662
         },
         {
           "bonus_ap": 1,
@@ -3189,7 +3179,7 @@
           "pattern": 4,
           "players_alive": 4,
           "scene": "EVT_BATTLE_EF_R005",
-          "ticks": 873
+          "ticks": 1069
         }
       ],
       "scene": "EVT_BATTLE_EF_R005"
@@ -3222,7 +3212,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_EF_R007",
-          "ticks": 469
+          "ticks": 662
         }
       ],
       "scene": "EVT_BATTLE_EF_R007"
@@ -3258,18 +3248,18 @@
           "ticks": 2521
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 2516,
-          "bonus_gil": 1512,
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 4,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 2,
-          "players_alive": 3,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_EG_R000",
-          "ticks": 17838
+          "ticks": 4325
         }
       ],
       "scene": "EVT_BATTLE_EG_R000"
@@ -3305,18 +3295,18 @@
           "ticks": 2521
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 2516,
-          "bonus_gil": 1512,
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 4,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 2,
-          "players_alive": 3,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_EG_R001",
-          "ticks": 17838
+          "ticks": 4325
         }
       ],
       "scene": "EVT_BATTLE_EG_R001"
@@ -3335,7 +3325,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_ES_E058",
-          "ticks": 1613
+          "ticks": 1489
         }
       ],
       "scene": "EVT_BATTLE_ES_E058"
@@ -3354,7 +3344,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_E033",
-          "ticks": 1413
+          "ticks": 1237
         }
       ],
       "scene": "EVT_BATTLE_FR_E033"
@@ -3373,7 +3363,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_E081",
-          "ticks": 6085
+          "ticks": 6245
         }
       ],
       "scene": "EVT_BATTLE_FR_E081"
@@ -3392,7 +3382,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_R000",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_FR_R000"
@@ -3411,7 +3401,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_R001",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_FR_R001"
@@ -3430,7 +3420,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_R003",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_FR_R003"
@@ -3449,7 +3439,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_R004",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_FR_R004"
@@ -3468,7 +3458,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_R005",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_FR_R005"
@@ -3487,7 +3477,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_R008",
-          "ticks": 1613
+          "ticks": 1761
         },
         {
           "bonus_ap": 0,
@@ -3501,7 +3491,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_R008",
-          "ticks": 2244
+          "ticks": 2241
         },
         {
           "bonus_ap": 0,
@@ -3515,7 +3505,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_R008",
-          "ticks": 3206
+          "ticks": 3202
         }
       ],
       "scene": "EVT_BATTLE_FR_R008"
@@ -3532,28 +3522,23 @@
           "error": null,
           "outcome": "victory",
           "pattern": 0,
-          "players_alive": 3,
+          "players_alive": 1,
           "scene": "EVT_BATTLE_FR_R012",
-          "ticks": 5320
+          "ticks": 5925
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 1824,
-          "bonus_gil": 776,
-          "bonus_items": [
-            [
-              248,
-              1
-            ]
-          ],
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
+          "bonus_items": [],
           "card": null,
-          "enemy_deaths": 2,
+          "enemy_deaths": 1,
           "error": null,
-          "outcome": "victory",
+          "outcome": null,
           "pattern": 1,
-          "players_alive": 3,
+          "players_alive": 1,
           "scene": "EVT_BATTLE_FR_R012",
-          "ticks": 12386
+          "ticks": 0
         }
       ],
       "scene": "EVT_BATTLE_FR_R012"
@@ -3570,28 +3555,23 @@
           "error": null,
           "outcome": "victory",
           "pattern": 0,
-          "players_alive": 3,
+          "players_alive": 1,
           "scene": "EVT_BATTLE_FR_R013",
-          "ticks": 5320
+          "ticks": 5925
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 1824,
-          "bonus_gil": 776,
-          "bonus_items": [
-            [
-              248,
-              1
-            ]
-          ],
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
+          "bonus_items": [],
           "card": null,
-          "enemy_deaths": 2,
+          "enemy_deaths": 1,
           "error": null,
-          "outcome": "victory",
+          "outcome": null,
           "pattern": 1,
-          "players_alive": 3,
+          "players_alive": 1,
           "scene": "EVT_BATTLE_FR_R013",
-          "ticks": 12386
+          "ticks": 0
         }
       ],
       "scene": "EVT_BATTLE_FR_R013"
@@ -3608,28 +3588,23 @@
           "error": null,
           "outcome": "victory",
           "pattern": 0,
-          "players_alive": 3,
+          "players_alive": 1,
           "scene": "EVT_BATTLE_FR_R014",
-          "ticks": 5320
+          "ticks": 5925
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 1824,
-          "bonus_gil": 776,
-          "bonus_items": [
-            [
-              248,
-              1
-            ]
-          ],
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
+          "bonus_items": [],
           "card": null,
-          "enemy_deaths": 2,
+          "enemy_deaths": 1,
           "error": null,
-          "outcome": "victory",
+          "outcome": null,
           "pattern": 1,
-          "players_alive": 3,
+          "players_alive": 1,
           "scene": "EVT_BATTLE_FR_R014",
-          "ticks": 12386
+          "ticks": 0
         }
       ],
       "scene": "EVT_BATTLE_FR_R014"
@@ -3646,28 +3621,23 @@
           "error": null,
           "outcome": "victory",
           "pattern": 0,
-          "players_alive": 3,
+          "players_alive": 1,
           "scene": "EVT_BATTLE_FR_R015",
-          "ticks": 5320
+          "ticks": 5925
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 1824,
-          "bonus_gil": 776,
-          "bonus_items": [
-            [
-              248,
-              1
-            ]
-          ],
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
+          "bonus_items": [],
           "card": null,
-          "enemy_deaths": 2,
+          "enemy_deaths": 1,
           "error": null,
-          "outcome": "victory",
+          "outcome": null,
           "pattern": 1,
-          "players_alive": 3,
+          "players_alive": 1,
           "scene": "EVT_BATTLE_FR_R015",
-          "ticks": 12386
+          "ticks": 0
         }
       ],
       "scene": "EVT_BATTLE_FR_R015"
@@ -3684,28 +3654,23 @@
           "error": null,
           "outcome": "victory",
           "pattern": 0,
-          "players_alive": 3,
+          "players_alive": 1,
           "scene": "EVT_BATTLE_FR_R016",
-          "ticks": 5320
+          "ticks": 5925
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 1824,
-          "bonus_gil": 776,
-          "bonus_items": [
-            [
-              248,
-              1
-            ]
-          ],
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
+          "bonus_items": [],
           "card": null,
-          "enemy_deaths": 2,
+          "enemy_deaths": 1,
           "error": null,
-          "outcome": "victory",
+          "outcome": null,
           "pattern": 1,
-          "players_alive": 3,
+          "players_alive": 1,
           "scene": "EVT_BATTLE_FR_R016",
-          "ticks": 12386
+          "ticks": 0
         }
       ],
       "scene": "EVT_BATTLE_FR_R016"
@@ -3722,28 +3687,23 @@
           "error": null,
           "outcome": "victory",
           "pattern": 0,
-          "players_alive": 3,
+          "players_alive": 1,
           "scene": "EVT_BATTLE_FR_R017",
-          "ticks": 5320
+          "ticks": 5925
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 1824,
-          "bonus_gil": 776,
-          "bonus_items": [
-            [
-              248,
-              1
-            ]
-          ],
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
+          "bonus_items": [],
           "card": null,
-          "enemy_deaths": 2,
+          "enemy_deaths": 1,
           "error": null,
-          "outcome": "victory",
+          "outcome": null,
           "pattern": 1,
-          "players_alive": 3,
+          "players_alive": 1,
           "scene": "EVT_BATTLE_FR_R017",
-          "ticks": 12386
+          "ticks": 0
         }
       ],
       "scene": "EVT_BATTLE_FR_R017"
@@ -3762,7 +3722,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_R018",
-          "ticks": 4163
+          "ticks": 3683
         },
         {
           "bonus_ap": 0,
@@ -3776,7 +3736,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_R018",
-          "ticks": 4163
+          "ticks": 3683
         }
       ],
       "scene": "EVT_BATTLE_FR_R018"
@@ -3795,7 +3755,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_R019",
-          "ticks": 4163
+          "ticks": 3683
         },
         {
           "bonus_ap": 0,
@@ -3809,7 +3769,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_R019",
-          "ticks": 4163
+          "ticks": 3683
         }
       ],
       "scene": "EVT_BATTLE_FR_R019"
@@ -3828,7 +3788,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_R020",
-          "ticks": 4163
+          "ticks": 3683
         },
         {
           "bonus_ap": 0,
@@ -3842,7 +3802,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_FR_R020",
-          "ticks": 4163
+          "ticks": 3683
         }
       ],
       "scene": "EVT_BATTLE_FR_R020"
@@ -3861,7 +3821,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GR_E017",
-          "ticks": 6565
+          "ticks": 6725
         }
       ],
       "scene": "EVT_BATTLE_GR_E017"
@@ -3880,7 +3840,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GR_E032",
-          "ticks": 3278
+          "ticks": 3434
         }
       ],
       "scene": "EVT_BATTLE_GR_E032"
@@ -3918,7 +3878,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GR_R000",
-          "ticks": 7135
+          "ticks": 7530
         }
       ],
       "scene": "EVT_BATTLE_GR_R000"
@@ -3956,7 +3916,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GR_R001",
-          "ticks": 7135
+          "ticks": 7530
         }
       ],
       "scene": "EVT_BATTLE_GR_R001"
@@ -3994,7 +3954,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GR_R002",
-          "ticks": 4105
+          "ticks": 4298
         },
         {
           "bonus_ap": 2,
@@ -4013,7 +3973,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GR_R002",
-          "ticks": 6122
+          "ticks": 6327
         }
       ],
       "scene": "EVT_BATTLE_GR_R002"
@@ -4046,7 +4006,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_E019A",
-          "ticks": 6119
+          "ticks": 6321
         },
         {
           "bonus_ap": 2,
@@ -4065,7 +4025,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_E019A",
-          "ticks": 8953
+          "ticks": 9354
         }
       ],
       "scene": "EVT_BATTLE_GT_E019A"
@@ -4089,7 +4049,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_E082",
-          "ticks": 3102
+          "ticks": 3288
         },
         {
           "bonus_ap": 2,
@@ -4108,7 +4068,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_E082",
-          "ticks": 6129
+          "ticks": 6331
         }
       ],
       "scene": "EVT_BATTLE_GT_E082"
@@ -4132,7 +4092,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R000",
-          "ticks": 6726
+          "ticks": 6944
         }
       ],
       "scene": "EVT_BATTLE_GT_R000"
@@ -4156,7 +4116,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R002",
-          "ticks": 6726
+          "ticks": 6944
         }
       ],
       "scene": "EVT_BATTLE_GT_R002"
@@ -4180,7 +4140,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R003",
-          "ticks": 6726
+          "ticks": 6944
         }
       ],
       "scene": "EVT_BATTLE_GT_R003"
@@ -4204,7 +4164,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R004",
-          "ticks": 8338
+          "ticks": 8742
         }
       ],
       "scene": "EVT_BATTLE_GT_R004"
@@ -4228,7 +4188,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R006",
-          "ticks": 8338
+          "ticks": 8742
         }
       ],
       "scene": "EVT_BATTLE_GT_R006"
@@ -4252,7 +4212,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R007",
-          "ticks": 8338
+          "ticks": 8742
         }
       ],
       "scene": "EVT_BATTLE_GT_R007"
@@ -4290,7 +4250,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R008",
-          "ticks": 4105
+          "ticks": 4298
         },
         {
           "bonus_ap": 2,
@@ -4309,7 +4269,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R008",
-          "ticks": 6122
+          "ticks": 6327
         }
       ],
       "scene": "EVT_BATTLE_GT_R008"
@@ -4347,7 +4307,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R009",
-          "ticks": 4105
+          "ticks": 4298
         },
         {
           "bonus_ap": 2,
@@ -4366,7 +4326,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R009",
-          "ticks": 6122
+          "ticks": 6327
         }
       ],
       "scene": "EVT_BATTLE_GT_R009"
@@ -4404,7 +4364,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R010",
-          "ticks": 4105
+          "ticks": 4298
         },
         {
           "bonus_ap": 2,
@@ -4423,7 +4383,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R010",
-          "ticks": 6122
+          "ticks": 6327
         }
       ],
       "scene": "EVT_BATTLE_GT_R010"
@@ -4461,7 +4421,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R011",
-          "ticks": 4105
+          "ticks": 4298
         },
         {
           "bonus_ap": 2,
@@ -4480,7 +4440,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R011",
-          "ticks": 6122
+          "ticks": 6327
         }
       ],
       "scene": "EVT_BATTLE_GT_R011"
@@ -4518,7 +4478,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R012",
-          "ticks": 4105
+          "ticks": 4298
         },
         {
           "bonus_ap": 2,
@@ -4537,7 +4497,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R012",
-          "ticks": 6122
+          "ticks": 6327
         }
       ],
       "scene": "EVT_BATTLE_GT_R012"
@@ -4575,7 +4535,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R013",
-          "ticks": 4105
+          "ticks": 4298
         },
         {
           "bonus_ap": 2,
@@ -4594,7 +4554,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R013",
-          "ticks": 6122
+          "ticks": 6327
         }
       ],
       "scene": "EVT_BATTLE_GT_R013"
@@ -4632,7 +4592,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R014",
-          "ticks": 4105
+          "ticks": 4298
         },
         {
           "bonus_ap": 2,
@@ -4651,7 +4611,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R014",
-          "ticks": 6122
+          "ticks": 6327
         }
       ],
       "scene": "EVT_BATTLE_GT_R014"
@@ -4675,7 +4635,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R017",
-          "ticks": 1675
+          "ticks": 1678
         },
         {
           "bonus_ap": 2,
@@ -4694,7 +4654,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R017",
-          "ticks": 3095
+          "ticks": 3288
         }
       ],
       "scene": "EVT_BATTLE_GT_R017"
@@ -4718,7 +4678,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R018",
-          "ticks": 1675
+          "ticks": 1678
         },
         {
           "bonus_ap": 2,
@@ -4737,7 +4697,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GT_R018",
-          "ticks": 3095
+          "ticks": 3288
         }
       ],
       "scene": "EVT_BATTLE_GT_R018"
@@ -4870,7 +4830,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R001",
-          "ticks": 1201
+          "ticks": 1141
         }
       ],
       "scene": "EVT_BATTLE_GV_R001"
@@ -4889,7 +4849,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R002",
-          "ticks": 1201
+          "ticks": 1141
         }
       ],
       "scene": "EVT_BATTLE_GV_R002"
@@ -4908,7 +4868,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R004",
-          "ticks": 1201
+          "ticks": 1141
         }
       ],
       "scene": "EVT_BATTLE_GV_R004"
@@ -4927,7 +4887,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R005",
-          "ticks": 1201
+          "ticks": 1141
         }
       ],
       "scene": "EVT_BATTLE_GV_R005"
@@ -4984,7 +4944,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R012",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -4998,7 +4958,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R012",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5012,7 +4972,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R012",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5026,7 +4986,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R012",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5040,7 +5000,7 @@
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R012",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5054,7 +5014,7 @@
           "pattern": 5,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R012",
-          "ticks": 3922
+          "ticks": 3642
         }
       ],
       "scene": "EVT_BATTLE_GV_R012"
@@ -5073,7 +5033,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R013",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5087,7 +5047,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R013",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5101,7 +5061,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R013",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5115,7 +5075,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R013",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5129,7 +5089,7 @@
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R013",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5143,7 +5103,7 @@
           "pattern": 5,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R013",
-          "ticks": 3922
+          "ticks": 3642
         }
       ],
       "scene": "EVT_BATTLE_GV_R013"
@@ -5162,7 +5122,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R014",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5176,7 +5136,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R014",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5190,7 +5150,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R014",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5204,7 +5164,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R014",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5218,7 +5178,7 @@
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R014",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5232,7 +5192,7 @@
           "pattern": 5,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R014",
-          "ticks": 3922
+          "ticks": 3642
         }
       ],
       "scene": "EVT_BATTLE_GV_R014"
@@ -5251,7 +5211,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R015",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5265,7 +5225,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R015",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5279,7 +5239,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R015",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5293,7 +5253,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R015",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5307,7 +5267,7 @@
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R015",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5321,7 +5281,7 @@
           "pattern": 5,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R015",
-          "ticks": 3922
+          "ticks": 3642
         }
       ],
       "scene": "EVT_BATTLE_GV_R015"
@@ -5340,7 +5300,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R016",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5354,7 +5314,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R016",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5368,7 +5328,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R016",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5382,7 +5342,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R016",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5396,7 +5356,7 @@
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R016",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5410,7 +5370,7 @@
           "pattern": 5,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R016",
-          "ticks": 3922
+          "ticks": 3642
         }
       ],
       "scene": "EVT_BATTLE_GV_R016"
@@ -5429,7 +5389,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R017",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5443,7 +5403,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R017",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5457,7 +5417,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R017",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5471,7 +5431,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R017",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5485,7 +5445,7 @@
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R017",
-          "ticks": 3922
+          "ticks": 3642
         },
         {
           "bonus_ap": 0,
@@ -5499,7 +5459,7 @@
           "pattern": 5,
           "players_alive": 0,
           "scene": "EVT_BATTLE_GV_R017",
-          "ticks": 3922
+          "ticks": 3642
         }
       ],
       "scene": "EVT_BATTLE_GV_R017"
@@ -5535,9 +5495,9 @@
           "error": null,
           "outcome": "victory",
           "pattern": 0,
-          "players_alive": 3,
+          "players_alive": 2,
           "scene": "EVT_BATTLE_GZ_E071",
-          "ticks": 4904
+          "ticks": 5115
         }
       ],
       "scene": "EVT_BATTLE_GZ_E071"
@@ -5561,7 +5521,7 @@
           "pattern": 0,
           "players_alive": 3,
           "scene": "EVT_BATTLE_GZ_R000",
-          "ticks": 3904
+          "ticks": 3704
         },
         {
           "bonus_ap": 2,
@@ -5580,7 +5540,7 @@
           "pattern": 1,
           "players_alive": 3,
           "scene": "EVT_BATTLE_GZ_R000",
-          "ticks": 6126
+          "ticks": 6125
         },
         {
           "bonus_ap": 2,
@@ -5599,7 +5559,7 @@
           "pattern": 2,
           "players_alive": 3,
           "scene": "EVT_BATTLE_GZ_R000",
-          "ticks": 8544
+          "ticks": 8347
         }
       ],
       "scene": "EVT_BATTLE_GZ_R000"
@@ -5637,7 +5597,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GZ_R002",
-          "ticks": 2483
+          "ticks": 2489
         },
         {
           "bonus_ap": 2,
@@ -5656,7 +5616,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GZ_R002",
-          "ticks": 4708
+          "ticks": 4913
         },
         {
           "bonus_ap": 2,
@@ -5675,7 +5635,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_GZ_R002",
-          "ticks": 5721
+          "ticks": 6122
         }
       ],
       "scene": "EVT_BATTLE_GZ_R002"
@@ -5703,7 +5663,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_E011",
-          "ticks": 4299
+          "ticks": 4311
         }
       ],
       "scene": "EVT_BATTLE_IC_E011"
@@ -5746,7 +5706,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R000",
-          "ticks": 1672
+          "ticks": 1479
         },
         {
           "bonus_ap": 0,
@@ -5765,7 +5725,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R000",
-          "ticks": 2079
+          "ticks": 2076
         },
         {
           "bonus_ap": 2,
@@ -5784,7 +5744,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R000",
-          "ticks": 1673
+          "ticks": 1480
         },
         {
           "bonus_ap": 1,
@@ -5841,7 +5801,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R001",
-          "ticks": 1672
+          "ticks": 1479
         },
         {
           "bonus_ap": 2,
@@ -5860,7 +5820,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R001",
-          "ticks": 2079
+          "ticks": 2076
         },
         {
           "bonus_ap": 2,
@@ -5879,7 +5839,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R001",
-          "ticks": 1673
+          "ticks": 1480
         },
         {
           "bonus_ap": 1,
@@ -5936,7 +5896,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R002",
-          "ticks": 1672
+          "ticks": 1479
         },
         {
           "bonus_ap": 2,
@@ -5955,7 +5915,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R002",
-          "ticks": 2079
+          "ticks": 2076
         },
         {
           "bonus_ap": 2,
@@ -5974,7 +5934,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R002",
-          "ticks": 1673
+          "ticks": 1480
         },
         {
           "bonus_ap": 2,
@@ -6031,7 +5991,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R003",
-          "ticks": 1672
+          "ticks": 1479
         },
         {
           "bonus_ap": 2,
@@ -6050,7 +6010,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R003",
-          "ticks": 2079
+          "ticks": 2076
         },
         {
           "bonus_ap": 2,
@@ -6069,7 +6029,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R003",
-          "ticks": 1673
+          "ticks": 1480
         },
         {
           "bonus_ap": 0,
@@ -6102,7 +6062,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R004",
-          "ticks": 870
+          "ticks": 1067
         },
         {
           "bonus_ap": 2,
@@ -6121,7 +6081,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R004",
-          "ticks": 1678
+          "ticks": 1682
         }
       ],
       "scene": "EVT_BATTLE_IC_R004"
@@ -6140,7 +6100,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R005",
-          "ticks": 870
+          "ticks": 1067
         },
         {
           "bonus_ap": 2,
@@ -6159,7 +6119,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IC_R005",
-          "ticks": 1678
+          "ticks": 1682
         }
       ],
       "scene": "EVT_BATTLE_IC_R005"
@@ -6197,7 +6157,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_E087",
-          "ticks": 4107
+          "ticks": 3803
         },
         {
           "bonus_ap": 0,
@@ -6211,7 +6171,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_E087",
-          "ticks": 4107
+          "ticks": 3803
         }
       ],
       "scene": "EVT_BATTLE_IF_E087"
@@ -6230,7 +6190,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_E088",
-          "ticks": 4107
+          "ticks": 3803
         },
         {
           "bonus_ap": 0,
@@ -6244,7 +6204,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_E088",
-          "ticks": 4107
+          "ticks": 3803
         }
       ],
       "scene": "EVT_BATTLE_IF_E088"
@@ -6263,7 +6223,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R000",
-          "ticks": 5150
+          "ticks": 5462
         },
         {
           "bonus_ap": 0,
@@ -6296,7 +6256,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R001",
-          "ticks": 5150
+          "ticks": 5462
         },
         {
           "bonus_ap": 0,
@@ -6329,7 +6289,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R002",
-          "ticks": 4098
+          "ticks": 4354
         }
       ],
       "scene": "EVT_BATTLE_IF_R002"
@@ -6348,7 +6308,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R003",
-          "ticks": 4098
+          "ticks": 4354
         }
       ],
       "scene": "EVT_BATTLE_IF_R003"
@@ -6367,7 +6327,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R004",
-          "ticks": 4098
+          "ticks": 4354
         }
       ],
       "scene": "EVT_BATTLE_IF_R004"
@@ -6386,7 +6346,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R005",
-          "ticks": 2283
+          "ticks": 2587
         }
       ],
       "scene": "EVT_BATTLE_IF_R005"
@@ -6405,7 +6365,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R006",
-          "ticks": 2283
+          "ticks": 2587
         }
       ],
       "scene": "EVT_BATTLE_IF_R006"
@@ -6424,7 +6384,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R007",
-          "ticks": 2283
+          "ticks": 2587
         }
       ],
       "scene": "EVT_BATTLE_IF_R007"
@@ -6443,7 +6403,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R008",
-          "ticks": 2283
+          "ticks": 2587
         }
       ],
       "scene": "EVT_BATTLE_IF_R008"
@@ -6462,7 +6422,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R010",
-          "ticks": 3048
+          "ticks": 3200
         },
         {
           "bonus_ap": 0,
@@ -6476,7 +6436,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R010",
-          "ticks": 3054
+          "ticks": 3200
         }
       ],
       "scene": "EVT_BATTLE_IF_R010"
@@ -6495,7 +6455,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R011",
-          "ticks": 3048
+          "ticks": 3200
         },
         {
           "bonus_ap": 0,
@@ -6509,7 +6469,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R011",
-          "ticks": 3054
+          "ticks": 3200
         }
       ],
       "scene": "EVT_BATTLE_IF_R011"
@@ -6528,7 +6488,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R012",
-          "ticks": 3048
+          "ticks": 3200
         },
         {
           "bonus_ap": 0,
@@ -6542,7 +6502,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R012",
-          "ticks": 3054
+          "ticks": 3200
         }
       ],
       "scene": "EVT_BATTLE_IF_R012"
@@ -6561,7 +6521,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R013",
-          "ticks": 3048
+          "ticks": 3200
         },
         {
           "bonus_ap": 0,
@@ -6575,7 +6535,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R013",
-          "ticks": 3054
+          "ticks": 3200
         }
       ],
       "scene": "EVT_BATTLE_IF_R013"
@@ -6594,7 +6554,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R014",
-          "ticks": 3048
+          "ticks": 3200
         },
         {
           "bonus_ap": 0,
@@ -6608,7 +6568,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IF_R014",
-          "ticks": 3054
+          "ticks": 3200
         }
       ],
       "scene": "EVT_BATTLE_IF_R014"
@@ -6627,7 +6587,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IP_E070",
-          "ticks": 1717
+          "ticks": 1585
         }
       ],
       "scene": "EVT_BATTLE_IP_E070"
@@ -6651,7 +6611,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IP_R000",
-          "ticks": 14918
+          "ticks": 14736
         }
       ],
       "scene": "EVT_BATTLE_IP_R000"
@@ -6675,7 +6635,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IP_R001",
-          "ticks": 14918
+          "ticks": 14736
         }
       ],
       "scene": "EVT_BATTLE_IP_R001"
@@ -6699,7 +6659,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_IP_R002",
-          "ticks": 14918
+          "ticks": 14736
         }
       ],
       "scene": "EVT_BATTLE_IP_R002"
@@ -6718,7 +6678,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IP_R006",
-          "ticks": 3037
+          "ticks": 3301
         }
       ],
       "scene": "EVT_BATTLE_IP_R006"
@@ -6737,7 +6697,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IP_R007",
-          "ticks": 3037
+          "ticks": 3301
         }
       ],
       "scene": "EVT_BATTLE_IP_R007"
@@ -6756,7 +6716,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IP_R008",
-          "ticks": 3037
+          "ticks": 3301
         }
       ],
       "scene": "EVT_BATTLE_IP_R008"
@@ -6775,7 +6735,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IP_R009",
-          "ticks": 3042
+          "ticks": 3172
         }
       ],
       "scene": "EVT_BATTLE_IP_R009"
@@ -6794,7 +6754,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IP_R010",
-          "ticks": 3042
+          "ticks": 3172
         }
       ],
       "scene": "EVT_BATTLE_IP_R010"
@@ -6813,7 +6773,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_IP_R011",
-          "ticks": 3042
+          "ticks": 3172
         }
       ],
       "scene": "EVT_BATTLE_IP_R011"
@@ -6870,7 +6830,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_KM_E073",
-          "ticks": 353
+          "ticks": 397
         }
       ],
       "scene": "EVT_BATTLE_KM_E073"
@@ -6889,7 +6849,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_KM_R000",
-          "ticks": 8116
+          "ticks": 7335
         },
         {
           "bonus_ap": 0,
@@ -6903,7 +6863,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_KM_R000",
-          "ticks": 8116
+          "ticks": 7335
         }
       ],
       "scene": "EVT_BATTLE_KM_R000"
@@ -6922,7 +6882,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_KM_R001",
-          "ticks": 1471
+          "ticks": 1278
         },
         {
           "bonus_ap": 1,
@@ -6941,7 +6901,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_KM_R001",
-          "ticks": 2683
+          "ticks": 2689
         },
         {
           "bonus_ap": 2,
@@ -6960,7 +6920,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_KM_R001",
-          "ticks": 3702
+          "ticks": 3901
         }
       ],
       "scene": "EVT_BATTLE_KM_R001"
@@ -6979,7 +6939,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_KM_R002",
-          "ticks": 1877
+          "ticks": 1880
         },
         {
           "bonus_ap": 2,
@@ -6998,7 +6958,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_KM_R002",
-          "ticks": 3291
+          "ticks": 3297
         }
       ],
       "scene": "EVT_BATTLE_KM_R002"
@@ -7017,7 +6977,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_KM_R003",
-          "ticks": 4177
+          "ticks": 4465
         },
         {
           "bonus_ap": 0,
@@ -7031,7 +6991,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_KM_R003",
-          "ticks": 4177
+          "ticks": 4465
         }
       ],
       "scene": "EVT_BATTLE_KM_R003"
@@ -7069,7 +7029,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_LB_E080B",
-          "ticks": 1271
+          "ticks": 1470
         }
       ],
       "scene": "EVT_BATTLE_LB_E080B"
@@ -7088,7 +7048,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_LB_E080C",
-          "ticks": 1271
+          "ticks": 1470
         }
       ],
       "scene": "EVT_BATTLE_LB_E080C"
@@ -7107,7 +7067,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_LB_E080D",
-          "ticks": 1271
+          "ticks": 1470
         }
       ],
       "scene": "EVT_BATTLE_LB_E080D"
@@ -7126,7 +7086,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_LB_E080E",
-          "ticks": 1268
+          "ticks": 1274
         }
       ],
       "scene": "EVT_BATTLE_LB_E080E"
@@ -7145,7 +7105,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_LB_E080F",
-          "ticks": 1268
+          "ticks": 1274
         }
       ],
       "scene": "EVT_BATTLE_LB_E080F"
@@ -7164,7 +7124,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_LB_E080G",
-          "ticks": 1268
+          "ticks": 1274
         }
       ],
       "scene": "EVT_BATTLE_LB_E080G"
@@ -7183,7 +7143,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_LB_E080H",
-          "ticks": 1277
+          "ticks": 1473
         }
       ],
       "scene": "EVT_BATTLE_LB_E080H"
@@ -7202,7 +7162,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_LB_E080I",
-          "ticks": 1277
+          "ticks": 1473
         }
       ],
       "scene": "EVT_BATTLE_LB_E080I"
@@ -7221,7 +7181,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_LB_E080J",
-          "ticks": 1277
+          "ticks": 1473
         }
       ],
       "scene": "EVT_BATTLE_LB_E080J"
@@ -7259,7 +7219,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_PD_E055",
-          "ticks": 265
+          "ticks": 309
         }
       ],
       "scene": "EVT_BATTLE_PD_E055"
@@ -7297,7 +7257,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_PD_E068",
-          "ticks": 1737
+          "ticks": 1613
         }
       ],
       "scene": "EVT_BATTLE_PD_E068"
@@ -7316,7 +7276,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_PD_E069",
-          "ticks": 869
+          "ticks": 621
         }
       ],
       "scene": "EVT_BATTLE_PD_E069"
@@ -7335,7 +7295,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_PD_E078",
-          "ticks": 749
+          "ticks": 883
         }
       ],
       "scene": "EVT_BATTLE_PD_E078"
@@ -7354,7 +7314,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_PD_E079",
-          "ticks": 839
+          "ticks": 883
         }
       ],
       "scene": "EVT_BATTLE_PD_E079"
@@ -7373,7 +7333,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_PD_R000",
-          "ticks": 5336
+          "ticks": 4344
         }
       ],
       "scene": "EVT_BATTLE_PD_R000"
@@ -7392,7 +7352,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_PD_R001",
-          "ticks": 5336
+          "ticks": 4344
         }
       ],
       "scene": "EVT_BATTLE_PD_R001"
@@ -7411,7 +7371,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_PD_R004",
-          "ticks": 3101
+          "ticks": 2901
         }
       ],
       "scene": "EVT_BATTLE_PD_R004"
@@ -7449,7 +7409,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_PD_R006",
-          "ticks": 3101
+          "ticks": 2901
         }
       ],
       "scene": "EVT_BATTLE_PD_R006"
@@ -7468,7 +7428,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_PD_R007",
-          "ticks": 3101
+          "ticks": 2901
         }
       ],
       "scene": "EVT_BATTLE_PD_R007"
@@ -7544,7 +7504,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_PD_R013",
-          "ticks": 701
+          "ticks": 601
         }
       ],
       "scene": "EVT_BATTLE_PD_R013"
@@ -7563,7 +7523,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_PD_R014",
-          "ticks": 701
+          "ticks": 601
         }
       ],
       "scene": "EVT_BATTLE_PD_R014"
@@ -7587,7 +7547,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_PR_R000",
-          "ticks": 3103
+          "ticks": 3288
         },
         {
           "bonus_ap": 2,
@@ -7606,7 +7566,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_PR_R000",
-          "ticks": 6126
+          "ticks": 6328
         },
         {
           "bonus_ap": 2,
@@ -7634,7 +7594,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_PR_R000",
-          "ticks": 6924
+          "ticks": 7129
         },
         {
           "bonus_ap": 2,
@@ -7653,7 +7613,7 @@
           "pattern": 4,
           "players_alive": 4,
           "scene": "EVT_BATTLE_PR_R000",
-          "ticks": 10358
+          "ticks": 10577
         }
       ],
       "scene": "EVT_BATTLE_PR_R000"
@@ -7672,7 +7632,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_PR_R001",
-          "ticks": 4647
+          "ticks": 4415
         }
       ],
       "scene": "EVT_BATTLE_PR_R001"
@@ -7710,7 +7670,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_SP_E053",
-          "ticks": 4622
+          "ticks": 4062
         }
       ],
       "scene": "EVT_BATTLE_SP_E053"
@@ -7729,7 +7689,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_SP_R000",
-          "ticks": 11149
+          "ticks": 11293
         },
         {
           "bonus_ap": 0,
@@ -7743,7 +7703,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_SP_R000",
-          "ticks": 4177
+          "ticks": 4465
         }
       ],
       "scene": "EVT_BATTLE_SP_R000"
@@ -7861,7 +7821,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_SP_R012",
-          "ticks": 11149
+          "ticks": 11293
         },
         {
           "bonus_ap": 0,
@@ -7875,7 +7835,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_SP_R012",
-          "ticks": 4177
+          "ticks": 4465
         }
       ],
       "scene": "EVT_BATTLE_SP_R012"
@@ -7894,7 +7854,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_SP_R013",
-          "ticks": 11149
+          "ticks": 11293
         },
         {
           "bonus_ap": 0,
@@ -7908,7 +7868,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_SP_R013",
-          "ticks": 4177
+          "ticks": 4465
         }
       ],
       "scene": "EVT_BATTLE_SP_R013"
@@ -7927,7 +7887,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_SP_R014",
-          "ticks": 11149
+          "ticks": 11293
         },
         {
           "bonus_ap": 0,
@@ -7941,7 +7901,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_SP_R014",
-          "ticks": 4177
+          "ticks": 4465
         }
       ],
       "scene": "EVT_BATTLE_SP_R014"
@@ -7960,7 +7920,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_SP_R015",
-          "ticks": 2737
+          "ticks": 3169
         }
       ],
       "scene": "EVT_BATTLE_SP_R015"
@@ -7979,7 +7939,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_SP_R016",
-          "ticks": 2737
+          "ticks": 3169
         }
       ],
       "scene": "EVT_BATTLE_SP_R016"
@@ -7998,7 +7958,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_SP_R017",
-          "ticks": 2737
+          "ticks": 3169
         }
       ],
       "scene": "EVT_BATTLE_SP_R017"
@@ -8017,7 +7977,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_SP_R018",
-          "ticks": 3025
+          "ticks": 3457
         },
         {
           "bonus_ap": 0,
@@ -8031,7 +7991,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_SP_R018",
-          "ticks": 3025
+          "ticks": 3457
         }
       ],
       "scene": "EVT_BATTLE_SP_R018"
@@ -8050,7 +8010,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TA_R000",
-          "ticks": 2818
+          "ticks": 3586
         }
       ],
       "scene": "EVT_BATTLE_TA_R000"
@@ -8069,7 +8029,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TA_R001",
-          "ticks": 2818
+          "ticks": 3586
         }
       ],
       "scene": "EVT_BATTLE_TA_R001"
@@ -8088,7 +8048,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TA_R002",
-          "ticks": 2818
+          "ticks": 3586
         }
       ],
       "scene": "EVT_BATTLE_TA_R002"
@@ -8107,7 +8067,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TA_R003",
-          "ticks": 5336
+          "ticks": 4344
         }
       ],
       "scene": "EVT_BATTLE_TA_R003"
@@ -8126,7 +8086,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TA_R004",
-          "ticks": 5336
+          "ticks": 4344
         }
       ],
       "scene": "EVT_BATTLE_TA_R004"
@@ -8145,7 +8105,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TA_R005",
-          "ticks": 5336
+          "ticks": 4344
         }
       ],
       "scene": "EVT_BATTLE_TA_R005"
@@ -8164,7 +8124,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TA_R006",
-          "ticks": 2690
+          "ticks": 2946
         },
         {
           "bonus_ap": 0,
@@ -8178,7 +8138,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TA_R006",
-          "ticks": 2690
+          "ticks": 2946
         }
       ],
       "scene": "EVT_BATTLE_TA_R006"
@@ -8197,7 +8157,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TA_R007",
-          "ticks": 2690
+          "ticks": 2946
         },
         {
           "bonus_ap": 0,
@@ -8211,7 +8171,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TA_R007",
-          "ticks": 2690
+          "ticks": 2946
         }
       ],
       "scene": "EVT_BATTLE_TA_R007"
@@ -8230,7 +8190,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TA_R008",
-          "ticks": 2690
+          "ticks": 2946
         },
         {
           "bonus_ap": 0,
@@ -8244,7 +8204,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TA_R008",
-          "ticks": 2690
+          "ticks": 2946
         }
       ],
       "scene": "EVT_BATTLE_TA_R008"
@@ -8263,7 +8223,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TH_E001",
-          "ticks": 8905
+          "ticks": 9577
         }
       ],
       "scene": "EVT_BATTLE_TH_E001"
@@ -8282,7 +8242,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TH_E002",
-          "ticks": 4890
+          "ticks": 5050
         }
       ],
       "scene": "EVT_BATTLE_TH_E002"
@@ -8301,7 +8261,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TH_E003",
-          "ticks": 13614
+          "ticks": 13446
         }
       ],
       "scene": "EVT_BATTLE_TH_E003"
@@ -8320,7 +8280,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TH_E004",
-          "ticks": 3367
+          "ticks": 3380
         }
       ],
       "scene": "EVT_BATTLE_TH_E004"
@@ -8358,7 +8318,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TR_E074A",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_TR_E074A"
@@ -8377,7 +8337,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TR_E074B",
-          "ticks": 4530
+          "ticks": 4386
         }
       ],
       "scene": "EVT_BATTLE_TR_E074B"
@@ -8396,7 +8356,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TR_E074C",
-          "ticks": 7351
+          "ticks": 6399
         }
       ],
       "scene": "EVT_BATTLE_TR_E074C"
@@ -8415,7 +8375,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_TR_E074D",
-          "ticks": 1232
+          "ticks": 1096
         }
       ],
       "scene": "EVT_BATTLE_TR_E074D"
@@ -8434,7 +8394,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_UF_R000",
-          "ticks": 2483
+          "ticks": 2489
         },
         {
           "bonus_ap": 2,
@@ -8453,7 +8413,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_UF_R000",
-          "ticks": 4708
+          "ticks": 4913
         },
         {
           "bonus_ap": 1,
@@ -8467,7 +8427,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_UF_R000",
-          "ticks": 870
+          "ticks": 1067
         },
         {
           "bonus_ap": 2,
@@ -8481,7 +8441,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_UF_R000",
-          "ticks": 1678
+          "ticks": 1682
         }
       ],
       "scene": "EVT_BATTLE_UF_R000"
@@ -8500,7 +8460,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_UF_R001",
-          "ticks": 2483
+          "ticks": 2489
         },
         {
           "bonus_ap": 2,
@@ -8519,7 +8479,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_UF_R001",
-          "ticks": 4708
+          "ticks": 4913
         },
         {
           "bonus_ap": 1,
@@ -8533,7 +8493,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_UF_R001",
-          "ticks": 870
+          "ticks": 1067
         },
         {
           "bonus_ap": 2,
@@ -8547,7 +8507,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_UF_R001",
-          "ticks": 1678
+          "ticks": 1682
         }
       ],
       "scene": "EVT_BATTLE_UF_R001"
@@ -8566,7 +8526,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_UF_R002",
-          "ticks": 867
+          "ticks": 873
         },
         {
           "bonus_ap": 1,
@@ -8580,7 +8540,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_UF_R002",
-          "ticks": 1479
+          "ticks": 1672
         },
         {
           "bonus_ap": 2,
@@ -8594,7 +8554,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_UF_R002",
-          "ticks": 2284
+          "ticks": 2281
         }
       ],
       "scene": "EVT_BATTLE_UF_R002"
@@ -8613,7 +8573,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_UF_R003",
-          "ticks": 867
+          "ticks": 873
         },
         {
           "bonus_ap": 1,
@@ -8627,7 +8587,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_UF_R003",
-          "ticks": 1479
+          "ticks": 1672
         },
         {
           "bonus_ap": 2,
@@ -8641,7 +8601,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_UF_R003",
-          "ticks": 2284
+          "ticks": 2281
         }
       ],
       "scene": "EVT_BATTLE_UF_R003"
@@ -8660,7 +8620,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_E052",
-          "ticks": 957
+          "ticks": 1093
         }
       ],
       "scene": "EVT_BATTLE_UV_E052"
@@ -8679,7 +8639,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_R000",
-          "ticks": 3025
+          "ticks": 3457
         },
         {
           "bonus_ap": 0,
@@ -8693,7 +8653,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_R000",
-          "ticks": 3025
+          "ticks": 3457
         }
       ],
       "scene": "EVT_BATTLE_UV_R000"
@@ -8712,7 +8672,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_R001",
-          "ticks": 3025
+          "ticks": 3457
         },
         {
           "bonus_ap": 0,
@@ -8726,7 +8686,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_R001",
-          "ticks": 3025
+          "ticks": 3457
         }
       ],
       "scene": "EVT_BATTLE_UV_R001"
@@ -8745,7 +8705,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_R003",
-          "ticks": 3025
+          "ticks": 3457
         },
         {
           "bonus_ap": 0,
@@ -8759,7 +8719,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_R003",
-          "ticks": 3025
+          "ticks": 3457
         }
       ],
       "scene": "EVT_BATTLE_UV_R003"
@@ -8778,7 +8738,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_R007",
-          "ticks": 1587
+          "ticks": 1584
         }
       ],
       "scene": "EVT_BATTLE_UV_R007"
@@ -8797,7 +8757,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_R008",
-          "ticks": 1587
+          "ticks": 1584
         }
       ],
       "scene": "EVT_BATTLE_UV_R008"
@@ -8816,7 +8776,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_R009",
-          "ticks": 1587
+          "ticks": 1584
         }
       ],
       "scene": "EVT_BATTLE_UV_R009"
@@ -8835,7 +8795,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_R010",
-          "ticks": 1587
+          "ticks": 1584
         }
       ],
       "scene": "EVT_BATTLE_UV_R010"
@@ -8854,7 +8814,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_R011",
-          "ticks": 1587
+          "ticks": 1584
         }
       ],
       "scene": "EVT_BATTLE_UV_R011"
@@ -8873,7 +8833,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_R012",
-          "ticks": 1587
+          "ticks": 1584
         }
       ],
       "scene": "EVT_BATTLE_UV_R012"
@@ -8892,7 +8852,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_R013",
-          "ticks": 1587
+          "ticks": 1584
         }
       ],
       "scene": "EVT_BATTLE_UV_R013"
@@ -8911,7 +8871,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_UV_R015",
-          "ticks": 1587
+          "ticks": 1584
         }
       ],
       "scene": "EVT_BATTLE_UV_R015"
@@ -8949,7 +8909,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0000",
-          "ticks": 1672
+          "ticks": 1482
         }
       ],
       "scene": "EVT_BATTLE_WM_0000"
@@ -8987,7 +8947,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0001",
-          "ticks": 1672
+          "ticks": 1482
         }
       ],
       "scene": "EVT_BATTLE_WM_0001"
@@ -9044,7 +9004,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0004",
-          "ticks": 662
+          "ticks": 665
         },
         {
           "bonus_ap": 1,
@@ -9058,7 +9018,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0004",
-          "ticks": 1069
+          "ticks": 1075
         },
         {
           "bonus_ap": 2,
@@ -9072,7 +9032,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0004",
-          "ticks": 1476
+          "ticks": 1672
         },
         {
           "bonus_ap": 2,
@@ -9091,7 +9051,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0004",
-          "ticks": 1271
+          "ticks": 1277
         },
         {
           "bonus_ap": 2,
@@ -9119,7 +9079,7 @@
           "pattern": 5,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0004",
-          "ticks": 662
+          "ticks": 469
         },
         {
           "bonus_ap": 1,
@@ -9152,7 +9112,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0005",
-          "ticks": 662
+          "ticks": 665
         },
         {
           "bonus_ap": 1,
@@ -9166,7 +9126,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0005",
-          "ticks": 1069
+          "ticks": 1075
         },
         {
           "bonus_ap": 2,
@@ -9180,7 +9140,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0005",
-          "ticks": 1476
+          "ticks": 1672
         },
         {
           "bonus_ap": 2,
@@ -9199,7 +9159,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0005",
-          "ticks": 1271
+          "ticks": 1277
         },
         {
           "bonus_ap": 2,
@@ -9227,7 +9187,7 @@
           "pattern": 5,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0005",
-          "ticks": 662
+          "ticks": 469
         }
       ],
       "scene": "EVT_BATTLE_WM_0005"
@@ -9246,7 +9206,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0006",
-          "ticks": 662
+          "ticks": 665
         },
         {
           "bonus_ap": 1,
@@ -9260,7 +9220,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0006",
-          "ticks": 1069
+          "ticks": 1075
         },
         {
           "bonus_ap": 2,
@@ -9274,7 +9234,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0006",
-          "ticks": 1476
+          "ticks": 1672
         },
         {
           "bonus_ap": 2,
@@ -9293,7 +9253,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0006",
-          "ticks": 1271
+          "ticks": 1277
         },
         {
           "bonus_ap": 2,
@@ -9321,7 +9281,7 @@
           "pattern": 5,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0006",
-          "ticks": 662
+          "ticks": 469
         }
       ],
       "scene": "EVT_BATTLE_WM_0006"
@@ -9340,7 +9300,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0007",
-          "ticks": 662
+          "ticks": 665
         },
         {
           "bonus_ap": 1,
@@ -9354,7 +9314,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0007",
-          "ticks": 1069
+          "ticks": 1075
         },
         {
           "bonus_ap": 2,
@@ -9368,7 +9328,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0007",
-          "ticks": 1476
+          "ticks": 1672
         },
         {
           "bonus_ap": 2,
@@ -9387,7 +9347,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0007",
-          "ticks": 1271
+          "ticks": 1277
         },
         {
           "bonus_ap": 2,
@@ -9415,7 +9375,7 @@
           "pattern": 5,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0007",
-          "ticks": 662
+          "ticks": 469
         }
       ],
       "scene": "EVT_BATTLE_WM_0007"
@@ -9434,7 +9394,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0008",
-          "ticks": 662
+          "ticks": 665
         },
         {
           "bonus_ap": 1,
@@ -9448,7 +9408,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0008",
-          "ticks": 1069
+          "ticks": 1075
         },
         {
           "bonus_ap": 2,
@@ -9462,7 +9422,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0008",
-          "ticks": 1476
+          "ticks": 1672
         },
         {
           "bonus_ap": 2,
@@ -9481,7 +9441,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0008",
-          "ticks": 1271
+          "ticks": 1277
         },
         {
           "bonus_ap": 2,
@@ -9509,7 +9469,7 @@
           "pattern": 5,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0008",
-          "ticks": 662
+          "ticks": 469
         }
       ],
       "scene": "EVT_BATTLE_WM_0008"
@@ -9528,7 +9488,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0009",
-          "ticks": 662
+          "ticks": 665
         },
         {
           "bonus_ap": 1,
@@ -9542,7 +9502,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0009",
-          "ticks": 1069
+          "ticks": 1075
         },
         {
           "bonus_ap": 2,
@@ -9556,7 +9516,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0009",
-          "ticks": 1476
+          "ticks": 1672
         },
         {
           "bonus_ap": 2,
@@ -9575,7 +9535,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0009",
-          "ticks": 1271
+          "ticks": 1277
         },
         {
           "bonus_ap": 2,
@@ -9603,7 +9563,7 @@
           "pattern": 5,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0009",
-          "ticks": 662
+          "ticks": 469
         }
       ],
       "scene": "EVT_BATTLE_WM_0009"
@@ -9641,7 +9601,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0010",
-          "ticks": 1672
+          "ticks": 1482
         }
       ],
       "scene": "EVT_BATTLE_WM_0010"
@@ -9712,7 +9672,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0104",
-          "ticks": 1672
+          "ticks": 1482
         },
         {
           "bonus_ap": 2,
@@ -9731,7 +9691,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0104",
-          "ticks": 1883
+          "ticks": 1874
         },
         {
           "bonus_ap": 1,
@@ -9745,7 +9705,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0104",
-          "ticks": 867
+          "ticks": 873
         },
         {
           "bonus_ap": 1,
@@ -9792,7 +9752,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0105",
-          "ticks": 1672
+          "ticks": 1482
         },
         {
           "bonus_ap": 2,
@@ -9811,7 +9771,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0105",
-          "ticks": 1883
+          "ticks": 1874
         },
         {
           "bonus_ap": 1,
@@ -9825,7 +9785,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0105",
-          "ticks": 867
+          "ticks": 873
         },
         {
           "bonus_ap": 1,
@@ -9872,7 +9832,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0106",
-          "ticks": 1672
+          "ticks": 1482
         },
         {
           "bonus_ap": 2,
@@ -9891,7 +9851,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0106",
-          "ticks": 1883
+          "ticks": 1874
         },
         {
           "bonus_ap": 1,
@@ -9905,7 +9865,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0106",
-          "ticks": 867
+          "ticks": 873
         },
         {
           "bonus_ap": 1,
@@ -9952,7 +9912,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0200",
-          "ticks": 2094
+          "ticks": 2281
         },
         {
           "bonus_ap": 2,
@@ -9990,7 +9950,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0201",
-          "ticks": 2094
+          "ticks": 2281
         },
         {
           "bonus_ap": 2,
@@ -10028,7 +9988,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0202",
-          "ticks": 2094
+          "ticks": 2281
         },
         {
           "bonus_ap": 2,
@@ -10066,7 +10026,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0203",
-          "ticks": 2094
+          "ticks": 2281
         },
         {
           "bonus_ap": 2,
@@ -10104,7 +10064,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0204",
-          "ticks": 2094
+          "ticks": 2281
         },
         {
           "bonus_ap": 2,
@@ -10142,7 +10102,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0205",
-          "ticks": 2094
+          "ticks": 2281
         },
         {
           "bonus_ap": 2,
@@ -10180,7 +10140,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0206",
-          "ticks": 2094
+          "ticks": 2281
         },
         {
           "bonus_ap": 2,
@@ -10218,7 +10178,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0207",
-          "ticks": 2094
+          "ticks": 2281
         },
         {
           "bonus_ap": 2,
@@ -10662,7 +10622,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0220",
-          "ticks": 1678
+          "ticks": 1482
         },
         {
           "bonus_ap": 2,
@@ -10676,7 +10636,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0220",
-          "ticks": 2290
+          "ticks": 2284
         },
         {
           "bonus_ap": 2,
@@ -10695,7 +10655,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0220",
-          "ticks": 3089
+          "ticks": 2893
         },
         {
           "bonus_ap": 1,
@@ -10728,7 +10688,7 @@
           "pattern": 4,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0220",
-          "ticks": 4500
+          "ticks": 4509
         }
       ],
       "scene": "EVT_BATTLE_WM_0220"
@@ -10785,7 +10745,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0222",
-          "ticks": 1678
+          "ticks": 1482
         },
         {
           "bonus_ap": 2,
@@ -10799,7 +10759,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0222",
-          "ticks": 2290
+          "ticks": 2284
         },
         {
           "bonus_ap": 2,
@@ -10818,7 +10778,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0222",
-          "ticks": 3089
+          "ticks": 2893
         },
         {
           "bonus_ap": 1,
@@ -10851,7 +10811,7 @@
           "pattern": 4,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0222",
-          "ticks": 4500
+          "ticks": 4509
         }
       ],
       "scene": "EVT_BATTLE_WM_0222"
@@ -11087,7 +11047,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0229",
-          "ticks": 1678
+          "ticks": 1482
         },
         {
           "bonus_ap": 2,
@@ -11101,7 +11061,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0229",
-          "ticks": 2290
+          "ticks": 2284
         },
         {
           "bonus_ap": 2,
@@ -11120,7 +11080,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0229",
-          "ticks": 3089
+          "ticks": 2893
         },
         {
           "bonus_ap": 2,
@@ -11153,7 +11113,7 @@
           "pattern": 4,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0229",
-          "ticks": 4500
+          "ticks": 4509
         }
       ],
       "scene": "EVT_BATTLE_WM_0229"
@@ -11238,7 +11198,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0232",
-          "ticks": 1880
+          "ticks": 1883
         },
         {
           "bonus_ap": 2,
@@ -11257,7 +11217,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0232",
-          "ticks": 3499
+          "ticks": 3692
         }
       ],
       "scene": "EVT_BATTLE_WM_0232"
@@ -11276,7 +11236,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0233",
-          "ticks": 1880
+          "ticks": 1883
         },
         {
           "bonus_ap": 2,
@@ -11295,7 +11255,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0233",
-          "ticks": 3499
+          "ticks": 3692
         }
       ],
       "scene": "EVT_BATTLE_WM_0233"
@@ -11333,7 +11293,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0300",
-          "ticks": 3499
+          "ticks": 3505
         },
         {
           "bonus_ap": 2,
@@ -11347,7 +11307,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0300",
-          "ticks": 6737
+          "ticks": 7126
         },
         {
           "bonus_ap": 1,
@@ -11380,7 +11340,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0300",
-          "ticks": 2899
+          "ticks": 3086
         }
       ],
       "scene": "EVT_BATTLE_WM_0300"
@@ -11399,7 +11359,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0301",
-          "ticks": 3499
+          "ticks": 3505
         },
         {
           "bonus_ap": 2,
@@ -11413,7 +11373,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0301",
-          "ticks": 6737
+          "ticks": 7126
         },
         {
           "bonus_ap": 1,
@@ -11446,7 +11406,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0301",
-          "ticks": 2899
+          "ticks": 3086
         }
       ],
       "scene": "EVT_BATTLE_WM_0301"
@@ -11465,7 +11425,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0302",
-          "ticks": 3499
+          "ticks": 3505
         },
         {
           "bonus_ap": 2,
@@ -11479,7 +11439,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0302",
-          "ticks": 6737
+          "ticks": 7126
         },
         {
           "bonus_ap": 1,
@@ -11512,7 +11472,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0302",
-          "ticks": 2899
+          "ticks": 3086
         }
       ],
       "scene": "EVT_BATTLE_WM_0302"
@@ -11531,7 +11491,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0303",
-          "ticks": 3499
+          "ticks": 3505
         },
         {
           "bonus_ap": 2,
@@ -11545,7 +11505,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0303",
-          "ticks": 6737
+          "ticks": 7126
         },
         {
           "bonus_ap": 1,
@@ -11578,7 +11538,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0303",
-          "ticks": 2899
+          "ticks": 3086
         }
       ],
       "scene": "EVT_BATTLE_WM_0303"
@@ -11597,7 +11557,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0305",
-          "ticks": 3499
+          "ticks": 3505
         },
         {
           "bonus_ap": 2,
@@ -11611,7 +11571,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0305",
-          "ticks": 6737
+          "ticks": 7126
         },
         {
           "bonus_ap": 1,
@@ -11625,7 +11585,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0305",
-          "ticks": 2483
+          "ticks": 2495
         },
         {
           "bonus_ap": 2,
@@ -11644,7 +11604,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0305",
-          "ticks": 4711
+          "ticks": 4919
         }
       ],
       "scene": "EVT_BATTLE_WM_0305"
@@ -11663,7 +11623,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0306",
-          "ticks": 3499
+          "ticks": 3505
         },
         {
           "bonus_ap": 2,
@@ -11677,7 +11637,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0306",
-          "ticks": 6737
+          "ticks": 7126
         },
         {
           "bonus_ap": 1,
@@ -11691,7 +11651,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0306",
-          "ticks": 2483
+          "ticks": 2495
         },
         {
           "bonus_ap": 2,
@@ -11710,7 +11670,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0306",
-          "ticks": 4711
+          "ticks": 4919
         }
       ],
       "scene": "EVT_BATTLE_WM_0306"
@@ -11729,7 +11689,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0307",
-          "ticks": 3499
+          "ticks": 3505
         },
         {
           "bonus_ap": 2,
@@ -11743,7 +11703,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0307",
-          "ticks": 6737
+          "ticks": 7126
         },
         {
           "bonus_ap": 1,
@@ -11757,7 +11717,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0307",
-          "ticks": 2483
+          "ticks": 2495
         },
         {
           "bonus_ap": 2,
@@ -11776,7 +11736,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0307",
-          "ticks": 4711
+          "ticks": 4919
         },
         {
           "bonus_ap": 2,
@@ -11795,7 +11755,7 @@
           "pattern": 4,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0307",
-          "ticks": 5727
+          "ticks": 6119
         }
       ],
       "scene": "EVT_BATTLE_WM_0307"
@@ -11814,7 +11774,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0308",
-          "ticks": 3499
+          "ticks": 3505
         },
         {
           "bonus_ap": 2,
@@ -11828,7 +11788,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0308",
-          "ticks": 6737
+          "ticks": 7126
         },
         {
           "bonus_ap": 1,
@@ -11842,7 +11802,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0308",
-          "ticks": 2483
+          "ticks": 2495
         },
         {
           "bonus_ap": 2,
@@ -11861,7 +11821,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0308",
-          "ticks": 4711
+          "ticks": 4919
         }
       ],
       "scene": "EVT_BATTLE_WM_0308"
@@ -11918,7 +11878,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0315",
-          "ticks": 2888
+          "ticks": 2891
         },
         {
           "bonus_ap": 2,
@@ -11932,7 +11892,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0315",
-          "ticks": 5511
+          "ticks": 5719
         }
       ],
       "scene": "EVT_BATTLE_WM_0315"
@@ -11951,7 +11911,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0316",
-          "ticks": 2888
+          "ticks": 2891
         },
         {
           "bonus_ap": 2,
@@ -11965,7 +11925,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0316",
-          "ticks": 5511
+          "ticks": 5719
         }
       ],
       "scene": "EVT_BATTLE_WM_0316"
@@ -11984,7 +11944,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0400",
-          "ticks": 867
+          "ticks": 873
         },
         {
           "bonus_ap": 2,
@@ -11998,7 +11958,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0400",
-          "ticks": 1479
+          "ticks": 1675
         },
         {
           "bonus_ap": 1,
@@ -12012,7 +11972,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0400",
-          "ticks": 1268
+          "ticks": 1274
         },
         {
           "bonus_ap": 2,
@@ -12026,7 +11986,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0400",
-          "ticks": 2287
+          "ticks": 2480
         }
       ],
       "scene": "EVT_BATTLE_WM_0400"
@@ -12045,7 +12005,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0401",
-          "ticks": 867
+          "ticks": 873
         },
         {
           "bonus_ap": 2,
@@ -12059,7 +12019,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0401",
-          "ticks": 1479
+          "ticks": 1675
         },
         {
           "bonus_ap": 1,
@@ -12073,7 +12033,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0401",
-          "ticks": 1268
+          "ticks": 1274
         },
         {
           "bonus_ap": 2,
@@ -12087,7 +12047,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0401",
-          "ticks": 2287
+          "ticks": 2480
         }
       ],
       "scene": "EVT_BATTLE_WM_0401"
@@ -12106,7 +12066,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0402",
-          "ticks": 867
+          "ticks": 873
         },
         {
           "bonus_ap": 2,
@@ -12120,7 +12080,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0402",
-          "ticks": 1479
+          "ticks": 1675
         },
         {
           "bonus_ap": 1,
@@ -12134,7 +12094,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0402",
-          "ticks": 1268
+          "ticks": 1274
         },
         {
           "bonus_ap": 2,
@@ -12148,7 +12108,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0402",
-          "ticks": 2287
+          "ticks": 2480
         },
         {
           "bonus_ap": 2,
@@ -12186,7 +12146,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0403",
-          "ticks": 867
+          "ticks": 873
         },
         {
           "bonus_ap": 2,
@@ -12200,7 +12160,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0403",
-          "ticks": 1479
+          "ticks": 1675
         },
         {
           "bonus_ap": 1,
@@ -12214,7 +12174,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0403",
-          "ticks": 1268
+          "ticks": 1274
         },
         {
           "bonus_ap": 2,
@@ -12228,7 +12188,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0403",
-          "ticks": 2287
+          "ticks": 2480
         }
       ],
       "scene": "EVT_BATTLE_WM_0403"
@@ -12247,7 +12207,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0404",
-          "ticks": 867
+          "ticks": 873
         },
         {
           "bonus_ap": 2,
@@ -12261,7 +12221,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0404",
-          "ticks": 1479
+          "ticks": 1675
         },
         {
           "bonus_ap": 1,
@@ -12275,7 +12235,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0404",
-          "ticks": 1268
+          "ticks": 1274
         },
         {
           "bonus_ap": 2,
@@ -12289,7 +12249,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0404",
-          "ticks": 2287
+          "ticks": 2480
         }
       ],
       "scene": "EVT_BATTLE_WM_0404"
@@ -12408,7 +12368,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0503",
-          "ticks": 3103
+          "ticks": 3288
         },
         {
           "bonus_ap": 2,
@@ -12427,7 +12387,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0503",
-          "ticks": 6126
+          "ticks": 6328
         },
         {
           "bonus_ap": 1,
@@ -12460,7 +12420,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0503",
-          "ticks": 2902
+          "ticks": 3086
         }
       ],
       "scene": "EVT_BATTLE_WM_0503"
@@ -12484,7 +12444,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0504",
-          "ticks": 3103
+          "ticks": 3288
         },
         {
           "bonus_ap": 2,
@@ -12503,7 +12463,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0504",
-          "ticks": 6126
+          "ticks": 6328
         },
         {
           "bonus_ap": 1,
@@ -12536,7 +12496,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0504",
-          "ticks": 2902
+          "ticks": 3086
         }
       ],
       "scene": "EVT_BATTLE_WM_0504"
@@ -12560,7 +12520,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0508",
-          "ticks": 3103
+          "ticks": 3288
         },
         {
           "bonus_ap": 2,
@@ -12579,7 +12539,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0508",
-          "ticks": 6126
+          "ticks": 6328
         },
         {
           "bonus_ap": 1,
@@ -12593,7 +12553,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0508",
-          "ticks": 2483
+          "ticks": 2498
         },
         {
           "bonus_ap": 2,
@@ -12612,7 +12572,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0508",
-          "ticks": 4712
+          "ticks": 4922
         }
       ],
       "scene": "EVT_BATTLE_WM_0508"
@@ -12636,7 +12596,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0509",
-          "ticks": 3103
+          "ticks": 3288
         },
         {
           "bonus_ap": 2,
@@ -12655,7 +12615,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0509",
-          "ticks": 6126
+          "ticks": 6328
         },
         {
           "bonus_ap": 1,
@@ -12669,7 +12629,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0509",
-          "ticks": 2483
+          "ticks": 2498
         },
         {
           "bonus_ap": 2,
@@ -12688,7 +12648,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0509",
-          "ticks": 4712
+          "ticks": 4922
         }
       ],
       "scene": "EVT_BATTLE_WM_0509"
@@ -12745,7 +12705,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0515",
-          "ticks": 2683
+          "ticks": 2692
         },
         {
           "bonus_ap": 2,
@@ -12778,7 +12738,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0516",
-          "ticks": 2683
+          "ticks": 2692
         },
         {
           "bonus_ap": 2,
@@ -12877,7 +12837,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0604",
-          "ticks": 867
+          "ticks": 873
         },
         {
           "bonus_ap": 2,
@@ -12891,7 +12851,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0604",
-          "ticks": 1479
+          "ticks": 1675
         },
         {
           "bonus_ap": 2,
@@ -12910,7 +12870,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0604",
-          "ticks": 2281
+          "ticks": 2284
         },
         {
           "bonus_ap": 2,
@@ -12924,7 +12884,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0604",
-          "ticks": 1479
+          "ticks": 1672
         },
         {
           "bonus_ap": 2,
@@ -12943,7 +12903,7 @@
           "pattern": 4,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0604",
-          "ticks": 2890
+          "ticks": 3086
         }
       ],
       "scene": "EVT_BATTLE_WM_0604"
@@ -12962,7 +12922,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0605",
-          "ticks": 867
+          "ticks": 873
         },
         {
           "bonus_ap": 2,
@@ -12976,7 +12936,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0605",
-          "ticks": 1479
+          "ticks": 1675
         },
         {
           "bonus_ap": 2,
@@ -12995,7 +12955,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0605",
-          "ticks": 2281
+          "ticks": 2284
         },
         {
           "bonus_ap": 2,
@@ -13009,7 +12969,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0605",
-          "ticks": 1479
+          "ticks": 1672
         },
         {
           "bonus_ap": 2,
@@ -13028,7 +12988,7 @@
           "pattern": 4,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0605",
-          "ticks": 2890
+          "ticks": 3086
         }
       ],
       "scene": "EVT_BATTLE_WM_0605"
@@ -13047,7 +13007,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0606",
-          "ticks": 867
+          "ticks": 873
         },
         {
           "bonus_ap": 2,
@@ -13061,7 +13021,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0606",
-          "ticks": 1479
+          "ticks": 1675
         },
         {
           "bonus_ap": 2,
@@ -13080,7 +13040,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0606",
-          "ticks": 2281
+          "ticks": 2284
         },
         {
           "bonus_ap": 2,
@@ -13094,7 +13054,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0606",
-          "ticks": 1479
+          "ticks": 1672
         },
         {
           "bonus_ap": 2,
@@ -13113,7 +13073,7 @@
           "pattern": 4,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0606",
-          "ticks": 2890
+          "ticks": 3086
         }
       ],
       "scene": "EVT_BATTLE_WM_0606"
@@ -13132,7 +13092,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_0700",
-          "ticks": 5285
+          "ticks": 5445
         }
       ],
       "scene": "EVT_BATTLE_WM_0700"
@@ -13151,7 +13111,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_0701",
-          "ticks": 5285
+          "ticks": 5445
         }
       ],
       "scene": "EVT_BATTLE_WM_0701"
@@ -13170,7 +13130,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_0704",
-          "ticks": 5285
+          "ticks": 5445
         }
       ],
       "scene": "EVT_BATTLE_WM_0704"
@@ -13189,7 +13149,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_0705",
-          "ticks": 5285
+          "ticks": 5445
         }
       ],
       "scene": "EVT_BATTLE_WM_0705"
@@ -13208,7 +13168,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_0706",
-          "ticks": 5285
+          "ticks": 5445
         }
       ],
       "scene": "EVT_BATTLE_WM_0706"
@@ -13227,7 +13187,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_0709",
-          "ticks": 5285
+          "ticks": 5445
         }
       ],
       "scene": "EVT_BATTLE_WM_0709"
@@ -13246,7 +13206,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0711",
-          "ticks": 2094
+          "ticks": 2281
         },
         {
           "bonus_ap": 2,
@@ -13284,7 +13244,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0716",
-          "ticks": 2094
+          "ticks": 2281
         },
         {
           "bonus_ap": 2,
@@ -13525,7 +13485,7 @@
           "pattern": 0,
           "players_alive": 2,
           "scene": "EVT_BATTLE_WM_0800",
-          "ticks": 5715
+          "ticks": 5926
         },
         {
           "bonus_ap": 2,
@@ -13544,7 +13504,7 @@
           "pattern": 1,
           "players_alive": 2,
           "scene": "EVT_BATTLE_WM_0800",
-          "ticks": 16017
+          "ticks": 16421
         }
       ],
       "scene": "EVT_BATTLE_WM_0800"
@@ -13568,7 +13528,7 @@
           "pattern": 0,
           "players_alive": 2,
           "scene": "EVT_BATTLE_WM_0801",
-          "ticks": 5715
+          "ticks": 5926
         },
         {
           "bonus_ap": 2,
@@ -13587,7 +13547,7 @@
           "pattern": 1,
           "players_alive": 2,
           "scene": "EVT_BATTLE_WM_0801",
-          "ticks": 16017
+          "ticks": 16421
         }
       ],
       "scene": "EVT_BATTLE_WM_0801"
@@ -13611,7 +13571,7 @@
           "pattern": 0,
           "players_alive": 2,
           "scene": "EVT_BATTLE_WM_0803",
-          "ticks": 5715
+          "ticks": 5926
         },
         {
           "bonus_ap": 2,
@@ -13630,7 +13590,7 @@
           "pattern": 1,
           "players_alive": 2,
           "scene": "EVT_BATTLE_WM_0803",
-          "ticks": 16017
+          "ticks": 16421
         }
       ],
       "scene": "EVT_BATTLE_WM_0803"
@@ -13649,7 +13609,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_0900",
-          "ticks": 4033
+          "ticks": 4321
         }
       ],
       "scene": "EVT_BATTLE_WM_0900"
@@ -13668,7 +13628,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_0901",
-          "ticks": 4033
+          "ticks": 4321
         }
       ],
       "scene": "EVT_BATTLE_WM_0901"
@@ -13687,7 +13647,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0904",
-          "ticks": 1877
+          "ticks": 1883
         },
         {
           "bonus_ap": 2,
@@ -13706,7 +13666,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0904",
-          "ticks": 3496
+          "ticks": 3695
         },
         {
           "bonus_ap": 2,
@@ -13725,7 +13685,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0904",
-          "ticks": 2682
+          "ticks": 2688
         },
         {
           "bonus_ap": 2,
@@ -13739,7 +13699,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0904",
-          "ticks": 873
+          "ticks": 1067
         },
         {
           "bonus_ap": 2,
@@ -13753,7 +13713,7 @@
           "pattern": 4,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0904",
-          "ticks": 1678
+          "ticks": 1682
         }
       ],
       "scene": "EVT_BATTLE_WM_0904"
@@ -13772,7 +13732,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0905",
-          "ticks": 1877
+          "ticks": 1883
         },
         {
           "bonus_ap": 2,
@@ -13791,7 +13751,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0905",
-          "ticks": 3496
+          "ticks": 3695
         },
         {
           "bonus_ap": 2,
@@ -13810,7 +13770,7 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0905",
-          "ticks": 2682
+          "ticks": 2688
         },
         {
           "bonus_ap": 2,
@@ -13824,7 +13784,7 @@
           "pattern": 3,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0905",
-          "ticks": 873
+          "ticks": 1067
         },
         {
           "bonus_ap": 2,
@@ -13838,7 +13798,7 @@
           "pattern": 4,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0905",
-          "ticks": 1678
+          "ticks": 1682
         }
       ],
       "scene": "EVT_BATTLE_WM_0905"
@@ -13857,7 +13817,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0910",
-          "ticks": 1877
+          "ticks": 1883
         },
         {
           "bonus_ap": 2,
@@ -13876,7 +13836,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0910",
-          "ticks": 3496
+          "ticks": 3695
         },
         {
           "bonus_ap": 2,
@@ -13895,40 +13855,35 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0910",
-          "ticks": 6927
+          "ticks": 7129
         },
         {
-          "bonus_ap": 1,
-          "bonus_exp": 912,
-          "bonus_gil": 388,
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 3,
-          "players_alive": 2,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_WM_0910",
-          "ticks": 5326
+          "ticks": 6399
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 1824,
-          "bonus_gil": 776,
-          "bonus_items": [
-            [
-              248,
-              1
-            ]
-          ],
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
+          "bonus_items": [],
           "card": null,
-          "enemy_deaths": 2,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 4,
-          "players_alive": 2,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_WM_0910",
-          "ticks": 15416
+          "ticks": 6399
         }
       ],
       "scene": "EVT_BATTLE_WM_0910"
@@ -13947,7 +13902,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0911",
-          "ticks": 1877
+          "ticks": 1883
         },
         {
           "bonus_ap": 2,
@@ -13966,7 +13921,7 @@
           "pattern": 1,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0911",
-          "ticks": 3496
+          "ticks": 3695
         },
         {
           "bonus_ap": 2,
@@ -13985,40 +13940,35 @@
           "pattern": 2,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_0911",
-          "ticks": 6927
+          "ticks": 7129
         },
         {
-          "bonus_ap": 1,
-          "bonus_exp": 912,
-          "bonus_gil": 388,
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 3,
-          "players_alive": 2,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_WM_0911",
-          "ticks": 5326
+          "ticks": 6399
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 1824,
-          "bonus_gil": 776,
-          "bonus_items": [
-            [
-              248,
-              1
-            ]
-          ],
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
+          "bonus_items": [],
           "card": null,
-          "enemy_deaths": 2,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 4,
-          "players_alive": 2,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_WM_0911",
-          "ticks": 15416
+          "ticks": 6399
         }
       ],
       "scene": "EVT_BATTLE_WM_0911"
@@ -14037,7 +13987,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_0915",
-          "ticks": 1225
+          "ticks": 1153
         }
       ],
       "scene": "EVT_BATTLE_WM_0915"
@@ -14056,7 +14006,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_0916",
-          "ticks": 1225
+          "ticks": 1153
         }
       ],
       "scene": "EVT_BATTLE_WM_0916"
@@ -14075,7 +14025,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1000",
-          "ticks": 662
+          "ticks": 618
         }
       ],
       "scene": "EVT_BATTLE_WM_1000"
@@ -14094,7 +14044,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1001",
-          "ticks": 662
+          "ticks": 618
         }
       ],
       "scene": "EVT_BATTLE_WM_1001"
@@ -14113,7 +14063,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1002",
-          "ticks": 662
+          "ticks": 618
         }
       ],
       "scene": "EVT_BATTLE_WM_1002"
@@ -14132,7 +14082,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1100",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1100"
@@ -14151,7 +14101,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1101",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1101"
@@ -14170,7 +14120,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1102",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1102"
@@ -14189,7 +14139,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1103",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1103"
@@ -14208,7 +14158,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1104",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1104"
@@ -14227,7 +14177,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1105",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1105"
@@ -14246,7 +14196,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1106",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1106"
@@ -14265,7 +14215,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1107",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1107"
@@ -14284,7 +14234,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1108",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1108"
@@ -14303,7 +14253,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1109",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1109"
@@ -14398,7 +14348,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1120",
-          "ticks": 4647
+          "ticks": 4415
         }
       ],
       "scene": "EVT_BATTLE_WM_1120"
@@ -14417,7 +14367,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1121",
-          "ticks": 4647
+          "ticks": 4415
         }
       ],
       "scene": "EVT_BATTLE_WM_1121"
@@ -14436,7 +14386,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1122",
-          "ticks": 4647
+          "ticks": 4415
         }
       ],
       "scene": "EVT_BATTLE_WM_1122"
@@ -14455,7 +14405,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1123",
-          "ticks": 4647
+          "ticks": 4415
         }
       ],
       "scene": "EVT_BATTLE_WM_1123"
@@ -14474,7 +14424,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1124",
-          "ticks": 4647
+          "ticks": 4415
         }
       ],
       "scene": "EVT_BATTLE_WM_1124"
@@ -14493,7 +14443,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1125",
-          "ticks": 3970
+          "ticks": 4098
         }
       ],
       "scene": "EVT_BATTLE_WM_1125"
@@ -14512,7 +14462,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1126",
-          "ticks": 3970
+          "ticks": 4098
         }
       ],
       "scene": "EVT_BATTLE_WM_1126"
@@ -14531,7 +14481,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1127",
-          "ticks": 3970
+          "ticks": 4098
         }
       ],
       "scene": "EVT_BATTLE_WM_1127"
@@ -14550,7 +14500,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1128",
-          "ticks": 3970
+          "ticks": 4098
         }
       ],
       "scene": "EVT_BATTLE_WM_1128"
@@ -14569,7 +14519,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1129",
-          "ticks": 3970
+          "ticks": 4098
         }
       ],
       "scene": "EVT_BATTLE_WM_1129"
@@ -14577,32 +14527,32 @@
     {
       "patterns": [
         {
-          "bonus_ap": 1,
-          "bonus_exp": 912,
-          "bonus_gil": 568,
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 0,
-          "players_alive": 3,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1130",
-          "ticks": 5919
+          "ticks": 6246
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 1824,
-          "bonus_gil": 1136,
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 2,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 1,
-          "players_alive": 3,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1130",
-          "ticks": 13607
+          "ticks": 6246
         }
       ],
       "scene": "EVT_BATTLE_WM_1130"
@@ -14610,32 +14560,32 @@
     {
       "patterns": [
         {
-          "bonus_ap": 1,
-          "bonus_exp": 912,
-          "bonus_gil": 568,
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 0,
-          "players_alive": 3,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1131",
-          "ticks": 5919
+          "ticks": 6246
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 1824,
-          "bonus_gil": 1136,
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 2,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 1,
-          "players_alive": 3,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1131",
-          "ticks": 13607
+          "ticks": 6246
         }
       ],
       "scene": "EVT_BATTLE_WM_1131"
@@ -14643,32 +14593,32 @@
     {
       "patterns": [
         {
-          "bonus_ap": 1,
-          "bonus_exp": 912,
-          "bonus_gil": 568,
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 0,
-          "players_alive": 3,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1132",
-          "ticks": 5919
+          "ticks": 6246
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 1824,
-          "bonus_gil": 1136,
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 2,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 1,
-          "players_alive": 3,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1132",
-          "ticks": 13607
+          "ticks": 6246
         }
       ],
       "scene": "EVT_BATTLE_WM_1132"
@@ -14676,32 +14626,32 @@
     {
       "patterns": [
         {
-          "bonus_ap": 1,
-          "bonus_exp": 912,
-          "bonus_gil": 568,
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 1,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 0,
-          "players_alive": 3,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1133",
-          "ticks": 5919
+          "ticks": 6246
         },
         {
-          "bonus_ap": 2,
-          "bonus_exp": 1824,
-          "bonus_gil": 1136,
+          "bonus_ap": 0,
+          "bonus_exp": 0,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
-          "enemy_deaths": 2,
+          "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 1,
-          "players_alive": 3,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1133",
-          "ticks": 13607
+          "ticks": 6246
         }
       ],
       "scene": "EVT_BATTLE_WM_1133"
@@ -14720,7 +14670,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1134",
-          "ticks": 7634
+          "ticks": 8215
         },
         {
           "bonus_ap": 0,
@@ -14734,7 +14684,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1134",
-          "ticks": 7634
+          "ticks": 8215
         },
         {
           "bonus_ap": 0,
@@ -14748,7 +14698,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1134",
-          "ticks": 7634
+          "ticks": 8215
         },
         {
           "bonus_ap": 0,
@@ -14762,7 +14712,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1134",
-          "ticks": 7634
+          "ticks": 8215
         }
       ],
       "scene": "EVT_BATTLE_WM_1134"
@@ -14781,7 +14731,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1135",
-          "ticks": 7634
+          "ticks": 8215
         },
         {
           "bonus_ap": 0,
@@ -14795,7 +14745,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1135",
-          "ticks": 7634
+          "ticks": 8215
         },
         {
           "bonus_ap": 0,
@@ -14809,7 +14759,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1135",
-          "ticks": 7634
+          "ticks": 8215
         },
         {
           "bonus_ap": 0,
@@ -14823,7 +14773,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1135",
-          "ticks": 7634
+          "ticks": 8215
         }
       ],
       "scene": "EVT_BATTLE_WM_1135"
@@ -14842,7 +14792,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1200",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -14856,7 +14806,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1200",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -14870,7 +14820,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1200",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -14884,7 +14834,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1200",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1200"
@@ -14903,7 +14853,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1201",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -14917,7 +14867,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1201",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -14931,7 +14881,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1201",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -14945,7 +14895,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1201",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -14959,7 +14909,7 @@
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1201",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1201"
@@ -14978,7 +14928,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1202",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -14992,7 +14942,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1202",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -15006,7 +14956,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1202",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -15020,7 +14970,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1202",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1202"
@@ -15039,7 +14989,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1203",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -15053,7 +15003,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1203",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -15067,7 +15017,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1203",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -15081,7 +15031,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1203",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1203"
@@ -15100,7 +15050,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1205",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -15114,7 +15064,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1205",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -15128,7 +15078,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1205",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -15142,7 +15092,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1205",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1205"
@@ -15161,7 +15111,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1207",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -15175,7 +15125,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1207",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -15189,7 +15139,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1207",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -15203,7 +15153,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1207",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_1207"
@@ -15374,7 +15324,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1401",
-          "ticks": 662
+          "ticks": 618
         }
       ],
       "scene": "EVT_BATTLE_WM_1401"
@@ -15393,7 +15343,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1402",
-          "ticks": 662
+          "ticks": 618
         }
       ],
       "scene": "EVT_BATTLE_WM_1402"
@@ -15412,7 +15362,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1403",
-          "ticks": 662
+          "ticks": 618
         }
       ],
       "scene": "EVT_BATTLE_WM_1403"
@@ -15431,7 +15381,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1406",
-          "ticks": 662
+          "ticks": 618
         }
       ],
       "scene": "EVT_BATTLE_WM_1406"
@@ -15450,7 +15400,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1407",
-          "ticks": 662
+          "ticks": 618
         }
       ],
       "scene": "EVT_BATTLE_WM_1407"
@@ -15469,7 +15419,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1408",
-          "ticks": 662
+          "ticks": 618
         }
       ],
       "scene": "EVT_BATTLE_WM_1408"
@@ -15512,7 +15462,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_1413",
-          "ticks": 13603
+          "ticks": 13797
         }
       ],
       "scene": "EVT_BATTLE_WM_1413"
@@ -15555,7 +15505,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_1418",
-          "ticks": 13603
+          "ticks": 13797
         }
       ],
       "scene": "EVT_BATTLE_WM_1418"
@@ -15574,7 +15524,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1420",
-          "ticks": 2161
+          "ticks": 2305
         }
       ],
       "scene": "EVT_BATTLE_WM_1420"
@@ -15593,7 +15543,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1421",
-          "ticks": 2161
+          "ticks": 2305
         }
       ],
       "scene": "EVT_BATTLE_WM_1421"
@@ -15612,7 +15562,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1427",
-          "ticks": 3221
+          "ticks": 3081
         }
       ],
       "scene": "EVT_BATTLE_WM_1427"
@@ -15631,7 +15581,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1428",
-          "ticks": 3221
+          "ticks": 3081
         }
       ],
       "scene": "EVT_BATTLE_WM_1428"
@@ -15650,7 +15600,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1429",
-          "ticks": 1613
+          "ticks": 1761
         },
         {
           "bonus_ap": 0,
@@ -15664,7 +15614,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1429",
-          "ticks": 2244
+          "ticks": 2241
         },
         {
           "bonus_ap": 0,
@@ -15678,7 +15628,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1429",
-          "ticks": 3206
+          "ticks": 3202
         }
       ],
       "scene": "EVT_BATTLE_WM_1429"
@@ -15697,7 +15647,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1430",
-          "ticks": 1613
+          "ticks": 1761
         },
         {
           "bonus_ap": 0,
@@ -15711,7 +15661,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1430",
-          "ticks": 2244
+          "ticks": 2241
         },
         {
           "bonus_ap": 0,
@@ -15725,7 +15675,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1430",
-          "ticks": 3206
+          "ticks": 3202
         }
       ],
       "scene": "EVT_BATTLE_WM_1430"
@@ -15744,7 +15694,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1431",
-          "ticks": 662
+          "ticks": 618
         }
       ],
       "scene": "EVT_BATTLE_WM_1431"
@@ -15820,7 +15770,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1504",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -15834,7 +15784,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1504",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -15848,7 +15798,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1504",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -15862,7 +15812,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1504",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -15876,7 +15826,7 @@
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1504",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -15890,7 +15840,7 @@
           "pattern": 5,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1504",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -15904,7 +15854,7 @@
           "pattern": 6,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1504",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -15918,7 +15868,7 @@
           "pattern": 7,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1504",
-          "ticks": 2741
+          "ticks": 2739
         }
       ],
       "scene": "EVT_BATTLE_WM_1504"
@@ -15937,7 +15887,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1505",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -15951,7 +15901,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1505",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -15965,7 +15915,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1505",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -15979,7 +15929,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1505",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -15993,7 +15943,7 @@
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1505",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16007,7 +15957,7 @@
           "pattern": 5,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1505",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16021,7 +15971,7 @@
           "pattern": 6,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1505",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16035,7 +15985,7 @@
           "pattern": 7,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1505",
-          "ticks": 2741
+          "ticks": 2739
         }
       ],
       "scene": "EVT_BATTLE_WM_1505"
@@ -16111,7 +16061,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1512",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16125,7 +16075,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1512",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16139,7 +16089,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1512",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16153,7 +16103,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1512",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16167,7 +16117,7 @@
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1512",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16181,7 +16131,7 @@
           "pattern": 5,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1512",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16195,7 +16145,7 @@
           "pattern": 6,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1512",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16209,7 +16159,7 @@
           "pattern": 7,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1512",
-          "ticks": 2741
+          "ticks": 2739
         }
       ],
       "scene": "EVT_BATTLE_WM_1512"
@@ -16228,7 +16178,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1513",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16242,7 +16192,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1513",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16256,7 +16206,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1513",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16270,7 +16220,7 @@
           "pattern": 3,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1513",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16284,7 +16234,7 @@
           "pattern": 4,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1513",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16298,7 +16248,7 @@
           "pattern": 5,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1513",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16312,7 +16262,7 @@
           "pattern": 6,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1513",
-          "ticks": 2741
+          "ticks": 2739
         },
         {
           "bonus_ap": 0,
@@ -16326,7 +16276,7 @@
           "pattern": 7,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1513",
-          "ticks": 2741
+          "ticks": 2739
         }
       ],
       "scene": "EVT_BATTLE_WM_1513"
@@ -16345,7 +16295,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1517",
-          "ticks": 4066
+          "ticks": 3786
         }
       ],
       "scene": "EVT_BATTLE_WM_1517"
@@ -16364,7 +16314,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1518",
-          "ticks": 4066
+          "ticks": 3786
         }
       ],
       "scene": "EVT_BATTLE_WM_1518"
@@ -16383,7 +16333,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1519",
-          "ticks": 4066
+          "ticks": 3786
         }
       ],
       "scene": "EVT_BATTLE_WM_1519"
@@ -16402,7 +16352,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1520",
-          "ticks": 4066
+          "ticks": 3786
         }
       ],
       "scene": "EVT_BATTLE_WM_1520"
@@ -16421,7 +16371,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1521",
-          "ticks": 4066
+          "ticks": 3786
         }
       ],
       "scene": "EVT_BATTLE_WM_1521"
@@ -16440,7 +16390,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1522",
-          "ticks": 4066
+          "ticks": 3786
         }
       ],
       "scene": "EVT_BATTLE_WM_1522"
@@ -16459,7 +16409,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1523",
-          "ticks": 4066
+          "ticks": 3786
         }
       ],
       "scene": "EVT_BATTLE_WM_1523"
@@ -16478,7 +16428,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1524",
-          "ticks": 4066
+          "ticks": 3786
         }
       ],
       "scene": "EVT_BATTLE_WM_1524"
@@ -16497,7 +16447,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1528",
-          "ticks": 4530
+          "ticks": 4386
         }
       ],
       "scene": "EVT_BATTLE_WM_1528"
@@ -16516,7 +16466,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1529",
-          "ticks": 4530
+          "ticks": 4386
         }
       ],
       "scene": "EVT_BATTLE_WM_1529"
@@ -16535,7 +16485,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1530",
-          "ticks": 4530
+          "ticks": 4386
         }
       ],
       "scene": "EVT_BATTLE_WM_1530"
@@ -16554,7 +16504,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1531",
-          "ticks": 4530
+          "ticks": 4386
         }
       ],
       "scene": "EVT_BATTLE_WM_1531"
@@ -16573,7 +16523,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1534",
-          "ticks": 3970
+          "ticks": 4098
         }
       ],
       "scene": "EVT_BATTLE_WM_1534"
@@ -16592,7 +16542,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1535",
-          "ticks": 3970
+          "ticks": 4098
         }
       ],
       "scene": "EVT_BATTLE_WM_1535"
@@ -16611,7 +16561,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1536",
-          "ticks": 3970
+          "ticks": 4098
         }
       ],
       "scene": "EVT_BATTLE_WM_1536"
@@ -16630,7 +16580,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1537",
-          "ticks": 3970
+          "ticks": 4098
         }
       ],
       "scene": "EVT_BATTLE_WM_1537"
@@ -16649,7 +16599,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1538",
-          "ticks": 3970
+          "ticks": 4098
         }
       ],
       "scene": "EVT_BATTLE_WM_1538"
@@ -16668,7 +16618,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1539",
-          "ticks": 3970
+          "ticks": 4098
         }
       ],
       "scene": "EVT_BATTLE_WM_1539"
@@ -16687,7 +16637,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1544",
-          "ticks": 2818
+          "ticks": 3586
         }
       ],
       "scene": "EVT_BATTLE_WM_1544"
@@ -16706,7 +16656,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1545",
-          "ticks": 2818
+          "ticks": 3586
         }
       ],
       "scene": "EVT_BATTLE_WM_1545"
@@ -16725,7 +16675,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1546",
-          "ticks": 2818
+          "ticks": 3586
         }
       ],
       "scene": "EVT_BATTLE_WM_1546"
@@ -16744,7 +16694,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1547",
-          "ticks": 2818
+          "ticks": 3586
         }
       ],
       "scene": "EVT_BATTLE_WM_1547"
@@ -16801,7 +16751,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1550",
-          "ticks": 2299
+          "ticks": 1867
         },
         {
           "bonus_ap": 0,
@@ -16815,7 +16765,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1550",
-          "ticks": 2299
+          "ticks": 1867
         }
       ],
       "scene": "EVT_BATTLE_WM_1550"
@@ -16872,7 +16822,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1600",
-          "ticks": 3048
+          "ticks": 3200
         },
         {
           "bonus_ap": 0,
@@ -16886,7 +16836,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1600",
-          "ticks": 3054
+          "ticks": 3200
         }
       ],
       "scene": "EVT_BATTLE_WM_1600"
@@ -16957,7 +16907,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1710",
-          "ticks": 2737
+          "ticks": 3169
         }
       ],
       "scene": "EVT_BATTLE_WM_1710"
@@ -16976,7 +16926,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1711",
-          "ticks": 2737
+          "ticks": 3169
         }
       ],
       "scene": "EVT_BATTLE_WM_1711"
@@ -16995,7 +16945,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1712",
-          "ticks": 2737
+          "ticks": 3169
         }
       ],
       "scene": "EVT_BATTLE_WM_1712"
@@ -17014,7 +16964,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1713",
-          "ticks": 2737
+          "ticks": 3169
         }
       ],
       "scene": "EVT_BATTLE_WM_1713"
@@ -17033,7 +16983,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1715",
-          "ticks": 3101
+          "ticks": 2901
         }
       ],
       "scene": "EVT_BATTLE_WM_1715"
@@ -17052,7 +17002,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1716",
-          "ticks": 2737
+          "ticks": 3169
         }
       ],
       "scene": "EVT_BATTLE_WM_1716"
@@ -17071,7 +17021,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1717",
-          "ticks": 2737
+          "ticks": 3169
         }
       ],
       "scene": "EVT_BATTLE_WM_1717"
@@ -17090,7 +17040,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1718",
-          "ticks": 1201
+          "ticks": 1141
         }
       ],
       "scene": "EVT_BATTLE_WM_1718"
@@ -17109,7 +17059,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1800",
-          "ticks": 2737
+          "ticks": 3169
         }
       ],
       "scene": "EVT_BATTLE_WM_1800"
@@ -17128,7 +17078,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1802",
-          "ticks": 2737
+          "ticks": 3169
         }
       ],
       "scene": "EVT_BATTLE_WM_1802"
@@ -17147,7 +17097,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1808",
-          "ticks": 662
+          "ticks": 618
         }
       ],
       "scene": "EVT_BATTLE_WM_1808"
@@ -17166,7 +17116,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1810",
-          "ticks": 3970
+          "ticks": 4098
         }
       ],
       "scene": "EVT_BATTLE_WM_1810"
@@ -17185,7 +17135,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1816",
-          "ticks": 2737
+          "ticks": 3169
         }
       ],
       "scene": "EVT_BATTLE_WM_1816"
@@ -17204,7 +17154,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1818",
-          "ticks": 3970
+          "ticks": 4098
         }
       ],
       "scene": "EVT_BATTLE_WM_1818"
@@ -17223,7 +17173,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1819",
-          "ticks": 3782
+          "ticks": 4062
         }
       ],
       "scene": "EVT_BATTLE_WM_1819"
@@ -17242,7 +17192,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1820",
-          "ticks": 3782
+          "ticks": 4062
         }
       ],
       "scene": "EVT_BATTLE_WM_1820"
@@ -17261,7 +17211,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1821",
-          "ticks": 3782
+          "ticks": 4062
         }
       ],
       "scene": "EVT_BATTLE_WM_1821"
@@ -17280,7 +17230,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1822",
-          "ticks": 3782
+          "ticks": 4062
         }
       ],
       "scene": "EVT_BATTLE_WM_1822"
@@ -17299,7 +17249,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1823",
-          "ticks": 3782
+          "ticks": 4062
         }
       ],
       "scene": "EVT_BATTLE_WM_1823"
@@ -17318,7 +17268,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1824",
-          "ticks": 3782
+          "ticks": 4062
         }
       ],
       "scene": "EVT_BATTLE_WM_1824"
@@ -17337,7 +17287,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1825",
-          "ticks": 3101
+          "ticks": 2901
         }
       ],
       "scene": "EVT_BATTLE_WM_1825"
@@ -17375,7 +17325,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1903",
-          "ticks": 2299
+          "ticks": 1867
         },
         {
           "bonus_ap": 0,
@@ -17389,7 +17339,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1903",
-          "ticks": 2299
+          "ticks": 1867
         }
       ],
       "scene": "EVT_BATTLE_WM_1903"
@@ -17596,7 +17546,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1911",
-          "ticks": 1225
+          "ticks": 1153
         }
       ],
       "scene": "EVT_BATTLE_WM_1911"
@@ -17615,7 +17565,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1913",
-          "ticks": 3970
+          "ticks": 4098
         }
       ],
       "scene": "EVT_BATTLE_WM_1913"
@@ -17639,7 +17589,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_1914",
-          "ticks": 13603
+          "ticks": 13797
         }
       ],
       "scene": "EVT_BATTLE_WM_1914"
@@ -17658,7 +17608,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1916",
-          "ticks": 2818
+          "ticks": 3586
         }
       ],
       "scene": "EVT_BATTLE_WM_1916"
@@ -17677,7 +17627,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1917",
-          "ticks": 2818
+          "ticks": 3586
         }
       ],
       "scene": "EVT_BATTLE_WM_1917"
@@ -17701,7 +17651,7 @@
           "pattern": 0,
           "players_alive": 4,
           "scene": "EVT_BATTLE_WM_1918",
-          "ticks": 13603
+          "ticks": 13797
         }
       ],
       "scene": "EVT_BATTLE_WM_1918"
@@ -17720,7 +17670,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1919",
-          "ticks": 4033
+          "ticks": 4321
         }
       ],
       "scene": "EVT_BATTLE_WM_1919"
@@ -17739,7 +17689,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1920",
-          "ticks": 4033
+          "ticks": 4321
         }
       ],
       "scene": "EVT_BATTLE_WM_1920"
@@ -17758,7 +17708,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_1921",
-          "ticks": 1225
+          "ticks": 1153
         }
       ],
       "scene": "EVT_BATTLE_WM_1921"
@@ -17777,7 +17727,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2111",
-          "ticks": 1225
+          "ticks": 1153
         }
       ],
       "scene": "EVT_BATTLE_WM_2111"
@@ -17796,7 +17746,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2112",
-          "ticks": 2818
+          "ticks": 3586
         }
       ],
       "scene": "EVT_BATTLE_WM_2112"
@@ -17815,7 +17765,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2113",
-          "ticks": 2818
+          "ticks": 3586
         }
       ],
       "scene": "EVT_BATTLE_WM_2113"
@@ -17834,7 +17784,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2114",
-          "ticks": 2818
+          "ticks": 3586
         }
       ],
       "scene": "EVT_BATTLE_WM_2114"
@@ -17853,7 +17803,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2115",
-          "ticks": 4033
+          "ticks": 4321
         }
       ],
       "scene": "EVT_BATTLE_WM_2115"
@@ -17872,7 +17822,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2116",
-          "ticks": 4033
+          "ticks": 4321
         }
       ],
       "scene": "EVT_BATTLE_WM_2116"
@@ -17891,7 +17841,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2117",
-          "ticks": 1225
+          "ticks": 1153
         }
       ],
       "scene": "EVT_BATTLE_WM_2117"
@@ -17910,7 +17860,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2212",
-          "ticks": 3025
+          "ticks": 3457
         },
         {
           "bonus_ap": 0,
@@ -17924,7 +17874,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2212",
-          "ticks": 3025
+          "ticks": 3457
         }
       ],
       "scene": "EVT_BATTLE_WM_2212"
@@ -17943,7 +17893,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2213",
-          "ticks": 3025
+          "ticks": 3457
         },
         {
           "bonus_ap": 0,
@@ -17957,7 +17907,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2213",
-          "ticks": 3025
+          "ticks": 3457
         }
       ],
       "scene": "EVT_BATTLE_WM_2213"
@@ -17976,7 +17926,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2214",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -17990,7 +17940,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2214",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_2214"
@@ -18009,7 +17959,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2215",
-          "ticks": 5627
+          "ticks": 5779
         },
         {
           "bonus_ap": 0,
@@ -18023,7 +17973,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2215",
-          "ticks": 5627
+          "ticks": 5779
         }
       ],
       "scene": "EVT_BATTLE_WM_2215"
@@ -18042,7 +17992,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2300",
-          "ticks": 795
+          "ticks": 749
         },
         {
           "bonus_ap": 0,
@@ -18056,7 +18006,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2300",
-          "ticks": 795
+          "ticks": 749
         },
         {
           "bonus_ap": 0,
@@ -18070,7 +18020,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2300",
-          "ticks": 795
+          "ticks": 749
         }
       ],
       "scene": "EVT_BATTLE_WM_2300"
@@ -18089,7 +18039,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2301",
-          "ticks": 795
+          "ticks": 749
         },
         {
           "bonus_ap": 0,
@@ -18103,7 +18053,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2301",
-          "ticks": 795
+          "ticks": 749
         },
         {
           "bonus_ap": 0,
@@ -18117,7 +18067,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2301",
-          "ticks": 795
+          "ticks": 749
         }
       ],
       "scene": "EVT_BATTLE_WM_2301"
@@ -18136,7 +18086,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2302",
-          "ticks": 795
+          "ticks": 749
         },
         {
           "bonus_ap": 0,
@@ -18150,7 +18100,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2302",
-          "ticks": 795
+          "ticks": 749
         },
         {
           "bonus_ap": 0,
@@ -18164,7 +18114,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2302",
-          "ticks": 795
+          "ticks": 749
         }
       ],
       "scene": "EVT_BATTLE_WM_2302"
@@ -18183,7 +18133,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2303",
-          "ticks": 795
+          "ticks": 749
         },
         {
           "bonus_ap": 0,
@@ -18197,7 +18147,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2303",
-          "ticks": 795
+          "ticks": 749
         },
         {
           "bonus_ap": 0,
@@ -18211,7 +18161,7 @@
           "pattern": 2,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2303",
-          "ticks": 795
+          "ticks": 749
         }
       ],
       "scene": "EVT_BATTLE_WM_2303"
@@ -18230,7 +18180,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2304",
-          "ticks": 441
+          "ticks": 485
         }
       ],
       "scene": "EVT_BATTLE_WM_2304"
@@ -18249,7 +18199,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2305",
-          "ticks": 441
+          "ticks": 485
         }
       ],
       "scene": "EVT_BATTLE_WM_2305"
@@ -18268,7 +18218,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2400",
-          "ticks": 1201
+          "ticks": 1141
         }
       ],
       "scene": "EVT_BATTLE_WM_2400"
@@ -18287,7 +18237,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_2401",
-          "ticks": 1201
+          "ticks": 1141
         }
       ],
       "scene": "EVT_BATTLE_WM_2401"
@@ -18420,7 +18370,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_9904",
-          "ticks": 2607
+          "ticks": 2731
         },
         {
           "bonus_ap": 0,
@@ -18434,7 +18384,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_9904",
-          "ticks": 2607
+          "ticks": 2731
         }
       ],
       "scene": "EVT_BATTLE_WM_9904"
@@ -18453,7 +18403,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_9905",
-          "ticks": 2607
+          "ticks": 2731
         },
         {
           "bonus_ap": 0,
@@ -18467,7 +18417,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_9905",
-          "ticks": 2607
+          "ticks": 2731
         }
       ],
       "scene": "EVT_BATTLE_WM_9905"
@@ -18486,7 +18436,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_9906",
-          "ticks": 2607
+          "ticks": 2731
         },
         {
           "bonus_ap": 0,
@@ -18500,7 +18450,7 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_9906",
-          "ticks": 2607
+          "ticks": 2731
         }
       ],
       "scene": "EVT_BATTLE_WM_9906"
@@ -18519,7 +18469,7 @@
           "pattern": 0,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_9907",
-          "ticks": 2607
+          "ticks": 2731
         },
         {
           "bonus_ap": 0,
@@ -18533,12 +18483,12 @@
           "pattern": 1,
           "players_alive": 0,
           "scene": "EVT_BATTLE_WM_9907",
-          "ticks": 2607
+          "ticks": 2731
         }
       ],
       "scene": "EVT_BATTLE_WM_9907"
     }
   ],
   "scenes": 562,
-  "victories": 460
+  "victories": 438
 }

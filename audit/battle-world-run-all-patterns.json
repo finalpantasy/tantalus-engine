@@ -1,6 +1,6 @@
 {
   "battles": 1054,
-  "defeats": 38,
+  "defeats": 40,
   "errors": 0,
   "escapes": 0,
   "results": [
@@ -1718,7 +1718,7 @@
           "error": null,
           "outcome": "victory",
           "pattern": 0,
-          "players_alive": 4,
+          "players_alive": 3,
           "scene": "EVT_BATTLE_CW_E063",
           "ticks": 0
         }
@@ -2319,14 +2319,14 @@
         {
           "bonus_ap": 0,
           "bonus_exp": 0,
-          "bonus_gil": 4338,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
           "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 0,
-          "players_alive": 2,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R026",
           "ticks": 0
         }
@@ -2345,7 +2345,7 @@
           "error": null,
           "outcome": "victory",
           "pattern": 0,
-          "players_alive": 4,
+          "players_alive": 2,
           "scene": "EVT_BATTLE_CW_R027",
           "ticks": 0
         }
@@ -2395,14 +2395,14 @@
         {
           "bonus_ap": 0,
           "bonus_exp": 0,
-          "bonus_gil": 4338,
+          "bonus_gil": 0,
           "bonus_items": [],
           "card": null,
           "enemy_deaths": 0,
           "error": null,
-          "outcome": "victory",
+          "outcome": "defeat",
           "pattern": 0,
-          "players_alive": 2,
+          "players_alive": 0,
           "scene": "EVT_BATTLE_CW_R030",
           "ticks": 0
         }
@@ -2421,7 +2421,7 @@
           "error": null,
           "outcome": "victory",
           "pattern": 0,
-          "players_alive": 4,
+          "players_alive": 2,
           "scene": "EVT_BATTLE_CW_R031",
           "ticks": 0
         }
@@ -17572,5 +17572,5 @@
     }
   ],
   "scenes": 562,
-  "victories": 1002
+  "victories": 1000
 }
