@@ -1643,8 +1643,12 @@ fn chain(
                                 if let Some(facing) = facing_toward(state.position, [x, z]) {
                                     state.facing = facing;
                                 }
+                                let walked = (x - state.position[0]).hypot(z - state.position[2]);
                                 state.position = [x, y, z];
                                 state.movement = None;
+                                // The jump stands in for walking there, which
+                                // runs the random-battle timer.
+                                director.world_mut().player_walked(walked);
                             }
                             // Give up on an object that never answers (out of
                             // range, hidden, or not placed yet).

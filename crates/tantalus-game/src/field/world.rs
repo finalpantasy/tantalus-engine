@@ -78,6 +78,47 @@ impl ActorState {
     }
 }
 
+/// `Configuration.Battle.EncounterInterval` and `EncounterInitial` defaults.
+const ENCOUNTER_INTERVAL: f32 = 960.0;
+const ENCOUNTER_INITIAL: f32 = -1440.0;
+
+/// `EventEngine._enCountData`, `_context.encratio`, `_encountTimer`,
+/// `_encountBase` and `_lastScene`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RandomBattles {
+    pub pattern: u8,
+    pub scenes: [u16; 4],
+    /// Rate 0-255; 0 turns random battles off.
+    pub ratio: u8,
+    pub timer: f32,
+    /// The danger value.
+    pub base: i32,
+    pub last_scene: u16,
+}
+
+impl Default for RandomBattles {
+    fn default() -> Self {
+        Self {
+            pattern: 0,
+            scenes: [0; 4],
+            ratio: 0,
+            timer: ENCOUNTER_INITIAL,
+            base: 0,
+            last_scene: 0,
+        }
+    }
+}
+
+impl RandomBattles {
+    /// `InitEncount` (`EventEngine.Initialize.cs:9`) at each field start,
+    /// without `PersistentDangerValue`.
+    pub fn init_field(&mut self) {
+        self.timer = ENCOUNTER_INITIAL;
+        self.base = 0;
+        self.ratio = 0;
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EncounterRequest {
     pub rush: i32,
@@ -143,6 +184,9 @@ pub struct FieldWorld {
     pub field_name: Option<i32>,
     pub timer: TimerState,
     pub encounters: Vec<EncounterRequest>,
+    /// Field random battles (`ENCSCENE`, `ENCRATE`, `ProcessEncount`).
+    #[serde(default)]
+    pub random_battles: RandomBattles,
     pub field_transitions: Vec<i16>,
     world_transitions: Vec<i16>,
     /// Field movie service (`fldfmv`), driven by `FMV` and system variables 14/15.
@@ -304,6 +348,7 @@ impl PartialEq for FieldWorld {
             && self.uid_map == other.uid_map
             && self.deleted_objects == other.deleted_objects
             && self.rng == other.rng
+            && self.random_battles == other.random_battles
             && self.input_mask == other.input_mask
             && self.walk_speed == other.walk_speed
             && self.control_twist == other.control_twist
@@ -367,6 +412,7 @@ impl FieldWorld {
             uid_map: BTreeMap::new(),
             deleted_objects: BTreeSet::new(),
             rng: 0x9E37_79B9_7F4A_7C15,
+            random_battles: RandomBattles::default(),
             input_mask: 0,
             walk_speed: 16.0,
             animation_default_ticks: 32,
@@ -427,6 +473,7 @@ impl FieldWorld {
         self.control_actor = None;
         self.exit_arrivals.clear();
         self.control_twist = 0.0;
+        self.random_battles.init_field();
     }
 
     /// `NEW` of a deleted object makes it run again.
@@ -498,6 +545,9 @@ impl FieldWorld {
         let (sin, cos) = self.control_twist.to_radians().sin_cos();
         let dx = (x * cos + z * sin) / length * self.walk_speed;
         let dz = (z * cos - x * sin) / length * self.walk_speed;
+        // `ProcessEvents.cs:252`: the controlled actor's walked distance
+        // feeds the encounter timer while the rate is above 0.
+        self.player_walked(dx.hypot(dz));
         if let Some(state) = self.actors.get_mut(&player) {
             state.position[0] += dx;
             state.position[2] += dz;
@@ -700,6 +750,65 @@ impl FieldWorld {
                 }
             }
         }
+    }
+
+    /// The controlled actor moved `distance` under the player's input
+    /// (`ProcessEvents.cs:252`): it feeds the encounter timer while the rate
+    /// is above 0. A long move counts as walking it: one check per
+    /// `EncounterInterval`, as the per-frame steps would give.
+    pub fn player_walked(&mut self, mut distance: f32) {
+        if self.random_battles.ratio == 0 || !distance.is_finite() {
+            return;
+        }
+        while distance > 0.0 && self.encounters.is_empty() {
+            let step = distance.min(ENCOUNTER_INTERVAL);
+            self.random_battles.timer += step;
+            distance -= step;
+            self.process_encount();
+        }
+    }
+
+    /// `EventEngine.ProcessEncount` (`ProcessEvents.cs:460`): every
+    /// `EncounterInterval` of walking adds the rate to the danger value, and
+    /// a `random8` under danger / 8 starts one of the field's four battles.
+    fn process_encount(&mut self) {
+        if !self.user_control || self.random_battles.timer <= ENCOUNTER_INTERVAL {
+            return;
+        }
+        self.random_battles.timer = 0.0;
+        self.random_battles.base += i32::from(self.random_battles.ratio);
+        if i32::from(self.next_random_u8()) >= self.random_battles.base >> 3 {
+            return;
+        }
+        self.random_battles.base = 0;
+        let mut scene = self.select_scene();
+        if scene == 0 {
+            return;
+        }
+        if scene == self.random_battles.last_scene {
+            scene = self.select_scene();
+        }
+        self.random_battles.last_scene = scene;
+        self.encounters.push(EncounterRequest {
+            rush: 0,
+            group: None,
+            battle: i32::from(scene),
+            steiner_state: false,
+        });
+    }
+
+    /// `EventEngine.SelectScene` (`EventEngine.cs:191`), field mode.
+    fn select_scene(&mut self) -> u16 {
+        const CHANCES: [[u8; 3]; 4] = [
+            [96, 168, 224],
+            [64, 128, 192],
+            [90, 167, 244],
+            [115, 217, 244],
+        ];
+        let roll = self.next_random_u8();
+        let row = CHANCES[usize::from(self.random_battles.pattern & 3)];
+        let slot = row.iter().position(|&limit| roll < limit).unwrap_or(3);
+        self.random_battles.scenes[slot]
     }
 
     pub(crate) fn next_random_u8(&mut self) -> u8 {
@@ -927,5 +1036,69 @@ impl FieldWorld {
             })
             .ok()?;
         Some(projection.triangle_index)
+    }
+}
+
+#[cfg(test)]
+mod random_battle_tests {
+    use super::*;
+
+    fn walking_world(ratio: u8) -> FieldWorld {
+        let mut world = FieldWorld::new();
+        world.user_control = true;
+        world.set_player(EntityId::new(1));
+        world.set_walk_bits(Some((1, 2, 4, 8)));
+        world.set_input(1);
+        world.random_battles.pattern = 1;
+        world.random_battles.scenes = [301, 302, 303, 304];
+        world.random_battles.ratio = ratio;
+        world
+    }
+
+    #[test]
+    fn walking_with_a_rate_starts_a_field_battle() {
+        let mut world = walking_world(255);
+        // The first 1440 units are safe; then a check every 960.
+        for _ in 0..90 {
+            world.advance();
+        }
+        assert!(world.encounters.is_empty());
+        for _ in 0..2000 {
+            world.advance();
+            if !world.encounters.is_empty() {
+                break;
+            }
+        }
+        let request = world.encounters.first().expect("a random battle");
+        assert!((301..=304).contains(&request.battle));
+        assert_eq!(request.group, None);
+        assert_eq!(world.random_battles.base, 0);
+    }
+
+    #[test]
+    fn rate_zero_or_no_control_never_fights() {
+        let mut world = walking_world(0);
+        for _ in 0..5000 {
+            world.advance();
+        }
+        assert!(world.encounters.is_empty());
+        let mut world = walking_world(255);
+        world.user_control = false;
+        for _ in 0..5000 {
+            world.advance();
+        }
+        assert!(world.encounters.is_empty());
+    }
+
+    #[test]
+    fn a_new_field_resets_the_rate_and_danger() {
+        let mut world = walking_world(200);
+        world.random_battles.base = 90;
+        world.random_battles.timer = 500.0;
+        world.begin_field();
+        assert_eq!(world.random_battles.ratio, 0);
+        assert_eq!(world.random_battles.base, 0);
+        assert_eq!(world.random_battles.timer, -1440.0);
+        assert_eq!(world.random_battles.scenes, [301, 302, 303, 304]);
     }
 }

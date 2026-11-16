@@ -486,6 +486,30 @@ as does a full-HP start. In run 93 the chain still loses it with the boss at 8 H
 still level 1; random encounters in the Evil Forest would give a player the
 levels this fight expects.
 
+Run 95 adds field random battles, ported from `EventEngine`:
+
+- `SetRandomBattles` (`ENCSCENE`) stores the pattern and four scenes, and
+  `SetRandomBattleFrequency` (`ENCRATE`) the rate.
+- The controlled actor's walked distance feeds the timer. Every 960 units
+  (`EncounterInterval`) the rate is added to the danger value, and a
+  `random8` under danger / 8 starts a battle. `SelectScene` picks one of
+  the four scenes with the reference's chance table.
+- Each field start resets the timer to -1440, the danger to 0 and the rate
+  to 0 (`InitEncount`). `ENCOUNT` also clears the danger.
+- The chain jumps the player to each target, so a jump counts as walking
+  its length: one check per 960 units.
+
+| Battle | Scene | Run 93 | Run 95 |
+| --- | --- | --- | --- |
+| 67 | EF_R007 | not fought | victory, 7 EXP each |
+| 310 | EF_R002 | not fought | victory, 13 EXP each |
+| 309 | EF_R003 | not fought | victory, 13 EXP each |
+| 303 | EF_E009 | defeat, boss at 8 HP | victory, Steiner standing |
+
+The three Evil Forest fights take the party to level 2, and the Plant Brain
+falls. Every battle in the Alexandria to Evil Forest slice is now a victory
+(337 is the scripted result 5).
+
 ## Playing it
 
 The chain's field loop now lives in the library (`tantalus_tools::field_session`

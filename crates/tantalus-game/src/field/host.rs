@@ -354,6 +354,16 @@ impl LegacyEventHost for FieldHost<'_> {
                 HostEvent::ShowTimer { show } => {
                     self.world.timer.displayed = *show;
                 }
+                HostEvent::SetRandomBattles { pattern, scenes } => {
+                    self.world.random_battles.pattern = *pattern;
+                    self.world.random_battles.scenes = *scenes;
+                }
+                HostEvent::SetRandomBattleFrequency { frequency } => {
+                    self.world.random_battles.ratio = *frequency;
+                    if *frequency == 0 {
+                        self.world.random_battles.base = 0;
+                    }
+                }
                 HostEvent::OpenPartyMenu { .. } => {
                     self.world.open_party_menu();
                 }
@@ -363,6 +373,8 @@ impl LegacyEventHost for FieldHost<'_> {
                     battle,
                     steiner_state,
                 } => {
+                    // `ENCOUNT` clears the danger value.
+                    self.world.random_battles.base = 0;
                     self.world.encounters.push(EncounterRequest {
                         rush: *rush,
                         group: *group,
