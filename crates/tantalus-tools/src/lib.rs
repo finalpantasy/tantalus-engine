@@ -1,4 +1,5 @@
 pub mod battle_models_cli;
+pub mod battle_scene_rewards;
 pub mod field_animation_cli;
 pub mod field_models_cli;
 pub mod model_cli;
