@@ -33,57 +33,81 @@ use crate::battle_scene_rewards::assemble_legacy_battle;
 const MAX_TICKS: u64 = 20_000;
 const ATTACK_ACTION: &str = "ffix:action/attack";
 
-/// Four armed level-20 stand-in party members (ids 1, 2, 4, 8), matching the
-/// AI demo's party shape until the chain feeds real party state.
-fn demo_players() -> Vec<BattleUnit> {
+/// Four stand-in party members (ids 1, 2, 4, 8). `weak` swaps the armed
+/// level-20 default for an unarmed level-8 party so sweeps can exercise
+/// mass-defeat paths (decided-defeat gate, reward suppression) instead of
+/// only the endgame superboss wipes.
+fn demo_players(weak: bool) -> Vec<BattleUnit> {
     [1u16, 2, 4, 8]
         .iter()
         .map(|id| {
             let mut unit = BattleUnit::new(*id, true);
-            unit.level = 20;
-            unit.cur_hp = 500;
-            unit.max_hp = 500;
-            unit.cur_mp = 100;
-            unit.max_mp = 100;
-            unit.strength = 30;
-            unit.magic = 30;
-            unit.dexterity = 30;
-            unit.will = 20;
-            unit.weapon = Some(WeaponStats {
-                power: 25,
-                rate: 0,
-                elements: tantalus_legacy::battle::Elements::NONE,
-                category: WeaponStats::SHORT_RANGE,
-                status: 0,
-            });
+            if weak {
+                unit.level = 8;
+                unit.cur_hp = 120;
+                unit.max_hp = 120;
+                unit.cur_mp = 50;
+                unit.max_mp = 50;
+                unit.strength = 8;
+                unit.magic = 8;
+                unit.dexterity = 10;
+                unit.will = 8;
+            } else {
+                unit.level = 20;
+                unit.cur_hp = 500;
+                unit.max_hp = 500;
+                unit.cur_mp = 100;
+                unit.max_mp = 100;
+                unit.strength = 30;
+                unit.magic = 30;
+                unit.dexterity = 30;
+                unit.will = 20;
+                unit.weapon = Some(WeaponStats {
+                    power: 25,
+                    rate: 0,
+                    elements: tantalus_legacy::battle::Elements::NONE,
+                    category: WeaponStats::SHORT_RANGE,
+                    status: 0,
+                });
+            }
             unit
         })
         .collect()
 }
 
 fn demo_member(hp: u32) -> PartyMember {
+    demo_member_with_level(hp, 20, [23, 21, 18, 23], 18)
+}
+
+/// Weak-party variant: level-8 member whose base stats match the unarmed
+/// demo units (`demo_players(true)`).
+fn weak_member(hp: u32) -> PartyMember {
+    demo_member_with_level(hp, 8, [10, 8, 8, 8], 8)
+}
+
+fn demo_member_with_level(hp: u32, level: u8, basis: [u8; 4], gems: u8) -> PartyMember {
     let base = tantalus_legacy::battle::rewards::BaseStats {
-        dex: 23,
-        str_: 21,
-        mgc: 18,
-        wpr: 23,
-        gems: 18,
+        dex: basis[0],
+        str_: basis[1],
+        mgc: basis[2],
+        wpr: basis[3],
+        gems,
     };
     PartyMember {
         in_battle: true,
         cur_hp: hp,
         cur_mp: 100,
         rewards_disabled: false,
-        level: 20,
+        level,
         exp: 0,
         base,
         bonus: Default::default(),
-        basis: [base.dex, base.str_, base.mgc, base.wpr],
+        basis,
         max_hp: 500,
         max_mp: 100,
-        max_capa: 18,
-        cur_capa: 18,
-        elem: [base.dex, base.str_, base.mgc, base.wpr],
+        max_capa: u32::from(gems),
+        cur_capa: u32::from(gems),
+        elem: basis,
         equip_stat_bonus: [0; 4],
         equipped_abilities: vec![],
         learnable: vec![],
@@ -116,9 +140,10 @@ pub fn run_scene_battle_caught(
     pattern: usize,
     script: &[u8],
     seed: u64,
+    weak_party: bool,
 ) -> BattleRunReport {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        run_scene_battle(scene_name, scene, pattern, script, seed)
+        run_scene_battle(scene_name, scene, pattern, script, seed, weak_party)
     }))
     .unwrap_or_else(|_| BattleRunReport {
         scene: scene_name.to_owned(),
@@ -144,6 +169,7 @@ pub fn run_scene_battle(
     pattern: usize,
     script: &[u8],
     seed: u64,
+    weak_party: bool,
 ) -> BattleRunReport {
     let mut report = BattleRunReport {
         scene: scene_name.to_owned(),
@@ -160,7 +186,7 @@ pub fn run_scene_battle(
         card: None,
     };
 
-    let players = demo_players();
+    let players = demo_players(weak_party);
     let player_entities: Vec<EntityId> = players
         .iter()
         .map(|unit| EntityId::new(u64::from(unit.id)))
@@ -288,11 +314,18 @@ pub fn run_scene_battle(
     // Reward totals through the reference split (party-flee-key escapes pay
     // nothing; Flee-ability cost is separate UI-path work).
     if report.outcome == Some(BattleOutcome::Victory) {
+        let member = || {
+            if weak_party {
+                weak_member(120)
+            } else {
+                demo_member(500)
+            }
+        };
         let members: [Option<PartyMember>; 4] = [
-            Some(demo_member(500)),
-            Some(demo_member(500)),
-            Some(demo_member(500)),
-            Some(demo_member(500)),
+            Some(member()),
+            Some(member()),
+            Some(member()),
+            Some(member()),
         ];
         let party = PartySnapshot {
             gil: 0,
@@ -546,6 +579,7 @@ pub fn run_world_battle_report(
     pattern: usize,
     script: &[u8],
     seed: u64,
+    weak_party: bool,
 ) -> BattleRunReport {
     let mut report = BattleRunReport {
         scene: scene_name.to_owned(),
@@ -564,14 +598,15 @@ pub fn run_world_battle_report(
     let mut world = FieldWorld::new();
     world.party = vec![1, 2, 4, 8];
     world.gil = 0;
+    let (hp, mp) = if weak_party { (120, 50) } else { (500, 100) };
     for &character in &world.party {
         world.character_stats.insert(
             character,
             tantalus_game::field::CharacterStats {
-                current_hp: 500,
-                max_hp: 500,
-                current_mp: 100,
-                max_mp: 100,
+                current_hp: hp,
+                max_hp: hp,
+                current_mp: mp,
+                max_mp: mp,
             },
         );
     }
@@ -579,25 +614,44 @@ pub fn run_world_battle_report(
         .iter()
         .map(|id| EntityId::new(*id))
         .collect();
-    let base = |_: i32| tantalus_game::battle::legacy::PlayerBase {
-        level: 20,
-        strength: 30,
-        magic: 30,
-        dexterity: 30,
-        will: 20,
-        physical_defence: 10,
-        physical_evade: 5,
-        magic_defence: 12,
-        magic_evade: 6,
-        weapon: Some(WeaponStats {
-            power: 25,
-            rate: 0,
-            elements: tantalus_legacy::battle::Elements::NONE,
-            category: WeaponStats::SHORT_RANGE,
-            status: 0,
-        }),
-        learnable: Vec::new(),
-        equipped_abilities: Vec::new(),
+    let base = |_: i32| {
+        if weak_party {
+            tantalus_game::battle::legacy::PlayerBase {
+                level: 8,
+                strength: 8,
+                magic: 8,
+                dexterity: 10,
+                will: 8,
+                physical_defence: 4,
+                physical_evade: 2,
+                magic_defence: 5,
+                magic_evade: 2,
+                weapon: None,
+                learnable: Vec::new(),
+                equipped_abilities: Vec::new(),
+            }
+        } else {
+            tantalus_game::battle::legacy::PlayerBase {
+                level: 20,
+                strength: 30,
+                magic: 30,
+                dexterity: 30,
+                will: 20,
+                physical_defence: 10,
+                physical_evade: 5,
+                magic_defence: 12,
+                magic_evade: 6,
+                weapon: Some(WeaponStats {
+                    power: 25,
+                    rate: 0,
+                    elements: tantalus_legacy::battle::Elements::NONE,
+                    category: WeaponStats::SHORT_RANGE,
+                    status: 0,
+                }),
+                learnable: Vec::new(),
+                equipped_abilities: Vec::new(),
+            }
+        }
     };
     // `Ok(None)` mirrors the report path's "ran but reached no outcome"
     // rows (e.g. the fog battles, which assemble clean and simply never
@@ -627,9 +681,10 @@ pub fn run_world_battle_caught(
     pattern: usize,
     script: &[u8],
     seed: u64,
+    weak_party: bool,
 ) -> BattleRunReport {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        run_world_battle_report(scene_name, scene, pattern, script, seed)
+        run_world_battle_report(scene_name, scene, pattern, script, seed, weak_party)
     }))
     .unwrap_or_else(|_| BattleRunReport {
         scene: scene_name.to_owned(),

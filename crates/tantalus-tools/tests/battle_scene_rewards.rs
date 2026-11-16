@@ -408,7 +408,7 @@ fn run_scene_battle_drives_a_full_battle_with_empty_ai() {
     let mut script = b"EV\x02\x00".to_vec();
     script.resize(128, 0);
 
-    let report = run_scene_battle("SYNTHETIC", &scene, 0, &script, 42);
+    let report = run_scene_battle("SYNTHETIC", &scene, 0, &script, 42, false);
     assert_eq!(report.error, None);
     assert_eq!(
         report.outcome,
@@ -754,7 +754,7 @@ fn world_battle_distinguishes_early_failure_from_no_outcome() {
 
     let scene = scene();
     // Undecodable script: a genuine early failure, reported as an error.
-    let report = run_world_battle_report("EVT_BATTLE_TEST", &scene, 0, b"garbage!", 0x5EED);
+    let report = run_world_battle_report("EVT_BATTLE_TEST", &scene, 0, b"garbage!", 0x5EED, false);
     assert!(
         report
             .error
@@ -782,8 +782,8 @@ fn report_paths_agree_on_outcome_gil_and_exp() {
     // the world hand-off must agree on outcome, gil, and EXP. Item/card
     // draws are independent streams and stay un-compared.
     for seed in [0x5EEDu64, 1, 7] {
-        let report = run_scene_battle("EVT_BATTLE_TEST", &scene, 0, &script, seed);
-        let world = run_world_battle_report("EVT_BATTLE_TEST", &scene, 0, &script, seed);
+        let report = run_scene_battle("EVT_BATTLE_TEST", &scene, 0, &script, seed, false);
+        let world = run_world_battle_report("EVT_BATTLE_TEST", &scene, 0, &script, seed, false);
         assert_eq!(report.error, None, "seed {seed}: report path clean");
         assert_eq!(world.error, None, "seed {seed}: world path clean");
         assert_eq!(report.outcome, world.outcome, "seed {seed}: outcome");

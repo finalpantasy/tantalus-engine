@@ -58,3 +58,13 @@ be.
   does not flip outcomes (verified across two seeds).
 - Item/card drops are not cross-path comparable by design: each path owns
   an independent draw stream.
+- **Weak-party sweeps (`--battle-weak-party`) currently diverge between
+  the two paths: 31 outcome changes / 1054 battles.** Root cause found:
+  `BattleScriptDriver::new` takes the party's character-id list and spawns
+  one event object per character, but the report path passes `&[0]` and
+  the world hand-off passes `&[]` (`crates/tantalus-tools/src/battle_run.rs`),
+  so enemy scripts see different player objects and make different
+  decisions in long battles. The armed default never surfaces this (battles
+  end too fast for AI party-queries to matter) and stays bit-exact across
+  paths. Reference-correct party spawning is with the script-host owner;
+  until it lands, weak-party mode is a diagnostic, not a conformance gate.
