@@ -9,7 +9,7 @@
 //! rewards stay caller-driven through [`super::bridge`] — the machine does
 //! not yet invoke `SetBonus` on deaths.
 
-use super::{BattleOutcome, CombatInput, CombatRuleset, CombatUpdate, GameServices};
+use super::{BattleOutcome, CombatEvent, CombatInput, CombatRuleset, CombatUpdate, GameServices};
 use std::collections::BTreeMap;
 use tantalus_contracts::{ContentId, EngineError, EntityId, ErrorCategory};
 use tantalus_legacy::battle::machine::{Battle as LegacyBattle, BattleHooks, EnemyAction, result};
@@ -114,6 +114,8 @@ pub struct LegacyBattleAdapter {
     unit_map: BTreeMap<EntityId, usize>,
     target_bits: BTreeMap<EntityId, u16>,
     outcome: Option<BattleOutcome>,
+    /// Read position into `battle.log` for event surfacing.
+    log_cursor: usize,
 }
 
 impl std::fmt::Debug for LegacyBattleAdapter {
@@ -142,6 +144,7 @@ impl LegacyBattleAdapter {
             unit_map,
             target_bits,
             outcome: None,
+            log_cursor: 0,
         }
     }
 
@@ -155,6 +158,42 @@ impl LegacyBattleAdapter {
 
     pub fn outcome(&self) -> Option<BattleOutcome> {
         self.outcome
+    }
+
+    /// Maps machine log entries recorded since the last call onto the
+    /// coordinator's event surface. v1 surfaces death and completion
+    /// notifications (the ones the reward loop and battle UI consume);
+    /// command/action events stay machine-internal until a caller needs
+    /// them — `ActionStarted` requires a content identity the adapter's
+    /// one-way action map cannot always invert.
+    pub fn take_events(&mut self) -> Vec<CombatEvent> {
+        let mut events = Vec::new();
+        let drained: Vec<_> = self.battle.log[self.log_cursor..].to_vec();
+        self.log_cursor = self.battle.log.len();
+        for (_, event) in drained {
+            match event {
+                tantalus_legacy::battle::machine::BattleEvent::UnitDied { unit } => {
+                    let entity = self
+                        .unit_map
+                        .iter()
+                        .find(|(_, index)| **index == unit)
+                        .map(|(entity, _)| *entity);
+                    if let Some(entity) = entity {
+                        events.push(CombatEvent::UnitDefeated { unit: entity });
+                    }
+                }
+                tantalus_legacy::battle::machine::BattleEvent::Result { result } => {
+                    let outcome = match result {
+                        result::VICTORY | result::VICTORY_NO_POSE => BattleOutcome::Victory,
+                        result::DEFEAT => BattleOutcome::Defeat,
+                        _ => continue,
+                    };
+                    events.push(CombatEvent::BattleCompleted { outcome });
+                }
+                _ => {}
+            }
+        }
+        events
     }
 
     /// Advances the machine one tick, queueing a player command first when

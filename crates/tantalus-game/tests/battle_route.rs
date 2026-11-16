@@ -279,24 +279,9 @@ fn field_encounter_drives_the_legacy_machine_to_victory_and_pays_rewards() {
         },
     );
 
-    let mut outcome = None;
-    for tick in 0..4000u64 {
-        let mut services = WorldGameServices::new(&mut world);
-        let mut input =
-            tantalus_game::battle::CombatInput::new(tantalus_contracts::Tick::new(tick));
-        input.command = Some(BattleCommand {
-            actor: player_entity,
-            action: content("action/attack"),
-            targets: vec![enemy_entity],
-        });
-        if let Some(done) = coordinator.advance(&input, &mut services).unwrap() {
-            outcome = Some(done);
-            break;
-        }
-    }
-    assert_eq!(outcome, Some(tantalus_game::battle::BattleOutcome::Victory));
-
-    // Rewards stay caller-driven: the enemy's death pays a drawn bonus.
+    // Death-driven rewards: each machine death notification pays that
+    // enemy's bonus row into the shared bonus, like the reference's
+    // `SetBonus` on kill.
     let mut bonus = BattleBonus::new(2, 0b0001, false);
     let mut enemies = vec![tantalus_legacy::battle::rewards::EnemyRewardData {
         type_id: 0,
@@ -310,7 +295,38 @@ fn field_encounter_drives_the_legacy_machine_to_victory_and_pays_rewards() {
         bonus_given: false,
     }];
     let mut rng = SequenceRandom::with_kinds(&[(Draw::Random8, 0)]);
-    assert!(bonus.set_bonus(&mut enemies, 0, &mut rng));
+    let mut deaths = 0usize;
+
+    let mut outcome = None;
+    for tick in 0..4000u64 {
+        let mut services = WorldGameServices::new(&mut world);
+        let mut input =
+            tantalus_game::battle::CombatInput::new(tantalus_contracts::Tick::new(tick));
+        input.command = Some(BattleCommand {
+            actor: player_entity,
+            action: content("action/attack"),
+            targets: vec![enemy_entity],
+        });
+        if let Some(done) = coordinator.advance(&input, &mut services).unwrap() {
+            outcome = Some(done);
+        }
+        drop(services);
+        if let Some(tantalus_game::battle::AnyRuleset::Legacy(adapter)) =
+            coordinator.active_ruleset_mut()
+        {
+            for event in adapter.take_events() {
+                if let tantalus_game::battle::CombatEvent::UnitDefeated { .. } = event {
+                    assert!(bonus.set_bonus(&mut enemies, deaths, &mut rng));
+                    deaths += 1;
+                }
+            }
+        }
+        if outcome.is_some() {
+            break;
+        }
+    }
+    assert_eq!(outcome, Some(tantalus_game::battle::BattleOutcome::Victory));
+    assert_eq!(deaths, 1, "the one enemy died exactly once");
 
     let mut member: PartyMember = {
         let base = tantalus_legacy::battle::rewards::BaseStats {

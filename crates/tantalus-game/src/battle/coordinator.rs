@@ -30,6 +30,16 @@ impl EncounterCoordinator {
         self.active.as_ref().map(|encounter| &encounter.request)
     }
 
+    /// The active ruleset, when a battle is running.
+    pub fn active_ruleset(&self) -> Option<&AnyRuleset> {
+        self.active.as_ref().map(|encounter| &encounter.battle)
+    }
+
+    /// Mutable access to the active ruleset (event drains, state probes).
+    pub fn active_ruleset_mut(&mut self) -> Option<&mut AnyRuleset> {
+        self.active.as_mut().map(|encounter| &mut encounter.battle)
+    }
+
     /// Begin a battle for one encounter request. A second begin while a
     /// battle is active is a conflict; the caller must finish first.
     pub fn begin(
