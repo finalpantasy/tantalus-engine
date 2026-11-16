@@ -1744,8 +1744,38 @@ fn ctor_zero_will_is_an_error() {
 
 #[test]
 fn unported_script_is_an_error() {
+    let mut r = Rig::new(59);
+    assert_eq!(r.try_run(&[7]).unwrap_err(), CalcError::UnportedScript(59));
+}
+
+#[test]
+fn steal_takes_the_rarest_slot_that_rolls() {
+    // Trance draw, the Level + Will vs Level roll (0 % 21 < 0 % 1 fails
+    // to block), then slot 3 (rate 1) misses and slot 2 (rate 16) hits.
     let mut r = Rig::new(58);
-    assert_eq!(r.try_run(&[7]).unwrap_err(), CalcError::UnportedScript(58));
+    r.t().steal_items = [1, 2, 3, 255];
+    r.t().steal_rates = [256, 64, 16, 1];
+    let outcome = r.run_kinds(&[
+        (Draw::Random16, 7),
+        (Draw::Random16, 0),
+        (Draw::Random16, 0),
+        (Draw::Random8, 5),
+        (Draw::Random8, 3),
+    ]);
+    assert_eq!(outcome.stolen, Some(Some(3)));
+    assert_eq!(r.t().steal_items, [1, 2, 255, 255]);
+    // Nothing left to take.
+    let mut r = Rig::new(58);
+    let outcome = r.try_run(&[7]).unwrap();
+    assert_eq!(outcome.stolen, Some(None));
+}
+
+#[test]
+fn change_flips_the_row() {
+    let mut r = Rig::new(55);
+    r.t().row = 1;
+    r.try_run(&[7]).unwrap();
+    assert_eq!(r.t().row, 0);
 }
 
 #[test]

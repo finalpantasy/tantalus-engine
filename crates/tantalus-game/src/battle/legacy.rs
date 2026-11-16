@@ -374,8 +374,11 @@ impl<H: BattleHooks> LegacyBattleAdapter<H> {
             let tar_id = command.targets.iter().fold(0u16, |mask, target| {
                 mask | self.target_bits.get(target).copied().unwrap_or(0)
             });
+            // More than one target: the cursor covered a side
+            // (`CMD_DATA.info.cursor`), which splits multi-target damage.
+            let cursor = u8::from(command.targets.len() > 1);
             self.battle
-                .player_command(unit, cmd_no, sub_no, tar_id, 0, &mut self.hooks)
+                .player_command(unit, cmd_no, sub_no, tar_id, cursor, &mut self.hooks)
                 .map_err(|error| {
                     battle_error(format!("legacy command rejected: {error:?}"), false)
                 })?;

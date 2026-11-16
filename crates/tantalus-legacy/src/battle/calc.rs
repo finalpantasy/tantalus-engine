@@ -127,6 +127,8 @@ pub struct CalcOutcome {
     pub trouble: bool,
     /// The calculation ended with a Miss that was a Dodge.
     pub dodged: bool,
+    /// Steal (script 58) ran: the item taken, or `None` when nothing was.
+    pub stolen: Option<Option<u32>>,
 }
 
 pub struct Calculator<'a> {
@@ -155,6 +157,9 @@ pub struct Calculator<'a> {
     pub trouble: bool,
     /// `PerformCalcResult` (`BattleCalculator.cs:185`).
     pub perform_calc_result: bool,
+    /// `Context.ItemSteal` after a Steal: the item, or `None` for a failed
+    /// try (see [`CalcOutcome::stolen`]).
+    pub stolen: Option<Option<u32>>,
 }
 
 type Rng<'r> = &'r mut dyn BattleRandom;
@@ -197,6 +202,7 @@ impl<'a> Calculator<'a> {
             initial_check_point: 0,
             trouble: false,
             perform_calc_result: true,
+            stolen: None,
         };
         calc.initial_check_point = calc.check_point(rng);
         let draw = rng.random16();
@@ -1175,6 +1181,7 @@ pub fn calc_result(v: &mut Calculator<'_>, rng: Rng<'_>) -> CalcOutcome {
         trance_increase: v.trance_increase,
         trouble: v.trouble,
         dodged,
+        stolen: v.stolen,
     }
 }
 
@@ -1307,6 +1314,7 @@ pub fn calc_main(
             trance_increase: v.trance_increase,
             trouble: v.trouble,
             dodged: false,
+            stolen: v.stolen,
         })
     }
 }

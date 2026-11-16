@@ -343,6 +343,13 @@ pub enum BattleEvent {
     CombinationFailed {
         unit: usize,
     },
+    /// Steal ran on `target`: `item` went into the inventory, or `None`
+    /// ("Couldn't steal anything").
+    Stole {
+        caster: usize,
+        target: usize,
+        item: Option<u32>,
+    },
     /// `ItemUse`: one copy of `item` was removed from the inventory.
     ItemUsed {
         unit: usize,
@@ -2128,6 +2135,16 @@ impl Battle {
             let prev = self.snapshot();
             let outcome = calc_main(&mut self.units, caster, t, command, env, &self.table, rng)?;
             self.sync(&prev);
+            if let Some(item) = outcome.stolen {
+                if let Some(item) = item {
+                    *self.inventory.entry(item as i32).or_insert(0) += 1;
+                }
+                self.emit(BattleEvent::Stole {
+                    caster,
+                    target: t,
+                    item,
+                });
+            }
             let target_hp = self.units[t].cur_hp;
             self.emit(BattleEvent::EffectApplied {
                 caster,

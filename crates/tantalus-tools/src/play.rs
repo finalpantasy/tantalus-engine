@@ -306,7 +306,7 @@ fn keyword_character(keyword: &str) -> i32 {
 
 /// Default name of a `CharacterId` (`CharacterParameters.csv`; the game has
 /// no rename screen here).
-pub(crate) fn character_name(id: i32) -> &'static str {
+pub fn character_name(id: i32) -> &'static str {
     match id {
         1 => "Vivi",
         2 => "Dagger",
@@ -349,6 +349,9 @@ pub struct PlayGame {
     /// replay ([`crate::battle_stage`]). Take it after a
     /// [`PlayEvent::Battle`].
     pub last_battle: Option<crate::battle_stage::BattleStage>,
+    /// What the last live battle paid, for the result screen. Take it
+    /// after a [`PlayEvent::Battle`].
+    pub last_results: Option<BattleResults>,
     /// The open main menu; the field does not run while it is open.
     menu: Option<FieldMenu>,
     save_dir: PathBuf,
@@ -406,6 +409,7 @@ impl PlayGame {
             ticks: 0,
             floor: None,
             last_battle: None,
+            last_results: None,
             menu: None,
             save_dir: play_save::default_dir(),
             pending_position: None,
@@ -1221,6 +1225,11 @@ impl PlayGame {
         }
     }
 
+    /// The live battle, to send it the flee key.
+    pub fn battle_mut(&mut self) -> Option<&mut LiveFight> {
+        self.pending.as_mut()?.fight.as_mut()
+    }
+
     /// One battle tick (15 a second) of the live battle, with `command` for
     /// a ready party member. When the battle ends, its result is carried
     /// back to the field as [`Self::tick`] does, and the next battle the
@@ -1247,8 +1256,44 @@ impl PlayGame {
         let battles = self.data.battles.as_ref().expect("battle data");
         let mut report = fight.finish(battles);
         let session = self.session.as_mut().expect("session");
-        save_party(&report, &mut session.director.world_mut().character_stats);
-        pay_rewards(&report, session.director.world_mut());
+        let world = session.director.world_mut();
+        save_party(&report, &mut world.character_stats);
+        let tables = &self.data.menu;
+        let levels = |world: &FieldWorld| -> Vec<usize> {
+            report
+                .reward_exp
+                .iter()
+                .map(|(character, _)| {
+                    tables.level(world.character_exp.get(character).copied().unwrap_or(0))
+                })
+                .collect()
+        };
+        let before = levels(world);
+        pay_rewards(&report, world);
+        let after = levels(world);
+        let victory = report.outcome.as_deref() == Some("victory");
+        self.last_results = Some(BattleResults {
+            outcome: report.outcome.clone().unwrap_or_default(),
+            gil: if victory { report.reward_gil } else { 0 },
+            ap: if victory { report.reward_ap } else { 0 },
+            exp: if victory {
+                report
+                    .reward_exp
+                    .iter()
+                    .zip(before.iter().zip(&after))
+                    .map(|(&(character, exp), (&from, &to))| (character, exp, from, to))
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            items: if victory {
+                report.reward_items.clone()
+            } else {
+                Vec::new()
+            },
+            stolen: report.items_stolen.clone(),
+            card: report.reward_card.filter(|_| victory),
+        });
         if let Some(stage) = report.stage.take() {
             pending.stage = Some(stage);
         }
@@ -1409,6 +1454,21 @@ impl PlayGame {
         }
         Ok(())
     }
+}
+
+/// What a live battle paid (`BattleResultUI`): EXP per member with the
+/// level before and after, AP, gil, items, Steal's take and a card.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct BattleResults {
+    pub outcome: String,
+    pub gil: u32,
+    pub ap: u16,
+    /// `(character, EXP, level before, level after)`.
+    pub exp: Vec<(i32, u32, usize, usize)>,
+    /// `(item, count)` dropped.
+    pub items: Vec<(u32, u32)>,
+    pub stolen: Vec<u32>,
+    pub card: Option<u32>,
 }
 
 fn player_position(world: &FieldWorld) -> Option<[f32; 3]> {

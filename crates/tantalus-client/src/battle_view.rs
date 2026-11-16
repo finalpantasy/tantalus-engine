@@ -20,6 +20,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use tantalus_tools::play::pad;
 
 use bevy::math::{Quat, Vec3};
 use tantalus_assets::pc::battle_background::{
@@ -541,9 +542,11 @@ pub struct Overlay {
     pub menu: Option<MenuDraw>,
     /// Party member whose menu is open.
     pub asked: Option<usize>,
-    /// Unit under the target cursor.
-    pub target: Option<usize>,
+    /// Units under the target cursor.
+    pub target: Vec<usize>,
     pub banner: Option<String>,
+    /// The result screen ([`results_lines`]).
+    pub results: Option<(String, Vec<crate::battle_hud::ListLine>)>,
 }
 
 impl BattleScene {
@@ -701,25 +704,35 @@ fn hud_draw(
             Some((heads.get(target).copied().flatten()?, amount, since))
         })
         .collect();
-    let banner = overlay.banner.clone().or_else(|| {
-        (seconds >= stage.duration() && !stage.frames.is_empty())
-            .then(|| stage.outcome.clone())
-            .flatten()
-            .map(|outcome| match outcome.as_str() {
-                "victory" => "Victory".to_owned(),
-                "defeat" => "Defeat".to_owned(),
-                other => other.to_owned(),
-            })
-    });
+    let banner = overlay
+        .banner
+        .clone()
+        .filter(|_| overlay.results.is_none())
+        .or_else(|| {
+            if overlay.results.is_some() {
+                return None;
+            }
+            (seconds >= stage.duration() && !stage.frames.is_empty())
+                .then(|| stage.outcome.clone())
+                .flatten()
+                .map(|outcome| match outcome.as_str() {
+                    "victory" => "Victory".to_owned(),
+                    "defeat" => "Defeat".to_owned(),
+                    other => other.to_owned(),
+                })
+        });
     HudDraw {
         party,
         enemies,
         menu: overlay.menu.clone(),
         target: overlay
             .target
-            .and_then(|target| heads.get(target).copied().flatten()),
+            .iter()
+            .filter_map(|&target| heads.get(target).copied().flatten())
+            .collect(),
         numbers,
         banner,
+        results: overlay.results.clone(),
     }
 }
 
@@ -1055,8 +1068,13 @@ pub struct FightView {
     since_tick: f64,
     /// Pad bits held last frame.
     previous: i32,
-    /// The finished battle, shown `HOLD_SECONDS` with its outcome.
+    /// The finished battle and seconds since, shown with its result
+    /// screen until Confirm (at least `HOLD_SECONDS`).
     ended: Option<(BattleStage, f64)>,
+    /// What the battle paid, from [`tantalus_tools::play::PlayGame::last_results`].
+    pub results: Option<tantalus_tools::play::BattleResults>,
+    /// Seconds L1 and R1 have been held (`BattleHUD._runCounter`).
+    run_held: f64,
     window: Option<BattleWindow>,
     pub battle: i32,
     pub scene_name: String,
@@ -1084,6 +1102,8 @@ impl FightView {
             since_tick: 0.0,
             previous: 0,
             ended: None,
+            results: None,
+            run_held: 0.0,
             window: None,
             battle: stage.battle,
             scene_name: stage.scene.clone(),
@@ -1129,12 +1149,42 @@ impl FightView {
         let mut events = Vec::new();
         if let Some((_, shown)) = &mut self.ended {
             *shown += delta;
-            return (events, *shown >= HOLD_SECONDS);
+            // The result screen waits for Confirm; an escape or other end
+            // closes by itself.
+            let waits = self
+                .results
+                .as_ref()
+                .is_some_and(|results| matches!(results.outcome.as_str(), "victory" | "defeat"));
+            let done = *shown >= HOLD_SECONDS && (!waits || pressed & pad::CONFIRM != 0);
+            if done
+                && self
+                    .results
+                    .as_ref()
+                    .is_some_and(|results| results.outcome == "defeat")
+            {
+                // Game over: back to the saved games
+                // (`FF9StateSystem` game over -> title -> Continue).
+                game.open_load_screen();
+            }
+            return (events, done);
         }
         if let Some(fight) = game.battle()
             && self.pending.is_none()
         {
             self.pending = self.menu.update(fight, pressed);
+        }
+        // Holding L1 and R1 runs: a flee roll each second held
+        // (`BattleHUD.Update`, `btl_sys.CheckEscape(true)`).
+        if held & pad::L1 != 0 && held & pad::R1 != 0 {
+            self.run_held += delta;
+            if self.run_held > 1.0 {
+                self.run_held = 0.0;
+                if let Some(fight) = game.battle_mut() {
+                    fight.try_flee();
+                }
+            }
+        } else {
+            self.run_held = 0.0;
         }
         self.since_tick += delta;
         while self.since_tick >= TICK_SECONDS && self.ended.is_none() {
@@ -1142,6 +1192,7 @@ impl FightView {
             events.extend(game.battle_tick(self.pending.take()));
             if game.battle().is_none() {
                 let stage = game.last_battle.take().unwrap_or_default();
+                self.results = game.last_results.take();
                 self.ended = Some((stage, 0.0));
             }
         }
@@ -1155,21 +1206,37 @@ impl FightView {
         hud: Option<&BattleHud>,
         game: &tantalus_tools::play::PlayGame,
     ) -> Frame {
+        let item_name = |item| game.item_name(item).map(str::to_owned);
         if let Some((stage, shown)) = &self.ended {
             let seconds = stage.duration() + shown;
+            // The outcome banner first, then the result screen.
+            let overlay = Overlay {
+                results: self
+                    .results
+                    .as_ref()
+                    .filter(|_| *shown >= 1.0)
+                    .map(|results| {
+                        results_lines(
+                            results,
+                            &|character| tantalus_tools::play::character_name(character).to_owned(),
+                            &item_name,
+                        )
+                    }),
+                ..Overlay::default()
+            };
             return self
                 .scene
-                .render_with(assets, stage, seconds, hud, &Overlay::default());
+                .render_with(assets, stage, seconds, hud, &overlay);
         }
         let Some(fight) = game.battle() else {
             return Frame::new(LIVE_SIZE.0, LIVE_SIZE.1, CLEAR);
         };
         let stage = fight.stage();
-        let overlay = menu_overlay(fight, &self.menu, &|item| {
-            game.item_name(item).map(str::to_owned)
-        });
+        let seconds = self.seconds(stage);
+        let mut overlay = menu_overlay(fight, &self.menu, &item_name);
+        overlay.banner = steal_message(stage, seconds, &item_name);
         self.scene
-            .render_with(assets, stage, self.seconds(stage), hud, &overlay)
+            .render_with(assets, stage, seconds, hud, &overlay)
     }
 
     /// Draws the frame into the window.
@@ -1208,7 +1275,8 @@ pub fn menu_overlay(
     item_name: &dyn Fn(i32) -> Option<String>,
 ) -> Overlay {
     use crate::battle_hud::ListLine;
-    use crate::battle_menu::{MenuLevel, usable};
+    use crate::battle_menu::{MenuLevel, list_of, row_enabled, usable};
+    use tantalus_tools::field_battle::CommandKind;
     let Some(unit) = menu.unit else {
         return Overlay::default();
     };
@@ -1236,48 +1304,71 @@ pub fn menu_overlay(
             enabled: usable(fight, unit, entry),
         }
     };
-    let commands = vec![
-        line(&entries.attack),
-        ListLine {
-            text: entries.ability_title.clone(),
-            right: String::new(),
-            enabled: !entries.abilities.is_empty(),
-        },
-        line(&entries.defend),
-        ListLine {
-            text: "Item".into(),
-            right: String::new(),
-            enabled: !entries.items.is_empty(),
-        },
-    ];
-    let open_list = |items: bool| {
-        let list = if items {
-            &entries.items
-        } else {
-            &entries.abilities
-        };
-        (list.iter().map(line).collect::<Vec<_>>(), menu.list)
+    let row = |index: usize, text: String| ListLine {
+        text,
+        right: String::new(),
+        enabled: row_enabled(entries, index),
     };
+    let title = |index: usize| {
+        entries
+            .commands
+            .get(index)
+            .map(|command| command.title.clone())
+            .unwrap_or_default()
+    };
+    let commands = vec![
+        row(0, entries.attack.label.clone()),
+        row(1, title(0)),
+        row(2, title(1)),
+        row(3, "Item".into()),
+        row(4, entries.defend.label.clone()),
+        row(5, entries.change.label.clone()),
+    ];
+    let open_list = |kind| {
+        (
+            list_of(entries, kind).iter().map(line).collect::<Vec<_>>(),
+            menu.list,
+        )
+    };
+    let targeted = menu.targeted(fight);
     let (list, targeting, help) = match &menu.level {
-        MenuLevel::Commands => (None, false, None),
-        MenuLevel::List { items } => {
-            let list = open_list(*items);
+        MenuLevel::Commands => {
+            // The help line names a direct command's effect.
+            let help = match menu.command {
+                1 | 2 => match entries.commands.get(menu.command - 1).map(|c| &c.kind) {
+                    Some(CommandKind::Unavailable) => Some("Not available yet".to_owned()),
+                    _ => None,
+                },
+                _ => None,
+            };
+            (None, false, help)
+        }
+        MenuLevel::List(kind) => {
+            let list = open_list(*kind);
             let help = list.0.get(list.1).map(|line| line.text.clone());
             (Some(list), false, help)
         }
-        MenuLevel::Target { back, .. } => {
+        MenuLevel::Target { back, all, .. } => {
             let list = match back.as_ref() {
-                MenuLevel::List { items } => Some(open_list(*items)),
+                MenuLevel::List(kind) => Some(open_list(*kind)),
                 _ => None,
             };
-            let help = menu.targeted(fight).and_then(|target| {
-                let stage = fight.stage();
-                let players = player_count(stage);
-                stage
-                    .units
-                    .get(target)
-                    .map(|unit| display_name(unit, target.saturating_sub(players)))
-            });
+            let stage = fight.stage();
+            let players = player_count(stage);
+            let help = if *all && targeted.len() > 1 {
+                Some(if targeted.iter().all(|&target| target >= players) {
+                    "All enemies".to_owned()
+                } else {
+                    "All allies".to_owned()
+                })
+            } else {
+                targeted.first().and_then(|&target| {
+                    stage
+                        .units
+                        .get(target)
+                        .map(|unit| display_name(unit, target.saturating_sub(players)))
+                })
+            };
             (list, true, help)
         }
     };
@@ -1290,8 +1381,88 @@ pub fn menu_overlay(
             help,
         }),
         asked: Some(unit),
-        target: menu.targeted(fight),
+        target: targeted,
         banner: None,
+        results: None,
+    }
+}
+
+/// The latest Steal message within two seconds of `seconds`
+/// (`BattleMesages.Stole` / `CouldNotStealAnything`).
+pub fn steal_message(
+    stage: &BattleStage,
+    seconds: f64,
+    item_name: &dyn Fn(i32) -> Option<String>,
+) -> Option<String> {
+    use tantalus_tools::battle_stage::{BATTLE_TICKS_PER_SECOND, StageEvent};
+    let now = (seconds.max(0.0) * BATTLE_TICKS_PER_SECOND) as usize;
+    let first = now.saturating_sub((2.0 * BATTLE_TICKS_PER_SECOND) as usize);
+    stage
+        .frames
+        .get(first..=now.min(stage.frames.len().saturating_sub(1)))?
+        .iter()
+        .rev()
+        .flat_map(|frame| frame.events.iter().rev())
+        .find_map(|event| match event {
+            StageEvent::Stole { item, .. } => Some(*item),
+            _ => None,
+        })
+        .map(|item| match item {
+            Some(item) => format!(
+                "Stole {}!",
+                item_name(item as i32).unwrap_or_else(|| format!("item {item}"))
+            ),
+            None => "Couldn't steal anything.".to_owned(),
+        })
+}
+
+/// The result screen's title and lines for `results`: EXP per member with
+/// any level gained, AP, gil, the items won and stolen, a card; a defeat is
+/// the game over screen.
+pub fn results_lines(
+    results: &tantalus_tools::play::BattleResults,
+    name: &dyn Fn(i32) -> String,
+    item_name: &dyn Fn(i32) -> Option<String>,
+) -> (String, Vec<crate::battle_hud::ListLine>) {
+    use crate::battle_hud::ListLine;
+    let plain = |text: String, right: String| ListLine {
+        text,
+        right,
+        enabled: true,
+    };
+    let item = |id: u32| item_name(id as i32).unwrap_or_else(|| format!("Item {id}"));
+    match results.outcome.as_str() {
+        "victory" => {
+            let mut lines = Vec::new();
+            for &(character, exp, from, to) in &results.exp {
+                lines.push(plain(name(character), format!("{exp} EXP")));
+                if to > from {
+                    lines.push(ListLine {
+                        text: format!("  Level up! Lv {from} -> {to}"),
+                        right: String::new(),
+                        enabled: false,
+                    });
+                }
+            }
+            lines.push(plain("AP".into(), results.ap.to_string()));
+            lines.push(plain("Gil".into(), results.gil.to_string()));
+            for &(id, count) in &results.items {
+                lines.push(plain(item(id), format!("x{count}")));
+            }
+            for &id in &results.stolen {
+                lines.push(plain(format!("{} (stolen)", item(id)), "x1".into()));
+            }
+            if let Some(card) = results.card {
+                lines.push(plain(format!("Card {card}"), "x1".into()));
+            }
+            ("Victory".to_owned(), lines)
+        }
+        "defeat" => (
+            "GAME OVER".to_owned(),
+            vec![plain("Confirm: load a saved game".into(), String::new())],
+        ),
+        "escape" | "party_flee" => ("Escaped".to_owned(), Vec::new()),
+        other => (other.to_owned(), Vec::new()),
     }
 }
 
@@ -1331,6 +1502,44 @@ pub fn set_title(world: &mut bevy::ecs::world::World, title: String) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn results_lines_show_level_ups_and_game_over() {
+        let results = tantalus_tools::play::BattleResults {
+            outcome: "victory".into(),
+            gil: 30,
+            ap: 2,
+            exp: vec![(0, 50, 2, 3), (1, 50, 2, 2)],
+            items: vec![(236, 1)],
+            stolen: vec![88],
+            card: None,
+        };
+        let (title, lines) = results_lines(&results, &|id| format!("C{id}"), &|item| {
+            Some(format!("I{item}"))
+        });
+        assert_eq!(title, "Victory");
+        let texts: Vec<&str> = lines.iter().map(|line| line.text.as_str()).collect();
+        assert_eq!(
+            texts,
+            [
+                "C0",
+                "  Level up! Lv 2 -> 3",
+                "C1",
+                "AP",
+                "Gil",
+                "I236",
+                "I88 (stolen)"
+            ]
+        );
+        let lost = tantalus_tools::play::BattleResults {
+            outcome: "defeat".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            results_lines(&lost, &|_| String::new(), &|_| None).0,
+            "GAME OVER"
+        );
+    }
+
     use super::*;
     use tantalus_tools::battle_stage::StageUnit;
 

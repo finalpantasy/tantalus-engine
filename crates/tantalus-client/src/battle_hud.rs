@@ -56,7 +56,9 @@ pub struct ListLine {
 /// The menu as drawn.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MenuDraw {
-    /// The four command rows and whether each can be picked.
+    /// The command rows and whether each can be picked: Attack, the two
+    /// ability commands and Item, then Defend and Change (the side
+    /// column, beside the first and last rows).
     pub commands: Vec<ListLine>,
     pub command_cursor: usize,
     /// The open ability or item list and its cursor.
@@ -75,12 +77,14 @@ pub struct HudDraw {
     /// Enemy names still standing.
     pub enemies: Vec<String>,
     pub menu: Option<MenuDraw>,
-    /// Frame pixel above the targeted unit.
-    pub target: Option<[f32; 2]>,
+    /// Frame pixels above the targeted units.
+    pub target: Vec<[f32; 2]>,
     /// Frame pixel, amount (negative heals, 0 a miss) and seconds since.
     pub numbers: Vec<([f32; 2], i64, f64)>,
-    /// A line across the top (the battle's end).
+    /// A line across the top (the battle's end, Steal's take).
     pub banner: Option<String>,
+    /// The result screen: a title and its lines.
+    pub results: Option<(String, Vec<ListLine>)>,
 }
 
 /// The font and window art, and windows drawn so far.
@@ -160,22 +164,30 @@ impl BattleHud {
         let left_x = 20.0;
         match &hud.menu {
             Some(menu) => {
-                let h = 40.0 + line * menu.commands.len() as f32;
+                let rows = menu.commands.len().min(4);
+                let h = 40.0 + line * rows as f32;
                 let y = UI_HEIGHT - h - 20.0;
                 // The list replaces the command window (`AbilityPanel`
                 // over `CommandPanel`).
                 let commands = if menu.list.is_some() {
                     &[][..]
                 } else {
-                    ui.window(left_x, y, left_w.min(420.0), h);
+                    ui.window(left_x, y, left_w, h);
                     &menu.commands[..]
                 };
-                for (row, command) in commands.iter().enumerate() {
+                for (index, command) in commands.iter().enumerate() {
+                    // Side column: Defend beside the first row, Change
+                    // beside the last.
+                    let (row, x) = match index {
+                        0..=3 => (index, left_x + 80.0),
+                        4 => (0, left_x + 360.0),
+                        _ => (rows.saturating_sub(1), left_x + 360.0),
+                    };
                     let ty = y + 22.0 + line * row as f32;
                     let color = if command.enabled { WHITE } else { GRAY };
-                    ui.text(left_x + 80.0, ty, &command.text, color);
-                    if row == menu.command_cursor && menu.list.is_none() && !menu.targeting {
-                        ui.hand(left_x + 30.0, ty + 8.0);
+                    ui.text(x, ty, &command.text, color);
+                    if index == menu.command_cursor && menu.list.is_none() && !menu.targeting {
+                        ui.hand(x - 50.0, ty + 8.0);
                     }
                 }
                 if let Some((lines, cursor)) = &menu.list {
@@ -217,9 +229,28 @@ impl BattleHud {
             ui.window((ui_width - w) / 2.0, 20.0, w, 100.0);
             ui.text((ui_width - ui.measure(banner)) / 2.0, 42.0, banner, WHITE);
         }
-        // Target cursor: a hand pointing down at the unit.
-        if let Some([x, y]) = hud.target {
+        // Target cursor: a hand pointing down at each unit.
+        for [x, y] in &hud.target {
             ui.hand_down(x / scale, y / scale);
+        }
+        // The result screen (`BattleResultUI`), centered.
+        if let Some((title, lines)) = &hud.results {
+            let w = 1100.0;
+            let h = 150.0 + line * lines.len() as f32;
+            let (x, y) = ((ui_width - w) / 2.0, (UI_HEIGHT - h) / 2.0 - 80.0);
+            ui.window(x, y, w, h);
+            ui.text(
+                (ui_width - ui.measure(title)) / 2.0,
+                y + 30.0,
+                title,
+                YELLOW,
+            );
+            for (row, entry) in lines.iter().enumerate() {
+                let ty = y + 110.0 + line * row as f32;
+                let color = if entry.enabled { WHITE } else { YELLOW };
+                ui.text(x + 80.0, ty, &entry.text, color);
+                ui.text_right(x + w - 80.0, ty, &entry.right, color);
+            }
         }
         // Damage numbers bounce up and settle (`btl2d` digits).
         for ([x, y], amount, since) in &hud.numbers {

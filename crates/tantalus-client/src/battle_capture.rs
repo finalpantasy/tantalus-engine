@@ -214,18 +214,33 @@ type Steps = Vec<(f64, i32, Option<&'static str>)>;
 /// The presses for one menu. The first menu tours the windows for the
 /// shots: the command window, the ability list, then Attack and its
 /// target cursor; later menus attack the default target.
-fn menu_steps(first: bool, has_list: bool) -> Steps {
-    match (first, has_list) {
-        (true, true) => vec![
-            (0.8, pad::DOWN, Some("menu")),
+fn menu_steps(count: usize, ready: usize) -> Steps {
+    match count {
+        // The first menu: the window, Triangle to the next ready member,
+        // the side column (Defend), then Steal on the first enemy.
+        0 => {
+            let mut steps = vec![(0.8, 0, Some("menu"))];
+            if ready > 1 {
+                steps.push((0.1, pad::TRIANGLE, None));
+                steps.push((0.6, 0, Some("switch")));
+            }
+            steps.extend([
+                (0.1, pad::RIGHT, None),
+                (0.6, 0, Some("side")),
+                (0.1, pad::LEFT, None),
+                (0.3, pad::DOWN, None),
+                (0.3, pad::CONFIRM, None),
+                (0.6, pad::CONFIRM, Some("steal-target")),
+            ]);
+            steps
+        }
+        // The second: the item list, back out, then Attack.
+        1 => vec![
+            (0.5, pad::UP, None),
             (0.3, pad::CONFIRM, None),
             (0.6, pad::CANCEL, Some("list")),
-            (0.3, pad::UP, None),
+            (0.3, pad::DOWN, None),
             (0.3, pad::CONFIRM, None),
-            (0.6, pad::CONFIRM, Some("target")),
-        ],
-        (true, false) => vec![
-            (0.8, pad::CONFIRM, Some("menu")),
             (0.6, pad::CONFIRM, Some("target")),
         ],
         _ => vec![(0.3, pad::CONFIRM, None), (0.3, pad::CONFIRM, None)],
@@ -272,7 +287,8 @@ fn live_capture(
     let delta = 1.0 / 30.0;
     let mut steps: Steps = Vec::new();
     let mut waited = 0.0;
-    let mut first_menu = true;
+    let mut menus = 0;
+    let mut stole: Option<f64> = None;
     let mut saved: Vec<&str> = Vec::new();
     let mut attack: Option<f64> = None;
     let mut at_index = 0;
@@ -286,13 +302,11 @@ fn live_capture(
         let mut held = 0;
         let seconds = game.battle().map_or(0.0, |fight| fight.stage().duration());
         if view.menu.open() && steps.is_empty() {
-            let has_list = game
+            let ready = game
                 .battle()
-                .zip(view.menu.unit)
-                .and_then(|(fight, unit)| fight.menu(unit))
-                .is_some_and(|menu| !menu.abilities.is_empty());
-            steps = menu_steps(first_menu, has_list);
-            first_menu = false;
+                .map_or(0, |fight| fight.machine().ready_players.len());
+            steps = menu_steps(menus, ready);
+            menus += 1;
             waited = 0.0;
         }
         if !view.menu.open() {
@@ -336,6 +350,30 @@ fn live_capture(
                 }
             }
         }
+        // Steal's message, half a second after it lands.
+        if stole.is_none()
+            && let Some(fight) = game.battle()
+        {
+            stole = fight
+                .stage()
+                .frames
+                .iter()
+                .position(|frame| {
+                    frame
+                        .events
+                        .iter()
+                        .any(|event| matches!(event, StageEvent::Stole { .. }))
+                })
+                .map(|index| index as f64 / 15.0);
+        }
+        if let Some(at) = stole
+            && !saved.contains(&"steal")
+            && game.battle().is_some()
+            && seconds >= at + 0.5
+        {
+            lines.push(save(&view, game, named(output, "steal"))?);
+            saved.push("steal");
+        }
         if let Some(&at) = times.get(at_index)
             && seconds >= at
             && game.battle().is_some()
@@ -349,13 +387,20 @@ fn live_capture(
         if done {
             break;
         }
-        // The result: shoot it a second after the battle ends.
+        // The result screen: shoot it once it is up, then close it.
         if game.battle().is_none() && !saved.contains(&"end") {
-            for _ in 0..30 {
+            for _ in 0..75 {
                 view.update(game, delta, 0);
             }
             lines.push(save(&view, game, named(output, "end"))?);
             saved.push("end");
+            if let Some(results) = &view.results {
+                lines.push(format!("results: {results:?}"));
+            }
+            let (_, done) = view.update(game, delta, pad::CONFIRM);
+            if done {
+                break;
+            }
         }
     }
     lines.push(format!(

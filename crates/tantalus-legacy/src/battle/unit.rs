@@ -110,6 +110,9 @@ pub fn default_serial_number(character_id: u8, weapon_shape: u8, scenario: i32) 
     })
 }
 
+/// `RegularItem.NoItem`.
+pub const NO_ITEM: u32 = 255;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct BattleUnit {
     /// `BTL_DATA.btl_id` (bit mask id).
@@ -146,6 +149,11 @@ pub struct BattleUnit {
     /// (`FF9UIDataTool.cs:175`); enemies are created with 2
     /// (`btl_init.cs:201`).
     pub row: u8,
+    /// An enemy's `StealableItems` (255 = `RegularItem.NoItem`); a taken
+    /// item becomes 255 (`BattleCalculator.StealItem`).
+    pub steal_items: [u32; 4],
+    /// `StealableItemRates`, out of 256.
+    pub steal_rates: [u16; 4],
     /// `bi.cover != 0`.
     pub covering: bool,
     /// `def_attr.invalid` (guard), `half`, `absorb`, `weak`, `p_up_attr`.
@@ -237,6 +245,8 @@ impl BattleUnit {
             magic_defence: 0,
             magic_evade: 0,
             row: if is_player { 1 } else { 2 },
+            steal_items: [NO_ITEM; 4],
+            steal_rates: [0; 4],
             covering: false,
             guard_elements: Elements::NONE,
             half_elements: Elements::NONE,

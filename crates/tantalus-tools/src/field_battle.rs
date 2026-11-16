@@ -88,6 +88,9 @@ pub struct FightReport {
     pub reward_ap: u16,
     pub reward_items: Vec<(u32, u32)>,
     pub reward_card: Option<u32>,
+    /// Items Steal took, kept whatever the outcome (live battles only).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub items_stolen: Vec<u32>,
     /// AP per line that earns it: character, AP, and each equipped ability
     /// the character can learn with its AP goal `(ability, max AP)`, once
     /// per equipped item that carries it.
@@ -181,6 +184,21 @@ pub struct Equipment {
     item_effects: BTreeMap<i32, ItemRow>,
     /// Ability id -> its `Actions.csv` comment name (`Fire`), for menus.
     action_names: BTreeMap<i32, String>,
+    /// Preset id -> its `Ability1` and `Ability2` commands
+    /// (`Characters/CommandSets.csv`, outside Trance).
+    command_sets: BTreeMap<i32, [u32; 2]>,
+    /// `BattleCommandId` -> its `Characters/Commands.csv` row.
+    commands: BTreeMap<u32, CommandRow>,
+}
+
+/// A `Commands.csv` row (`CharacterCommand`): type 0 runs `main` directly,
+/// 1 lists abilities, 2 is Item, 3 Throw.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct CommandRow {
+    kind: u8,
+    main: i32,
+    list: Vec<i32>,
+    name: String,
 }
 
 /// The `ITEM_DATA` fields an Item command reads (`ItemEffects.csv`).
@@ -523,6 +541,36 @@ impl Equipment {
         // Comment;Id;Display;Targets;DefaultAlly;ForDead;DefaultDead;
         // DefaultCamera;AnimationId;AnimationId2;ScriptId;Power;Elements;
         // Rate;Category;AddStatus;MP;Type;...
+        if let Ok(text) = read(characters.join("CommandSets.csv")) {
+            for row in csv_rows(&text) {
+                let (Some(id), Some(first), Some(second)) =
+                    (int(&row, 0), int(&row, 3), int(&row, 4))
+                else {
+                    continue;
+                };
+                equipment
+                    .command_sets
+                    .insert(id, [first.max(0) as u32, second.max(0) as u32]);
+            }
+        }
+        if let Ok(text) = read(characters.join("Commands.csv")) {
+            for row in csv_rows(&text) {
+                let Some(id) = int(&row, 0) else { continue };
+                let field = |index: usize| row.get(index).copied().unwrap_or("");
+                equipment.commands.insert(
+                    id.max(0) as u32,
+                    CommandRow {
+                        kind: int(&row, 1).unwrap_or(0).clamp(0, 255) as u8,
+                        main: int(&row, 2).unwrap_or(0),
+                        list: field(3)
+                            .split(',')
+                            .filter_map(|id| id.trim().parse().ok())
+                            .collect(),
+                        name: field(4).trim().trim_start_matches('#').trim().to_owned(),
+                    },
+                );
+            }
+        }
         if let Ok(text) = read(characters.join("../Battle/Actions.csv")) {
             for row in csv_rows(&text) {
                 let Some(id) = int(&row, 1) else { continue };
@@ -1019,37 +1067,106 @@ pub struct MenuEntry {
     pub cmd_no: u32,
     pub sub_no: i32,
     pub aim: MenuAim,
+    /// `Actions.csv` `Targets` (`TargetType`): whether the cursor can
+    /// cover a whole side ([`MenuEntry::can_toggle_all`]) or must.
+    pub target: u8,
     /// MP the ability costs; 0 for items and basic commands.
     pub mp: u32,
     /// Item id for Item entries.
     pub item: Option<i32>,
     /// Can target a fallen ally (`ForDead`).
     pub for_dead: bool,
+    /// False for commands whose effect script is not ported yet; the menu
+    /// shows them grayed out.
+    pub enabled: bool,
+}
+
+impl MenuEntry {
+    /// `ManyAny` / `ManyAlly` / `ManyEnemy`: R1 switches between one
+    /// target and the whole side (`BattleHUD` `TargetPanel` toggle).
+    pub fn can_toggle_all(&self) -> bool {
+        matches!(
+            self.target,
+            target_type::MANY_ANY | target_type::MANY_ALLY | target_type::MANY_ENEMY
+        )
+    }
+
+    /// `All*` and `Everyone`: the cursor always covers the side.
+    pub fn always_all(&self) -> bool {
+        matches!(
+            self.target,
+            target_type::ALL
+                | target_type::ALL_ALLY
+                | target_type::ALL_ENEMY
+                | target_type::EVERYONE
+        )
+    }
+}
+
+/// What an ability command row opens.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CommandKind {
+    /// Goes straight to the target cursor (Steal).
+    Direct(MenuEntry),
+    /// An ability list (Skill, Black Magic, Sword Art, ...).
+    List(Vec<MenuEntry>),
+    /// A command the menu cannot run yet (Jump, Eat, Throw, ...), shown
+    /// grayed out.
+    Unavailable,
+}
+
+/// One of the two ability command rows (`Ability1`, `Ability2`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct MenuCommand {
+    /// `Commands.csv` name (`Steal`, `Skill`, `Blk Mag`).
+    pub title: String,
+    pub cmd_no: u32,
+    pub kind: CommandKind,
 }
 
 /// A party member's command menu (`BattleHUD.DisplayCommand`): Attack, the
-/// member's ability command, Defend and Item.
+/// member's two ability commands from `CommandSets.csv`, Item, and Defend
+/// and Change beside them.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PartyMenu {
     pub attack: MenuEntry,
-    /// The ability command's name (`Skill`, `Black Mag`, ...).
-    pub ability_title: String,
-    pub abilities: Vec<MenuEntry>,
+    pub commands: Vec<MenuCommand>,
     pub defend: MenuEntry,
+    pub change: MenuEntry,
     pub items: Vec<MenuEntry>,
 }
 
 impl PartyMenu {
     fn entries(&self) -> impl Iterator<Item = &MenuEntry> {
-        [&self.attack, &self.defend]
+        let commands = self
+            .commands
+            .iter()
+            .flat_map(|command| match &command.kind {
+                CommandKind::Direct(entry) => std::slice::from_ref(entry),
+                CommandKind::List(list) => list.as_slice(),
+                CommandKind::Unavailable => &[],
+            });
+        [&self.attack, &self.defend, &self.change]
             .into_iter()
-            .chain(&self.abilities)
+            .chain(commands)
             .chain(&self.items)
     }
 }
 
+/// `CharacterId` -> its default preset (`CharacterPresetId`), the row in
+/// `CommandSets.csv` (Marcus, Blank and Beatrix have two presets each).
+fn preset(character: i32) -> i32 {
+    match character {
+        9 => 10,
+        10 => 12,
+        11 => 14,
+        other => other,
+    }
+}
+
 /// `CharacterCommands` default command 2 of each `CharacterId`
-/// (`BattleCommandId`) and its menu name.
+/// (`BattleCommandId`) and its menu name, for a preset without a
+/// `CommandSets.csv` row.
 fn ability_command(character: i32) -> (u32, &'static str) {
     match character {
         0 => (25, "Skill"),
@@ -1065,9 +1182,39 @@ fn ability_command(character: i32) -> (u32, &'static str) {
     }
 }
 
-/// The ability commands [`player_menus`] can send, which read
-/// `Actions.csv` like the stand-in's Black Magic and Dyne.
-const ABILITY_COMMANDS: [u32; 10] = [17, 19, BLACK_MAGIC, 24, 25, INSIDE_TRICK, 27, 28, 30, 34];
+const STEAL: u32 = 2;
+const CHANGE: u32 = 7;
+const ABILITY_DEFEND: i32 = 179;
+const ABILITY_CHANGE: i32 = 182;
+/// Effect scripts of direct commands the machine runs (58 Steal).
+const DIRECT_SCRIPTS: [i32; 1] = [58];
+
+/// The player commands whose `sub_no` is an `Actions.csv` row, read like
+/// the stand-in's Black Magic and Dyne: Steal, Change and the ability
+/// lists (`btl_util.cs:427`).
+const ABILITY_COMMANDS: [u32; 21] = [
+    STEAL,
+    CHANGE,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    BLACK_MAGIC,
+    23,
+    24,
+    25,
+    INSIDE_TRICK,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+];
 
 fn player_menus(
     party: &[PartyFighter],
@@ -1075,7 +1222,7 @@ fn player_menus(
     equipment: &Equipment,
     items: &BTreeMap<i32, i32>,
 ) -> Vec<PartyMenu> {
-    let entry = |label: String, cmd_no: u32, sub_no: i32, aim, mp, item, for_dead| {
+    let entry = |label: String, cmd_no: u32, sub_no: i32, aim, target, mp, item, for_dead| {
         ContentId::parse(&format!("tantalus:command/{cmd_no}/{sub_no}"))
             .ok()
             .map(|action| MenuEntry {
@@ -1084,10 +1231,38 @@ fn player_menus(
                 cmd_no,
                 sub_no,
                 aim,
+                target,
                 mp,
                 item,
                 for_dead,
+                enabled: true,
             })
+    };
+    // An `Actions.csv` row as a menu entry under `cmd_no`.
+    let action = |cmd_no: u32, ability: i32| {
+        let row = equipment.actions.get(&ability)?;
+        let aim = if row.target >= target_type::SELF {
+            MenuAim::Caster
+        } else if row.default_ally {
+            MenuAim::Allies
+        } else {
+            MenuAim::Enemies
+        };
+        let label = equipment
+            .action_names
+            .get(&ability)
+            .cloned()
+            .unwrap_or_else(|| ability.to_string());
+        entry(
+            label,
+            cmd_no,
+            ability,
+            aim,
+            row.target,
+            row.mp.max(0) as u32,
+            None,
+            row.for_dead,
+        )
     };
     let usable: Vec<MenuEntry> = items
         .iter()
@@ -1104,6 +1279,7 @@ fn player_menus(
                 cmd::ITEM,
                 item,
                 aim,
+                row.target,
                 0,
                 Some(item),
                 row.for_dead,
@@ -1114,61 +1290,98 @@ fn player_menus(
         .iter()
         .zip(gear)
         .filter_map(|(fighter, gear)| {
-            let (command, title) = ability_command(fighter.character);
             // Only what the member can learn: gear lists every
             // character's abilities (`Abilities/<Preset>.csv`).
             let learnable = equipment.abilities(fighter.character).1;
-            let mut abilities: Vec<MenuEntry> = gear
+            let known: Vec<i32> = gear
                 .iter()
-                .filter(|&&ability| ability > 0 && ability < 192)
-                .filter(|&&ability| learnable.iter().any(|entry| entry.id == ability))
-                .filter_map(|&ability| {
-                    let row = equipment.actions.get(&ability)?;
-                    let aim = if row.target >= target_type::SELF {
-                        MenuAim::Caster
-                    } else if row.default_ally {
-                        MenuAim::Allies
-                    } else {
-                        MenuAim::Enemies
+                .copied()
+                .filter(|&ability| ability > 0 && ability < 192)
+                .filter(|&ability| learnable.iter().any(|entry| entry.id == ability))
+                .collect();
+            let set = equipment
+                .command_sets
+                .get(&preset(fighter.character))
+                .copied()
+                .unwrap_or_else(|| [STEAL, ability_command(fighter.character).0]);
+            let commands = set
+                .iter()
+                .filter(|&&cmd_no| cmd_no != 0)
+                .map(|&cmd_no| {
+                    let row = equipment.commands.get(&cmd_no);
+                    let title = row
+                        .map(|row| row.name.clone())
+                        .unwrap_or_else(|| ability_command(fighter.character).1.to_owned());
+                    let kind = match row.map(|row| row.kind) {
+                        Some(0) => {
+                            let main = row.map_or(0, |row| row.main);
+                            let ported = equipment
+                                .actions
+                                .get(&main)
+                                .is_some_and(|row| DIRECT_SCRIPTS.contains(&row.script_id));
+                            match action(cmd_no, main) {
+                                Some(entry) if ported => CommandKind::Direct(entry),
+                                _ => CommandKind::Unavailable,
+                            }
+                        }
+                        Some(1) | None => {
+                            // The command's list, in its order, of the
+                            // abilities the member has.
+                            let list: Vec<i32> = match row {
+                                Some(row) => row.list.clone(),
+                                None => known.clone(),
+                            };
+                            let mut entries: Vec<MenuEntry> = list
+                                .iter()
+                                .filter(|ability| known.contains(ability))
+                                .filter_map(|&ability| action(cmd_no, ability))
+                                .collect();
+                            entries.dedup_by_key(|entry| entry.sub_no);
+                            CommandKind::List(entries)
+                        }
+                        _ => CommandKind::Unavailable,
                     };
-                    let label = equipment
-                        .action_names
-                        .get(&ability)
-                        .cloned()
-                        .unwrap_or_else(|| ability.to_string());
-                    entry(
-                        label,
-                        command,
-                        ability,
-                        aim,
-                        row.mp.max(0) as u32,
-                        None,
-                        row.for_dead,
-                    )
+                    MenuCommand {
+                        title,
+                        cmd_no,
+                        kind,
+                    }
                 })
                 .collect();
-            abilities.dedup_by_key(|entry| entry.sub_no);
             Some(PartyMenu {
                 attack: entry(
                     "Attack".into(),
                     cmd::ATTACK,
                     ABILITY_ATTACK,
                     MenuAim::Enemies,
+                    target_type::SINGLE_ENEMY,
                     0,
                     None,
                     false,
                 )?,
-                ability_title: title.to_owned(),
-                abilities,
+                commands,
                 defend: entry(
                     "Defend".into(),
                     cmd::DEFEND,
-                    0,
+                    ABILITY_DEFEND,
                     MenuAim::Caster,
+                    target_type::SELF,
                     0,
                     None,
                     false,
                 )?,
+                change: action(CHANGE, ABILITY_CHANGE).or_else(|| {
+                    entry(
+                        "Change".into(),
+                        CHANGE,
+                        ABILITY_CHANGE,
+                        MenuAim::Caster,
+                        target_type::SELF,
+                        0,
+                        None,
+                        false,
+                    )
+                })?,
                 items: usable.clone(),
             })
         })
@@ -1214,6 +1427,17 @@ impl LiveFight {
     /// Field entity of machine unit `unit`.
     pub fn entity(&self, unit: usize) -> Option<EntityId> {
         self.entities.get(unit).copied()
+    }
+
+    /// The party's flee roll while L1 and R1 are held
+    /// (`btl_sys.CheckEscape(true)`, once a second). True when the escape
+    /// was queued.
+    pub fn try_flee(&mut self) -> bool {
+        if self.state != FightState::Running {
+            return false;
+        }
+        let mut services = WorldGameServices::new(&mut self.world);
+        self.adapter.flee_attempt(&mut services).unwrap_or(false)
     }
 
     /// The command menu of party member `unit`.
@@ -1506,6 +1730,17 @@ impl LiveFight {
             return report;
         }
         let equipment = &battles.equipment;
+        report.items_stolen = adapter
+            .battle()
+            .log
+            .iter()
+            .filter_map(|(_, event)| match event {
+                tantalus_legacy::battle::machine::BattleEvent::Stole {
+                    item: Some(item), ..
+                } => Some(*item),
+                _ => None,
+            })
+            .collect();
         stage.outcome = report.outcome.clone();
         report.stage = Some(stage);
         report.enemies_defeated = defeated.len();
@@ -1695,6 +1930,11 @@ pub fn pay_rewards(report: &FightReport, world: &mut FieldWorld) {
         world.add_item_amount(item, -(used.min(99) as i32));
         if world.items.get(&item).is_some_and(|&count| count <= 0) {
             world.items.remove(&item);
+        }
+    }
+    for &item in &report.items_stolen {
+        if let Ok(item) = i32::try_from(item) {
+            world.add_item_amount(item, 1);
         }
     }
     if report.outcome.as_deref() != Some("victory") {

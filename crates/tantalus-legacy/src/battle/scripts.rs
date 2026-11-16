@@ -4,8 +4,8 @@
 //! `BaseWeaponScript.cs`. Only `Perform` is ported; the `RateTarget`
 //! estimators (enemy AI scoring) are separate code paths.
 //!
-//! Ported ids: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 19 20 22 25 27 42 62
-//! 63 64 69 70 71 72 73 74 75 76 77 96 100 103 109. Every other id returns
+//! Ported ids: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 19 20 22 25 27 42 55
+//! 58 62 63 64 69 70 71 72 73 74 75 76 77 96 100 103 109. Every other id returns
 //! [`CalcError::UnportedScript`].
 
 use super::calc::{AttackBonus, CalcError, CalcFlags, Calculator, UnitFlags};
@@ -41,6 +41,8 @@ pub fn perform(id: i32, v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Calc
         25 => precise_direct_hp_damage(v),
         27 => direct_hp_damage(v, rng),
         42 => throw(v, rng),
+        55 => change_row(v),
+        58 => steal(v, rng),
         62 => item_soft(v),
         63 => magic_sword_attack(v, rng),
         // `SBattleCalculator.cs:108`: no script, only `CalcResult`.
@@ -60,6 +62,50 @@ pub fn perform(id: i32, v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Calc
         109 => mini(v, rng),
         other => Err(CalcError::UnportedScript(other)),
     }
+}
+
+/// Script 55 (`0055_ChangeRowScript.cs`): `btl_para.SwitchPlayerRow`
+/// flips `bi.row` between 0 (back) and 1 (front). The model's 400-unit
+/// step is the client's to draw.
+fn change_row(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    let target = v.t_mut();
+    target.row = if target.row == 0 { 1 } else { 0 };
+    Ok(())
+}
+
+/// Script 58 (`0058_StealScript.cs`) without the Bandit and Master Thief
+/// support abilities and the `StealingAlwaysWorks` cheat: a
+/// `Level + Will` against `Target.Level` roll, then the rarest slot first,
+/// each at its rate out of 256 (`BattleCalculator.StealItem` empties the
+/// slot). A zero `Target.Level` would throw in the C# modulo; here the roll
+/// passes.
+fn steal(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
+    use super::unit::NO_ITEM;
+    let items = v.t().steal_items;
+    if items.iter().all(|&item| item == NO_ITEM) {
+        v.stolen = Some(None);
+        return Ok(());
+    }
+    v.hit_rate = i32::from(v.c().level) + i32::from(v.c().will);
+    v.evade = i32::from(v.t().level);
+    if v.hit_rate > 0 && v.evade > 0 && rng.random16() % v.hit_rate < rng.random16() % v.evade {
+        v.stolen = Some(None);
+        return Ok(());
+    }
+    let rates = v.t().steal_rates;
+    for slot in (0..4).rev() {
+        if rng.random8() < i32::from(rates[slot]) {
+            let item = items[slot];
+            if item == NO_ITEM {
+                break;
+            }
+            v.t_mut().steal_items[slot] = NO_ITEM;
+            v.stolen = Some(Some(item));
+            return Ok(());
+        }
+    }
+    v.stolen = Some(None);
+    Ok(())
 }
 
 /// `BaseWeaponScript.Perform` (`BaseWeaponScript.cs:19`). Ids 1 (Simple),

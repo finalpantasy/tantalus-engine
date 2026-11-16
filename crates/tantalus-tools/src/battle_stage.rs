@@ -94,6 +94,12 @@ pub enum StageEvent {
     Died {
         unit: usize,
     },
+    /// Steal on `target`: the item taken, or `None`.
+    Stole {
+        caster: usize,
+        target: usize,
+        item: Option<u32>,
+    },
 }
 
 /// The [`StageEvent`]s in `log` (new machine log entries). `hp` is each
@@ -143,6 +149,15 @@ pub fn stage_events(
                 });
             }
             BattleEvent::UnitDied { unit } => events.push(StageEvent::Died { unit }),
+            BattleEvent::Stole {
+                caster,
+                target,
+                item,
+            } => events.push(StageEvent::Stole {
+                caster,
+                target,
+                item,
+            }),
             _ => {}
         }
     }

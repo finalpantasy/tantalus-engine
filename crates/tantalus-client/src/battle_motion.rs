@@ -494,7 +494,15 @@ pub fn damage_numbers(stage: &BattleStage, seconds: f64) -> Vec<(usize, i64, f64
             continue;
         }
         for event in &frame.events {
-            if let StageEvent::Effect { target, damage, .. } = event {
+            // Steal shows its message, not a number.
+            let stolen_from = |unit: usize| {
+                frame.events.iter().any(
+                    |event| matches!(event, StageEvent::Stole { target, .. } if *target == unit),
+                )
+            };
+            if let StageEvent::Effect { target, damage, .. } = event
+                && !(*damage == 0 && stolen_from(*target))
+            {
                 out.push((*target, *damage, since));
             }
         }
