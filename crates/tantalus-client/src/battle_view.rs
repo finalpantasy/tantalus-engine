@@ -1,19 +1,22 @@
-//! The battle view: a fought battle's [`BattleStage`] replayed over its
-//! battle background, seen through the default battle camera, with the
-//! party and enemy models at their battle positions and an HP/ATB readout.
+//! The battle view: a battle's [`BattleStage`] drawn over its battle
+//! background, seen through the default battle camera, with the party and
+//! enemy models at their battle positions, animated from the record
+//! ([`crate::battle_motion`]), and the HUD ([`crate::battle_hud`]).
 //!
-//! The fight itself is already decided when the view opens (`PlayGame`
-//! runs it to the end inside one field tick with its stand-in party AI);
-//! the view replays the per-tick record at the battle rate, 15 ticks a
-//! second. Assets (Memoria sources in each function):
+//! [`FightView`] is the play window's: `PlayGame` fights the battle one
+//! battle tick (15 a second) at a time while the pad drives the command
+//! menu ([`crate::battle_menu`]). [`BattlePlayback`] replays a battle the
+//! headless paths already fought. Assets (Memoria sources in each
+//! function):
 //! - background: `FF9BattleDB.MapModel["BSC_<scene>"]` in `p0data2.bin`
 //!   (`HonoluluBattleMain.InitBattleScene`), drawn in the queue order of its
 //!   `battlebg.SetDefaultShader` groups;
 //! - models: `p0data4.bin` through `model_factory` (`ModelFactory.CreateModel`
 //!   with `isBattle`, which hides the `field_model` child); players use their
 //!   `BattleParameters.csv` model, enemies `MonAddr[TypeNo].Geo`;
-//! - idle clips: `p0data5.bin`, `MP_IDLE_NORMAL` for players and `mot[0]`
-//!   for enemies (`btl_init.SetMonsterParameter`).
+//! - clips: `p0data5.bin`, the `BattleParameters.csv` motions for players
+//!   and `mot[]` plus the attack sequences' animations for enemies
+//!   (`btl_init.SetMonsterParameter`, `BattleUnit.cs:876`).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -23,8 +26,8 @@ use tantalus_assets::pc::battle_background::{
     BattleBackground, BbgBlend, BbgGroup, assemble_background,
 };
 use tantalus_assets::pc::battle_models::{
-    background_name, geo_id_by_name, player_battle_row, resolve_animation_id,
-    resolve_animation_name,
+    background_name, geo_id_by_name, player_battle_motions, player_battle_row,
+    resolve_animation_id, resolve_animation_name,
 };
 use tantalus_assets::pc::field_models::model_dirs;
 use tantalus_assets::pc::model_assembly::pose::{
@@ -38,6 +41,8 @@ use tantalus_assets::pc::unity_object::animation::AnimationClip;
 use tantalus_assets::pc::unity_raw::UnityRawBundle;
 use tantalus_tools::battle_stage::{BattleStage, StageFrame, StageModel};
 
+use crate::battle_hud::{BattleHud, HudDraw, MenuDraw, PartyRow};
+use crate::battle_motion::{ClipKey, Motions, UnitMotion, damage_numbers, unit_motion};
 use crate::battle_raster::{BattleCamera, Blend, DrawState, Frame, Texture, ViewVertex};
 
 const MAX_BUNDLE_BYTES: usize = 600 * 1024 * 1024;
@@ -56,33 +61,53 @@ const CHARACTERS: [&str; 12] = [
     "Blank", "Beatrix",
 ];
 
-/// A clip as `(folder geo id, AnimationDB key)`.
-type ClipKey = (u32, u32);
-
 /// What one unit draws with.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct UnitLook {
     geo: u32,
-    idle: Option<ClipKey>,
+    motions: Motions,
 }
 
-fn unit_look(model: &StageModel) -> Option<UnitLook> {
+fn named_clip(name: &str) -> Option<ClipKey> {
+    let clip = resolve_animation_name(name, None, None);
+    clip.folder_geo_id.zip(clip.clip_key)
+}
+
+fn id_clip(id: u16) -> Option<ClipKey> {
+    let clip = resolve_animation_id(u32::from(id), None);
+    clip.folder_geo_id.zip(clip.clip_key)
+}
+
+fn unit_look(stage: &BattleStage, model: &StageModel) -> Option<UnitLook> {
     match model {
         StageModel::Player { serial, .. } => {
-            let (_, model, idle) = player_battle_row(u32::from(*serial))?;
-            let clip = resolve_animation_name(idle, None, None);
+            let (_, model, _) = player_battle_row(u32::from(*serial))?;
+            let motions = player_battle_motions(u32::from(*serial))?;
             Some(UnitLook {
                 geo: geo_id_by_name(model)?,
-                idle: clip.folder_geo_id.zip(clip.clip_key),
+                motions: Motions::Player(motions.iter().map(|name| named_clip(name)).collect()),
             })
         }
-        StageModel::Enemy { geo, idle } => {
-            let clip = resolve_animation_id(u32::from(*idle), None);
-            Some(UnitLook {
-                geo: u32::try_from(*geo).ok()?,
-                idle: clip.folder_geo_id.zip(clip.clip_key),
-            })
-        }
+        StageModel::Enemy {
+            geo,
+            idle,
+            hit,
+            death,
+        } => Some(UnitLook {
+            geo: u32::try_from(*geo).ok()?,
+            motions: Motions::Enemy {
+                idle: id_clip(*idle),
+                hit: id_clip(*hit),
+                death: id_clip(*death),
+                attacks: stage
+                    .attack_anims
+                    .iter()
+                    .map(|(ids, moves)| {
+                        (ids.iter().filter_map(|id| id_clip(*id)).collect(), *moves)
+                    })
+                    .collect(),
+            },
+        }),
         StageModel::None => None,
     }
 }
@@ -165,7 +190,7 @@ impl BattleAssets {
         let looks: Vec<UnitLook> = stage
             .units
             .iter()
-            .filter_map(|unit| unit_look(&unit.model))
+            .filter_map(|unit| unit_look(stage, &unit.model))
             .collect();
         let want_models: Vec<u32> = looks
             .iter()
@@ -210,11 +235,13 @@ impl BattleAssets {
                 }
             }
         }
-        let want_clips: Vec<ClipKey> = looks
+        let mut want_clips: Vec<ClipKey> = looks
             .iter()
-            .filter_map(|look| look.idle)
+            .flat_map(|look| look.motions.all())
             .filter(|clip| !self.clips.contains_key(clip))
             .collect();
+        want_clips.sort_unstable();
+        want_clips.dedup();
         if !want_clips.is_empty() {
             let loaded = with_store(&self.clips_bundle, |store| {
                 let entries = store.container().map_err(|error| error.to_string())?;
@@ -360,27 +387,32 @@ fn under_field_model(model: &AssembledModel, node: usize) -> bool {
     false
 }
 
-/// Draws one unit's model, posed `time` seconds into its idle.
+/// Draws one unit's model posed as `motion` says. Returns the height of
+/// its highest vertex above `position` (for the cursor and numbers).
 fn draw_unit(
     frame: &mut Frame,
     camera: &BattleCamera,
     assets: &BattleAssets,
-    look: UnitLook,
+    geo: u32,
+    motion: &UnitMotion,
     position: [f32; 3],
     turn: f32,
-    time: f32,
-) -> bool {
-    let Some(Some(model)) = assets.models.get(&look.geo) else {
-        return false;
+) -> Option<f32> {
+    let Some(Some(model)) = assets.models.get(&geo) else {
+        return None;
     };
-    let clip = look.idle.and_then(|clip| assets.clips.get(&clip)?.as_ref());
+    let clip = motion
+        .clip
+        .and_then(|clip| assets.clips.get(&clip)?.as_ref());
     let poses = match clip {
         Some(clip) => {
             let length = clip_length(clip);
-            let time = if length > 0.0 {
-                time.rem_euclid(length)
-            } else {
+            let time = if length <= 0.0 {
                 0.0
+            } else if motion.looping {
+                motion.time.rem_euclid(length)
+            } else {
+                motion.time.clamp(0.0, length)
             };
             sample_clip(
                 model,
@@ -396,7 +428,8 @@ fn draw_unit(
     // about the up axis.
     let rotation =
         Quat::from_rotation_y(turn.to_radians()) * Quat::from_rotation_z(std::f32::consts::PI);
-    let origin = Vec3::from_array(position);
+    let origin = Vec3::from_array(position) + Vec3::from_array(motion.offset);
+    let mut top = 0.0f32;
     let state = DrawState {
         blend: Blend::Opaque,
         depth_test: true,
@@ -411,6 +444,7 @@ fn draw_unit(
             .iter()
             .map(|vertex| {
                 let world = origin + rotation * Vec3::from_array(*vertex);
+                top = top.max(world.y - origin.y);
                 camera.to_view(world.to_array())
             })
             .collect();
@@ -453,7 +487,7 @@ fn draw_unit(
             }
         }
     }
-    true
+    Some(top)
 }
 
 /// The last key time over every curve.
@@ -473,6 +507,13 @@ fn clip_length(clip: &AnimationClip) -> f32 {
     rotation.chain(position).chain(scale).fold(0.0, f32::max)
 }
 
+/// A unit's name: its battle-text name, or [`unit_name`].
+fn display_name(unit: &tantalus_tools::battle_stage::StageUnit, enemy: usize) -> String {
+    unit.name
+        .clone()
+        .unwrap_or_else(|| unit_name(&unit.model, enemy))
+}
+
 /// A unit's readout name.
 fn unit_name(model: &StageModel, enemy: usize) -> String {
     match model {
@@ -488,9 +529,21 @@ fn unit_name(model: &StageModel, enemy: usize) -> String {
 pub struct BattleScene {
     pub camera: BattleCamera,
     base: Frame,
+    looks: Vec<Option<UnitLook>>,
     /// How many units have a model drawn.
     pub models: usize,
     pub background_triangles: usize,
+}
+
+/// What the HUD adds over a live battle.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Overlay {
+    pub menu: Option<MenuDraw>,
+    /// Party member whose menu is open.
+    pub asked: Option<usize>,
+    /// Unit under the target cursor.
+    pub target: Option<usize>,
+    pub banner: Option<String>,
 }
 
 impl BattleScene {
@@ -502,50 +555,171 @@ impl BattleScene {
             draw_background(&mut base, &camera, background, false);
             background_triangles = background.triangle_count();
         }
-        let models = stage
+        let looks: Vec<Option<UnitLook>> = stage
             .units
             .iter()
-            .filter_map(|unit| unit_look(&unit.model))
+            .map(|unit| unit_look(stage, &unit.model))
+            .collect();
+        let models = looks
+            .iter()
+            .flatten()
             .filter(|look| matches!(assets.models.get(&look.geo), Some(Some(_))))
             .count();
         Self {
             camera,
             base,
+            looks,
             models,
             background_triangles,
         }
     }
 
-    /// The frame `seconds` into the replay.
+    /// The frame `seconds` into the replay, with the plain readout.
     pub fn render(&self, assets: &BattleAssets, stage: &BattleStage, seconds: f64) -> Frame {
+        self.render_with(assets, stage, seconds, None, &Overlay::default())
+    }
+
+    /// The frame `seconds` into `stage`, with the game-font HUD when `hud`
+    /// loaded (the plain readout otherwise).
+    pub fn render_with(
+        &self,
+        assets: &BattleAssets,
+        stage: &BattleStage,
+        seconds: f64,
+        hud: Option<&BattleHud>,
+        overlay: &Overlay,
+    ) -> Frame {
         let mut frame = self.base.clone();
         let record = stage.frame_at(seconds);
+        let length = |clip: ClipKey| {
+            assets
+                .clips
+                .get(&clip)
+                .and_then(Option::as_ref)
+                .map_or(0.0, clip_length)
+        };
+        // Where each unit's head is on screen.
+        let mut heads: Vec<Option<[f32; 2]>> = vec![None; stage.units.len()];
         for (index, unit) in stage.units.iter().enumerate() {
-            let present = record.is_none_or(|record| {
-                record.present.get(index).copied().unwrap_or(true)
-                    && !(index >= player_count(stage)
-                        && record.hp.get(index).copied().unwrap_or(1) == 0)
-            });
+            let present =
+                record.is_none_or(|record| record.present.get(index).copied().unwrap_or(true));
+            let Some(Some(look)) = self.looks.get(index) else {
+                continue;
+            };
             if !present {
                 continue;
             }
-            if let Some(look) = unit_look(&unit.model) {
-                draw_unit(
-                    &mut frame,
-                    &self.camera,
-                    assets,
-                    look,
-                    unit.position,
-                    unit.turn,
-                    seconds as f32,
-                );
+            let motion = unit_motion(stage, index, seconds, &look.motions, &length);
+            if motion.hidden {
+                continue;
+            }
+            if let Some(top) = draw_unit(
+                &mut frame,
+                &self.camera,
+                assets,
+                look.geo,
+                &motion,
+                unit.position,
+                unit.turn,
+            ) {
+                let at = Vec3::from_array(unit.position)
+                    + Vec3::from_array(motion.offset)
+                    + Vec3::Y * top;
+                heads[index] = frame.project(&self.camera, self.camera.to_view(at.to_array()));
             }
         }
         if let Some(background) = assets.background(stage) {
             draw_background(&mut frame, &self.camera, background, true);
         }
-        readout(&mut frame, stage, record, seconds);
+        match hud {
+            Some(hud) => {
+                let draw = hud_draw(stage, seconds, overlay, &heads);
+                hud.draw(&mut frame, &draw);
+            }
+            None => readout(&mut frame, stage, record, seconds),
+        }
         frame
+    }
+}
+
+/// The HUD contents at `seconds`. `heads` are units' head points on the
+/// frame (`Frame::project`).
+fn hud_draw(
+    stage: &BattleStage,
+    seconds: f64,
+    overlay: &Overlay,
+    heads: &[Option<[f32; 2]>],
+) -> HudDraw {
+    let record = stage.frame_at(seconds);
+    let players = player_count(stage);
+    let hp = |index: usize| record.and_then(|r| r.hp.get(index).copied());
+    let party = stage
+        .units
+        .iter()
+        .enumerate()
+        .take(players)
+        .map(|(index, unit)| {
+            let atb =
+                record
+                    .and_then(|r| r.atb.get(index).copied())
+                    .map_or(0.0, |(current, max)| {
+                        if max > 0 {
+                            f32::from(current.max(0)) / f32::from(max)
+                        } else {
+                            0.0
+                        }
+                    });
+            PartyRow {
+                name: unit_name(&unit.model, 0),
+                hp: (hp(index).unwrap_or(unit.max_hp), unit.max_hp),
+                mp: (
+                    record
+                        .and_then(|r| r.mp.get(index).copied())
+                        .unwrap_or(unit.max_mp),
+                    unit.max_mp,
+                ),
+                atb,
+                asked: overlay.asked == Some(index),
+            }
+        })
+        .collect();
+    let enemies = stage
+        .units
+        .iter()
+        .enumerate()
+        .skip(players)
+        .filter(|(index, unit)| {
+            !(matches!(unit.model, StageModel::None) && unit.max_hp == 0)
+                && hp(*index).unwrap_or(1) > 0
+                && record.is_none_or(|r| r.present.get(*index).copied().unwrap_or(true))
+        })
+        .map(|(index, unit)| display_name(unit, index - players))
+        .collect();
+    let numbers = damage_numbers(stage, seconds)
+        .into_iter()
+        .filter_map(|(target, amount, since)| {
+            Some((heads.get(target).copied().flatten()?, amount, since))
+        })
+        .collect();
+    let banner = overlay.banner.clone().or_else(|| {
+        (seconds >= stage.duration() && !stage.frames.is_empty())
+            .then(|| stage.outcome.clone())
+            .flatten()
+            .map(|outcome| match outcome.as_str() {
+                "victory" => "Victory".to_owned(),
+                "defeat" => "Defeat".to_owned(),
+                other => other.to_owned(),
+            })
+    });
+    HudDraw {
+        party,
+        enemies,
+        menu: overlay.menu.clone(),
+        target: overlay
+            .target
+            .and_then(|target| heads.get(target).copied().flatten()),
+        numbers,
+        banner,
     }
 }
 
@@ -587,7 +761,7 @@ fn readout(frame: &mut Frame, stage: &BattleStage, record: Option<&StageFrame>, 
         let y = line * (2 + enemy_row);
         let text = format!(
             "{} HP {}/{}",
-            unit_name(&unit.model, index - players),
+            display_name(unit, index - players),
             hp(index).unwrap_or(unit.max_hp),
             unit.max_hp
         );
@@ -721,32 +895,22 @@ pub const LIVE_SIZE: (u32, u32) = (640, 480);
 /// Replay speed while confirm is held.
 pub const FAST_FORWARD: f64 = 4.0;
 
-/// The battle view in the play window: its own camera (drawn after the
+/// The battle's place in the play window: its own camera (drawn after the
 /// field's, clearing it) showing one sprite with the CPU frame.
-pub struct LiveBattle {
-    pub playback: BattlePlayback,
+pub struct BattleWindow {
     image: bevy::asset::Handle<bevy::image::Image>,
     camera: bevy::ecs::entity::Entity,
     sprite: bevy::ecs::entity::Entity,
 }
 
-impl LiveBattle {
-    /// Loads what `stage` needs and opens the view.
-    pub fn start(
-        world: &mut bevy::ecs::world::World,
-        assets: &mut BattleAssets,
-        stage: BattleStage,
-    ) -> Self {
+impl BattleWindow {
+    pub fn open(world: &mut bevy::ecs::world::World, frame: &Frame) -> Self {
         use bevy::camera::visibility::RenderLayers;
         use bevy::camera::{RenderTarget, ScalingMode};
         use bevy::prelude::*;
-        for problem in assets.prepare(&stage) {
-            println!("!! battle assets: {problem}");
-        }
-        let playback = BattlePlayback::new(assets, stage, LIVE_SIZE.0, LIVE_SIZE.1);
         let image = world
             .resource_mut::<Assets<Image>>()
-            .add(frame_image(&playback.render(assets)));
+            .add(frame_image(frame));
         // Draw where the field camera draws (the window, or an offscreen
         // image in a capture).
         let mut targets = world.query_filtered::<&RenderTarget, With<Camera2d>>();
@@ -785,30 +949,15 @@ impl LiveBattle {
             ))
             .id();
         Self {
-            playback,
             image,
             camera,
             sprite,
         }
     }
 
-    /// Moves the replay on and redraws; true once it is over. Holding
-    /// confirm plays it `FAST_FORWARD` times faster.
-    pub fn tick(
-        &mut self,
-        world: &mut bevy::ecs::world::World,
-        assets: &BattleAssets,
-        delta: f64,
-        held: i32,
-    ) -> bool {
+    /// Shows `frame`.
+    pub fn show(&self, world: &mut bevy::ecs::world::World, frame: Frame) {
         use bevy::prelude::*;
-        let speed = if held & tantalus_tools::play::pad::CONFIRM != 0 {
-            FAST_FORWARD
-        } else {
-            1.0
-        };
-        let done = self.playback.advance(delta, speed);
-        let frame = self.playback.render(assets);
         if let Some(mut image) = world.resource_mut::<Assets<Image>>().get_mut(&self.image) {
             image.data = Some(frame.rgba);
         }
@@ -820,11 +969,9 @@ impl LiveBattle {
             transform.translation.x = at.x;
             transform.translation.y = at.y;
         }
-        done
     }
 
-    /// Closes the view.
-    pub fn finish(self, world: &mut bevy::ecs::world::World) {
+    pub fn close(self, world: &mut bevy::ecs::world::World) {
         for entity in [self.sprite, self.camera] {
             if let Ok(entity) = world.get_entity_mut(entity) {
                 entity.despawn();
@@ -833,6 +980,52 @@ impl LiveBattle {
         world
             .resource_mut::<bevy::asset::Assets<bevy::image::Image>>()
             .remove(&self.image);
+    }
+}
+
+/// A recorded battle replayed in the play window.
+pub struct LiveBattle {
+    pub playback: BattlePlayback,
+    window: BattleWindow,
+}
+
+impl LiveBattle {
+    /// Loads what `stage` needs and opens the view.
+    pub fn start(
+        world: &mut bevy::ecs::world::World,
+        assets: &mut BattleAssets,
+        stage: BattleStage,
+    ) -> Self {
+        for problem in assets.prepare(&stage) {
+            println!("!! battle assets: {problem}");
+        }
+        let playback = BattlePlayback::new(assets, stage, LIVE_SIZE.0, LIVE_SIZE.1);
+        let window = BattleWindow::open(world, &playback.render(assets));
+        Self { playback, window }
+    }
+
+    /// Moves the replay on and redraws; true once it is over. Holding
+    /// confirm plays it `FAST_FORWARD` times faster.
+    pub fn tick(
+        &mut self,
+        world: &mut bevy::ecs::world::World,
+        assets: &BattleAssets,
+        delta: f64,
+        held: i32,
+    ) -> bool {
+        let speed = if held & tantalus_tools::play::pad::CONFIRM != 0 {
+            FAST_FORWARD
+        } else {
+            1.0
+        };
+        let done = self.playback.advance(delta, speed);
+        self.window.show(world, self.playback.render(assets));
+        done
+    }
+
+    /// Closes the view.
+    pub fn finish(self, world: &mut bevy::ecs::world::World) {
+        self.window.close(world);
     }
 
     /// The window title line.
@@ -848,9 +1041,263 @@ impl LiveBattle {
     }
 }
 
-/// One play-window frame of the battle view, when one is open: advances
-/// it, closes it at its end. True while the view is (still) up, so the
-/// caller leaves the field paused.
+/// Seconds per battle tick.
+const TICK_SECONDS: f64 = 1.0 / tantalus_tools::battle_stage::BATTLE_TICKS_PER_SECOND;
+
+/// A battle fought in real time: `PlayGame` fights it one battle tick per
+/// fifteenth of a second while the pad drives the command menu.
+pub struct FightView {
+    pub scene: BattleScene,
+    pub menu: crate::battle_menu::BattleMenu,
+    /// A chosen command waiting for the next battle tick.
+    pending: Option<tantalus_game::battle::BattleCommand>,
+    /// Seconds since the last battle tick.
+    since_tick: f64,
+    /// Pad bits held last frame.
+    previous: i32,
+    /// The finished battle, shown `HOLD_SECONDS` with its outcome.
+    ended: Option<(BattleStage, f64)>,
+    window: Option<BattleWindow>,
+    pub battle: i32,
+    pub scene_name: String,
+}
+
+impl FightView {
+    /// Opens the view of the battle `game` is fighting. `window` is false
+    /// for a capture that only renders frames.
+    pub fn start(
+        world: Option<&mut bevy::ecs::world::World>,
+        assets: &mut BattleAssets,
+        hud: Option<&BattleHud>,
+        game: &tantalus_tools::play::PlayGame,
+    ) -> Option<Self> {
+        let fight = game.battle()?;
+        let stage = fight.stage();
+        for problem in assets.prepare(stage) {
+            println!("!! battle assets: {problem}");
+        }
+        let scene = BattleScene::new(assets, stage, LIVE_SIZE.0, LIVE_SIZE.1);
+        let mut view = Self {
+            scene,
+            menu: crate::battle_menu::BattleMenu::default(),
+            pending: None,
+            since_tick: 0.0,
+            previous: 0,
+            ended: None,
+            window: None,
+            battle: stage.battle,
+            scene_name: stage.scene.clone(),
+        };
+        if let Some(world) = world {
+            let frame = view.render(assets, hud, game);
+            view.window = Some(BattleWindow::open(world, &frame));
+        }
+        Some(view)
+    }
+
+    /// Shows the battle through default camera `camera` instead of the
+    /// pattern's.
+    pub fn set_camera(
+        &mut self,
+        assets: &BattleAssets,
+        game: &tantalus_tools::play::PlayGame,
+        camera: u8,
+    ) {
+        if let Some(fight) = game.battle() {
+            let mut stage = fight.stage().clone();
+            stage.camera = camera;
+            self.scene = BattleScene::new(assets, &stage, LIVE_SIZE.0, LIVE_SIZE.1);
+        }
+    }
+
+    /// Battle seconds shown now.
+    fn seconds(&self, stage: &BattleStage) -> f64 {
+        stage.frames.len().saturating_sub(1) as f64 * TICK_SECONDS + self.since_tick
+    }
+
+    /// One frame: pad input to the menu, battle ticks for `delta` seconds.
+    /// Returns the play events of the ticks and whether the view is done
+    /// (the battle over and its result shown).
+    pub fn update(
+        &mut self,
+        game: &mut tantalus_tools::play::PlayGame,
+        delta: f64,
+        held: i32,
+    ) -> (Vec<tantalus_tools::play::PlayEvent>, bool) {
+        let pressed = held & !self.previous;
+        self.previous = held;
+        let mut events = Vec::new();
+        if let Some((_, shown)) = &mut self.ended {
+            *shown += delta;
+            return (events, *shown >= HOLD_SECONDS);
+        }
+        if let Some(fight) = game.battle()
+            && self.pending.is_none()
+        {
+            self.pending = self.menu.update(fight, pressed);
+        }
+        self.since_tick += delta;
+        while self.since_tick >= TICK_SECONDS && self.ended.is_none() {
+            self.since_tick -= TICK_SECONDS;
+            events.extend(game.battle_tick(self.pending.take()));
+            if game.battle().is_none() {
+                let stage = game.last_battle.take().unwrap_or_default();
+                self.ended = Some((stage, 0.0));
+            }
+        }
+        (events, false)
+    }
+
+    /// The frame now.
+    pub fn render(
+        &self,
+        assets: &BattleAssets,
+        hud: Option<&BattleHud>,
+        game: &tantalus_tools::play::PlayGame,
+    ) -> Frame {
+        if let Some((stage, shown)) = &self.ended {
+            let seconds = stage.duration() + shown;
+            return self
+                .scene
+                .render_with(assets, stage, seconds, hud, &Overlay::default());
+        }
+        let Some(fight) = game.battle() else {
+            return Frame::new(LIVE_SIZE.0, LIVE_SIZE.1, CLEAR);
+        };
+        let stage = fight.stage();
+        let overlay = menu_overlay(fight, &self.menu, &|item| {
+            game.item_name(item).map(str::to_owned)
+        });
+        self.scene
+            .render_with(assets, stage, self.seconds(stage), hud, &overlay)
+    }
+
+    /// Draws the frame into the window.
+    pub fn show(
+        &self,
+        world: &mut bevy::ecs::world::World,
+        assets: &BattleAssets,
+        hud: Option<&BattleHud>,
+        game: &tantalus_tools::play::PlayGame,
+    ) {
+        if let Some(window) = &self.window {
+            window.show(world, self.render(assets, hud, game));
+        }
+    }
+
+    /// Closes the view.
+    pub fn finish(self, world: &mut bevy::ecs::world::World) {
+        if let Some(window) = self.window {
+            window.close(world);
+        }
+    }
+
+    /// The window title line.
+    pub fn title(&self) -> String {
+        format!(
+            "Tantalus Engine: battle {} {} (arrows, Enter, Backspace)",
+            self.battle, self.scene_name
+        )
+    }
+}
+
+/// The menu as the HUD draws it.
+pub fn menu_overlay(
+    fight: &tantalus_tools::field_battle::LiveFight,
+    menu: &crate::battle_menu::BattleMenu,
+    item_name: &dyn Fn(i32) -> Option<String>,
+) -> Overlay {
+    use crate::battle_hud::ListLine;
+    use crate::battle_menu::{MenuLevel, usable};
+    let Some(unit) = menu.unit else {
+        return Overlay::default();
+    };
+    let Some(entries) = fight.menu(unit) else {
+        return Overlay::default();
+    };
+    let line = |entry: &tantalus_tools::field_battle::MenuEntry| {
+        let (text, right) = match entry.item {
+            Some(item) => (
+                item_name(item).unwrap_or_else(|| format!("Item {item}")),
+                fight.item_count(item).to_string(),
+            ),
+            None => (
+                entry.label.clone(),
+                if entry.mp > 0 {
+                    entry.mp.to_string()
+                } else {
+                    String::new()
+                },
+            ),
+        };
+        ListLine {
+            text,
+            right,
+            enabled: usable(fight, unit, entry),
+        }
+    };
+    let commands = vec![
+        line(&entries.attack),
+        ListLine {
+            text: entries.ability_title.clone(),
+            right: String::new(),
+            enabled: !entries.abilities.is_empty(),
+        },
+        line(&entries.defend),
+        ListLine {
+            text: "Item".into(),
+            right: String::new(),
+            enabled: !entries.items.is_empty(),
+        },
+    ];
+    let open_list = |items: bool| {
+        let list = if items {
+            &entries.items
+        } else {
+            &entries.abilities
+        };
+        (list.iter().map(line).collect::<Vec<_>>(), menu.list)
+    };
+    let (list, targeting, help) = match &menu.level {
+        MenuLevel::Commands => (None, false, None),
+        MenuLevel::List { items } => {
+            let list = open_list(*items);
+            let help = list.0.get(list.1).map(|line| line.text.clone());
+            (Some(list), false, help)
+        }
+        MenuLevel::Target { back, .. } => {
+            let list = match back.as_ref() {
+                MenuLevel::List { items } => Some(open_list(*items)),
+                _ => None,
+            };
+            let help = menu.targeted(fight).and_then(|target| {
+                let stage = fight.stage();
+                let players = player_count(stage);
+                stage
+                    .units
+                    .get(target)
+                    .map(|unit| display_name(unit, target.saturating_sub(players)))
+            });
+            (list, true, help)
+        }
+    };
+    Overlay {
+        menu: Some(MenuDraw {
+            commands,
+            command_cursor: menu.command,
+            list,
+            targeting,
+            help,
+        }),
+        asked: Some(unit),
+        target: menu.targeted(fight),
+        banner: None,
+    }
+}
+
+/// One play-window frame of a replay, when one is open: advances it,
+/// closes it at its end. True while the view is (still) up, so the caller
+/// leaves the field paused.
 pub fn run_live_battle(
     world: &mut bevy::ecs::world::World,
     battle: &mut Option<LiveBattle>,
@@ -858,8 +1305,6 @@ pub fn run_live_battle(
     delta: f64,
     held: i32,
 ) -> bool {
-    use bevy::prelude::*;
-    use bevy::window::PrimaryWindow;
     let Some(mut open) = battle.take() else {
         return false;
     };
@@ -867,15 +1312,21 @@ pub fn run_live_battle(
         open.finish(world);
         return false;
     }
-    let title = open.title();
+    set_title(world, open.title());
+    *battle = Some(open);
+    true
+}
+
+/// Sets the window title.
+pub fn set_title(world: &mut bevy::ecs::world::World, title: String) {
+    use bevy::prelude::*;
+    use bevy::window::PrimaryWindow;
     let mut windows = world.query_filtered::<&mut Window, With<PrimaryWindow>>();
     if let Ok(mut window) = windows.single_mut(world)
         && window.title != title
     {
         window.title = title;
     }
-    *battle = Some(open);
-    true
 }
 
 #[cfg(test)]
@@ -897,13 +1348,22 @@ mod tests {
                     turn: 180.0,
                     max_hp: 100,
                     max_mp: 10,
+                    type_no: None,
+                    name: None,
                 },
                 StageUnit {
-                    model: StageModel::Enemy { geo: -1, idle: 0 },
+                    model: StageModel::Enemy {
+                        geo: -1,
+                        idle: 0,
+                        hit: 0,
+                        death: 0,
+                    },
                     position: [0.0, 0.0, 1000.0],
                     turn: 0.0,
                     max_hp: 50,
                     max_mp: 0,
+                    type_no: Some(0),
+                    name: None,
                 },
             ],
             ..BattleStage::default()

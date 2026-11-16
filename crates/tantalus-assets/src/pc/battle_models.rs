@@ -1208,6 +1208,16 @@ pub fn player_battle_row(serial: u32) -> Option<(&'static str, &'static str, &'s
         .map(|row| (row.label, row.model, row.animations[0]))
 }
 
+/// `BattleParameters.csv` row `serial`: its 34 motion names in
+/// `BattlePlayerCharacter.PlayerMotionIndex` order (`MP_IDLE_NORMAL` ..
+/// `MP_SPECIAL1`).
+pub fn player_battle_motions(serial: u32) -> Option<&'static [&'static str; 34]> {
+    names::PLAYERS
+        .iter()
+        .find(|row| row.serial == serial)
+        .map(|row| &row.animations)
+}
+
 /// `AttackSequence` of each player row (`SpecialEffect` id).
 pub fn player_attack_sequences() -> Vec<(u32, &'static str, i32)> {
     names::PLAYERS

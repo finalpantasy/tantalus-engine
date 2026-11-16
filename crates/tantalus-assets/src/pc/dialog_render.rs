@@ -638,7 +638,7 @@ impl WindowSprites {
 
     /// `UIBasicSprite.TiledFill`: tiles of the sprite's inner rectangle (rectangle minus
     /// border), grid origin at `birth` (the dialog sets the body center).
-    fn draw_tiled(&self, image: &mut Image, rect: (i32, i32, i32, i32), birth: (i32, i32)) {
+    pub fn draw_tiled(&self, image: &mut Image, rect: (i32, i32, i32, i32), birth: (i32, i32)) {
         let sprite = &self.body;
         let inner_x = sprite.x + sprite.border_left;
         let inner_y = sprite.y + sprite.border_top;
@@ -658,7 +658,7 @@ impl WindowSprites {
     }
 
     /// `UIBasicSprite.SlicedFill` with `UISprite.drawingDimensions` padding.
-    fn draw_sliced(&self, image: &mut Image, rect: (i32, i32, i32, i32)) {
+    pub fn draw_sliced(&self, image: &mut Image, rect: (i32, i32, i32, i32)) {
         let s = &self.border;
         let left = rect.0 + s.padding_left;
         let top = rect.1 + s.padding_top;
@@ -918,6 +918,16 @@ impl DialogAssets {
             border: sprite(BORDER_SPRITE)?,
         };
         Ok(Self { glyphs, window })
+    }
+
+    /// The font, at [`FONT_SIZE`] (other UI text, such as the battle HUD).
+    pub fn glyphs(&self) -> &FontdueSource {
+        &self.glyphs
+    }
+
+    /// The window sprites.
+    pub fn window(&self) -> &WindowSprites {
+        &self.window
     }
 
     /// Lays out and draws the first page of `entry`.

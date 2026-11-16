@@ -4,6 +4,13 @@
 //! overrides the pattern's default camera. `--window-frame <png>` also
 //! renders the play window's composition offscreen: the field the game is
 //! on, with the battle view opened over it the way `live` opens it.
+//!
+//! `--live 1` fights the first battle in real time instead, as the play
+//! window does, with a scripted pad on the command menu, and saves
+//! `<output>-menu`, `-list`, `-target`, `-attack`, `-hit` and `-end` PNGs
+//! (the menu open, the ability list, the target cursor, the first party
+//! attack mid-swing, its damage number, the result), plus `--at` battle
+//! seconds as in a replay.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -23,6 +30,7 @@ pub fn run(args: &[std::ffi::OsString]) -> ExitCode {
         "--battle",
         "--camera",
         "--window-frame",
+        "--live",
     ]);
     let Some(values) = super::flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
@@ -87,7 +95,9 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
         return Err("requires --battles (without it battles are skipped)".into());
     }
     let holds = super::parse_holds(values.get("--hold"))?;
+    let live = values.get("--live").is_some_and(|value| value != "0");
     let mut game = super::load_game(values)?;
+    game.live_battles = live;
     let mut open_for = 0u64;
     let mut last_confirm = false;
     let mut seen = 0usize;
@@ -113,6 +123,9 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
                 seen += 1;
             }
         }
+        if live && game.battle().is_some() {
+            break;
+        }
         if seen >= wanted && game.last_battle.is_some() {
             stage = game.last_battle.take();
             break;
@@ -120,6 +133,9 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
         if game.stopped.is_some() {
             break;
         }
+    }
+    if live {
+        return live_capture(values, &mut game, &output, (width, height), &times);
     }
     let mut stage = stage.ok_or_else(|| {
         format!(
@@ -180,5 +196,171 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
         .map_err(|error| error.to_string())?;
         lines.push(format!("saved the window frame to {window_frame}"));
     }
+    Ok(lines)
+}
+
+/// A file next to `output` with `-<name>` before the extension.
+fn named(output: &Path, name: &str) -> PathBuf {
+    let stem = output
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    output.with_file_name(format!("{stem}-{name}.png"))
+}
+
+/// Scripted presses: `(seconds to wait, pad bit, shot to take first)`.
+type Steps = Vec<(f64, i32, Option<&'static str>)>;
+
+/// The presses for one menu. The first menu tours the windows for the
+/// shots: the command window, the ability list, then Attack and its
+/// target cursor; later menus attack the default target.
+fn menu_steps(first: bool, has_list: bool) -> Steps {
+    match (first, has_list) {
+        (true, true) => vec![
+            (0.8, pad::DOWN, Some("menu")),
+            (0.3, pad::CONFIRM, None),
+            (0.6, pad::CANCEL, Some("list")),
+            (0.3, pad::UP, None),
+            (0.3, pad::CONFIRM, None),
+            (0.6, pad::CONFIRM, Some("target")),
+        ],
+        (true, false) => vec![
+            (0.8, pad::CONFIRM, Some("menu")),
+            (0.6, pad::CONFIRM, Some("target")),
+        ],
+        _ => vec![(0.3, pad::CONFIRM, None), (0.3, pad::CONFIRM, None)],
+    }
+}
+
+/// Seconds from a party Attack's start to the swing and to its number
+/// (`battle_motion`: the blow is centered on the effect, 40 ticks in).
+const SWING_SECONDS: f64 = 2.55;
+const NUMBER_SECONDS: f64 = 3.0;
+
+/// Fights the battle `game` has open in real time at 30 frames a second.
+fn live_capture(
+    values: &std::collections::BTreeMap<String, String>,
+    game: &mut tantalus_tools::play::PlayGame,
+    output: &Path,
+    size: (u32, u32),
+    times: &[f64],
+) -> Result<Vec<String>, String> {
+    use tantalus_client::battle_hud::BattleHud;
+    use tantalus_client::battle_view::FightView;
+    use tantalus_tools::battle_stage::StageEvent;
+    let mut lines = Vec::new();
+    if size != tantalus_client::battle_view::LIVE_SIZE {
+        lines.push("live frames are 640x480; --size is ignored".to_owned());
+    }
+    let mut assets = BattleAssets::new(Path::new(&values["--assets"]));
+    let hud = match BattleHud::load(game.game_data()) {
+        Ok(hud) => Some(hud),
+        Err(error) => {
+            lines.push(format!("!! battle font and window art: {error}"));
+            None
+        }
+    };
+    let mut view = FightView::start(None, &mut assets, hud.as_ref(), game)
+        .ok_or("no battle is being fought")?;
+    if let Some(camera) = values.get("--camera") {
+        view.set_camera(&assets, game, camera.parse().map_err(|_| "bad --camera")?);
+    }
+    lines.push(format!(
+        "live battle {} scene {}: {} models, {} background triangles",
+        view.battle, view.scene_name, view.scene.models, view.scene.background_triangles
+    ));
+    let delta = 1.0 / 30.0;
+    let mut steps: Steps = Vec::new();
+    let mut waited = 0.0;
+    let mut first_menu = true;
+    let mut saved: Vec<&str> = Vec::new();
+    let mut attack: Option<f64> = None;
+    let mut at_index = 0;
+    let mut clock = 0.0;
+    let save = |view: &FightView, game: &tantalus_tools::play::PlayGame, path: PathBuf| {
+        save_png(&view.render(&assets, hud.as_ref(), game), &path)
+            .map(|()| format!("saved {}", path.display()))
+    };
+    // Four minutes of battle at most.
+    for _ in 0..(30 * 240) {
+        let mut held = 0;
+        let seconds = game.battle().map_or(0.0, |fight| fight.stage().duration());
+        if view.menu.open() && steps.is_empty() {
+            let has_list = game
+                .battle()
+                .zip(view.menu.unit)
+                .and_then(|(fight, unit)| fight.menu(unit))
+                .is_some_and(|menu| !menu.abilities.is_empty());
+            steps = menu_steps(first_menu, has_list);
+            first_menu = false;
+            waited = 0.0;
+        }
+        if !view.menu.open() {
+            steps.clear();
+        }
+        waited += delta;
+        if let Some(&(wait, bit, shot)) = steps.first()
+            && waited >= wait
+        {
+            if let Some(shot) = shot {
+                lines.push(save(&view, game, named(output, shot))?);
+                saved.push(shot);
+            }
+            held |= bit;
+            steps.remove(0);
+            waited = 0.0;
+        }
+        // A party member's first Attack: shoot the swing and the number.
+        if attack.is_none()
+            && let Some(fight) = game.battle()
+        {
+            let party = fight.party_len();
+            attack = fight
+                .stage()
+                .frames
+                .iter()
+                .position(|frame| {
+                    frame.events.iter().any(|event| {
+                        matches!(event, StageEvent::Command { unit, cmd_no: 1, .. } if *unit < party)
+                    })
+                })
+                .map(|index| index as f64 / 15.0);
+        }
+        if let Some(start) = attack
+            && game.battle().is_some()
+        {
+            for (name, after) in [("attack", SWING_SECONDS), ("hit", NUMBER_SECONDS)] {
+                if !saved.contains(&name) && seconds >= start + after {
+                    lines.push(save(&view, game, named(output, name))?);
+                    saved.push(name);
+                }
+            }
+        }
+        if let Some(&at) = times.get(at_index)
+            && seconds >= at
+            && game.battle().is_some()
+        {
+            lines.push(save(&view, game, numbered(output, at_index))?);
+            at_index += 1;
+        }
+        let (events, done) = view.update(game, delta, held);
+        lines.extend(events.iter().map(tantalus_client::live::describe));
+        clock += delta;
+        if done {
+            break;
+        }
+        // The result: shoot it a second after the battle ends.
+        if game.battle().is_none() && !saved.contains(&"end") {
+            for _ in 0..30 {
+                view.update(game, delta, 0);
+            }
+            lines.push(save(&view, game, named(output, "end"))?);
+            saved.push("end");
+        }
+    }
+    lines.push(format!(
+        "after {clock:.1}s: {}",
+        game.stopped.as_deref().unwrap_or("the field resumed")
+    ));
     Ok(lines)
 }

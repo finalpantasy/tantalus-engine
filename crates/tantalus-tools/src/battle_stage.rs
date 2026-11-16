@@ -11,7 +11,9 @@
 //!   (`row == 0`), turned `Euler(0, 180, 180)` for a normal start.
 
 use tantalus_assets::pc::battle_scene::{BattleScene, Placement};
+use tantalus_assets::pc::battle_sequence::{SeqOp, SequenceFile};
 use tantalus_legacy::battle::BattleUnit;
+use tantalus_legacy::battle::machine::{Battle, BattleEvent};
 
 /// `btl_init.PLAYER_ORIGINAL_Z`.
 pub const PLAYER_ORIGINAL_Z: f32 = -1560.0;
@@ -26,9 +28,16 @@ pub enum StageModel {
     /// A party member: `CharacterId` and `CharacterSerialNumber` (the
     /// `BattleParameters.csv` row with its model and motions).
     Player { character: u8, serial: u8 },
-    /// An enemy: `MonAddr[TypeNo].Geo` and the type's first motion
-    /// (`FF9BattleDB.Animation` id of `mot[0]`, the idle).
-    Enemy { geo: i16, idle: u16 },
+    /// An enemy: `MonAddr[TypeNo].Geo` and the type's motions
+    /// (`FF9BattleDB.Animation` ids, `BattleUnit.cs:876-881`): `mot[0]` the
+    /// idle, `mot[2]` the hit, and `mot[3]` (flag 2, `useDieDmg`) or
+    /// `mot[4]` the death.
+    Enemy {
+        geo: i16,
+        idle: u16,
+        hit: u16,
+        death: u16,
+    },
     /// A multipart slave: no model of its own.
     None,
 }
@@ -42,6 +51,11 @@ pub struct StageUnit {
     pub turn: f32,
     pub max_hp: u32,
     pub max_mp: u32,
+    /// An enemy's `TypeNo`, which numbers its name in the battle text.
+    pub type_no: Option<u8>,
+    /// Display name (`FF9TextTool.BattleText(typeNo)` for enemies), when a
+    /// caller looked it up.
+    pub name: Option<String>,
 }
 
 /// The machine after one battle tick.
@@ -56,6 +70,125 @@ pub struct StageFrame {
     pub present: Vec<bool>,
     /// `phase/menu-off sequence`.
     pub phase: String,
+    /// What happened during the tick.
+    pub events: Vec<StageEvent>,
+}
+
+/// A machine event a client animates.
+#[derive(Debug, Clone, PartialEq)]
+pub enum StageEvent {
+    /// `unit` starts a command (`CommandStarted`) aimed at `targets`.
+    Command {
+        unit: usize,
+        cmd_no: u32,
+        sub_no: i32,
+        targets: Vec<usize>,
+    },
+    /// A command's effect landed (`EffectApplied`): `damage` is the HP
+    /// lost (negative for a heal), 0 a miss or no change.
+    Effect {
+        caster: usize,
+        target: usize,
+        damage: i64,
+    },
+    Died {
+        unit: usize,
+    },
+}
+
+/// The [`StageEvent`]s in `log` (new machine log entries). `hp` is each
+/// unit's HP after the previous events and is kept up to date.
+pub fn stage_events(
+    machine: &Battle,
+    log: &[(u32, BattleEvent)],
+    hp: &mut [u32],
+) -> Vec<StageEvent> {
+    let mut events = Vec::new();
+    for (_, event) in log {
+        match *event {
+            BattleEvent::CommandStarted { unit, cmd_no } => {
+                let slot = machine
+                    .running
+                    .iter()
+                    .map(|&id| &machine.cmds.slots[id])
+                    .find(|slot| slot.regist == Some(unit) && slot.cmd_no == cmd_no);
+                let (sub_no, tar_id) = slot.map_or((0, 0), |slot| (slot.sub_no, slot.tar_id));
+                let targets = machine
+                    .units
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, other)| other.id & tar_id != 0)
+                    .map(|(index, _)| index)
+                    .collect();
+                events.push(StageEvent::Command {
+                    unit,
+                    cmd_no,
+                    sub_no,
+                    targets,
+                });
+            }
+            BattleEvent::EffectApplied {
+                caster,
+                target,
+                target_hp,
+            } => {
+                let before = hp.get(target).copied().unwrap_or(target_hp);
+                if let Some(slot) = hp.get_mut(target) {
+                    *slot = target_hp;
+                }
+                events.push(StageEvent::Effect {
+                    caster,
+                    target,
+                    damage: i64::from(before) - i64::from(target_hp),
+                });
+            }
+            BattleEvent::UnitDied { unit } => events.push(StageEvent::Died { unit }),
+            _ => {}
+        }
+    }
+    // Status ticks, items and script writes change HP outside effects.
+    for (slot, unit) in hp.iter_mut().zip(&machine.units) {
+        *slot = unit.cur_hp;
+    }
+    events
+}
+
+/// The animations of each attack sequence of a scene's `.raw17`
+/// (`btlseq.SeqExecAnim`: `FF9BattleDB.Animation[AnmAddrList[AnmIDOfs +
+/// code]]`), in order, by attack number (`RunSequence` plays
+/// `SeqData[cmd.sub_no]`). Code 255 (the idle) is left out. The flag says
+/// whether the sequence walks up to its target first (`MoveToTarget`).
+pub fn attack_animations(bytes: &[u8]) -> Vec<(Vec<u16>, bool)> {
+    let Ok(file) = SequenceFile::parse(bytes, "raw17") else {
+        return Vec::new();
+    };
+    (0..file.slots.len())
+        .map(|index| {
+            let base = usize::from(file.slots[index].base_anim);
+            let Some(sequence) = file.sequence(index) else {
+                return (Vec::new(), false);
+            };
+            let mut anims = Vec::new();
+            let mut moves = false;
+            for placed in &sequence.ops {
+                match placed.op {
+                    SeqOp::Anim { code } if code != 255 => {
+                        let id = file
+                            .header
+                            .anim_list
+                            .get(base + usize::from(code))
+                            .and_then(|&id| u16::try_from(id).ok());
+                        if let Some(id) = id {
+                            anims.push(id);
+                        }
+                    }
+                    SeqOp::MoveToTarget { .. } => moves = true,
+                    _ => {}
+                }
+            }
+            (anims, moves)
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -70,6 +203,9 @@ pub struct BattleStage {
     pub units: Vec<StageUnit>,
     pub frames: Vec<StageFrame>,
     pub outcome: Option<String>,
+    /// [`attack_animations`] of the scene's sequence file, by enemy attack
+    /// number (`sub_no`).
+    pub attack_anims: Vec<(Vec<u16>, bool)>,
 }
 
 impl BattleStage {
@@ -94,6 +230,8 @@ impl BattleStage {
                 turn: 180.0,
                 max_hp: unit.max_hp,
                 max_mp: unit.max_mp,
+                type_no: None,
+                name: None,
             })
             .collect();
         if let Some(row) = scene.patterns.get(pattern) {
@@ -113,6 +251,7 @@ impl BattleStage {
             units,
             frames: Vec::new(),
             outcome: None,
+            attack_anims: Vec::new(),
         }
     }
 
@@ -136,6 +275,7 @@ impl BattleStage {
                 .collect(),
             present: present.to_vec(),
             phase: phase.to_owned(),
+            events: Vec::new(),
         });
     }
 
@@ -144,6 +284,20 @@ impl BattleStage {
         let index = (seconds.max(0.0) * BATTLE_TICKS_PER_SECOND) as usize;
         self.frames
             .get(index.min(self.frames.len().checked_sub(1)?))
+    }
+
+    /// Names the enemies from the scene's battle text: entry `TypeNo` is
+    /// the type's name (`btl_init.cs:115`, `BattleHUD.cs:1134`).
+    pub fn name_enemies(&mut self, text: &[String]) {
+        for unit in &mut self.units {
+            if let Some(name) = unit
+                .type_no
+                .and_then(|type_no| text.get(usize::from(type_no)))
+                .filter(|name| !name.is_empty())
+            {
+                unit.name = Some(name.clone());
+            }
+        }
     }
 
     /// Seconds the record lasts.
@@ -171,6 +325,8 @@ fn enemy_unit(scene: &BattleScene, placement: &Placement) -> StageUnit {
             Some(kind) if !slave && kind.geo >= 0 => StageModel::Enemy {
                 geo: kind.geo,
                 idle: kind.mot[0],
+                hit: kind.mot[2],
+                death: kind.mot[if kind.flags & 2 != 0 { 3 } else { 4 }],
             },
             _ => StageModel::None,
         },
@@ -182,6 +338,8 @@ fn enemy_unit(scene: &BattleScene, placement: &Placement) -> StageUnit {
         turn: f32::from(placement.rot & 4095),
         max_hp: kind.map_or(0, |kind| kind.max_hp),
         max_mp: kind.map_or(0, |kind| kind.max_mp),
+        type_no: Some(placement.type_no),
+        name: None,
     }
 }
 

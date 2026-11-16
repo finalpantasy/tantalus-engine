@@ -241,6 +241,31 @@ impl FieldText {
             .collect())
     }
 
+    /// The battle text of battle `battle` (`FF9TextTool.GetBattleText`,
+    /// `Battle/<id>.mes`): the enemy type names, then the attack names.
+    pub fn battle_text(&self, battle: i32) -> Result<Vec<String>, String> {
+        use tantalus_assets::pc::mes::MesToken;
+        let mes = self.read_mes(&format!(
+            "embeddedasset/text/{}/battle/{battle}",
+            self.language
+        ))?;
+        Ok(mes
+            .entries
+            .iter()
+            .map(|entry| {
+                let name: String = entry
+                    .tokens
+                    .iter()
+                    .filter_map(|token| match token {
+                        MesToken::Text { text } => Some(text.as_str()),
+                        _ => None,
+                    })
+                    .collect();
+                name.trim().to_owned()
+            })
+            .collect())
+    }
+
     /// `[SIGL]` values and choice texts for one field map, or why none were
     /// loaded.
     pub fn info(&self, map: i32) -> Result<FieldTextInfo, String> {

@@ -179,6 +179,8 @@ pub struct Equipment {
     /// Item id -> its `ITEM_DATA` (`Items.csv` `EffectId` into
     /// `ItemEffects.csv`), for usable items only.
     item_effects: BTreeMap<i32, ItemRow>,
+    /// Ability id -> its `Actions.csv` comment name (`Fire`), for menus.
+    action_names: BTreeMap<i32, String>,
 }
 
 /// The `ITEM_DATA` fields an Item command reads (`ItemEffects.csv`).
@@ -303,7 +305,7 @@ impl BattleHooks for SceneAttacks {
     fn spec(&mut self, cmd_no: u32, sub_no: i32, caster: &BattleUnit) -> Option<CommandSpec> {
         if caster.is_player && cmd_no != cmd::MAGIC_COUNTER {
             return match cmd_no {
-                BLACK_MAGIC | INSIDE_TRICK => self.player_spec(cmd_no, sub_no),
+                _ if ABILITY_COMMANDS.contains(&cmd_no) => self.player_spec(cmd_no, sub_no),
                 // The base the machine's `item_spec` fills in: the item's
                 // cursor and default side.
                 cmd::ITEM => self.item_effects.get(&sub_no).map(|item| {
@@ -527,6 +529,9 @@ impl Equipment {
                 let field = |index: usize| row.get(index).copied().unwrap_or("");
                 let flag = |index: usize| matches!(field(index).trim(), "1" | "True" | "true");
                 let byte = |index: usize| int(&row, index).unwrap_or(0).clamp(0, 255) as u8;
+                equipment
+                    .action_names
+                    .insert(id, field(0).trim().to_owned());
                 equipment.actions.insert(
                     id,
                     ActionRow {
@@ -686,13 +691,32 @@ impl FieldBattles {
     }
 
     /// [`Self::fight`] with the field inventory (`item id -> count`), which
-    /// the Item command reads. The report lists what was used.
+    /// the Item command reads. The report lists what was used. The stand-in
+    /// party policy picks every party command; the whole fight runs here.
     pub fn fight_with_items(
         &self,
         request: &EncounterRequest,
         party: &[PartyFighter],
         items: &BTreeMap<i32, i32>,
     ) -> FightReport {
+        match self.start(request, party, items) {
+            Ok(mut fight) => {
+                while fight.step(FightControl::StandIn) {}
+                fight.finish(self)
+            }
+            Err(report) => *report,
+        }
+    }
+
+    /// Sets up `request` to be fought one battle tick at a time
+    /// ([`LiveFight::step`]), the way a player fights it. A battle that
+    /// cannot start comes back as its report, with `error` set.
+    pub fn start(
+        &self,
+        request: &EncounterRequest,
+        party: &[PartyFighter],
+        items: &BTreeMap<i32, i32>,
+    ) -> Result<LiveFight, Box<FightReport>> {
         let pattern = request.group.and_then(|group| usize::try_from(group).ok());
         let mut report = FightReport {
             battle: request.battle,
@@ -714,19 +738,22 @@ impl FieldBattles {
             error: None,
             ..FightReport::default()
         };
-        if let Err(error) = self.run(request, party, items, &mut report) {
-            report.error = Some(error);
+        match self.run(request, &mut report) {
+            Ok((scene, sequence, pattern, script)) => {
+                self.battle(scene, sequence, pattern, script, party, items, report)
+            }
+            Err(error) => Err(fail(report, error)),
         }
-        report
     }
 
+    /// The scene, its sequence file, the pattern and the AI script of
+    /// `request`.
+    #[allow(clippy::type_complexity)]
     fn run(
         &self,
         request: &EncounterRequest,
-        party: &[PartyFighter],
-        items: &BTreeMap<i32, i32>,
         report: &mut FightReport,
-    ) -> Result<(), String> {
+    ) -> Result<(&BattleScene, Option<&[u8]>, usize, Option<&[u8]>), String> {
         let id = u16::try_from(request.battle).map_err(|_| "battle id out of range")?;
         let key = self
             .scene_ids
@@ -744,25 +771,21 @@ impl FieldBattles {
         report.pattern = pattern;
         let script = self.scripts.get(&name);
         report.ai_script = script.is_some();
-        self.battle(
-            scene,
-            pattern,
-            script.map(Vec::as_slice),
-            party,
-            items,
-            report,
-        )
+        let sequence = self.data.sequence_bytes.get(&name).map(Vec::as_slice);
+        Ok((scene, sequence, pattern, script.map(Vec::as_slice)))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn battle(
         &self,
         scene: &BattleScene,
+        sequence: Option<&[u8]>,
         pattern: usize,
         script: Option<&[u8]>,
         party: &[PartyFighter],
         items: &BTreeMap<i32, i32>,
-        report: &mut FightReport,
-    ) -> Result<(), String> {
+        mut report: FightReport,
+    ) -> Result<LiveFight, Box<FightReport>> {
         let mut units: Vec<BattleUnit> = party
             .iter()
             .enumerate()
@@ -772,8 +795,12 @@ impl FieldBattles {
             .iter()
             .map(|unit| (EntityId::new(1000 + u64::from(unit.id)), unit.id))
             .collect();
-        let enemies = pattern_machine_units(scene, pattern)
-            .ok_or_else(|| format!("pattern {pattern} has no machine units"))?;
+        let Some(enemies) = pattern_machine_units(scene, pattern) else {
+            return Err(fail(
+                report,
+                format!("pattern {pattern} has no machine units"),
+            ));
+        };
         report.enemies = enemies.len();
         for unit in enemies {
             pairs.push((EntityId::new(u64::from(unit.id)), unit.id));
@@ -799,9 +826,10 @@ impl FieldBattles {
             battle.begin_special_start();
         }
         let table = match script {
-            Some(bytes) => {
-                ScriptTable::from_binary(&EventBinary::parse(bytes).map_err(|e| e.to_string())?)
-            }
+            Some(bytes) => match EventBinary::parse(bytes) {
+                Ok(binary) => ScriptTable::from_binary(&binary),
+                Err(error) => return Err(fail(report, error.to_string())),
+            },
             None => ScriptTable { entries: vec![] },
         };
         let (data, views) = battle_views(&battle);
@@ -816,37 +844,34 @@ impl FieldBattles {
             &party_ids,
         );
         let (unit_map, target_bits) = unit_mappings(&pairs);
-        let attack = ContentId::parse("tantalus:action/attack").map_err(|e| e.to_string())?;
-        let fire = ContentId::parse("tantalus:action/fire").map_err(|e| e.to_string())?;
-        let free_energy =
-            ContentId::parse("tantalus:action/free-energy").map_err(|e| e.to_string())?;
-        let potion = ContentId::parse("tantalus:action/potion").map_err(|e| e.to_string())?;
-        let hi_potion = ContentId::parse("tantalus:action/hi-potion").map_err(|e| e.to_string())?;
-        let pinion =
-            ContentId::parse("tantalus:action/phoenix-pinion").map_err(|e| e.to_string())?;
-        let remedy = ContentId::parse("tantalus:action/remedy").map_err(|e| e.to_string())?;
-        let phoenix =
-            ContentId::parse("tantalus:action/phoenix-down").map_err(|e| e.to_string())?;
+        let ids = match StandInActions::new() {
+            Ok(ids) => ids,
+            Err(error) => return Err(fail(report, error)),
+        };
         // Abilities each member's default gear gives (`AA:X` ids under 192).
         let gear: Vec<Vec<i32>> = party
             .iter()
             .map(|fighter| self.equipment.abilities(fighter.character).0)
             .collect();
-        let adapter = LegacyBattleAdapter::new(
-            battle,
-            BTreeMap::from([
-                (attack.clone(), (cmd::ATTACK, ABILITY_ATTACK)),
-                (fire.clone(), (BLACK_MAGIC, ABILITY_FIRE)),
-                (free_energy.clone(), (INSIDE_TRICK, ABILITY_FREE_ENERGY)),
-                (potion.clone(), (cmd::ITEM, ITEM_POTION)),
-                (hi_potion.clone(), (cmd::ITEM, ITEM_HI_POTION)),
-                (pinion.clone(), (cmd::ITEM, ITEM_PHOENIX_PINION)),
-                (remedy.clone(), (cmd::ITEM, ITEM_REMEDY)),
-                (phoenix.clone(), (cmd::ITEM, ITEM_PHOENIX_DOWN)),
-            ]),
-            unit_map,
-            target_bits,
-        );
+        let mut action_map = BTreeMap::from([
+            (ids.attack.clone(), (cmd::ATTACK, ABILITY_ATTACK)),
+            (ids.fire.clone(), (BLACK_MAGIC, ABILITY_FIRE)),
+            (ids.free_energy.clone(), (INSIDE_TRICK, ABILITY_FREE_ENERGY)),
+            (ids.potion.clone(), (cmd::ITEM, ITEM_POTION)),
+            (ids.hi_potion.clone(), (cmd::ITEM, ITEM_HI_POTION)),
+            (ids.pinion.clone(), (cmd::ITEM, ITEM_PHOENIX_PINION)),
+            (ids.remedy.clone(), (cmd::ITEM, ITEM_REMEDY)),
+            (ids.phoenix.clone(), (cmd::ITEM, ITEM_PHOENIX_DOWN)),
+        ]);
+        // What the command menu can send: Defend, each member's gear
+        // abilities under the member's ability command, and every usable
+        // item. The stand-in policy never sends these, and the map is only
+        // looked up, so the stand-in fights are unchanged.
+        let menu = player_menus(party, &gear, &self.equipment, items);
+        for entry in menu.iter().flat_map(|menu| menu.entries()) {
+            action_map.insert(entry.action.clone(), (entry.cmd_no, entry.sub_no));
+        }
+        let adapter = LegacyBattleAdapter::new(battle, action_map, unit_map, target_bits);
         let hooks = EnemyAiHooks::new(
             SceneAttacks {
                 attacks: scene.attacks.clone(),
@@ -868,7 +893,7 @@ impl FieldBattles {
                 ..SceneOverlay::default()
             },
         );
-        let mut adapter = adapter.with_hooks(hooks);
+        let adapter = adapter.with_hooks(hooks);
         let mut stage = crate::battle_stage::BattleStage::new(
             report.battle,
             // `EVT_BATTLE_<scene>` to the bare scene name.
@@ -881,200 +906,603 @@ impl FieldBattles {
             pattern,
             &adapter.battle().units[..party.len().min(adapter.battle().units.len())],
         );
-        let mut world = FieldWorld::new();
-        let mut defeated: Vec<EntityId> = Vec::new();
+        stage.attack_anims = sequence
+            .map(crate::battle_stage::attack_animations)
+            .unwrap_or_default();
         // `btl_sys.SetBonus` on each enemy death; `Info.AfterEvent` scenes
         // pay nothing (`battle.cs:72`).
-        let mut rows = pattern_rewards(scene, pattern).unwrap_or_default();
+        let rows = pattern_rewards(scene, pattern).unwrap_or_default();
         let pattern_ap = scene.patterns.get(pattern).map_or(0, |row| row.ap);
         let member_flag = (1u8 << party.len().min(4)) - 1;
-        let mut bonus = BattleBonus::new(pattern_ap, member_flag, scene.header.flags & 2048 != 0);
-        let mut draws = SplitMix64Random::new(u64::from(report.battle as u32) ^ 0xD1AA);
-        let mut events_seen = 0usize;
-        let mut sent = 0u32;
-        for tick in 0..BATTLE_TICK_LIMIT {
-            report.ticks = tick + 1;
-            // The first ready party member attacks the first enemy still
-            // standing, read from the machine (units are party then enemies).
-            let mut input = CombatInput::new(Tick::new(tick));
-            let machine = adapter.battle();
-            let target = (party.len()..machine.units.len()).find(|&i| {
-                machine.sched[i].in_list
-                    && machine.units[i].cur_hp > 0
-                    && !machine.units[i].is_under_any_status(DEATH)
-            });
-            let actor = machine
-                .ready_players
+        let bonus = BattleBonus::new(pattern_ap, member_flag, scene.header.flags & 2048 != 0);
+        let draws = SplitMix64Random::new(u64::from(report.battle as u32) ^ 0xD1AA);
+        let hp = adapter
+            .battle()
+            .units
+            .iter()
+            .map(|unit| unit.cur_hp)
+            .collect();
+        Ok(LiveFight {
+            report,
+            party: party.to_vec(),
+            items: items.clone(),
+            entities,
+            gear,
+            ids,
+            menu,
+            adapter,
+            world: FieldWorld::new(),
+            defeated: Vec::new(),
+            rows,
+            bonus,
+            draws,
+            events_seen: 0,
+            sent: 0,
+            stage,
+            tick: 0,
+            log_seen: 0,
+            hp,
+            state: FightState::Running,
+        })
+    }
+}
+
+/// A fight that could not start: its report with `error` set.
+fn fail(mut report: FightReport, error: String) -> Box<FightReport> {
+    report.error = Some(error);
+    Box::new(report)
+}
+
+/// Who picks the party's commands for one [`LiveFight::step`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum FightControl {
+    /// The stand-in policy (the headless chain and sweeps).
+    StandIn,
+    /// A player: the command to queue this tick, if any.
+    Player(Option<BattleCommand>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum FightState {
+    Running,
+    Ended,
+    Failed(String),
+}
+
+/// The action ids the stand-in policy sends.
+#[derive(Debug, Clone)]
+struct StandInActions {
+    attack: ContentId,
+    fire: ContentId,
+    free_energy: ContentId,
+    potion: ContentId,
+    hi_potion: ContentId,
+    pinion: ContentId,
+    remedy: ContentId,
+    phoenix: ContentId,
+}
+
+impl StandInActions {
+    fn new() -> Result<Self, String> {
+        let id = |text: &str| ContentId::parse(text).map_err(|e| e.to_string());
+        Ok(Self {
+            attack: id("tantalus:action/attack")?,
+            fire: id("tantalus:action/fire")?,
+            free_energy: id("tantalus:action/free-energy")?,
+            potion: id("tantalus:action/potion")?,
+            hi_potion: id("tantalus:action/hi-potion")?,
+            pinion: id("tantalus:action/phoenix-pinion")?,
+            remedy: id("tantalus:action/remedy")?,
+            phoenix: id("tantalus:action/phoenix-down")?,
+        })
+    }
+}
+
+/// Which side a command aims at first (`DefaultAlly`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuAim {
+    Enemies,
+    Allies,
+    /// Defend: the caster alone.
+    Caster,
+}
+
+/// One command a party member can pick.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MenuEntry {
+    /// `Actions.csv` name, or the item id as text (a client names items).
+    pub label: String,
+    pub action: ContentId,
+    pub cmd_no: u32,
+    pub sub_no: i32,
+    pub aim: MenuAim,
+    /// MP the ability costs; 0 for items and basic commands.
+    pub mp: u32,
+    /// Item id for Item entries.
+    pub item: Option<i32>,
+    /// Can target a fallen ally (`ForDead`).
+    pub for_dead: bool,
+}
+
+/// A party member's command menu (`BattleHUD.DisplayCommand`): Attack, the
+/// member's ability command, Defend and Item.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PartyMenu {
+    pub attack: MenuEntry,
+    /// The ability command's name (`Skill`, `Black Mag`, ...).
+    pub ability_title: String,
+    pub abilities: Vec<MenuEntry>,
+    pub defend: MenuEntry,
+    pub items: Vec<MenuEntry>,
+}
+
+impl PartyMenu {
+    fn entries(&self) -> impl Iterator<Item = &MenuEntry> {
+        [&self.attack, &self.defend]
+            .into_iter()
+            .chain(&self.abilities)
+            .chain(&self.items)
+    }
+}
+
+/// `CharacterCommands` default command 2 of each `CharacterId`
+/// (`BattleCommandId`) and its menu name.
+fn ability_command(character: i32) -> (u32, &'static str) {
+    match character {
+        0 => (25, "Skill"),
+        1 => (BLACK_MAGIC, "Black Mag"),
+        2 => (17, "White Mag"),
+        3 => (30, "Sword Art"),
+        4 => (27, "Dragon"),
+        5 => (24, "Blu Mag"),
+        6 => (19, "White Mag"),
+        7 => (28, "Flair"),
+        11 => (34, "White Mag"),
+        _ => (25, "Skill"),
+    }
+}
+
+/// The ability commands [`player_menus`] can send, which read
+/// `Actions.csv` like the stand-in's Black Magic and Dyne.
+const ABILITY_COMMANDS: [u32; 10] = [17, 19, BLACK_MAGIC, 24, 25, INSIDE_TRICK, 27, 28, 30, 34];
+
+fn player_menus(
+    party: &[PartyFighter],
+    gear: &[Vec<i32>],
+    equipment: &Equipment,
+    items: &BTreeMap<i32, i32>,
+) -> Vec<PartyMenu> {
+    let entry = |label: String, cmd_no: u32, sub_no: i32, aim, mp, item, for_dead| {
+        ContentId::parse(&format!("tantalus:command/{cmd_no}/{sub_no}"))
+            .ok()
+            .map(|action| MenuEntry {
+                label,
+                action,
+                cmd_no,
+                sub_no,
+                aim,
+                mp,
+                item,
+                for_dead,
+            })
+    };
+    let usable: Vec<MenuEntry> = items
+        .iter()
+        .filter(|&(_, &count)| count > 0)
+        .filter_map(|(&item, _)| {
+            let row = equipment.item_effects.get(&item)?;
+            let aim = if row.default_ally {
+                MenuAim::Allies
+            } else {
+                MenuAim::Enemies
+            };
+            entry(
+                item.to_string(),
+                cmd::ITEM,
+                item,
+                aim,
+                0,
+                Some(item),
+                row.for_dead,
+            )
+        })
+        .collect();
+    party
+        .iter()
+        .zip(gear)
+        .filter_map(|(fighter, gear)| {
+            let (command, title) = ability_command(fighter.character);
+            // Only what the member can learn: gear lists every
+            // character's abilities (`Abilities/<Preset>.csv`).
+            let learnable = equipment.abilities(fighter.character).1;
+            let mut abilities: Vec<MenuEntry> = gear
                 .iter()
-                .copied()
-                .find(|&i| i < party.len());
-            if let (Some(actor), Some(target)) = (actor, target) {
-                sent += 1;
-                // Stand-in choices a player makes: Vivi casts Fire while he
-                // has the MP, and Zidane in Trance uses Free Energy, open
-                // while its Skill twin Flee is equipped (`BattleHUD.cs:1368`,
-                // `AbilityTranceList`). Everything else attacks.
-                let unit = &machine.units[actor];
-                let has = |id: i32| gear[actor].contains(&id);
-                let count = |item: i32| machine.inventory.get(&item).copied().unwrap_or(0);
-                // A fallen member gets a Phoenix Down or Pinion (Vivi first, the
-                // damage dealer, who never stops to heal), then the member under 60% HP with the least
-                // left gets a Potion, or a Hi-Potion once those run out.
-                // An ally already named by a queued or running Item command
-                // is skipped, so two members do not spend turns on one heal.
-                let healing = |i: usize| {
-                    let id = machine.units[i].id;
-                    machine.cmds.queue.iter().chain(&machine.running).any(|&c| {
-                        let slot = &machine.cmds.slots[c];
-                        slot.cmd_no == cmd::ITEM && slot.tar_id & id != 0
-                    })
-                };
-                let downed = (0..party.len())
-                    .filter(|&i| {
-                        machine.sched[i].in_list && machine.units[i].cur_hp == 0 && !healing(i)
-                    })
-                    .min_by_key(|&i| party[i].character != 1);
-                let hurt = (0..party.len())
-                    .filter(|&i| {
-                        let u = &machine.units[i];
-                        machine.sched[i].in_list
-                            && u.cur_hp > 0
-                            && u.cur_hp * 5 < u.max_hp * 3
-                            && !healing(i)
-                    })
-                    .min_by_key(|&i| {
-                        machine.units[i].cur_hp * 1000 / machine.units[i].max_hp.max(1)
-                    });
-                // Vivi keeps casting while he has the MP; the others heal.
-                let caster = party[actor].character == 1 && has(ABILITY_FIRE) && unit.cur_mp >= 6;
-                let heal = match (downed, hurt) {
-                    _ if caster => None,
-                    (Some(ally), _) if count(ITEM_PHOENIX_DOWN) > 0 => {
-                        Some((phoenix.clone(), ally))
-                    }
-                    (Some(ally), _) if count(ITEM_PHOENIX_PINION) > 0 => {
-                        Some((pinion.clone(), ally))
-                    }
-                    (_, Some(ally)) if count(ITEM_POTION) > 0 => Some((potion.clone(), ally)),
-                    (_, Some(ally)) if count(ITEM_HI_POTION) > 0 => Some((hi_potion.clone(), ally)),
-                    // A blinded fighter's attacks mostly miss: Remedy.
-                    _ if count(ITEM_REMEDY) > 0 => (0..party.len())
-                        .find(|&i| {
-                            machine.sched[i].in_list
-                                && machine.units[i].cur_hp > 0
-                                && party[i].character != 1
-                                && machine.units[i]
-                                    .is_under_any_status(tantalus_legacy::battle::status::BLIND)
-                                && !healing(i)
-                        })
-                        .map(|ally| (remedy.clone(), ally)),
-                    _ => None,
-                };
-                let (action, target) = if let Some(heal) = heal {
-                    heal
-                } else {
-                    (
-                        match party[actor].character {
-                            1 if has(ABILITY_FIRE) && unit.cur_mp >= 6 => fire.clone(),
-                            0 if has(ABILITY_FLEE)
-                                && unit.is_under_any_status(
-                                    tantalus_legacy::battle::status::TRANCE,
-                                ) =>
-                            {
-                                free_energy.clone()
-                            }
-                            _ => attack.clone(),
-                        },
-                        target,
+                .filter(|&&ability| ability > 0 && ability < 192)
+                .filter(|&&ability| learnable.iter().any(|entry| entry.id == ability))
+                .filter_map(|&ability| {
+                    let row = equipment.actions.get(&ability)?;
+                    let aim = if row.target >= target_type::SELF {
+                        MenuAim::Caster
+                    } else if row.default_ally {
+                        MenuAim::Allies
+                    } else {
+                        MenuAim::Enemies
+                    };
+                    let label = equipment
+                        .action_names
+                        .get(&ability)
+                        .cloned()
+                        .unwrap_or_else(|| ability.to_string());
+                    entry(
+                        label,
+                        command,
+                        ability,
+                        aim,
+                        row.mp.max(0) as u32,
+                        None,
+                        row.for_dead,
                     )
-                };
-                input.command = Some(BattleCommand {
-                    actor: entities[actor],
-                    action,
-                    targets: vec![entities[target]],
-                });
-            }
-            let mut services = WorldGameServices::new(&mut world);
-            let advanced = adapter.advance(&input, &mut services);
-            drop(services);
-            // Script writes to units (`RunBattleCode` member sets) go back
-            // into the machine, as in `battle_run`.
-            let dirty = adapter.hooks_mut().take_dirty_views();
-            apply_unit_views(adapter.battle_mut(), &dirty);
-            let machine = adapter.battle();
-            let phase = format!("{:?}/{:?}", machine.phase, machine.menu_off_seq);
-            let (over, result) = (machine.over, machine.result);
-            {
-                let (max_atb, present): (Vec<i16>, Vec<bool>) = machine
-                    .sched
-                    .iter()
-                    .map(|sched| (sched.max_atb, sched.in_list))
-                    .unzip();
-                stage.record(tick, &machine.units, &max_atb, &present, &phase);
-            }
-            if report.phase_log.last().map(|entry| &entry.1) != Some(&phase) {
-                let hp = machine.units[party.len()..]
-                    .iter()
-                    .map(|unit| unit.cur_hp)
-                    .collect();
-                report.phase_log.push((tick, phase, hp));
-                if over && let Some(result) = result {
-                    report.result_code = Some(result);
-                }
-            }
-            if let Err(error) = advanced {
-                // A result the adapter has no outcome for (5 is a scripted
-                // interruption, `BTL_RESULT_INTERRUPTION`).
-                match (over, result) {
-                    (true, Some(result)) => {
-                        report.result_code = Some(result);
-                        report.outcome = Some(format!("result {result}"));
-                        break;
-                    }
-                    _ => return Err(format!("{error:?}")),
-                }
-            }
-            for event in adapter.take_events() {
-                if let CombatEvent::UnitDefeated { unit, .. } = event
-                    && let Some(enemy) = entities[party.len()..].iter().position(|e| *e == unit)
-                    && !defeated.contains(&unit)
-                {
-                    defeated.push(unit);
-                    if enemy < rows.len() {
-                        bonus.set_bonus(&mut rows, enemy, &mut draws);
-                    }
-                }
-            }
-            // Script-paid bonuses (member 71) for units that never die.
-            let events = &adapter.hooks().driver.state.events;
-            for event in &events[events_seen.min(events.len())..] {
-                if let AiEvent::SetBonus { unit } = event
-                    && let Some(enemy) = entities[party.len()..].iter().position(|e| e == unit)
-                    && enemy < rows.len()
-                {
-                    bonus.set_bonus(&mut rows, enemy, &mut draws);
-                }
-            }
-            events_seen = events.len();
-            report.items_used = items
-                .iter()
-                .filter_map(|(&item, &count)| {
-                    let left = adapter.battle().inventory.get(&item).copied().unwrap_or(0);
-                    let used = (count.max(0) as u32).saturating_sub(left);
-                    (used > 0).then_some((item, used))
                 })
                 .collect();
-            if let Some(outcome) = adapter.outcome() {
-                report.outcome = Some(outcome_name(outcome).to_owned());
-                break;
+            abilities.dedup_by_key(|entry| entry.sub_no);
+            Some(PartyMenu {
+                attack: entry(
+                    "Attack".into(),
+                    cmd::ATTACK,
+                    ABILITY_ATTACK,
+                    MenuAim::Enemies,
+                    0,
+                    None,
+                    false,
+                )?,
+                ability_title: title.to_owned(),
+                abilities,
+                defend: entry(
+                    "Defend".into(),
+                    cmd::DEFEND,
+                    0,
+                    MenuAim::Caster,
+                    0,
+                    None,
+                    false,
+                )?,
+                items: usable.clone(),
+            })
+        })
+        .collect()
+}
+
+/// A battle being fought one tick at a time ([`FieldBattles::start`]).
+pub struct LiveFight {
+    report: FightReport,
+    party: Vec<PartyFighter>,
+    items: BTreeMap<i32, i32>,
+    entities: Vec<EntityId>,
+    gear: Vec<Vec<i32>>,
+    ids: StandInActions,
+    menu: Vec<PartyMenu>,
+    adapter: LegacyBattleAdapter<EnemyAiHooks<SceneAttacks>>,
+    world: FieldWorld,
+    defeated: Vec<EntityId>,
+    rows: Vec<tantalus_legacy::battle::rewards::EnemyRewardData>,
+    bonus: BattleBonus,
+    draws: SplitMix64Random,
+    events_seen: usize,
+    sent: u32,
+    stage: crate::battle_stage::BattleStage,
+    tick: u64,
+    /// Read position into the machine's event log, for the stage record.
+    log_seen: usize,
+    /// HP after the last recorded event, for damage amounts.
+    hp: Vec<u32>,
+    state: FightState,
+}
+
+impl LiveFight {
+    /// The machine (units are party then enemies).
+    pub fn machine(&self) -> &Battle {
+        self.adapter.battle()
+    }
+
+    pub fn party_len(&self) -> usize {
+        self.party.len()
+    }
+
+    /// Field entity of machine unit `unit`.
+    pub fn entity(&self, unit: usize) -> Option<EntityId> {
+        self.entities.get(unit).copied()
+    }
+
+    /// The command menu of party member `unit`.
+    pub fn menu(&self, unit: usize) -> Option<&PartyMenu> {
+        self.menu.get(unit)
+    }
+
+    /// Item `item` left in the battle inventory.
+    pub fn item_count(&self, item: i32) -> u32 {
+        self.machine().inventory.get(&item).copied().unwrap_or(0)
+    }
+
+    /// The record so far, for a client to draw.
+    pub fn stage(&self) -> &crate::battle_stage::BattleStage {
+        &self.stage
+    }
+
+    /// Names the enemies ([`crate::battle_stage::BattleStage::name_enemies`]).
+    pub fn name_enemies(&mut self, text: &[String]) {
+        self.stage.name_enemies(text);
+    }
+
+    pub fn ticks(&self) -> u64 {
+        self.tick
+    }
+
+    pub fn is_over(&self) -> bool {
+        self.state != FightState::Running
+    }
+
+    /// The outcome once the fight has stopped.
+    pub fn outcome(&self) -> Option<&str> {
+        self.report.outcome.as_deref()
+    }
+
+    /// The stand-in policy: the first ready party member attacks the first
+    /// enemy still standing, read from the machine (units are party then
+    /// enemies).
+    fn stand_in(&mut self) -> Option<BattleCommand> {
+        let party = &self.party;
+        let gear = &self.gear;
+        let ids = &self.ids;
+        let entities = &self.entities;
+        let machine = self.adapter.battle();
+        let target = (party.len()..machine.units.len()).find(|&i| {
+            machine.sched[i].in_list
+                && machine.units[i].cur_hp > 0
+                && !machine.units[i].is_under_any_status(DEATH)
+        });
+        let actor = machine
+            .ready_players
+            .iter()
+            .copied()
+            .find(|&i| i < party.len());
+        let (Some(actor), Some(target)) = (actor, target) else {
+            return None;
+        };
+        self.sent += 1;
+        // Stand-in choices a player makes: Vivi casts Fire while he
+        // has the MP, and Zidane in Trance uses Free Energy, open
+        // while its Skill twin Flee is equipped (`BattleHUD.cs:1368`,
+        // `AbilityTranceList`). Everything else attacks.
+        let unit = &machine.units[actor];
+        let has = |id: i32| gear[actor].contains(&id);
+        let count = |item: i32| machine.inventory.get(&item).copied().unwrap_or(0);
+        // A fallen member gets a Phoenix Down or Pinion (Vivi first, the
+        // damage dealer, who never stops to heal), then the member under 60% HP with the least
+        // left gets a Potion, or a Hi-Potion once those run out.
+        // An ally already named by a queued or running Item command
+        // is skipped, so two members do not spend turns on one heal.
+        let healing = |i: usize| {
+            let id = machine.units[i].id;
+            machine.cmds.queue.iter().chain(&machine.running).any(|&c| {
+                let slot = &machine.cmds.slots[c];
+                slot.cmd_no == cmd::ITEM && slot.tar_id & id != 0
+            })
+        };
+        let downed = (0..party.len())
+            .filter(|&i| machine.sched[i].in_list && machine.units[i].cur_hp == 0 && !healing(i))
+            .min_by_key(|&i| party[i].character != 1);
+        let hurt = (0..party.len())
+            .filter(|&i| {
+                let u = &machine.units[i];
+                machine.sched[i].in_list
+                    && u.cur_hp > 0
+                    && u.cur_hp * 5 < u.max_hp * 3
+                    && !healing(i)
+            })
+            .min_by_key(|&i| machine.units[i].cur_hp * 1000 / machine.units[i].max_hp.max(1));
+        // Vivi keeps casting while he has the MP; the others heal.
+        let caster = party[actor].character == 1 && has(ABILITY_FIRE) && unit.cur_mp >= 6;
+        let heal = match (downed, hurt) {
+            _ if caster => None,
+            (Some(ally), _) if count(ITEM_PHOENIX_DOWN) > 0 => Some((ids.phoenix.clone(), ally)),
+            (Some(ally), _) if count(ITEM_PHOENIX_PINION) > 0 => Some((ids.pinion.clone(), ally)),
+            (_, Some(ally)) if count(ITEM_POTION) > 0 => Some((ids.potion.clone(), ally)),
+            (_, Some(ally)) if count(ITEM_HI_POTION) > 0 => Some((ids.hi_potion.clone(), ally)),
+            // A blinded fighter's attacks mostly miss: Remedy.
+            _ if count(ITEM_REMEDY) > 0 => (0..party.len())
+                .find(|&i| {
+                    machine.sched[i].in_list
+                        && machine.units[i].cur_hp > 0
+                        && party[i].character != 1
+                        && machine.units[i]
+                            .is_under_any_status(tantalus_legacy::battle::status::BLIND)
+                        && !healing(i)
+                })
+                .map(|ally| (ids.remedy.clone(), ally)),
+            _ => None,
+        };
+        let (action, target) = if let Some(heal) = heal {
+            heal
+        } else {
+            (
+                match party[actor].character {
+                    1 if has(ABILITY_FIRE) && unit.cur_mp >= 6 => ids.fire.clone(),
+                    0 if has(ABILITY_FLEE)
+                        && unit.is_under_any_status(tantalus_legacy::battle::status::TRANCE) =>
+                    {
+                        ids.free_energy.clone()
+                    }
+                    _ => ids.attack.clone(),
+                },
+                target,
+            )
+        };
+        Some(BattleCommand {
+            actor: entities[actor],
+            action,
+            targets: vec![entities[target]],
+        })
+    }
+
+    /// One battle tick (15 a second, `BATTLE_TPS`). False once the fight
+    /// has stopped (an outcome, the tick limit or an error).
+    pub fn step(&mut self, control: FightControl) -> bool {
+        if self.state != FightState::Running {
+            return false;
+        }
+        if self.tick >= BATTLE_TICK_LIMIT {
+            self.state = FightState::Ended;
+            return false;
+        }
+        let tick = self.tick;
+        self.tick += 1;
+        match self.tick_once(tick, control) {
+            Ok(true) => true,
+            Ok(false) => {
+                self.state = FightState::Ended;
+                false
             }
-            // The machine does not reach `over` on a defeat (the defeat song
-            // fade is not ported), so the defeat phase ends the fight here.
-            if adapter.battle().phase == Phase::Defeat {
-                report.outcome = Some("defeat".to_owned());
-                break;
+            Err(error) => {
+                self.state = FightState::Failed(error);
+                false
             }
         }
+    }
+
+    /// The loop body of a fight; false when it ends.
+    fn tick_once(&mut self, tick: u64, control: FightControl) -> Result<bool, String> {
+        self.report.ticks = tick + 1;
+        let mut input = CombatInput::new(Tick::new(tick));
+        input.command = match control {
+            FightControl::StandIn => self.stand_in(),
+            FightControl::Player(command) => {
+                if command.is_some() {
+                    self.sent += 1;
+                }
+                command
+            }
+        };
+        let mut services = WorldGameServices::new(&mut self.world);
+        let advanced = self.adapter.advance(&input, &mut services);
+        drop(services);
+        // Script writes to units (`RunBattleCode` member sets) go back
+        // into the machine, as in `battle_run`.
+        let dirty = self.adapter.hooks_mut().take_dirty_views();
+        apply_unit_views(self.adapter.battle_mut(), &dirty);
+        let machine = self.adapter.battle();
+        let phase = format!("{:?}/{:?}", machine.phase, machine.menu_off_seq);
+        let (over, result) = (machine.over, machine.result);
+        {
+            let (max_atb, present): (Vec<i16>, Vec<bool>) = machine
+                .sched
+                .iter()
+                .map(|sched| (sched.max_atb, sched.in_list))
+                .unzip();
+            self.stage
+                .record(tick, &machine.units, &max_atb, &present, &phase);
+            let events = crate::battle_stage::stage_events(
+                machine,
+                &machine.log[self.log_seen.min(machine.log.len())..],
+                &mut self.hp,
+            );
+            self.log_seen = machine.log.len();
+            if let Some(frame) = self.stage.frames.last_mut() {
+                frame.events = events;
+            }
+        }
+        let report = &mut self.report;
+        if report.phase_log.last().map(|entry| &entry.1) != Some(&phase) {
+            let hp = machine.units[self.party.len()..]
+                .iter()
+                .map(|unit| unit.cur_hp)
+                .collect();
+            report.phase_log.push((tick, phase, hp));
+            if over && let Some(result) = result {
+                report.result_code = Some(result);
+            }
+        }
+        if let Err(error) = advanced {
+            // A result the adapter has no outcome for (5 is a scripted
+            // interruption, `BTL_RESULT_INTERRUPTION`).
+            match (over, result) {
+                (true, Some(result)) => {
+                    report.result_code = Some(result);
+                    report.outcome = Some(format!("result {result}"));
+                    return Ok(false);
+                }
+                _ => return Err(format!("{error:?}")),
+            }
+        }
+        let party_len = self.party.len();
+        for event in self.adapter.take_events() {
+            if let CombatEvent::UnitDefeated { unit, .. } = event
+                && let Some(enemy) = self.entities[party_len..].iter().position(|e| *e == unit)
+                && !self.defeated.contains(&unit)
+            {
+                self.defeated.push(unit);
+                if enemy < self.rows.len() {
+                    self.bonus.set_bonus(&mut self.rows, enemy, &mut self.draws);
+                }
+            }
+        }
+        // Script-paid bonuses (member 71) for units that never die.
+        let events = &self.adapter.hooks().driver.state.events;
+        for event in &events[self.events_seen.min(events.len())..] {
+            if let AiEvent::SetBonus { unit } = event
+                && let Some(enemy) = self.entities[party_len..].iter().position(|e| e == unit)
+                && enemy < self.rows.len()
+            {
+                self.bonus.set_bonus(&mut self.rows, enemy, &mut self.draws);
+            }
+        }
+        self.events_seen = events.len();
+        let report = &mut self.report;
+        report.items_used = self
+            .items
+            .iter()
+            .filter_map(|(&item, &count)| {
+                let left = self
+                    .adapter
+                    .battle()
+                    .inventory
+                    .get(&item)
+                    .copied()
+                    .unwrap_or(0);
+                let used = (count.max(0) as u32).saturating_sub(left);
+                (used > 0).then_some((item, used))
+            })
+            .collect();
+        if let Some(outcome) = self.adapter.outcome() {
+            report.outcome = Some(outcome_name(outcome).to_owned());
+            return Ok(false);
+        }
+        // The machine does not reach `over` on a defeat (the defeat song
+        // fade is not ported), so the defeat phase ends the fight here.
+        if self.adapter.battle().phase == Phase::Defeat {
+            report.outcome = Some("defeat".to_owned());
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
+    /// Ends the fight (wherever it stopped) and fills in the report.
+    pub fn finish(self, battles: &FieldBattles) -> FightReport {
+        let LiveFight {
+            mut report,
+            party,
+            adapter,
+            mut stage,
+            defeated,
+            bonus,
+            sent,
+            state,
+            ..
+        } = self;
+        if let FightState::Failed(error) = state {
+            report.error = Some(error);
+            return report;
+        }
+        let equipment = &battles.equipment;
         stage.outcome = report.outcome.clone();
         report.stage = Some(stage);
         report.enemies_defeated = defeated.len();
@@ -1097,12 +1525,7 @@ impl FieldBattles {
         if report.outcome.as_deref() == Some("victory") {
             let mut members: [Option<PartyMember>; 4] = Default::default();
             for (slot, (fighter, unit)) in party.iter().zip(&machine.units).take(4).enumerate() {
-                members[slot] = Some(reward_member(
-                    fighter,
-                    unit.cur_hp,
-                    unit.cur_mp,
-                    &self.equipment,
-                ));
+                members[slot] = Some(reward_member(fighter, unit.cur_hp, unit.cur_mp, equipment));
             }
             let snapshot = PartySnapshot {
                 gil: 0,
@@ -1124,7 +1547,7 @@ impl FieldBattles {
                 .zip(reward.shares)
                 .filter_map(|(fighter, share)| {
                     let ap = share.ap?;
-                    let (equipped, learnable) = self.equipment.abilities(fighter.character);
+                    let (equipped, learnable) = equipment.abilities(fighter.character);
                     let goals = equipped
                         .into_iter()
                         .filter(|&ability| ability != 0)
@@ -1201,7 +1624,7 @@ impl FieldBattles {
                 report.ai_notes.push(note);
             }
         }
-        Ok(())
+        report
     }
 }
 

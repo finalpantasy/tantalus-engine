@@ -15,7 +15,9 @@ use tantalus_contracts::Point3;
 use tantalus_game::field::FieldWorld;
 use tantalus_game::new_game::BaseStats;
 
-use crate::field_battle::{FieldBattles, PartyFighter, PartyGlobals, pay_rewards, save_party};
+use crate::field_battle::{
+    FieldBattles, FightControl, LiveFight, PartyFighter, PartyGlobals, pay_rewards, save_party,
+};
 use crate::field_data::{
     FieldText, load_navigation, load_tile_animations, parse_background_map, parse_event_db,
 };
@@ -24,6 +26,7 @@ use crate::field_session::{
     CONFIRM, FieldSession, decode_pool, load_event, prepare_field_world, world_exit,
 };
 use crate::play_save::{self, PlaySave, SAVE_FORMAT, SLOTS};
+use tantalus_game::battle::BattleCommand;
 
 /// `EventInput` pad bits (Memoria `Global/Event/EventInput.cs`).
 pub mod pad {
@@ -329,6 +332,24 @@ pub struct PlayGame {
     save_dir: PathBuf,
     /// Where to put the player after a load, once their actor exists.
     pending_position: Option<[f32; 3]>,
+    /// Fight battles one battle tick at a time with [`Self::battle_tick`]
+    /// (a player's window) instead of to the end inside the field tick
+    /// that starts them. Off by default: the headless paths are unchanged.
+    pub live_battles: bool,
+    /// The battles a field tick started, while [`Self::live_battles`]
+    /// fights them; the field waits until they are over.
+    pending: Option<PendingBattles>,
+}
+
+/// Battles a field tick started, fought live, and the rest of that tick.
+struct PendingBattles {
+    requests: Vec<tantalus_game::field::EncounterRequest>,
+    /// The fight of `requests[0]`.
+    fight: Option<LiveFight>,
+    next_field: Option<i32>,
+    world_map: Option<i32>,
+    /// The last stage, for [`PlayGame::last_battle`].
+    stage: Option<crate::battle_stage::BattleStage>,
 }
 
 impl PlayGame {
@@ -354,6 +375,8 @@ impl PlayGame {
             menu: None,
             save_dir: play_save::default_dir(),
             pending_position: None,
+            live_battles: false,
+            pending: None,
         };
         let mut events = Vec::new();
         game.enter(start, &mut events)?;
@@ -775,7 +798,7 @@ impl PlayGame {
     /// One field tick (30 a second) with `held` pad bits.
     pub fn tick(&mut self, held: i32) -> Result<Vec<PlayEvent>, String> {
         let mut events = Vec::new();
-        if self.stopped.is_some() {
+        if self.stopped.is_some() || self.pending.is_some() {
             return Ok(events);
         }
         let pressed = held & !self.previous;
@@ -863,6 +886,17 @@ impl PlayGame {
         }
         self.shown = now;
 
+        if !step.encounters.is_empty() && self.live_battles && self.data.battles.is_some() {
+            self.pending = Some(PendingBattles {
+                requests: step.encounters.clone(),
+                fight: None,
+                next_field: step.next_field,
+                world_map: step.world_map,
+                stage: None,
+            });
+            self.start_pending(&mut events);
+            return Ok(events);
+        }
         if !step.encounters.is_empty() {
             let party = self.party();
             let mut stages = Vec::new();
@@ -890,10 +924,21 @@ impl PlayGame {
             }
         }
 
+        self.leave(step.next_field, step.world_map, &mut events)?;
+        Ok(events)
+    }
+
+    /// The field change a tick's scripts asked for, if any.
+    fn leave(
+        &mut self,
+        next_field: Option<i32>,
+        world_map: Option<i32>,
+        events: &mut Vec<PlayEvent>,
+    ) -> Result<(), String> {
         let session = self.session.as_mut().expect("session");
-        let mut next = step.next_field;
+        let mut next = next_field;
         if next.is_none()
-            && let Some(world_map) = step.world_map
+            && let Some(world_map) = world_map
         {
             let mut world = session.director.world().clone();
             let location = (!self.world_exits.is_empty()).then(|| self.world_exits.remove(0));
@@ -914,21 +959,111 @@ impl PlayGame {
                     next = Some(field);
                 }
                 None => {
-                    return self
-                        .stop(
-                            format!("world map {world_map}: no field to go to"),
-                            &mut events,
-                        )
-                        .map(|()| events);
+                    return self.stop(format!("world map {world_map}: no field to go to"), events);
                 }
             }
         }
         if let Some(next) = next {
             let session = self.session.take().expect("session");
             self.world = session.director.world().clone();
-            self.enter(next, &mut events)?;
+            self.enter(next, events)?;
         }
-        Ok(events)
+        Ok(())
+    }
+
+    /// The battle being fought live, if any ([`Self::live_battles`]).
+    pub fn battle(&self) -> Option<&LiveFight> {
+        self.pending.as_ref()?.fight.as_ref()
+    }
+
+    /// Name of item `id` from the game text.
+    pub fn item_name(&self, id: i32) -> Option<&str> {
+        self.data.item_names.get(&id).map(String::as_str)
+    }
+
+    /// Starts the first pending battle that sets up; one that cannot start
+    /// is reported and skipped. With none left, the field resumes.
+    fn start_pending(&mut self, events: &mut Vec<PlayEvent>) {
+        let party = self.party();
+        loop {
+            let Some(pending) = self.pending.as_mut() else {
+                return;
+            };
+            let Some(request) = pending.requests.first().cloned() else {
+                break;
+            };
+            let session = self.session.as_ref().expect("session");
+            let items = session.director.world().items.clone();
+            let battles = self.data.battles.as_ref().expect("battle data");
+            match battles.start(&request, &party, &items) {
+                Ok(mut fight) => {
+                    if let Ok(text) = self.data.text.battle_text(request.battle) {
+                        fight.name_enemies(&text);
+                    }
+                    pending.fight = Some(fight);
+                    return;
+                }
+                Err(report) => {
+                    pending.requests.remove(0);
+                    events.push(PlayEvent::Battle {
+                        battle: request.battle,
+                        outcome: report
+                            .outcome
+                            .clone()
+                            .unwrap_or_else(|| "no result".to_owned()),
+                    });
+                }
+            }
+        }
+        // Every battle is over: the field goes on as `tick` would have.
+        let pending = self.pending.take().expect("pending");
+        if let Some(stage) = pending.stage {
+            self.last_battle = Some(stage);
+        }
+        let resumed = self
+            .session
+            .as_mut()
+            .expect("session")
+            .resume_after_battle()
+            .and_then(|()| self.leave(pending.next_field, pending.world_map, events));
+        if let Err(error) = resumed {
+            let _ = self.stop(error, events);
+        }
+    }
+
+    /// One battle tick (15 a second) of the live battle, with `command` for
+    /// a ready party member. When the battle ends, its result is carried
+    /// back to the field as [`Self::tick`] does, and the next battle the
+    /// field started begins, or the field resumes.
+    pub fn battle_tick(&mut self, command: Option<BattleCommand>) -> Vec<PlayEvent> {
+        let mut events = Vec::new();
+        let Some(fight) = self
+            .pending
+            .as_mut()
+            .and_then(|pending| pending.fight.as_mut())
+        else {
+            return events;
+        };
+        if fight.step(FightControl::Player(command)) {
+            return events;
+        }
+        let pending = self.pending.as_mut().expect("pending");
+        let fight = pending.fight.take().expect("fight");
+        let request = pending.requests.remove(0);
+        let battles = self.data.battles.as_ref().expect("battle data");
+        let mut report = fight.finish(battles);
+        let session = self.session.as_mut().expect("session");
+        save_party(&report, &mut session.director.world_mut().character_stats);
+        pay_rewards(&report, session.director.world_mut());
+        if let Some(stage) = report.stage.take() {
+            pending.stage = Some(stage);
+        }
+        events.push(PlayEvent::Battle {
+            battle: request.battle,
+            outcome: report.outcome.unwrap_or_else(|| "no result".to_owned()),
+        });
+        self.start_pending(&mut events);
+        events
     }
 }
 

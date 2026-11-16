@@ -744,7 +744,7 @@ impl ScriptTable {
 pub struct BattleScriptDriver {
     table: ScriptTable,
     pub state: BattleScriptState,
-    rng: Box<dyn BattleRandom>,
+    rng: Box<dyn BattleRandom + Send>,
     objects: Vec<AiObject>,
     next_slot: usize,
     ticks: u64,
@@ -764,7 +764,7 @@ impl BattleScriptDriver {
     pub fn new(
         table: ScriptTable,
         mut state: BattleScriptState,
-        rng: Box<dyn BattleRandom>,
+        rng: Box<dyn BattleRandom + Send>,
         party: &[u8],
     ) -> Self {
         if state.global.is_none() {
