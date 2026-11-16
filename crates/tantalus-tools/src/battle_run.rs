@@ -13,9 +13,12 @@ use std::collections::BTreeMap;
 use tantalus_assets::pc::battle_scene::BattleScene;
 use tantalus_contracts::{ContentId, EntityId, Tick};
 use tantalus_game::FieldWorld;
+use tantalus_game::battle::GameServices;
 use tantalus_game::battle::legacy::NoEnemyAi;
+use tantalus_game::battle::legacy::ServicesRandom;
 use tantalus_game::battle::{BattleOutcome, WorldGameServices};
 use tantalus_legacy::EventBinary;
+use tantalus_legacy::battle::atb::StartType;
 use tantalus_legacy::battle::host::{apply_unit_views, battle_views};
 use tantalus_legacy::battle::machine::{ABILITY_ATTACK, BattleConfig};
 use tantalus_legacy::battle::queue::cmd;
@@ -225,6 +228,34 @@ pub fn run_scene_battle(
         return report;
     };
 
+    // All three random streams answer to the run seed: script AI
+    // (SplitMix64(seed)), drop draws (SplitMix64(seed ^ 0xD1AA)), and the
+    // calculator/hit-roll stream through GameServices (world RNG here).
+    let mut world = FieldWorld::new();
+    world.seed_rng(seed ^ 0xC0FF_EE11_DEAD_BEEF);
+    // `btl_sys.StartType` (btl_sys.cs:181): the back-attack flag forces
+    // BackAttack; on non-special scenes the reference rolls random8 for a
+    // back attack (24/256) then a preemptive (16/256). These draws come
+    // from the calculator stream, before the initial ATB rolls.
+    let (start, start_code) = {
+        let mut services = WorldGameServices::new(&mut world);
+        if scene.header.flags & 0x2 != 0 {
+            (StartType::BackAttack, 0)
+        } else if scene.header.flags & 0x1 != 0 {
+            (StartType::Normal, 2)
+        } else {
+            let back = services.random_below(256) < 24;
+            let first = !back && services.random_below(256) < 16;
+            if back {
+                (StartType::BackAttack, 0)
+            } else if first {
+                (StartType::FirstAttack, 1)
+            } else {
+                (StartType::Normal, 2)
+            }
+        }
+    };
+
     // Script AI over the assembled battle state.
     let (data, units) = battle_views(setup.adapter.battle());
     let binary = match EventBinary::parse(script) {
@@ -240,17 +271,31 @@ pub fn run_scene_battle(
         Box::new(SplitMix64Random::new(seed)),
         &party_ids,
     );
-    let hooks = EnemyAiHooks::new(NoEnemyAi, driver, SceneOverlay::default());
+    let hooks = EnemyAiHooks::new(
+        NoEnemyAi,
+        driver,
+        SceneOverlay {
+            start_type: start_code,
+            ..SceneOverlay::default()
+        },
+    );
     let mut adapter = setup.adapter.with_hooks(hooks);
+    {
+        let mut services = WorldGameServices::new(&mut world);
+        if let Err(error) = adapter.battle_mut().roll_initial_atb(
+            start,
+            &mut ServicesRandom {
+                services: &mut services,
+            },
+        ) {
+            report.error = Some(format!("initial ATB roll: {error:?}"));
+            return report;
+        }
+    }
     let mut reward_rows: Vec<EnemyRewardData> = setup.reward_rows;
     let pattern_ap = setup.pattern_ap;
     let enemy_entities = setup.enemy_entities;
 
-    // All three random streams answer to the run seed: script AI
-    // (SplitMix64(seed)), drop draws (SplitMix64(seed ^ 0xD1AA)), and the
-    // calculator/hit-roll stream through GameServices (world RNG here).
-    let mut world = FieldWorld::new();
-    world.seed_rng(seed ^ 0xC0FF_EE11_DEAD_BEEF);
     // `SB2_HEAD` 0x800 (`after_event`): story battles pay nothing.
     let event = scene.header.flags & 0x800 != 0;
     let mut bonus = BattleBonus::new(pattern_ap, 0x0F, event);
@@ -432,14 +477,54 @@ pub fn run_world_battle(
     let binary =
         EventBinary::parse(script).map_err(|error| format!("script decode failed: {error}"))?;
     let party_ids: Vec<u8> = players.iter().map(|(_, unit)| unit.character_id).collect();
+    // `btl_sys.StartType` (btl_sys.cs:181): back-attack flag forces
+    // BackAttack; non-special scenes roll random8 for back (24/256) then
+    // preemptive (16/256), from the calculator stream, before the initial
+    // ATB rolls. See the report path for the full note.
+    let (start, start_code) = {
+        let mut services = WorldGameServices::new(world);
+        if scene.header.flags & 0x2 != 0 {
+            (StartType::BackAttack, 0)
+        } else if scene.header.flags & 0x1 != 0 {
+            (StartType::Normal, 2)
+        } else {
+            let back = services.random_below(256) < 24;
+            let first = !back && services.random_below(256) < 16;
+            if back {
+                (StartType::BackAttack, 0)
+            } else if first {
+                (StartType::FirstAttack, 1)
+            } else {
+                (StartType::Normal, 2)
+            }
+        }
+    };
     let driver = BattleScriptDriver::new(
         ScriptTable::from_binary(&binary),
         BattleScriptState::new(data, units),
         Box::new(SplitMix64Random::new(seed)),
         &party_ids,
     );
-    let hooks = EnemyAiHooks::new(NoEnemyAi, driver, SceneOverlay::default());
+    let hooks = EnemyAiHooks::new(
+        NoEnemyAi,
+        driver,
+        SceneOverlay {
+            start_type: start_code,
+            ..SceneOverlay::default()
+        },
+    );
     let mut adapter = setup.adapter.with_hooks(hooks);
+    {
+        let mut services = WorldGameServices::new(world);
+        if let Err(error) = adapter.battle_mut().roll_initial_atb(
+            start,
+            &mut ServicesRandom {
+                services: &mut services,
+            },
+        ) {
+            return Err(format!("initial ATB roll: {error:?}"));
+        }
+    }
 
     // `SB2_HEAD` 0x800 (`after_event`): story battles show no result
     // screen and pay nothing (`BattleResultUI.InitialEvent`).

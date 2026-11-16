@@ -115,11 +115,10 @@ impl From<LegacyBattleAdapter> for AnyRuleset {
 
 /// Routes the machine's random draws through the simulation's RNG
 /// authority (`GameServices::random_below`) so a battle replays from world
-/// state alone. Draws are byte-granular: the field world advances an 8-bit
-/// random source, so `random16` and `random_unit` carry 8 bits of entropy
-/// until the world RNG widens.
-struct ServicesRandom<'a> {
-    services: &'a mut dyn GameServices,
+/// state alone. Wide draws compose whole bytes from the world RNG (see
+/// `WorldGameServices::random_below`).
+pub struct ServicesRandom<'a> {
+    pub services: &'a mut dyn GameServices,
 }
 
 impl BattleRandom for ServicesRandom<'_> {
