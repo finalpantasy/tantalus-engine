@@ -147,7 +147,7 @@ fn strip_quoted_paths(message: &str) -> String {
     out
 }
 
-fn file_name(path: &Path) -> String {
+pub(crate) fn file_name(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default()
@@ -158,7 +158,7 @@ fn sibling(path: &Path, name: &str) -> Option<PathBuf> {
     candidate.is_file().then_some(candidate)
 }
 
-fn install_file(bundle: &Path, relative: &str) -> Option<PathBuf> {
+pub(crate) fn install_file(bundle: &Path, relative: &str) -> Option<PathBuf> {
     let candidate = bundle.parent()?.parent()?.join(relative);
     candidate.is_file().then_some(candidate)
 }
@@ -412,7 +412,7 @@ fn effect_assets(path: &Path) -> StoreResult<(BTreeMap<i32, usize>, Raw17Probe)>
     Ok((found, probe))
 }
 
-fn effect_references(tables: Option<&BattleTables>) -> Vec<EffectReference> {
+pub(crate) fn effect_references(tables: Option<&BattleTables>) -> Vec<EffectReference> {
     let mut references = Vec::new();
     if let Some(tables) = tables {
         for action in &tables.actions {

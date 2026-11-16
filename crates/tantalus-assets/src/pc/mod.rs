@@ -22,6 +22,7 @@ pub mod ogg;
 pub mod resource_container;
 pub mod serialized;
 pub mod serialized_inventory;
+pub mod special_effect;
 pub mod text_asset;
 pub mod texture;
 pub mod theora;
