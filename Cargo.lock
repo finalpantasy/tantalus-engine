@@ -5760,6 +5760,7 @@ dependencies = [
  "sha2",
  "tantalus-assets",
  "tantalus-contracts",
+ "tantalus-game",
  "tempfile",
 ]
 

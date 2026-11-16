@@ -19,3 +19,4 @@ tantalus-contracts = { path = "../tantalus-contracts" }
 serde_json.workspace = true
 tempfile = "3"
 tantalus-assets = { path = "../tantalus-assets" }
+tantalus-game = { path = "../tantalus-game" }

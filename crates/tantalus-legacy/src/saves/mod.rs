@@ -5,6 +5,7 @@ mod preview;
 mod schema;
 mod simple_json;
 mod slot_file;
+pub mod state;
 
 pub use base::{
     BASE_METADATA_PLAINTEXT_BYTES, BASE_METADATA_RESERVED_BYTES, BASE_PREVIEW_RESERVED_BYTES,
