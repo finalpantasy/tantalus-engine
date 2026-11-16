@@ -508,6 +508,15 @@ impl LegacyEventHost for FieldHost<'_> {
             if let HostEvent::SetMenuControl { enabled } = event {
                 self.world.menu_disabled = !*enabled;
             }
+            if let HostEvent::OpenMenu {
+                menu: 4,
+                subject: 0,
+            } = event
+            {
+                // A moogle or save point: the reference opens the save screen.
+                self.world.save_point = true;
+                self.world.save_requested = true;
+            }
             self.record_camera(event);
             self.record_tile_animation(event);
             match event {

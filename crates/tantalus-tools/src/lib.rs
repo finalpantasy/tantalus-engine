@@ -1,3 +1,4 @@
+pub mod ability_menu;
 pub mod actor_placement;
 pub mod audit_summary;
 pub mod battle_ai_demo;
@@ -13,6 +14,7 @@ pub mod field_models_cli;
 pub mod field_session;
 pub mod model_cli;
 pub mod play;
+pub mod play_save;
 pub mod scenario;
 pub mod special_effects_cli;
 pub mod sweep_compare;

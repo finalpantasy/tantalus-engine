@@ -31,7 +31,11 @@ use tantalus_legacy::shop::{
     stats, unequip,
 };
 
+use crate::ability_menu::{
+    AbilityState, AbilityTables, Exit as AbilityExit, frame as ability_frame,
+};
 use crate::play::{character_name, pad};
+use crate::play_save::SLOTS;
 
 /// Row height in PSX pixels.
 pub const ROW: f32 = 14.0;
@@ -46,7 +50,7 @@ const COMMANDS: [&str; 8] = [
     "Save",
 ];
 /// Commands that work.
-const WORKING: [bool; 8] = [true, false, true, true, false, false, false, false];
+const WORKING: [bool; 8] = [true, true, true, true, false, false, false, false];
 const SLOT_NAMES: [&str; 5] = ["Weapon", "Helmet", "Armlet", "Armor", "Accessory"];
 const STAT_NAMES: [&str; 9] = [
     "Speed", "Strength", "Magic", "Spirit", "Attack", "Defense", "Evade", "Mag Def", "Mag Eva",
@@ -105,6 +109,7 @@ pub struct MenuTables {
     /// Character id -> default equipment (weapon, helmet, armlet, armor,
     /// accessory).
     pub default_equipment: BTreeMap<i32, [Option<u16>; 5]>,
+    pub abilities: AbilityTables,
 }
 
 fn rows(text: &str) -> impl Iterator<Item = Vec<&str>> {
@@ -146,6 +151,8 @@ impl MenuTables {
         base: BTreeMap<i32, BaseStats>,
         exp: Vec<u32>,
         item_names: BTreeMap<i32, String>,
+        active_names: BTreeMap<i32, String>,
+        support_names: BTreeMap<i32, String>,
     ) -> Result<Self, String> {
         let data = memoria.join("Memoria.Patcher/StreamingAssets/Data");
         let items = data.join("Items");
@@ -266,6 +273,7 @@ impl MenuTables {
             base,
             item_names,
             default_equipment,
+            abilities: AbilityTables::load(&data, active_names, support_names)?,
         })
     }
 
@@ -292,16 +300,16 @@ impl MenuTables {
         }
     }
 
-    fn character(&self, world: &FieldWorld, id: i32) -> MenuCharacter {
+    pub(crate) fn character(&self, world: &FieldWorld, id: i32) -> MenuCharacter {
         let mut character = MenuCharacter::new(id as u32);
         if let Some(base) = self.base.get(&id) {
-            // The same growth `new_game::build_stats` uses for HP and MP.
+            // `ff9level.FF9Level_GetDex/Str/Mgc/Wpr` with no level-up bonus.
             let level = self.level(world.character_exp.get(&id).copied().unwrap_or(0)) as i32;
             character.basis = [
-                i32::from(base.speed),
+                (i32::from(base.speed) + level / 10).min(50),
                 (i32::from(base.strength) + level * 3 / 10).min(99),
                 (i32::from(base.magic) + level * 3 / 10).min(99),
-                i32::from(base.spirit),
+                (i32::from(base.spirit) + level * 3 / 20).min(50),
             ];
         }
         for (slot, item) in world.equipped(id).iter().enumerate() {
@@ -314,9 +322,9 @@ impl MenuTables {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Screen {
     Main,
-    /// Choose the member for Equip (`true`) or Status (`false`).
+    /// Choose the member for Equip, Status or Abilities.
     Member {
-        equip: bool,
+        pick: Pick,
         cursor: usize,
     },
     Items {
@@ -336,6 +344,31 @@ enum Screen {
     Status {
         member: i32,
     },
+    Abilities(AbilityState),
+    /// The save (`save`) or load screen. `direct` ones were opened by a
+    /// script or at start and close the menu on cancel.
+    Slots {
+        save: bool,
+        cursor: usize,
+        direct: bool,
+    },
+}
+
+/// Which screen the member pick leads to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Pick {
+    Equip,
+    Status,
+    Abilities,
+}
+
+/// Something the menu asks the game to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuAction {
+    /// Write the game to this slot (1-based).
+    Save(usize),
+    /// Replace the game with this slot.
+    Load(usize),
 }
 
 /// The open menu.
@@ -344,11 +377,17 @@ pub struct FieldMenu {
     screen: Screen,
     main: usize,
     message: Option<String>,
+    /// One line per save slot, filled by the game while a slot screen is up.
+    pub slot_labels: Vec<String>,
+    /// Set when `slot_labels` should be read again.
+    pub slots_stale: bool,
+    /// A save or load the game should carry out.
+    pub action: Option<MenuAction>,
     /// Counts presses; a client redraws when it changes.
     pub revision: u64,
 }
 
-fn step(cursor: usize, len: usize, pressed: i32) -> usize {
+pub(crate) fn step(cursor: usize, len: usize, pressed: i32) -> usize {
     if len == 0 {
         return 0;
     }
@@ -405,7 +444,7 @@ fn right(x: f32, row: f32, value: impl Into<String>, tint: Tint) -> MenuText {
     }
 }
 
-fn window(x: f32, y: f32, w: f32, rows: f32, texts: Vec<MenuText>) -> MenuWindow {
+pub(crate) fn window(x: f32, y: f32, w: f32, rows: f32, texts: Vec<MenuText>) -> MenuWindow {
     MenuWindow {
         x,
         y,
@@ -421,8 +460,43 @@ impl FieldMenu {
             screen: Screen::Main,
             main: 0,
             message: None,
+            slot_labels: Vec::new(),
+            slots_stale: false,
+            action: None,
             revision: 0,
         }
+    }
+
+    /// The save screen a moogle or save point opens.
+    pub fn save_screen() -> Self {
+        Self {
+            screen: Screen::Slots {
+                save: true,
+                cursor: 0,
+                direct: true,
+            },
+            slots_stale: true,
+            ..Self::new()
+        }
+    }
+
+    /// The load screen.
+    pub fn load_screen() -> Self {
+        Self {
+            screen: Screen::Slots {
+                save: false,
+                cursor: 0,
+                direct: true,
+            },
+            slots_stale: true,
+            ..Self::new()
+        }
+    }
+
+    /// Shows a result line (the game reports a save here).
+    pub fn say(&mut self, message: String) {
+        self.message = Some(message);
+        self.revision += 1;
     }
 
     /// One pad press (edge bits). Returns `false` when the menu closed.
@@ -441,15 +515,34 @@ impl FieldMenu {
                     self.message = None;
                     match (self.main, WORKING[self.main]) {
                         (0, _) => self.screen = Screen::Items { cursor: 0 },
+                        (1, _) if party > 0 => {
+                            self.screen = Screen::Member {
+                                pick: Pick::Abilities,
+                                cursor: 0,
+                            };
+                        }
+                        (7, _) => {
+                            if world.save_point {
+                                self.screen = Screen::Slots {
+                                    save: true,
+                                    cursor: 0,
+                                    direct: false,
+                                };
+                                self.slots_stale = true;
+                            } else {
+                                self.message =
+                                    Some("You can only save at a save point (a moogle).".into());
+                            }
+                        }
                         (2, _) if party > 0 => {
                             self.screen = Screen::Member {
-                                equip: true,
+                                pick: Pick::Equip,
                                 cursor: 0,
                             };
                         }
                         (3, _) if party > 0 => {
                             self.screen = Screen::Member {
-                                equip: false,
+                                pick: Pick::Status,
                                 cursor: 0,
                             };
                         }
@@ -463,20 +556,20 @@ impl FieldMenu {
                     }
                 }
             }
-            Screen::Member { equip, cursor } => {
+            Screen::Member { pick, cursor } => {
                 let cursor = step(cursor, party, pressed);
-                self.screen = Screen::Member { equip, cursor };
+                self.screen = Screen::Member { pick, cursor };
                 if cancel {
                     self.screen = Screen::Main;
                 } else if confirm && let Some(member) = world.party.get(cursor).copied() {
-                    self.screen = if equip {
-                        Screen::Equip {
+                    self.screen = match pick {
+                        Pick::Equip => Screen::Equip {
                             member,
                             slot: 0,
                             picker: None,
-                        }
-                    } else {
-                        Screen::Status { member }
+                        },
+                        Pick::Status => Screen::Status { member },
+                        Pick::Abilities => Screen::Abilities(AbilityState::new(member)),
                     };
                 }
             }
@@ -521,9 +614,55 @@ impl FieldMenu {
             Screen::Status { .. } => {
                 if cancel || confirm {
                     self.screen = Screen::Member {
-                        equip: false,
+                        pick: Pick::Status,
                         cursor: 0,
                     };
+                }
+            }
+            Screen::Abilities(mut state) => {
+                let seed = (self.revision as u32).wrapping_mul(2_654_435_761) >> 24;
+                let exit = state.press(pressed, world, tables, &mut self.message, seed);
+                self.screen = match exit {
+                    AbilityExit::Back => Screen::Member {
+                        pick: Pick::Abilities,
+                        cursor: world
+                            .party
+                            .iter()
+                            .position(|id| *id == state.member)
+                            .unwrap_or(0),
+                    },
+                    AbilityExit::Stay => Screen::Abilities(state),
+                };
+            }
+            Screen::Slots {
+                save,
+                cursor,
+                direct,
+            } => {
+                let cursor = step(cursor, SLOTS, pressed);
+                self.screen = Screen::Slots {
+                    save,
+                    cursor,
+                    direct,
+                };
+                if cancel {
+                    self.message = None;
+                    if direct {
+                        return false;
+                    }
+                    self.screen = Screen::Main;
+                } else if confirm {
+                    let filled = self
+                        .slot_labels
+                        .get(cursor)
+                        .is_some_and(|label| !label.ends_with("Empty"));
+                    if save {
+                        self.action = Some(MenuAction::Save(cursor + 1));
+                    } else if filled {
+                        self.action = Some(MenuAction::Load(cursor + 1));
+                    } else {
+                        self.message = Some("That slot is empty.".into());
+                    }
                 }
             }
         }
@@ -574,7 +713,7 @@ impl FieldMenu {
                 };
                 if cancel {
                     self.screen = Screen::Member {
-                        equip: true,
+                        pick: Pick::Equip,
                         cursor: world.party.iter().position(|id| *id == member).unwrap_or(0),
                     };
                 } else if confirm {
@@ -647,7 +786,7 @@ impl FieldMenu {
         let mut frame = MenuFrame::default();
         match &self.screen {
             Screen::Main => {
-                frame.windows.push(self.commands());
+                frame.windows.push(self.commands(world));
                 frame.windows.push(window(
                     8.0,
                     132.0,
@@ -664,7 +803,7 @@ impl FieldMenu {
                 frame.pointer = Some((10.0, 8.0 + 3.0 + (self.main as f32 + 0.5) * ROW));
             }
             Screen::Member { cursor, .. } => {
-                frame.windows.push(self.commands());
+                frame.windows.push(self.commands(world));
                 frame
                     .windows
                     .push(party_window(world, tables, 98.0, 214.0, 4));
@@ -682,6 +821,39 @@ impl FieldMenu {
                 picker,
             } => self.equip_frame(&mut frame, world, tables, *member, *slot, picker.as_ref()),
             Screen::Status { member } => status_frame(&mut frame, world, tables, *member),
+            Screen::Abilities(state) => ability_frame(state, &mut frame, world, tables),
+            Screen::Slots { save, cursor, .. } => {
+                let mut texts = Vec::new();
+                for slot in 0..SLOTS {
+                    let label = self
+                        .slot_labels
+                        .get(slot)
+                        .cloned()
+                        .unwrap_or_else(|| format!("{}  Empty", slot + 1));
+                    let tint = if label.ends_with("Empty") && !*save {
+                        Tint::Dim
+                    } else {
+                        Tint::White
+                    };
+                    texts.push(text(12.0, slot as f32, label, tint));
+                }
+                frame
+                    .windows
+                    .push(window(8.0, 8.0, 304.0, SLOTS as f32, texts));
+                frame.windows.push(window(
+                    8.0,
+                    8.0 + SLOTS as f32 * ROW + 12.0,
+                    120.0,
+                    1.0,
+                    vec![text(
+                        8.0,
+                        0.0,
+                        if *save { "Save" } else { "Load" },
+                        Tint::Yellow,
+                    )],
+                ));
+                frame.pointer = Some((10.0, 8.0 + 3.0 + (*cursor as f32 + 0.5) * ROW));
+            }
         }
         if let Some(message) = &self.message {
             frame.windows.push(window(
@@ -695,7 +867,7 @@ impl FieldMenu {
         frame
     }
 
-    fn commands(&self) -> MenuWindow {
+    fn commands(&self, world: &FieldWorld) -> MenuWindow {
         window(
             8.0,
             8.0,
@@ -705,7 +877,8 @@ impl FieldMenu {
                 .iter()
                 .enumerate()
                 .map(|(row, name)| {
-                    let tint = if WORKING[row] { Tint::White } else { Tint::Dim };
+                    let on = WORKING[row] || (row == 7 && world.save_point);
+                    let tint = if on { Tint::White } else { Tint::Dim };
                     text(12.0, row as f32, *name, tint)
                 })
                 .collect(),
@@ -854,7 +1027,7 @@ impl Default for FieldMenu {
 }
 
 /// Name, level, HP and MP of up to `limit` party members, three rows each.
-fn party_window(
+pub(crate) fn party_window(
     world: &FieldWorld,
     tables: &MenuTables,
     x: f32,

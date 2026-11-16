@@ -12,7 +12,7 @@ fn main() -> ExitCode {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--scale N]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] [--party 0,1,2,3] [--hurt 1] [--give 2,3] --output <png> [--size WxH]
+            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--load SLOT|menu] [--save-dir DIR] [--scale N]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] [--party 0,1,2,3] [--hurt 1] [--give 2,3] --output <png> [--size WxH]
 tantalus-client capture-battle <play flags> --battles <tsv> [--ticks N] [--hold ...] [--auto-confirm N] [--battle N] [--at SECONDS,...] --output <png> [--size WxH]"
         );
         return ExitCode::SUCCESS;
@@ -340,7 +340,7 @@ fn run_track_capture(args: &[std::ffi::OsString]) -> ExitCode {
     }
 }
 
-const PLAY_FLAGS: [&str; 8] = [
+const PLAY_FLAGS: [&str; 10] = [
     "--assets",
     "--game-data",
     "--memoria",
@@ -349,6 +349,8 @@ const PLAY_FLAGS: [&str; 8] = [
     "--start",
     "--world-exits",
     "--language",
+    "--load",
+    "--save-dir",
 ];
 
 /// New game from the `play` flags, on its first field (events printed).
@@ -379,6 +381,24 @@ fn load_game(
     let (mut game, events) = tantalus_tools::play::PlayGame::new(data, start)?;
     for event in &events {
         println!("{}", tantalus_client::live::describe(event));
+    }
+    if let Some(dir) = values.get("--save-dir") {
+        game.set_save_dir(PathBuf::from(dir));
+    }
+    match values.get("--load").map(String::as_str) {
+        None => {}
+        // A load screen over the first field.
+        Some("menu") => game.open_load_screen(),
+        Some(slot) => {
+            let slot: usize = slot
+                .parse()
+                .map_err(|_| format!("--load wants a slot number or `menu`, got `{slot}`"))?;
+            let mut events = Vec::new();
+            game.load_slot(slot, &mut events)?;
+            for event in &events {
+                println!("{}", tantalus_client::live::describe(event));
+            }
+        }
     }
     if let Some(list) = values.get("--world-exits") {
         game.world_exits = list
@@ -453,6 +473,8 @@ fn run_play_capture(args: &[std::ffi::OsString]) -> ExitCode {
         "--party",
         "--hurt",
         "--give",
+        "--learn",
+        "--save-point",
     ]);
     let Some(values) = flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
@@ -490,6 +512,24 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     if let Some(party) = values.get("--party") {
         let ids: Vec<i32> = party.split(',').filter_map(|id| id.parse().ok()).collect();
         game.set_party(&ids);
+    }
+    if values.contains_key("--save-point") {
+        game.set_save_point();
+    }
+    if let Some(list) = values.get("--learn") {
+        for pair in list.split(',') {
+            let parsed = pair
+                .split_once(':')
+                .and_then(|(who, id)| Some((who.parse().ok()?, id.parse().ok()?)));
+            match parsed {
+                Some((who, id)) if game.learn(who, id) => {}
+                _ => {
+                    return Err(format!(
+                        "bad --learn entry `{pair}`, want CHARACTER:ABILITY"
+                    ));
+                }
+            }
+        }
     }
     if let Some(give) = values.get("--give") {
         let ids: Vec<i32> = give.split(',').filter_map(|id| id.parse().ok()).collect();

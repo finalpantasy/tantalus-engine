@@ -527,6 +527,17 @@ pub struct FieldWorld {
     /// view (runtime-only: the view depends on the field projection).
     #[serde(skip)]
     pub camera_log: Vec<CameraRequest>,
+    /// A moogle or save point script ran `MENU(4, 0)` in this field
+    /// (runtime-only): the main menu may save.
+    #[serde(skip)]
+    pub save_point: bool,
+    /// The save screen was asked for and is not open yet (runtime-only).
+    #[serde(skip)]
+    pub save_requested: bool,
+    /// Enabled support abilities per character, in the order they were
+    /// switched on (reference `player.saExtended`).
+    #[serde(default)]
+    pub support_enabled: BTreeMap<i32, Vec<i32>>,
     /// `MENUOFF` was run: the main menu cannot open (runtime-only; the
     /// script turns it back on with `MENUON`).
     #[serde(skip)]
@@ -610,6 +621,7 @@ impl PartialEq for FieldWorld {
             && self.character_exp == other.character_exp
             && self.ability_pa == other.ability_pa
             && self.learned_abilities == other.learned_abilities
+            && self.support_enabled == other.support_enabled
             && self.equipment == other.equipment
             && self.overlays == other.overlays
             && self.tile_animations == other.tile_animations
@@ -694,6 +706,9 @@ impl FieldWorld {
             camera_log: Vec::new(),
             overlay_motion: Vec::new(),
             menu_disabled: false,
+            save_point: false,
+            save_requested: false,
+            support_enabled: BTreeMap::new(),
             actor_shadows: BTreeMap::new(),
             light_changes: Vec::new(),
             level_growth: None,
@@ -742,6 +757,8 @@ impl FieldWorld {
         self.overlay_motion.clear();
         self.actor_shadows.clear();
         self.light_changes.clear();
+        self.save_point = false;
+        self.save_requested = false;
         self.clear_tile_animations();
         self.control_actor = None;
         self.exit_arrivals.clear();
@@ -1362,6 +1379,25 @@ impl FieldWorld {
 
     pub fn add_gil(&mut self, amount: u32) {
         self.gil = self.gil.saturating_add(amount).min(MAX_GIL);
+    }
+
+    /// A copy fit for a save file: the static tables a field or the game
+    /// provides again (atan table, navigation, tile animations) are left out.
+    pub fn for_save(&self) -> FieldWorld {
+        let mut world = self.clone();
+        world.atan_table = None;
+        world.navigation = None;
+        world.tile_animations.clear();
+        world
+    }
+
+    /// Takes the runtime providers (atan table, level growth, FMV counts,
+    /// item id map) from `template`, the new-game world, after a load.
+    pub fn copy_providers_from(&mut self, template: &FieldWorld) {
+        self.atan_table = template.atan_table.clone();
+        self.level_growth = template.level_growth.clone();
+        self.fmv_frame_counts = template.fmv_frame_counts.clone();
+        self.item_id_map = template.item_id_map.clone();
     }
 
     pub fn provide_atan_table(&mut self, bytes: Vec<u8>) {

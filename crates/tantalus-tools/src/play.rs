@@ -19,9 +19,11 @@ use crate::field_battle::{FieldBattles, PartyFighter, PartyGlobals, pay_rewards,
 use crate::field_data::{
     FieldText, load_navigation, load_tile_animations, parse_background_map, parse_event_db,
 };
+use crate::field_menu::{FieldMenu, MenuAction};
 use crate::field_session::{
     CONFIRM, FieldSession, decode_pool, load_event, prepare_field_world, world_exit,
 };
+use crate::play_save::{self, PlaySave, SAVE_FORMAT, SLOTS};
 
 /// `EventInput` pad bits (Memoria `Global/Event/EventInput.cs`).
 pub mod pad {
@@ -123,6 +125,8 @@ impl PlayData {
             base.clone(),
             levels.iter().map(|row| row.experience).collect(),
             item_names.clone(),
+            text.names("ability/aa_name").unwrap_or_default(),
+            text.names("ability/sa_name").unwrap_or_default(),
         )?;
         menu.seed_equipment(&mut new_game);
         new_game.items = tantalus_game::new_game::parse_initial_items(&read_text(
@@ -321,7 +325,10 @@ pub struct PlayGame {
     /// [`PlayEvent::Battle`].
     pub last_battle: Option<crate::battle_stage::BattleStage>,
     /// The open main menu; the field does not run while it is open.
-    menu: Option<crate::field_menu::FieldMenu>,
+    menu: Option<FieldMenu>,
+    save_dir: PathBuf,
+    /// Where to put the player after a load, once their actor exists.
+    pending_position: Option<[f32; 3]>,
 }
 
 impl PlayGame {
@@ -345,6 +352,8 @@ impl PlayGame {
             floor: None,
             last_battle: None,
             menu: None,
+            save_dir: play_save::default_dir(),
+            pending_position: None,
         };
         let mut events = Vec::new();
         game.enter(start, &mut events)?;
@@ -566,24 +575,133 @@ impl PlayGame {
 
     /// Runs the main menu for this tick. True while it is open (the field
     /// is paused) or just opened.
-    fn tick_menu(&mut self, held: i32, pressed: i32) -> bool {
+    fn tick_menu(
+        &mut self,
+        held: i32,
+        pressed: i32,
+        events: &mut Vec<PlayEvent>,
+    ) -> Result<bool, String> {
+        if let Some(mut menu) = self.menu.take() {
+            let mut open = true;
+            if pressed != 0 {
+                let tables = &self.data.menu;
+                let world = match self.session.as_mut() {
+                    Some(session) => session.director.world_mut(),
+                    None => &mut self.world,
+                };
+                open = menu.press(pressed, world, tables);
+            }
+            if let Some(action) = menu.action.take() {
+                match action {
+                    MenuAction::Save(slot) => {
+                        let line = match self.save_slot(slot) {
+                            Ok(()) => format!("Saved to slot {slot}."),
+                            Err(error) => error,
+                        };
+                        menu.say(line);
+                        menu.slots_stale = true;
+                    }
+                    MenuAction::Load(slot) => match self.load_slot(slot, events) {
+                        Ok(()) => open = false,
+                        Err(error) => menu.say(error),
+                    },
+                }
+            }
+            if menu.slots_stale {
+                menu.slot_labels = self.slot_labels();
+                menu.slots_stale = false;
+                menu.revision += 1;
+            }
+            if open {
+                self.menu = Some(menu);
+            }
+            return Ok(true);
+        }
         let Some(session) = self.session.as_mut() else {
-            return false;
+            return Ok(false);
         };
         let world = session.director.world_mut();
-        if let Some(menu) = self.menu.as_mut() {
-            if pressed != 0 && !menu.press(pressed, world, &self.data.menu) {
-                self.menu = None;
-            }
-            return true;
-        }
         let allowed =
             world.user_control && !world.menu_disabled && !world.windows.values().any(|open| *open);
-        if pressed & pad::START != 0 && allowed && held & pad::START != 0 {
-            self.menu = Some(crate::field_menu::FieldMenu::new());
-            return true;
+        if world.save_requested && allowed {
+            // A moogle asked for the save screen.
+            world.save_requested = false;
+            let mut menu = FieldMenu::save_screen();
+            menu.slot_labels = self.slot_labels();
+            menu.slots_stale = false;
+            self.menu = Some(menu);
+            return Ok(true);
         }
-        false
+        if pressed & pad::START != 0 && allowed && held & pad::START != 0 {
+            self.menu = Some(FieldMenu::new());
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    /// Folder the save slots live in.
+    pub fn set_save_dir(&mut self, dir: PathBuf) {
+        self.save_dir = dir;
+    }
+
+    /// Writes the game to `slot` (1-based): the map, the player's position
+    /// and the world.
+    pub fn save_slot(&mut self, slot: usize) -> Result<(), String> {
+        let map = self.map().ok_or("there is no field to save")?;
+        let world = self.world();
+        let save = PlaySave {
+            format: SAVE_FORMAT,
+            map,
+            position: player_position(world),
+            ticks: self.ticks,
+            world: world.for_save(),
+        };
+        play_save::write(&self.save_dir, slot, &save)
+    }
+
+    /// Replaces the game with `slot`: enters the saved map with the saved
+    /// world and puts the player back.
+    pub fn load_slot(&mut self, slot: usize, events: &mut Vec<PlayEvent>) -> Result<(), String> {
+        let save = play_save::read(&self.save_dir, slot)?.ok_or("that slot is empty")?;
+        let mut world = save.world;
+        world.copy_providers_from(&self.data.new_game);
+        self.world = world;
+        self.session = None;
+        self.menu = None;
+        self.stopped = None;
+        self.ticks = save.ticks;
+        self.pending_position = save.position;
+        self.enter(save.map, events)
+    }
+
+    /// Opens the load screen (a play window started without a field to
+    /// resume).
+    pub fn open_load_screen(&mut self) {
+        let mut menu = FieldMenu::load_screen();
+        menu.slot_labels = self.slot_labels();
+        menu.slots_stale = false;
+        self.menu = Some(menu);
+    }
+
+    /// One line per save slot for the save and load screens.
+    pub fn slot_labels(&self) -> Vec<String> {
+        (1..=SLOTS)
+            .map(|slot| match play_save::read(&self.save_dir, slot) {
+                Ok(Some(save)) => {
+                    let tables = &self.data.menu;
+                    let lead = save.world.party.first().copied();
+                    let who = lead.map_or(String::new(), |id| {
+                        let level =
+                            tables.level(save.world.character_exp.get(&id).copied().unwrap_or(0));
+                        format!("{} Lv {level}  ", character_name(id))
+                    });
+                    let place = self.data.field_name(save.map).unwrap_or("?");
+                    format!("{slot}  {who}{} Gil  {place}", save.world.gil)
+                }
+                Ok(None) => format!("{slot}  Empty"),
+                Err(_) => format!("{slot}  Unreadable"),
+            })
+            .collect()
     }
 
     /// Replaces the party (a test and demo aid; scripts set it in play).
@@ -591,6 +709,37 @@ impl PlayGame {
         self.world.party = ids.to_vec();
         if let Some(session) = self.session.as_mut() {
             session.director.world_mut().party = ids.to_vec();
+        }
+    }
+
+    /// Gives `character` full AP in `ability` (a test aid for the ability
+    /// screen); false when their preset lacks it.
+    pub fn learn(&mut self, character: i32, ability: i32) -> bool {
+        let Some(entry) = self
+            .data
+            .menu
+            .abilities
+            .learnable
+            .get(&character)
+            .and_then(|list| list.iter().find(|entry| entry.id == ability))
+            .copied()
+        else {
+            return false;
+        };
+        let world = match self.session.as_mut() {
+            Some(session) => session.director.world_mut(),
+            None => &mut self.world,
+        };
+        world.apply_ap(character, ability, entry.max_ap, entry.max_ap);
+        true
+    }
+
+    /// Lets the main menu save here, as after a moogle's `MENU(4, 0)` (a
+    /// test aid).
+    pub fn set_save_point(&mut self) {
+        self.world.save_point = true;
+        if let Some(session) = self.session.as_mut() {
+            session.director.world_mut().save_point = true;
         }
     }
 
@@ -632,7 +781,7 @@ impl PlayGame {
         let pressed = held & !self.previous;
         self.previous = held;
         self.ticks += 1;
-        if self.tick_menu(held, pressed) {
+        if self.tick_menu(held, pressed, &mut events)? {
             return Ok(events);
         }
         let map = self.map().unwrap_or(0);
@@ -678,6 +827,17 @@ impl PlayGame {
         let before = player_position(session.director.world());
         let step = session.tick(input)?;
         walk_on_walkmesh(session.director.world_mut(), before, &mut self.floor);
+        if let Some(position) = self.pending_position {
+            let world = session.director.world_mut();
+            if let Some(actor) = world
+                .player()
+                .and_then(|player| world.actors.get_mut(&player))
+            {
+                actor.position = position;
+                self.pending_position = None;
+                self.floor = None;
+            }
+        }
         events.extend(
             step.started
                 .iter()

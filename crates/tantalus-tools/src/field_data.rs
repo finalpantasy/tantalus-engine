@@ -215,11 +215,15 @@ impl FieldText {
     /// Item names by item id (`ItemImporter`: `Item/itm_name.mes`), for the
     /// `[ITEM]` tag.
     pub fn item_names(&self) -> Result<BTreeMap<i32, String>, String> {
+        self.names("item/itm_name")
+    }
+
+    /// Plain text of every entry of a text asset under
+    /// `embeddedasset/text/<language>/`, by entry id (for example
+    /// `ability/aa_name`).
+    pub fn names(&self, asset: &str) -> Result<BTreeMap<i32, String>, String> {
         use tantalus_assets::pc::mes::MesToken;
-        let mes = self.read_mes(&format!(
-            "embeddedasset/text/{}/item/itm_name",
-            self.language
-        ))?;
+        let mes = self.read_mes(&format!("embeddedasset/text/{}/{asset}", self.language))?;
         Ok(mes
             .entries
             .iter()
