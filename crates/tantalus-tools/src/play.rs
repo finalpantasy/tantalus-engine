@@ -80,6 +80,8 @@ pub struct PlayData {
     db: BTreeMap<i32, String>,
     backgrounds: BTreeMap<i32, String>,
     text: FieldText,
+    item_names: BTreeMap<i32, String>,
+    game_data: PathBuf,
     battles: Option<FieldBattles>,
     battle_base: BTreeMap<i32, BaseStats>,
     new_game: FieldWorld,
@@ -105,6 +107,7 @@ impl PlayData {
             read_text(&memoria.join("Assembly-CSharp/Global/Event/Engine/EventEngineUtils.cs"))?;
         let backgrounds = parse_background_map(&mes_source);
         let text = FieldText::open(&paths.game_data, &mes_source, paths.language.clone())?;
+        let item_names = text.item_names().unwrap_or_default();
         let characters = memoria.join("Memoria.Patcher/StreamingAssets/Data/Characters");
         let base = tantalus_game::new_game::parse_base_stats(&read_text(
             &characters.join("BaseStats.csv"),
@@ -132,6 +135,8 @@ impl PlayData {
             db,
             backgrounds,
             text,
+            item_names,
+            game_data: paths.game_data.clone(),
             battles,
             battle_base: base,
             new_game,
@@ -238,6 +243,51 @@ pub enum PlayEvent {
     Stopped(String),
 }
 
+/// One open dialog window, ready to draw.
+#[derive(Debug, Clone)]
+pub struct OpenDialog {
+    pub window: u8,
+    pub text: u16,
+    /// The text entry with names, numbers and items filled in.
+    pub entry: tantalus_assets::pc::mes::MesEntry,
+    pub layout: crate::field_data::TextLayout,
+    /// Script window flags (`MES` argument 2).
+    pub flags: u8,
+    /// The actor the window follows when its flags say chat style.
+    pub speaker: Option<tantalus_contracts::EntityId>,
+    pub choosing: bool,
+}
+
+/// `CharacterId` of a character-name keyword tag (`[ZDNE]`, ...).
+fn keyword_character(keyword: &str) -> i32 {
+    match keyword {
+        "ZDNE" => 0,
+        "VIVI" => 1,
+        "DGGR" => 2,
+        "STNR" => 3,
+        "FRYA" => 4,
+        "QUIN" => 5,
+        "EIKO" => 6,
+        "AMRT" => 7,
+        _ => 0,
+    }
+}
+
+/// Default name of a `CharacterId` (`CharacterParameters.csv`; the game has
+/// no rename screen here).
+fn character_name(id: i32) -> &'static str {
+    match id {
+        1 => "Vivi",
+        2 => "Dagger",
+        3 => "Steiner",
+        4 => "Freya",
+        5 => "Quina",
+        6 => "Eiko",
+        7 => "Amarant",
+        _ => "Zidane",
+    }
+}
+
 /// The run.
 pub struct PlayGame {
     data: PlayData,
@@ -246,6 +296,7 @@ pub struct PlayGame {
     choice_texts: BTreeSet<u16>,
     plain: BTreeMap<u16, String>,
     layouts: BTreeMap<u16, crate::field_data::TextLayout>,
+    entries: BTreeMap<u16, tantalus_assets::pc::mes::MesEntry>,
     shown: BTreeMap<u8, u16>,
     previous: i32,
     /// Answer highlighted in an open choice window.
@@ -269,6 +320,7 @@ impl PlayGame {
             choice_texts: BTreeSet::new(),
             plain: BTreeMap::new(),
             layouts: BTreeMap::new(),
+            entries: BTreeMap::new(),
             shown: BTreeMap::new(),
             previous: 0,
             cursor: 0,
@@ -280,6 +332,11 @@ impl PlayGame {
         let mut events = Vec::new();
         game.enter(start, &mut events)?;
         Ok((game, events))
+    }
+
+    /// The install's `FF9_Data` folder (font and window art live there).
+    pub fn game_data(&self) -> &Path {
+        &self.data.game_data
     }
 
     pub fn map(&self) -> Option<i32> {
@@ -318,9 +375,11 @@ impl PlayGame {
             .collect()
     }
 
-    /// Layout of each open window, in window order, for drawing. The text
-    /// has no layout when the field's text failed to load.
-    pub fn open_dialogs(&self) -> Vec<(u8, u16, crate::field_data::TextLayout)> {
+    /// Each open window, in window order, with what a renderer needs: the
+    /// text entry with names, numbers and items filled in, its layout hints,
+    /// and the script flags and speaker. Windows whose text failed to load
+    /// are left out.
+    pub fn open_dialogs(&self) -> Vec<OpenDialog> {
         let world = self.world();
         world
             .windows
@@ -328,7 +387,67 @@ impl PlayGame {
             .filter(|(_, open)| **open)
             .filter_map(|(window, _)| {
                 let text = *world.window_texts.get(window)?;
-                Some((*window, text, self.layouts.get(&text)?.clone()))
+                let (flags, speaker) = world.window_speakers.get(window).copied()?;
+                let mut entry = self.entries.get(&text)?.clone();
+                entry.tokens = self.fill_tags(&entry.tokens);
+                Some(OpenDialog {
+                    window: *window,
+                    text,
+                    entry,
+                    layout: self.layouts.get(&text)?.clone(),
+                    flags,
+                    speaker,
+                    choosing: self.choice_texts.contains(&text),
+                })
+            })
+            .collect()
+    }
+
+    /// Replaces the tags that name game state with their text
+    /// (`DialogBoxSymbols.ParseSingleConstantTextReplaceTag` and
+    /// `ParseVariableTextReplaceTags`).
+    fn fill_tags(
+        &self,
+        tokens: &[tantalus_assets::pc::mes::MesToken],
+    ) -> Vec<tantalus_assets::pc::mes::MesToken> {
+        use tantalus_assets::pc::mes::MesToken;
+        let world = self.world();
+        let text = |text: String| MesToken::Text { text };
+        tokens
+            .iter()
+            .map(|token| {
+                let MesToken::Tag(tag) = token else {
+                    return token.clone();
+                };
+                let param = |index: usize| -> Option<i32> { tag.params.get(index)?.parse().ok() };
+                match tag.code.as_str() {
+                    "CharacterName" => {
+                        let keyword = tag.params.first().map_or("", String::as_str);
+                        text(character_name(keyword_character(keyword)).to_owned())
+                    }
+                    // `[PTYn]`: the character in party slot n (1-based).
+                    "Party" => {
+                        let slot = param(0).unwrap_or(1).max(1) as usize - 1;
+                        let id = world.party.get(slot).copied().unwrap_or(0);
+                        text(character_name(id).to_owned())
+                    }
+                    "Variable" => text(
+                        world
+                            .mes_values
+                            .get(&param(0).unwrap_or(0))
+                            .map_or(0, |v| *v)
+                            .to_string(),
+                    ),
+                    "Item" => {
+                        let id = world.mes_values.get(&param(0).unwrap_or(0)).copied();
+                        text(
+                            id.and_then(|id| self.data.item_names.get(&id))
+                                .cloned()
+                                .unwrap_or_default(),
+                        )
+                    }
+                    _ => token.clone(),
+                }
             })
             .collect()
     }
@@ -374,12 +493,14 @@ impl PlayGame {
                 self.choice_texts = info.choices;
                 self.plain = info.plain;
                 self.layouts = info.layouts;
+                self.entries = info.entries;
             }
             Err(_) => {
                 world.dialog_signals.clear();
                 self.choice_texts.clear();
                 self.plain.clear();
                 self.layouts.clear();
+                self.entries.clear();
             }
         }
         let mut session = FieldSession::start(map, world, pool)?;

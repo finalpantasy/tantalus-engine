@@ -606,10 +606,14 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                 game.ticks,
             );
             tantalus_client::live::place_camera(world, at);
+<<<<<<< Updated upstream
             if let Some((_, state, _)) = &motion {
                 state.place_sprites(world, &field.scene);
             }
             tantalus_client::dialog_view::sync_dialogs(world, &game);
+=======
+            tantalus_client::dialog_view::sync_dialogs(world, &game, &field.scene.camera, &frame);
+>>>>>>> Stashed changes
         },
     )
     .map_err(|error| error.to_string())?;

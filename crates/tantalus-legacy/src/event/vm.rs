@@ -990,6 +990,7 @@ impl EventVm {
                         window,
                         flags,
                         text,
+                        speaker: self.entity,
                     });
                     if opcode == 0x1f {
                         self.wait = Some(WaitState::Window(window));

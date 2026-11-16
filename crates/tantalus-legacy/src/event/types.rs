@@ -1067,6 +1067,9 @@ pub enum HostEvent {
         window: u8,
         flags: u8,
         text: u16,
+        /// The executing object (`gCur`), who a chat-style window follows.
+        #[serde(default)]
+        speaker: Option<EntityId>,
     },
     CloseWindow {
         window: u8,

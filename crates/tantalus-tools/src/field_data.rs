@@ -36,6 +36,8 @@ pub struct FieldTextInfo {
     pub plain: BTreeMap<u16, String>,
     /// How each entry lays out as a dialog window.
     pub layouts: BTreeMap<u16, TextLayout>,
+    /// The parsed entries, for the dialog renderer.
+    pub entries: BTreeMap<u16, tantalus_assets::pc::mes::MesEntry>,
 }
 
 /// A dialog text reduced to what a window draws: its rows (control codes
@@ -187,19 +189,13 @@ impl FieldText {
         })
     }
 
-    /// `[SIGL]` values and choice texts for one field map, or why none were
-    /// loaded.
-    pub fn info(&self, map: i32) -> Result<FieldTextInfo, String> {
-        use tantalus_assets::pc::mes::{MesToken, parse_mes_bytes};
+    /// Reads and parses the `.mes` resource `key` from the Unity container.
+    fn read_mes(&self, key: &str) -> Result<tantalus_assets::pc::mes::MesFile, String> {
+        use tantalus_assets::pc::mes::parse_mes_bytes;
         use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
-        let zone = self
-            .zones
-            .get(&map)
-            .ok_or_else(|| format!("map {map} has no eventIDToMESID entry"))?;
-        let key = format!("embeddedasset/text/{}/field/{zone}", self.language);
         let (file_name, path_id) = self
             .container
-            .get(&key)
+            .get(key)
             .or_else(|| self.container.get(&format!("{key}.mes")))
             .ok_or_else(|| format!("resource `{key}` not in the container"))?;
         let path = self.data_dir.join(file_name);
@@ -213,7 +209,44 @@ impl FieldText {
         let asset = file
             .read_text_asset(&object)
             .map_err(|error| error.to_string())?;
-        let mes = parse_mes_bytes(&asset.script, &key).map_err(|error| error.to_string())?;
+        parse_mes_bytes(&asset.script, key).map_err(|error| error.to_string())
+    }
+
+    /// Item names by item id (`ItemImporter`: `Item/itm_name.mes`), for the
+    /// `[ITEM]` tag.
+    pub fn item_names(&self) -> Result<BTreeMap<i32, String>, String> {
+        use tantalus_assets::pc::mes::MesToken;
+        let mes = self.read_mes(&format!(
+            "embeddedasset/text/{}/item/itm_name",
+            self.language
+        ))?;
+        Ok(mes
+            .entries
+            .iter()
+            .map(|entry| {
+                let name: String = entry
+                    .tokens
+                    .iter()
+                    .filter_map(|token| match token {
+                        MesToken::Text { text } => Some(text.as_str()),
+                        _ => None,
+                    })
+                    .collect();
+                (entry.id, name.trim().to_owned())
+            })
+            .collect())
+    }
+
+    /// `[SIGL]` values and choice texts for one field map, or why none were
+    /// loaded.
+    pub fn info(&self, map: i32) -> Result<FieldTextInfo, String> {
+        use tantalus_assets::pc::mes::MesToken;
+        let zone = self
+            .zones
+            .get(&map)
+            .ok_or_else(|| format!("map {map} has no eventIDToMESID entry"))?;
+        let key = format!("embeddedasset/text/{}/field/{zone}", self.language);
+        let mes = self.read_mes(&key)?;
         let mut info = FieldTextInfo::default();
         for entry in &mes.entries {
             let Ok(id) = u16::try_from(entry.id) else {
@@ -232,6 +265,7 @@ impl FieldText {
                 .join(" ");
             info.plain.insert(id, plain);
             info.layouts.insert(id, text_layout(&entry.tokens));
+            info.entries.insert(id, entry.clone());
             if entry
                 .tokens
                 .iter()

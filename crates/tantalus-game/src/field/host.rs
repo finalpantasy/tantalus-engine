@@ -411,15 +411,35 @@ impl LegacyEventHost for FieldHost<'_> {
             self.record_camera(event);
             self.record_tile_animation(event);
             match event {
-                HostEvent::ShowWindow { window, text, .. } => {
+                HostEvent::ShowWindow {
+                    window,
+                    flags,
+                    text,
+                    speaker,
+                } => {
+                    self.world
+                        .window_speakers
+                        .insert(*window, (*flags, *speaker));
                     self.world.windows.insert(*window, true);
                     self.world.window_texts.insert(*window, *text);
                     self.world.raise_text_signals(*text);
                 }
-                HostEvent::ShowObjectWindow { window, text, .. } => {
+                HostEvent::ShowObjectWindow {
+                    object,
+                    window,
+                    flags,
+                    text,
+                } => {
+                    self.world
+                        .window_speakers
+                        .insert(*window, (*flags, Some(*object)));
                     self.world.windows.insert(*window, true);
                     self.world.window_texts.insert(*window, *text);
                     self.world.raise_text_signals(*text);
+                }
+                HostEvent::SetTextVariable { script, value } => {
+                    // MESVALUE (`ETb.gMesValue[scriptID] = value`).
+                    self.world.mes_values.insert(*script, *value);
                 }
                 HostEvent::SetDialogSignal { signal } => {
                     // SETSIGNAL (EventEngine.DoEventCode.cs:2927).

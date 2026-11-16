@@ -351,6 +351,15 @@ pub struct FieldWorld {
     pub dialog_choice: i32,
     /// Text id each window last showed.
     pub window_texts: BTreeMap<u8, u16>,
+    /// Script flags and speaking actor of each window (`MES` flags, the
+    /// executing object or `MESN` target). Runtime-only, for drawing; not
+    /// part of snapshots or equality.
+    #[serde(skip)]
+    pub window_speakers: BTreeMap<u8, (u8, Option<EntityId>)>,
+    /// `ETb.gMesValue`: values scripts set for `[NUMB]` and `[ITEM]` tags.
+    /// Runtime-only, for drawing.
+    #[serde(skip)]
+    pub mes_values: BTreeMap<i32, i32>,
     /// Field text id -> the `[SIGL=n]` values its text carries, in order.
     /// Loaded by the caller from the field's `.mes` file (this crate embeds
     /// no game text). Empty means windows raise no signals.
@@ -577,6 +586,8 @@ impl FieldWorld {
             mes_signal: 0,
             dialog_choice: 0,
             window_texts: BTreeMap::new(),
+            window_speakers: BTreeMap::new(),
+            mes_values: BTreeMap::new(),
             dialog_signals: BTreeMap::new(),
             pending_signals: std::collections::VecDeque::new(),
             pending_requests: BTreeMap::new(),
@@ -654,6 +665,7 @@ impl FieldWorld {
         self.regions.clear();
         self.windows.clear();
         self.window_texts.clear();
+        self.window_speakers.clear();
         self.pending_requests.clear();
         self.pending_callers.clear();
         self.shared_scripts.clear();

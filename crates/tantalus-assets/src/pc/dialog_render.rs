@@ -187,6 +187,8 @@ pub struct RecordedTag {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PageLayout {
+    /// Line the `[CHOO]` answers start on, when the page has them.
+    pub choice_line: Option<usize>,
     pub glyphs: Vec<PlacedGlyph>,
     pub lines: Vec<LineInfo>,
     /// `TextParser.MaxWidth`.
@@ -304,6 +306,10 @@ struct PageState {
     high_shadow: bool,
     x: f32,
     y_offset: f32,
+    /// Indent every line after `[CHOO]` starts with (`NGUIText.ChoiceIndent`).
+    indent: f32,
+    /// Line the `[CHOO]` list starts on.
+    choice_line: Option<usize>,
 }
 
 /// Lays an entry out. Mirrors `NGUIText.WrapText` (dialogs never wrap by width, so the
@@ -334,6 +340,8 @@ pub fn layout_entry(
             high_shadow: false,
             x: 0.0,
             y_offset: 0.0,
+            indent: 0.0,
+            choice_line: None,
         };
         for token in tokens {
             match token {
@@ -359,7 +367,13 @@ pub fn layout_entry(
                             raw: tag.raw.clone(),
                         });
                     };
-                    if code == "DialogSize" {
+                    if code == "Choice" {
+                        // `DialogBoxSymbols`: the list is indented by
+                        // `NGUIText.ChoiceIndent` (16 * ResourceXMultipier).
+                        state.indent = 16.0 * RESOURCE_X_MULTIPLIER;
+                        state.x += state.indent;
+                        state.choice_line = Some(state.lines.len() - 1);
+                    } else if code == "DialogSize" {
                         width_hint = param_f32(&tag.params, 0);
                         line_hint = param_f32(&tag.params, 1).max(1.0);
                     } else if code == "TextRGBA" {
@@ -403,6 +417,7 @@ pub fn layout_entry(
             .map(|l| l.base_y + l.height_below)
             .fold(0.0, f32::max);
         pages.push(PageLayout {
+            choice_line: state.choice_line,
             glyphs: state.glyphs,
             lines: state.lines,
             max_width,
@@ -412,6 +427,7 @@ pub fn layout_entry(
     }
     while pages.len() < min_pages {
         pages.push(PageLayout {
+            choice_line: None,
             glyphs: Vec::new(),
             lines: Vec::new(),
             max_width: 0.0,
@@ -507,7 +523,7 @@ fn place_char(
             width: 0.0,
             height_below: LINE_HEIGHT,
         });
-        state.x = 0.0;
+        state.x = state.indent;
         state.y_offset = 0.0;
         return;
     }
@@ -834,6 +850,88 @@ pub struct RenderedDialog {
     pub font_name: String,
     pub atlas_name: &'static str,
     pub entry_source: String,
+}
+
+/// The font and window sprites of an install, loaded once so many entries can be
+/// laid out and drawn (the dialogs of a play session).
+pub struct DialogAssets {
+    glyphs: FontdueSource,
+    window: WindowSprites,
+}
+
+impl DialogAssets {
+    /// Loads `TBUDGoStd-Bold` from `resources.assets` and the window atlas next to it.
+    pub fn load(
+        resources_assets: &std::path::Path,
+        window: WindowAtlasChoice,
+    ) -> Result<Self, crate::install::ImportError> {
+        use super::font_bundle::inventory_encrypted;
+        use super::serialized_inventory::StandaloneSerialized;
+        use super::ui_atlas::load_atlas;
+        use crate::install::ImportError;
+        let source_name = resources_assets.display().to_string();
+        let mut file = StandaloneSerialized::open(resources_assets)?;
+        let assets = file.text_assets()?;
+        let font_object = assets
+            .iter()
+            .find(|(name, _)| name == FONT_BUNDLE_ASSET)
+            .map(|(_, object)| object.clone())
+            .ok_or_else(|| {
+                ImportError::invalid(&source_name, format!("no TextAsset `{FONT_BUNDLE_ASSET}`"))
+            })?;
+        let bundle = file.read_text_asset(&font_object)?;
+        let (inventory, blobs) = inventory_encrypted(&bundle.script)?;
+        let (_, blob) = inventory
+            .fonts
+            .iter()
+            .zip(&blobs)
+            .find(|(font, blob)| font.name == DEFAULT_FONT_NAME && !blob.font_data.is_empty())
+            .ok_or_else(|| {
+                ImportError::invalid(&source_name, format!("no font `{DEFAULT_FONT_NAME}`"))
+            })?;
+        let glyphs = FontdueSource::from_ttf(&blob.font_data, FONT_SIZE as f32)
+            .map_err(|error| ImportError::invalid(&source_name, error))?;
+        let atlas_path = resources_assets
+            .parent()
+            .map(|dir| dir.join(WINDOW_ATLAS_FILE))
+            .unwrap_or_else(|| std::path::PathBuf::from(WINDOW_ATLAS_FILE));
+        let atlas_name = window.atlas_name();
+        let (atlas, width, height, rgba) = load_atlas(&atlas_path, atlas_name)?;
+        let sprite = |name: &str| {
+            atlas
+                .sprites
+                .iter()
+                .find(|sprite| sprite.name == name)
+                .cloned()
+                .ok_or_else(|| {
+                    ImportError::invalid(
+                        &source_name,
+                        format!("{atlas_name} has no sprite `{name}`"),
+                    )
+                })
+        };
+        let window = WindowSprites {
+            texture_width: width as usize,
+            texture_height: height as usize,
+            rgba,
+            body: sprite(BODY_SPRITE)?,
+            border: sprite(BORDER_SPRITE)?,
+        };
+        Ok(Self { glyphs, window })
+    }
+
+    /// Lays out and draws the first page of `entry`.
+    pub fn render(
+        &self,
+        entry: &MesEntry,
+        mode: SizeMode,
+        framed: bool,
+    ) -> Option<(Image, DialogLayout)> {
+        let layout = layout_entry(entry, &self.glyphs, mode, 0);
+        let window = framed.then_some(&self.window);
+        let image = render_page(&layout, 0, &self.glyphs, window)?;
+        Some((image, layout))
+    }
 }
 
 /// Reads font, `.mes` entry and window atlas from an install and renders one page.
