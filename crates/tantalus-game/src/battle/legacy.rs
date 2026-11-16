@@ -10,6 +10,7 @@
 //! not yet invoke `SetBonus` on deaths.
 
 use super::{BattleOutcome, CombatEvent, CombatInput, CombatRuleset, CombatUpdate, GameServices};
+use crate::field::world::FieldWorld;
 use std::collections::BTreeMap;
 use tantalus_contracts::{ContentId, EngineError, EntityId, ErrorCategory};
 use tantalus_legacy::battle::machine::{Battle as LegacyBattle, BattleHooks, EnemyAction, result};
@@ -229,6 +230,12 @@ impl LegacyBattleAdapter {
         self.outcome
     }
 
+    /// True when the escape came from the Flee ability (script 57) rather
+    /// than the party flee key — the Flee ability costs gil, the key does not.
+    pub fn fled_by_ability(&self) -> bool {
+        self.battle.ability_flee
+    }
+
     /// Maps machine log entries recorded since the last call onto the
     /// coordinator's event surface. v1 surfaces death and completion
     /// notifications (the ones the reward loop and battle UI consume);
@@ -338,4 +345,24 @@ pub fn unit_mappings(
         .collect();
     let target_bits = pairs.iter().copied().collect();
     (unit_map, target_bits)
+}
+
+/// Applies the Flee-ability gil cost (`BTL_FLAG_ABILITY_FLEE`,
+/// `battle.cs:456-471`) to the field world after an `Escape` outcome: a tenth
+/// of the gil the battle would have paid (`battle_gil`, the bonus total
+/// before it is cleared) plus every enemy's bonus gil, capped at what the
+/// party holds. No-op for party-flee-key escapes. Returns the gil lost.
+pub fn apply_flee_ability_cost(
+    world: &mut FieldWorld,
+    fled_by_ability: bool,
+    battle_gil: u32,
+    enemy_bonus_gil: u32,
+) -> u32 {
+    if !fled_by_ability {
+        return 0;
+    }
+    let (lost, remaining) =
+        tantalus_legacy::battle::flee::flee_gil_loss(battle_gil, enemy_bonus_gil, world.gil);
+    world.gil = remaining;
+    lost
 }

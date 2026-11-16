@@ -597,8 +597,8 @@ fn escape_family_results_map_to_distinct_outcomes() {
 fn flee_ability_runs_the_escape_sequence_to_the_escape_outcome() {
     use std::collections::BTreeMap;
     use tantalus_contracts::EntityId;
-    use tantalus_game::battle::legacy::{LegacyBattleAdapter, unit_mappings};
     use tantalus_game::battle::BattleOutcome;
+    use tantalus_game::battle::legacy::{LegacyBattleAdapter, unit_mappings};
     use tantalus_legacy::battle::machine::{Battle as LegacyBattle, BattleConfig};
     use tantalus_legacy::battle::{BattleUnit, StatusDataRow, StatusTable};
 
@@ -626,6 +626,7 @@ fn flee_ability_runs_the_escape_sequence_to_the_escape_outcome() {
         unit_mappings(&[(EntityId::new(101), 1)]).1,
     );
     let mut world = FieldWorld::new();
+    world.gil = 100;
     assert!(
         adapter.flee_ability().unwrap(),
         "the flee ability queues SysEscape"
@@ -645,7 +646,81 @@ fn flee_ability_runs_the_escape_sequence_to_the_escape_outcome() {
         Some(BattleOutcome::Escape),
         "SysEscape ends the battle with the escape result"
     );
-    // Nothing is paid on escape: gil is untouched and no items land.
-    assert_eq!(world.gil, 0);
+    // Nothing is paid on escape, but the Flee ability costs a tenth of the
+    // would-be spoils: bonus gil 100 + enemy bonus gil 100 -> 20 lost.
+    let lost = tantalus_game::battle::legacy::apply_flee_ability_cost(
+        &mut world,
+        adapter.fled_by_ability(),
+        100,
+        100,
+    );
+    assert!(adapter.fled_by_ability());
+    assert_eq!(lost, 20);
+    assert_eq!(world.gil, 80);
     assert!(world.items.is_empty());
+}
+
+#[test]
+fn party_flee_key_escape_costs_nothing() {
+    use std::collections::BTreeMap;
+    use tantalus_contracts::EntityId;
+    use tantalus_game::battle::legacy::{LegacyBattleAdapter, unit_mappings};
+    use tantalus_game::battle::BattleOutcome;
+    use tantalus_legacy::battle::machine::{Battle as LegacyBattle, BattleConfig};
+    use tantalus_legacy::battle::{BattleUnit, StatusDataRow, StatusTable};
+
+    let mut player = BattleUnit::new(1, true);
+    player.will = 20;
+    player.dexterity = 30;
+    player.level = 20;
+    player.cur_hp = 500;
+    player.max_hp = 500;
+    let mut enemy = BattleUnit::new(16, false);
+    enemy.will = 10;
+    enemy.level = 1;
+    enemy.cur_hp = 60;
+    enemy.max_hp = 60;
+    let config = BattleConfig {
+        runaway: true,
+        ..BattleConfig::default()
+    };
+    let mut adapter = LegacyBattleAdapter::new(
+        LegacyBattle::new(
+            vec![player, enemy],
+            config,
+            StatusTable::new(vec![StatusDataRow::default(); 32]),
+        ),
+        BTreeMap::new(),
+        unit_mappings(&[(EntityId::new(101), 1)]).0,
+        unit_mappings(&[(EntityId::new(101), 1)]).1,
+    );
+    let mut world = FieldWorld::new();
+    world.gil = 100;
+    // Level-20 party vs level-1 enemy: the escape rate is 250, so the roll
+    // always succeeds through the services-backed rng.
+    assert!(
+        adapter
+            .flee_attempt(&mut WorldGameServices::new(&mut world))
+            .unwrap()
+    );
+
+    let mut outcome = None;
+    for tick in 0..600u64 {
+        let mut services = WorldGameServices::new(&mut world);
+        let input = tantalus_game::battle::CombatInput::new(tantalus_contracts::Tick::new(tick));
+        if let Some(done) = adapter.advance(&input, &mut services).unwrap().outcome {
+            outcome = Some(done);
+            break;
+        }
+    }
+    assert_eq!(outcome, Some(BattleOutcome::Escape));
+    assert!(!adapter.fled_by_ability(), "flee key, not the ability");
+    let lost = tantalus_game::battle::legacy::apply_flee_ability_cost(
+        &mut world,
+        adapter.fled_by_ability(),
+        100,
+        100,
+    );
+    assert_eq!(lost, 0);
+    assert_eq!(world.gil, 100, "the flee key costs nothing");
 }
