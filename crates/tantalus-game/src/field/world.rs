@@ -172,6 +172,10 @@ pub struct FieldWorld {
     object_members: BTreeMap<(EntityId, u8), i32>,
     member_target: Option<EntityId>,
     uid_map: BTreeMap<i32, EntityId>,
+    /// Objects removed by `DELETE` (`DisposeObj`): every function of a
+    /// deleted object stops until the object is initialized again.
+    #[serde(default)]
+    deleted_objects: BTreeSet<EntityId>,
     rng: u64,
     input_mask: i32,
     /// Walk speed in world units per tick for synthetic movement progress.
@@ -268,6 +272,7 @@ impl PartialEq for FieldWorld {
             && self.object_members == other.object_members
             && self.member_target == other.member_target
             && self.uid_map == other.uid_map
+            && self.deleted_objects == other.deleted_objects
             && self.rng == other.rng
             && self.input_mask == other.input_mask
             && self.walk_speed == other.walk_speed
@@ -327,6 +332,7 @@ impl FieldWorld {
             object_members: BTreeMap::new(),
             member_target: None,
             uid_map: BTreeMap::new(),
+            deleted_objects: BTreeSet::new(),
             rng: 0x9E37_79B9_7F4A_7C15,
             input_mask: 0,
             walk_speed: 16.0,
@@ -355,6 +361,28 @@ impl FieldWorld {
 
     pub fn map_uid(&mut self, uid: i32, entity: EntityId) {
         self.uid_map.insert(uid, entity);
+    }
+
+    /// `DisposeObj`: stops the object's functions. The actor state is kept
+    /// so a later `NEW` of the same object finds it again (the chain host
+    /// creates every entry's actor up front instead of at `NEW`).
+    pub fn delete_object(&mut self, entity: EntityId) {
+        self.deleted_objects.insert(entity);
+    }
+
+    /// `InitEvents` starts every field with a fresh object list, so no
+    /// object stays deleted across a field change.
+    pub fn clear_deleted_objects(&mut self) {
+        self.deleted_objects.clear();
+    }
+
+    /// `NEW` of a deleted object makes it run again.
+    pub fn restore_object(&mut self, entity: EntityId) {
+        self.deleted_objects.remove(&entity);
+    }
+
+    pub fn is_object_deleted(&self, entity: EntityId) -> bool {
+        self.deleted_objects.contains(&entity)
     }
 
     pub fn set_input(&mut self, mask: i32) {
@@ -564,6 +592,12 @@ impl FieldWorld {
             if state.animation_frames > 0 {
                 state.animation_frames = state.animation_frames.saturating_sub(1);
                 state.animation_frame = state.animation_frame.saturating_add(1);
+                // The finished animation hands over to the idle loop, which
+                // starts at frame 0 (`animFrame`, `getvobj` member 7).
+                // Scripts wait for that with `while member 7 != 0`.
+                if state.animation_frames == 0 {
+                    state.animation_frame = 0;
+                }
             }
         }
     }
@@ -740,6 +774,10 @@ impl FieldWorld {
 
     pub fn provide_navigation(&mut self, mesh: FieldNavigationMesh) {
         self.navigation = Some(mesh);
+    }
+
+    pub fn clear_navigation(&mut self) {
+        self.navigation = None;
     }
 
     pub fn navigation(&self) -> Option<&FieldNavigationMesh> {

@@ -2001,4 +2001,23 @@ pub trait LegacyEventHost {
         let _ = scope;
         None
     }
+    /// Script uid of an object entity, for resolving the local uid 255
+    /// (the running object, `GetUIDFromLocalUID`) in script requests.
+    /// `None` falls back to the entity number.
+    fn object_uid(&mut self, entity: EntityId) -> Option<i32> {
+        let _ = entity;
+        None
+    }
+
+    /// The controlled object (`controlUID`, local uid 250), if any.
+    fn control_object(&mut self) -> Option<EntityId> {
+        None
+    }
+
+    /// True once the object was deleted (`DisposeObj`); the scene then
+    /// stops every function that runs against it.
+    fn object_deleted(&mut self, entity: EntityId) -> bool {
+        let _ = entity;
+        false
+    }
 }

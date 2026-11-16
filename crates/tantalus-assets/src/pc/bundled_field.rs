@@ -109,3 +109,35 @@ fn load_text_asset(
         format!("field TextAsset `{name}` was not found"),
     ))
 }
+
+/// Loads only the walkmesh (`<field>.bgi`) of one field from a field bundle
+/// (`p0data11.bin`-`p0data19.bin`). Returns `Ok(None)` when this bundle does
+/// not register the field, so callers can try the next bundle.
+pub fn load_field_navigation(
+    bundle_path: &Path,
+    field_name: &str,
+) -> Result<Option<tantalus_contracts::FieldNavigationMesh>, ImportError> {
+    let source = bundle_path.display().to_string();
+    let bundle = UnityRawBundle::open(bundle_path)?;
+    let bytes = bundle.read_entry(0, 300 * 1024 * 1024)?;
+    let serialized = SerializedFile::parse(&bytes, &source)?;
+    let Some(metadata_index) = serialized
+        .report()
+        .objects
+        .iter()
+        .position(|object| object.class_id == 142)
+    else {
+        return Ok(None);
+    };
+    let metadata = AssetBundleMetadata::parse(
+        serialized.object_data(metadata_index)?,
+        &format!("{source}:AssetBundle"),
+    )?;
+    if metadata.atlas_for(field_name).is_none() {
+        return Ok(None);
+    }
+    let navigation_name = format!("{field_name}.bgi");
+    let asset = load_text_asset(&serialized, &navigation_name, &source)?;
+    let navigation = BgiFile::parse(&asset.script, &navigation_name)?;
+    crate::pc::field::bgi_to_navigation_mesh(&navigation).map(Some)
+}

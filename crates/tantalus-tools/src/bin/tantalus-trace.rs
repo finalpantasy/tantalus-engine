@@ -17,7 +17,9 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use tantalus_contracts::EntityId;
-use tantalus_legacy::{EventBinary, EventProgram, VmStatus};
+use tantalus_legacy::{
+    EventBinary, EventProgram, Expression, ExpressionOp, InstructionKind, VmStatus,
+};
 
 fn main() -> ExitCode {
     match run(std::env::args().skip(1).collect()) {
@@ -30,7 +32,7 @@ fn main() -> ExitCode {
 }
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N,...]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N,...] [--route MAP>DEST,...] [--skip-talk MAP:ENTRY,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -52,6 +54,10 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut item_table: Option<PathBuf> = None;
     let mut language = String::from("us");
     let mut choices: BTreeMap<(i32, u16), i32> = BTreeMap::new();
+    let mut route: Vec<(i32, i32)> = Vec::new();
+    let mut skip_talk: BTreeSet<(i32, usize)> = BTreeSet::new();
+    let mut hold: BTreeMap<i32, i32> = BTreeMap::new();
+    let mut waypoints: BTreeMap<i32, Vec<[f32; 2]>> = BTreeMap::new();
     while let Some(flag) = iter.next() {
         let mut value = || {
             iter.next()
@@ -82,6 +88,52 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     let (map, text, answer) = parsed
                         .ok_or_else(|| format!("bad --choices entry `{part}`, want MAP:TEXT=N"))?;
                     choices.insert((map, text), answer);
+                }
+            }
+            "--route" => {
+                for part in value()?.split(',') {
+                    let parsed = part
+                        .trim()
+                        .split_once('>')
+                        .and_then(|(map, dest)| Some((map.parse().ok()?, dest.parse().ok()?)));
+                    route.push(
+                        parsed
+                            .ok_or_else(|| format!("bad --route entry `{part}`, want MAP>DEST"))?,
+                    );
+                }
+            }
+            "--skip-talk" => {
+                for part in value()?.split(',') {
+                    let parsed = part
+                        .trim()
+                        .split_once(':')
+                        .and_then(|(map, entry)| Some((map.parse().ok()?, entry.parse().ok()?)));
+                    skip_talk.insert(parsed.ok_or_else(|| {
+                        format!("bad --skip-talk entry `{part}`, want MAP:ENTRY")
+                    })?);
+                }
+            }
+            "--hold" => {
+                for part in value()?.split(',') {
+                    let parsed = part
+                        .trim()
+                        .split_once(':')
+                        .and_then(|(map, mask)| Some((map.parse().ok()?, mask.parse().ok()?)));
+                    let (map, mask) = parsed
+                        .ok_or_else(|| format!("bad --hold entry `{part}`, want MAP:MASK"))?;
+                    hold.insert(map, mask);
+                }
+            }
+            "--waypoints" => {
+                for part in value()?.split(',') {
+                    let bad = || format!("bad --waypoints entry `{part}`, want MAP@X:Z/X:Z");
+                    let (map, points) = part.trim().split_once('@').ok_or_else(bad)?;
+                    let map: i32 = map.parse().map_err(|_| bad())?;
+                    for point in points.split('/') {
+                        let (x, z) = point.split_once(':').ok_or_else(bad)?;
+                        let point = [x.parse().map_err(|_| bad())?, z.parse().map_err(|_| bad())?];
+                        waypoints.entry(map).or_default().push(point);
+                    }
                 }
             }
             "--confirm-after" => confirm_after = parse_number(&value()?, "--confirm-after")?,
@@ -141,11 +193,13 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 }
                 None => None,
             };
+            let mut backgrounds = BTreeMap::new();
             let text = match (game_data.clone(), mes_map) {
                 (Some(data), Some(map_path)) => {
                     // Clone for ChainOptions (the FMV movie inventory).
                     let source = std::fs::read_to_string(&map_path)
                         .map_err(|error| format!("cannot read {}: {error}", map_path.display()))?;
+                    backgrounds = parse_background_map(&source);
                     let text = FieldText::open(&data, &source, language)?;
                     // The movies directory is derived from the same root.
                     game_data = Some(data);
@@ -171,6 +225,11 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     game_data,
                     growth_tables,
                     item_ids,
+                    route,
+                    skip_talk,
+                    hold,
+                    backgrounds,
+                    waypoints,
                 },
             )
         }
@@ -281,8 +340,8 @@ fn parse_event_db(source: &str) -> BTreeMap<i32, String> {
 
 type Pool = Vec<Vec<(u16, EventProgram)>>;
 
-/// Registers one function of `entry` as a scene VM (entity = entry * 256 +
-/// function ordinal). Returns `None` when the tag is absent or the VM is
+/// Registers one function of `entry` as a scene VM (key = entry * 256 +
+/// function ordinal) acting on the entry's object. Returns `None` when the tag is absent or the VM is
 /// already registered.
 fn register(
     director: &mut tantalus_game::FieldDirector,
@@ -306,10 +365,16 @@ fn register(
     {
         return Ok(None);
     }
+    // Every function of an entry acts on the entry's object (one `Obj` in
+    // the reference), registered per field as `EntityId(entry)` with uid
+    // `entry`.
     director
-        .add_entry_program(entity, functions[position].1.clone())
+        .add_object_function(
+            entity,
+            EntityId::new(entry as u64),
+            functions[position].1.clone(),
+        )
         .map_err(|error| error.to_string())?;
-    director.world_mut().add_actor(entity, [0.0; 3]);
     Ok(Some(entity))
 }
 
@@ -348,11 +413,65 @@ const CONFIRM: i32 = 0x20000;
 const CONFIRM_PERIOD: u64 = 15;
 /// Ticks the scripted player stays in one region before moving on.
 const REGION_DWELL: u64 = 120;
+/// Ticks the explorer waits next to an object for its talk to start.
+const TALK_DWELL: u64 = 45;
+/// Ticks the scripted player stands on each `--waypoints` position.
+const WAYPOINT_DWELL: u64 = 60;
+/// X offset from an object where the explorer stands to talk (inside the
+/// default talk range `4 * (16 + 16)`).
+const TALK_OFFSET: f32 = 48.0;
+/// Ticks of continuous user control before the explorer moves the player.
+const CONTROL_SETTLE: u64 = 30;
+/// VM key base for shared scripts (`UID_OFFSET_SEQ`): above every
+/// `entry * 256 + function` key.
+const SHARED_SCRIPT_KEY: u64 = 0x1_0000;
 
 /// Entity `register` uses for an entry's function with `tag`.
 fn function_entity(pool: &Pool, entry: usize, tag: u16) -> Option<EntityId> {
     let position = pool[entry].iter().position(|(t, _)| *t == tag)?;
     Some(EntityId::new(entry as u64 * 256 + position as u64))
+}
+
+/// A floor point (x, z) kept on the walkmesh: the point itself when a
+/// triangle contains it, else the nearest triangle centroid, so walkmesh
+/// queries (`BGI` triangle polls) keep answering for the placed player.
+fn snap_to_walkmesh(
+    mesh: Option<&tantalus_contracts::FieldNavigationMesh>,
+    point: [f32; 2],
+) -> [f32; 2] {
+    let Some(mesh) = mesh else {
+        return point;
+    };
+    let mut nearest: Option<(f32, [f32; 2])> = None;
+    for triangle in &mesh.triangles {
+        let corners: Vec<[f32; 2]> = triangle
+            .vertices
+            .iter()
+            .filter_map(|index| mesh.vertices.get(*index as usize))
+            .map(|vertex| {
+                [
+                    (vertex.x + triangle.offset.x) as f32,
+                    (vertex.z + triangle.offset.z) as f32,
+                ]
+            })
+            .collect();
+        let [a, b, c] = corners[..] else {
+            continue;
+        };
+        let side = |p: [f32; 2], q: [f32; 2]| {
+            (q[0] - p[0]) * (point[1] - p[1]) - (q[1] - p[1]) * (point[0] - p[0])
+        };
+        let (ab, bc, ca) = (side(a, b), side(b, c), side(c, a));
+        if (ab >= 0.0 && bc >= 0.0 && ca >= 0.0) || (ab <= 0.0 && bc <= 0.0 && ca <= 0.0) {
+            return point;
+        }
+        let center = [(a[0] + b[0] + c[0]) / 3.0, (a[1] + b[1] + c[1]) / 3.0];
+        let distance = (center[0] - point[0]).powi(2) + (center[1] - point[1]).powi(2);
+        if nearest.is_none_or(|(best, _)| distance < best) {
+            nearest = Some((distance, center));
+        }
+    }
+    nearest.map_or(point, |(_, center)| center)
 }
 
 fn centroid(vertices: &[[i16; 2]]) -> [f32; 2] {
@@ -386,6 +505,46 @@ struct ChainOptions {
     )>,
     /// Vanilla item-table legacy ids for the reward-item identity mapping.
     item_ids: Option<Vec<i32>>,
+    /// Free-roam route: while MAP's first unused entry is DEST, the explorer
+    /// only enters exit regions that lead to DEST; the entry is used up when
+    /// the field leaves for DEST. Regions whose tag 2 holds no
+    /// constant `ChangeField` stay allowed.
+    route: Vec<(i32, i32)>,
+    /// Objects the explorer never talks to, by (field map, entry): optional
+    /// minigames that hold the field until played (map 103 entry 8, jump rope).
+    skip_talk: BTreeSet<(i32, usize)>,
+    /// Pad bits held for a whole field, by field map (`KeyState(Held)`
+    /// polls such as map 115's ladder climb, which reads up = 16).
+    hold: BTreeMap<i32, i32>,
+    /// `EventEngineUtils.eventIDToFBGID`: field map number to background
+    /// name, whose `<name>.bgi` walkmesh backs `BGI` triangle queries.
+    backgrounds: BTreeMap<i32, String>,
+    /// Floor positions (x, z) the scripted player visits in order, by field
+    /// map, once its regions and talks are done: fields that wait for the
+    /// player to walk somewhere (map 116's roof waits for Vivi's x <= 900).
+    waypoints: BTreeMap<i32, Vec<[f32; 2]>>,
+}
+
+/// `gEventGlobal` Int16 0, the scenario counter that orders the story.
+fn scenario_counter(world: &tantalus_game::FieldWorld) -> i32 {
+    let bytes = world.global_memory.bytes();
+    i32::from(bytes[0]) | (i32::from(bytes[1] as i8) << 8)
+}
+
+/// Destination of a region's exit: the first `ChangeField` with a constant
+/// operand in the entry's tag-2 function.
+fn exit_destination(functions: &[(u16, EventProgram)]) -> Option<i32> {
+    let (_, program) = functions.iter().find(|(tag, _)| *tag == 2)?;
+    program
+        .instructions
+        .values()
+        .find_map(|instruction| match &instruction.kind {
+            InstructionKind::ChangeField(Expression(ops)) => match ops.as_slice() {
+                [ExpressionOp::Constant(map), ExpressionOp::End] => Some(*map),
+                _ => None,
+            },
+            _ => None,
+        })
 }
 
 /// Per-field text facts the scripted player needs.
@@ -394,6 +553,8 @@ struct FieldTextInfo {
     signals: BTreeMap<u16, Vec<i32>>,
     /// Text ids that contain a `[CHOO]` choice list.
     choices: BTreeSet<u16>,
+    /// Literal text of each entry (tags dropped), for the trace record.
+    plain: BTreeMap<u16, String>,
 }
 
 /// Field dialog text, for the `[SIGL=n]` signals windows raise.
@@ -483,6 +644,18 @@ impl FieldText {
             let Ok(id) = u16::try_from(entry.id) else {
                 continue;
             };
+            let plain: String = entry
+                .tokens
+                .iter()
+                .filter_map(|token| match token {
+                    MesToken::Text { text } => Some(text.as_str()),
+                    _ => None,
+                })
+                .collect::<String>()
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ");
+            info.plain.insert(id, plain);
             if entry
                 .tokens
                 .iter()
@@ -532,6 +705,52 @@ fn parse_mes_map(source: &str) -> BTreeMap<i32, i32> {
     map
 }
 
+/// `EventEngineUtils.eventIDToFBGID` entries (`{map, "FBG_..."},`), read
+/// from the Memoria source after the dictionary's declaration.
+fn parse_background_map(source: &str) -> BTreeMap<i32, String> {
+    let Some(start) = source.find("eventIDToFBGID") else {
+        return BTreeMap::new();
+    };
+    let mut map = BTreeMap::new();
+    for line in source[start..].lines().skip(1) {
+        let line = line.trim();
+        if line.starts_with("};") {
+            break;
+        }
+        let Some(body) = line.strip_prefix('{') else {
+            continue;
+        };
+        let Some((id, rest)) = body.split_once(',') else {
+            continue;
+        };
+        let Ok(id) = id.trim().parse::<i32>() else {
+            continue;
+        };
+        if let Some(name) = rest.split('"').nth(1) {
+            map.insert(id, name.to_owned());
+        }
+    }
+    map
+}
+
+/// Finds the field bundle that registers `name` and loads its walkmesh.
+fn load_navigation(
+    bundles: &[PathBuf],
+    name: &str,
+) -> Result<tantalus_contracts::FieldNavigationMesh, String> {
+    for bundle in bundles {
+        if !bundle.exists() {
+            continue;
+        }
+        match tantalus_assets::pc::bundled_field::load_field_navigation(bundle, name) {
+            Ok(Some(mesh)) => return Ok(mesh),
+            Ok(None) => {}
+            Err(error) => return Err(format!("{}: {error}", bundle.display())),
+        }
+    }
+    Err(format!("no field bundle registers `{name}`"))
+}
+
 fn chain(
     bundle: &Path,
     db: &BTreeMap<i32, String>,
@@ -551,7 +770,25 @@ fn chain(
         game_data,
         growth_tables,
         item_ids,
+        route,
+        skip_talk,
+        hold,
+        backgrounds,
+        waypoints,
     } = options;
+    // Field bundles sit beside the event bundle (`StreamingAssets`).
+    let field_bundles: Vec<PathBuf> = (11..=19)
+        .map(|n| {
+            bundle
+                .parent()
+                .unwrap_or(Path::new("."))
+                .join(format!("p0data{n}.bin"))
+        })
+        .collect();
+    let mut route_used = vec![false; route.len()];
+    // Talks across visits as (map, entry, scenario counter): talking to the
+    // same object again at the same story point repeats what it said.
+    let mut talked_before: BTreeSet<(i32, usize, i32)> = BTreeSet::new();
     let mut world = tantalus_game::FieldWorld::new();
     // Movie frame counts for the FMV service: scan the Ogg container of
     // `ma/FMV%03d.bytes` on first use. A failed or unknown file keeps the
@@ -641,10 +878,40 @@ fn chain(
             }
         };
         let (pool, decode_errors) = decode_pool(&binary)?;
+        let exits: BTreeMap<usize, i32> = (0..pool.len())
+            .filter_map(|entry| Some((entry, exit_destination(&pool[entry])?)))
+            .collect();
+        // The first unused route entry for this map; it is used up when the
+        // field leaves through its destination.
+        let route_index = route
+            .iter()
+            .enumerate()
+            .position(|(index, (from, _))| *from == map && !route_used[index]);
+        let route_target = route_index.map(|index| route[index].1);
         world.field_map_no = map;
+        let held = hold.get(&map).copied().unwrap_or(0);
         // EventEngine.InitEvents zeroes mapvar for every field (EventEngine.cs:556).
         world.map_memory.clear();
+        world.clear_deleted_objects();
+        let navigation_status = match backgrounds.get(&map) {
+            Some(name) => match load_navigation(&field_bundles, name) {
+                Ok(mesh) => {
+                    let status = format!("{name}: {} triangles", mesh.triangles.len());
+                    world.provide_navigation(mesh);
+                    status
+                }
+                Err(error) => {
+                    world.clear_navigation();
+                    error
+                }
+            },
+            None => {
+                world.clear_navigation();
+                "no background name".to_owned()
+            }
+        };
         let mut choice_texts = BTreeSet::new();
+        let mut plain_texts: BTreeMap<u16, String> = BTreeMap::new();
         let text_status = match &text {
             Some(text) => match text.info(map) {
                 Ok(info) => {
@@ -655,6 +922,7 @@ fn chain(
                     );
                     world.dialog_signals = info.signals;
                     choice_texts = info.choices;
+                    plain_texts = info.plain;
                     status
                 }
                 Err(error) => {
@@ -665,7 +933,11 @@ fn chain(
             None => "not loaded".to_owned(),
         };
         world.take_field_transitions();
+        // Field load closes every window.
+        world.windows.clear();
+        world.window_texts.clear();
         let mut director = tantalus_game::FieldDirector::new(world.clone());
+        director.world_mut().set_input(held);
         for entry in 0..pool.len() {
             let base = EntityId::new(entry as u64);
             director.world_mut().add_actor(base, [0.0; 3]);
@@ -680,6 +952,8 @@ fn chain(
         // EventEngine.Return (EventEngine.cs:1178) moves the object to
         // stateRunning and starts its loop function (tag 1) at level 7.
         let mut initializing: Vec<(EntityId, usize)> = Vec::new();
+        let mut shared_running: BTreeMap<EntityId, EntityId> = BTreeMap::new();
+        let mut shared_scripts_run = 0usize;
         for entry in 0..pool.len() {
             if let Some(entity) = register(&mut director, &pool, entry, Some(0))? {
                 initializing.push((entity, entry));
@@ -703,6 +977,34 @@ fn chain(
             director.set_walk_bits(Some((0x01, 0x02, 0x04, 0x08)));
         }
         let mut triggered: BTreeSet<usize> = BTreeSet::new();
+        let scenario_at_start = scenario_counter(&world);
+        let mut talked: BTreeSet<usize> = skip_talk
+            .iter()
+            .filter(|(skip_map, _)| *skip_map == map)
+            .map(|(_, entry)| *entry)
+            .chain(
+                talked_before
+                    .iter()
+                    .filter(|(talk_map, _, scenario)| {
+                        *talk_map == map && *scenario == scenario_at_start
+                    })
+                    .map(|(_, entry, _)| *entry),
+            )
+            .collect();
+        let mut talk_dwell: BTreeMap<usize, u64> = BTreeMap::new();
+        let field_waypoints = waypoints.get(&map).cloned().unwrap_or_default();
+        let mut waypoint_index = 0usize;
+        let mut waypoint_dwell = 0u64;
+        let mut talk_scenario = scenario_at_start;
+        let skipped: BTreeSet<usize> = skip_talk
+            .iter()
+            .filter(|(skip_map, _)| *skip_map == map)
+            .map(|(_, entry)| *entry)
+            .collect();
+        let mut talks: Vec<(u64, usize)> = Vec::new();
+        if explore {
+            director.set_confirm_mask(Some(CONFIRM));
+        }
         let mut region_triggers = 0usize;
         let mut dwell_ticks: BTreeMap<usize, u64> = BTreeMap::new();
         let mut presses = 0usize;
@@ -715,7 +1017,24 @@ fn chain(
         let mut unspawned = 0usize;
         let mut encounters = 0usize;
         let mut battles: Vec<i32> = Vec::new();
+        // (tick, user control, Map byte 24) whenever user control changes.
+        let mut control_changes: Vec<(u64, bool, u8)> = Vec::new();
+        // Each text a window shows, in order, as (tick, text id).
+        let mut texts_shown: Vec<(u64, u16)> = Vec::new();
+        let mut last_texts: BTreeMap<u8, u16> = BTreeMap::new();
+        let mut last_control = director.world().user_control;
         while ticks_run < ticks {
+            for (window, text) in &director.world().window_texts {
+                if last_texts.insert(*window, *text) != Some(*text) {
+                    texts_shown.push((ticks_run, *text));
+                }
+            }
+            let control = director.world().user_control;
+            if control != last_control {
+                let stage = director.world().map_memory.bytes()[24];
+                control_changes.push((ticks_run, control, stage));
+                last_control = control;
+            }
             if walk_demo {
                 let phase = (ticks_run / 64) % 4;
                 let direction = [0x04u8, 0x01, 0x08, 0x02][phase as usize];
@@ -729,6 +1048,59 @@ fn chain(
                     // No battle engine yet: each scripted battle is skipped
                     // and the field resumes on the next tick, as after a win.
                     battles.extend(step.encounters.iter().map(|request| request.battle));
+                    // Talk (EventCollision): confirm next to an object starts
+                    // its tag 3. The scripted player talks to each once.
+                    if explore {
+                        // A story step (scenario counter change) can give an
+                        // object new lines or a new use (map 115's ladder),
+                        // so the explorer may talk to it again.
+                        let scenario = scenario_counter(director.world());
+                        if scenario != talk_scenario {
+                            talk_scenario = scenario;
+                            talked.retain(|entry| skipped.contains(entry));
+                            talk_dwell.clear();
+                        }
+                        for trigger in &step.talk_triggers {
+                            let entry = trigger.get() as usize;
+                            if entry >= pool.len() || talked.contains(&entry) {
+                                continue;
+                            }
+                            // Rerun a finished talk function from its start.
+                            if let Some(entity) = function_entity(&pool, entry, 3)
+                                && director.entry_states().iter().any(|(e, _, status, _)| {
+                                    *e == entity && *status == VmStatus::Completed
+                                })
+                            {
+                                director.remove_entry(entity);
+                            }
+                            if register(&mut director, &pool, entry, Some(3))?.is_some() {
+                                talked.insert(entry);
+                                talks.push((ticks_run, entry));
+                                talked_before.insert((
+                                    map,
+                                    entry,
+                                    scenario_counter(director.world()),
+                                ));
+                            }
+                        }
+                    }
+                    // STARTSEQ: a new shared script replaces the object's
+                    // previous one (`DisposeObj` of uid + UID_OFFSET_SEQ).
+                    for (object, entry) in &step.shared_scripts {
+                        let Ok(entry) = usize::try_from(*entry) else {
+                            continue;
+                        };
+                        let Some((_, program)) = pool.get(entry).and_then(|f| f.first()) else {
+                            continue;
+                        };
+                        let key = EntityId::new(SHARED_SCRIPT_KEY + object.get());
+                        director.remove_entry(key);
+                        director
+                            .add_shared_script(key, *object, program.clone())
+                            .map_err(|error| error.to_string())?;
+                        shared_running.insert(key, *object);
+                        shared_scripts_run += 1;
+                    }
                     for request in &step.requests {
                         let target = request.target.get() as usize;
                         if target >= pool.len() {
@@ -737,9 +1109,28 @@ fn chain(
                         }
                         let tag = u16::from(request.tag);
                         let tag = pool[target].iter().any(|(t, _)| *t == tag).then_some(tag);
+                        // A function that already ran to its end runs again
+                        // from its start (each request is a fresh call).
+                        if let Some(entity) =
+                            tag.and_then(|tag| function_entity(&pool, target, tag))
+                            && director.entry_states().iter().any(|(e, _, status, _)| {
+                                *e == entity && *status == VmStatus::Completed
+                            })
+                        {
+                            director.remove_entry(entity);
+                        }
                         match register(&mut director, &pool, target, tag)? {
                             Some(entity) => spawned.push((entity, target as u64)),
-                            None => unspawned += 1,
+                            None => {
+                                // Nothing will run, so nothing would ever
+                                // clear the pend: release a waiting caller.
+                                unspawned += 1;
+                                if !spawned.iter().any(|(_, base)| *base == target as u64) {
+                                    director
+                                        .world_mut()
+                                        .complete_request(EntityId::new(target as u64));
+                                }
+                            }
                         }
                     }
                 }
@@ -749,6 +1140,15 @@ fn chain(
                 }
             }
             let states = director.entry_states();
+            shared_running.retain(|key, object| {
+                let complete = states
+                    .iter()
+                    .any(|(e, _, status, _)| e == key && *status == VmStatus::Completed);
+                if complete {
+                    director.world_mut().finish_shared_script(*object);
+                }
+                !complete
+            });
             let mut done = Vec::new();
             spawned.retain(|(entity, base)| {
                 let complete = states
@@ -805,19 +1205,30 @@ fn chain(
             }
             if explore {
                 if pressed {
-                    director.world_mut().set_input(0);
+                    director.world_mut().set_input(held);
                     pressed = false;
                 }
                 let world = director.world();
-                let controlled = world
-                    .user_control
+                // A player cannot reach a region within a few frames of
+                // getting control; scenes often grant it for one or two
+                // ticks while they start. Act only once control has held
+                // for CONTROL_SETTLE ticks.
+                let settled = world.user_control
+                    && control_changes.last().is_none_or(|(tick, _, _)| {
+                        ticks_run.saturating_sub(*tick) >= CONTROL_SETTLE
+                    });
+                let controlled = settled
                     .then_some(world.control_actor)
                     .flatten()
                     .and_then(|actor| Some((actor, world.actors.get(&actor)?.position)));
                 if let Some((actor, position)) = controlled {
                     let has_tag2 = |region: &EntityId| {
-                        let entry = (region.get() / 256) as usize;
-                        entry < pool.len() && pool[entry].iter().any(|(tag, _)| *tag == 2)
+                        let entry = region.get() as usize;
+                        let routed = match (route_target, exits.get(&entry)) {
+                            (Some(target), Some(dest)) => *dest == target,
+                            _ => true,
+                        };
+                        routed && entry < pool.len() && pool[entry].iter().any(|(tag, _)| *tag == 2)
                     };
                     let hit = tantalus_game::field::region::regions_at(
                         &world.regions,
@@ -826,17 +1237,46 @@ fn chain(
                     )
                     .into_iter()
                     .find(|region| {
-                        has_tag2(region) && !triggered.contains(&((region.get() / 256) as usize))
+                        has_tag2(region) && !triggered.contains(&(region.get() as usize))
                     })
-                    .map(|region| (region.get() / 256) as usize);
-                    let next = world
-                        .regions
-                        .iter()
-                        .find(|(region, _)| {
-                            has_tag2(region)
-                                && !triggered.contains(&((region.get() / 256) as usize))
+                    .map(|region| region.get() as usize);
+                    // Targets in order: regions that do not leave the field,
+                    // then each object with a talk function (tag 3), then
+                    // the exits the route allows.
+                    let pending_region = |exit: bool| {
+                        world
+                            .regions
+                            .iter()
+                            .find(|(region, _)| {
+                                let entry = region.get() as usize;
+                                has_tag2(region)
+                                    && !triggered.contains(&entry)
+                                    && exits.contains_key(&entry) == exit
+                            })
+                            .map(|(_, region)| centroid(&region.vertices))
+                    };
+                    let pending_talk = (0..pool.len())
+                        .filter(|entry| {
+                            *entry as u64 != actor.get()
+                                && !talked.contains(entry)
+                                && pool[*entry].iter().any(|(tag, _)| *tag == 3)
                         })
-                        .map(|(_, region)| centroid(&region.vertices));
+                        .find_map(|entry| {
+                            let state = world.actors.get(&EntityId::new(entry as u64))?;
+                            Some((entry, [state.position[0] + TALK_OFFSET, state.position[2]]))
+                        });
+                    let talk_target = pending_talk.map(|(entry, _)| entry);
+                    let waypoint = field_waypoints
+                        .get(waypoint_index)
+                        .map(|point| snap_to_walkmesh(world.navigation(), *point));
+                    let next = pending_region(false)
+                        .or(pending_talk.map(|(_, at)| at))
+                        .or(waypoint)
+                        .or_else(|| pending_region(true));
+                    let talking = pending_region(false).is_none() && talk_target.is_some();
+                    let walking = pending_region(false).is_none()
+                        && talk_target.is_none()
+                        && waypoint.is_some();
                     match hit {
                         Some(entry) => {
                             // Request(quad, 1, 2) every frame while inside: rerun
@@ -865,10 +1305,26 @@ fn chain(
                                 state.position = [x, state.position[1], z];
                                 state.movement = None;
                             }
+                            // Give up on an object that never answers (out of
+                            // range, hidden, or not placed yet).
+                            if walking {
+                                waypoint_dwell += 1;
+                                if waypoint_dwell >= WAYPOINT_DWELL {
+                                    waypoint_dwell = 0;
+                                    waypoint_index += 1;
+                                }
+                            }
+                            if let (true, Some(entry)) = (talking, talk_target) {
+                                let dwell = talk_dwell.entry(entry).or_insert(0);
+                                *dwell += 1;
+                                if *dwell >= TALK_DWELL {
+                                    talked.insert(entry);
+                                }
+                            }
                         }
                     }
                     if ticks_run.is_multiple_of(CONFIRM_PERIOD) {
-                        director.world_mut().set_input(CONFIRM);
+                        director.world_mut().set_input(CONFIRM | held);
                         pressed = true;
                         presses += 1;
                     }
@@ -886,6 +1342,7 @@ fn chain(
             .filter(|(_, _, status, _)| *status != VmStatus::Completed)
             .map(|(entity, pc, status, wait)| format!("{}@{pc}:{status:?}:{wait:?}", entity.get()))
             .collect();
+        let scenario_counter = scenario_counter(director.world());
         println!(
             "{}",
             serde_json::json!({
@@ -899,6 +1356,7 @@ fn chain(
                 "global_memory": nonzero(director.world().global_memory.bytes()),
                 "confirms": confirms,
                 "field_text": text_status,
+                "navigation": navigation_status,
                 "mes_signal": director.world().mes_signal,
                 "choices_made": choices_made,
                 "battles_skipped": battles,
@@ -906,13 +1364,42 @@ fn chain(
                 "confirm_presses": presses,
                 "vms": states.len(),
                 "spawned_pending": spawned.len(),
+                "shared_scripts_run": shared_scripts_run,
                 "unspawned_requests": unspawned,
                 "encounters": encounters,
                 "not_completed": not_completed,
                 "error": error,
                 "next_map": transition,
+                "exits": exits,
+                "route_target": route_target,
+                "regions_defined": director.world().regions.keys().map(|region| region.get()).collect::<Vec<_>>(),
+                "user_control": director.world().user_control,
+                "control_changes": control_changes,
+                "talks": talks,
+                "texts_shown": texts_shown
+                    .iter()
+                    .map(|(tick, text)| {
+                        let line: String = plain_texts
+                            .get(text)
+                            .map(|plain| plain.chars().take(90).collect())
+                            .unwrap_or_default();
+                        serde_json::json!([tick, text, line])
+                    })
+                    .collect::<Vec<_>>(),
+                "control_actor": director.world().control_actor.map(|actor| actor.get()),
+                "control_state": director
+                    .world()
+                    .control_actor
+                    .and_then(|actor| director.world().actors.get(&actor))
+                    .map(|state| (state.position, state.animation_frame, state.animation_frames)),
+                "scenario_counter": scenario_counter,
             })
         );
+        if let (Some(index), Some(next)) = (route_index, transition)
+            && route[index].1 == next
+        {
+            route_used[index] = true;
+        }
         world = director.world().clone();
         match transition {
             Some(next) => map = next,

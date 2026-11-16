@@ -66,6 +66,45 @@ impl FieldScene {
         Ok(())
     }
 
+    /// Adds one function of an object as its own VM: `key` names the VM,
+    /// `object` is the entity its actor operations, self reads and requests
+    /// act on. The reference runs every function of an object against one
+    /// `Obj` (position, facing, flags), so the functions of one entry share
+    /// `object`.
+    pub fn add_object_function(
+        &mut self,
+        key: EntityId,
+        object: EntityId,
+        program: EventProgram,
+    ) -> Result<(), EngineError> {
+        if self.entries.contains_key(&key) {
+            return Err(EngineError::new(
+                ErrorCategory::Conflict,
+                format!("field entry {key} already exists"),
+                "tantalus-game/field",
+                true,
+            ));
+        }
+        self.entries
+            .insert(key, EventVm::new(program).with_entity(object));
+        Ok(())
+    }
+
+    /// Adds a shared script (`STARTSEQ`): `object`'s actor is the one it
+    /// moves, `key` is its own object, which `DELETE 255` disposes.
+    pub fn add_shared_script(
+        &mut self,
+        key: EntityId,
+        object: EntityId,
+        program: EventProgram,
+    ) -> Result<(), EngineError> {
+        self.add_object_function(key, object, program)?;
+        if let Some(vm) = self.entries.remove(&key) {
+            self.entries.insert(key, vm.with_own_object(key));
+        }
+        Ok(())
+    }
+
     /// Drop an entry's VM (for re-running a finished function from its start).
     pub fn remove_entry(&mut self, entity: EntityId) -> Option<EventVm> {
         self.entries.remove(&entity)
@@ -78,6 +117,14 @@ impl FieldScene {
     ) -> Result<Vec<FieldStep>, FieldError> {
         let mut reports = Vec::new();
         for (entity, vm) in &mut self.entries {
+            // `DisposeObj` unlinks the object: none of its functions run
+            // until a `NEW` initializes it again.
+            if vm
+                .entity()
+                .is_some_and(|object| host.object_deleted(object))
+            {
+                continue;
+            }
             let report = vm.step(tick, host).map_err(|error| FieldError {
                 entity: *entity,
                 error,
