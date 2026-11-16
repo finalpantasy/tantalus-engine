@@ -172,10 +172,9 @@ impl WorldRenderer {
             &mut frame,
             &camera,
             &self.models,
-            model,
+            (model, animation),
             [pos.x, pos.y, pos.z],
             play.walker.rot_y,
-            animation,
             time,
         ) {
             draw_marker(
@@ -280,13 +279,12 @@ fn draw_character(
     frame: &mut Frame,
     camera: &BattleCamera,
     models: &ActorModels,
-    model_id: u16,
+    clip: (u16, u16),
     at: [f32; 3],
     yaw: f32,
-    animation: u16,
     time: f32,
 ) -> bool {
-    let Some((model, skinned)) = models.skinned(model_id, Some(animation), time) else {
+    let Some((model, skinned)) = models.skinned(clip.0, Some(clip.1), time) else {
         return false;
     };
     // The model space is y-down: turn it upright, then about the up axis.

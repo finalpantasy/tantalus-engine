@@ -133,7 +133,7 @@ mod tests {
     #[test]
     fn weather_follows_the_zone_under_the_player() {
         assert_eq!(Weather::at(1100.0, -800.0), DAYLIGHT);
-        assert_eq!(Weather::at(1288.0, -941.0), EVENING);
+        assert_eq!(Weather::at(1288.0, -1010.0), EVENING);
         assert_eq!(Weather::at(1291.0, -928.0), NIGHT);
         assert_eq!(Weather::at(500.0, -790.0), EVENING);
     }

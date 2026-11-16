@@ -154,7 +154,7 @@ impl WorldPlay {
             return;
         };
         walker.rot_true = old.rot_true;
-        walker.camera = old.camera.clone();
+        walker.camera = old.camera;
         walker.place(&self.walk, old.pos);
         self.walker = walker;
         self.chocobo = on;
