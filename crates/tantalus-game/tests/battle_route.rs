@@ -719,8 +719,8 @@ fn party_flee_key_escape_costs_nothing() {
 fn decided_menuoff_defeat_reports_defeat_without_close_timings() {
     use std::collections::BTreeMap;
     use tantalus_contracts::EntityId;
-    use tantalus_game::battle::legacy::{LegacyBattleAdapter, unit_mappings};
     use tantalus_game::battle::BattleOutcome;
+    use tantalus_game::battle::legacy::{LegacyBattleAdapter, unit_mappings};
     use tantalus_legacy::battle::machine::{
         Battle as LegacyBattle, BattleConfig, MenuOffSeq, Phase,
     };
