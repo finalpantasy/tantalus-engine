@@ -969,10 +969,10 @@ fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<
     } else {
         game.begin_world(x, z)?;
     }
-    if values.contains_key("--ride")
+    if let Some(ride) = values.get("--ride")
         && let Some(play) = game.world_play.as_mut()
     {
-        play.set_chocobo(true);
+        play.set_ride(ride.parse().map_err(|_| "bad --ride")?);
     }
     let mut renderer =
         tantalus_client::world_view::WorldRenderer::new(std::path::Path::new(&values["--assets"]));

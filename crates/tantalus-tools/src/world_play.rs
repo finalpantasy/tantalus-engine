@@ -12,8 +12,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use tantalus_legacy::world::{
-    EncounterRecord, FootWalker, FrameInputs, FriendlyBattleSetting, PadInput, Vec3, WorldWalk,
-    select_scene, wrap_position,
+    EncounterRecord, FootWalker, FrameInputs, FriendlyBattleSetting, PadInput, PlaneInput,
+    RaycastMode, ShipInput, Vec3, VehicleMotion, VehicleSpec, WorldWalk, advance_xz, advance_y,
+    plane_step, select_scene, ship_step, wrap_position,
 };
 
 use crate::world_data::WorldAssets;
@@ -26,6 +27,8 @@ const DOWN: i32 = 0x40;
 const LEFT: i32 = 0x80;
 const L1: i32 = 0x400;
 const R1: i32 = 0x800;
+const L2: i32 = 0x100;
+const R2: i32 = 0x200;
 
 /// `w_cameraPosstat[1]` after `w_cameraSystemConstructor`: distance 6000,
 /// height 3200 and aim height 1200 over 256; perspective 350.
@@ -67,8 +70,11 @@ pub struct WorldPlay {
     pub forms: BTreeSet<(usize, usize)>,
     /// Which minimap shows (`w_naviMapno`): 0 the first continent, 1 the world.
     pub navi_map: u8,
-    /// Riding the yellow chocobo (`w_moveCHRControl` entry 1).
-    pub chocobo: bool,
+    /// The `w_moveCHRControl` entry in use: 0 on foot, 1 to 5 the chocobos,
+    /// 6 the gold chocobo in the air, 7 the Blue Narciss under sail.
+    pub ride: u8,
+    /// Speed and heading while `ride` is 6 or 7.
+    air: VehicleMotion,
     /// Places visited, bit `n` for place `n + 1` (`gEventGlobal` 92 to 99).
     pub visited: u64,
     pub walker: FootWalker,
@@ -84,6 +90,20 @@ pub struct WorldPlay {
     rng: u32,
     /// Danger steps taken, for reports.
     pub steps: u32,
+}
+
+/// Height above the ground a flight starts at, the lowest it may go and
+/// the ceiling, in world units.
+const AIR_START_HEIGHT: f32 = 12.0;
+const AIR_MIN_HEIGHT: f32 = 6.0;
+const AIR_MAX_HEIGHT: f32 = 140.0;
+/// How much of the turn toward the heading the camera takes each frame.
+const AIR_CAMERA_FOLLOW: f32 = 0.04;
+
+/// `wrap_position` that leaves the height alone.
+fn wrap_position_keep_y(pos: Vec3) -> Vec3 {
+    let wrapped = wrap_position(pos);
+    Vec3::new(wrapped.x, pos.y, wrapped.z)
 }
 
 impl WorldPlay {
@@ -106,7 +126,8 @@ impl WorldPlay {
             walk,
             forms: BTreeSet::new(),
             navi_map: 0,
-            chocobo: false,
+            ride: 0,
+            air: VehicleMotion::default(),
             visited: 0,
             walker,
             events,
@@ -143,21 +164,176 @@ impl WorldPlay {
         self.visited = visited;
     }
 
-    /// Gets on or off the yellow chocobo: the same foot movement with the
-    /// chocobo's control entry (faster, other ground limits).
-    pub fn set_chocobo(&mut self, on: bool) {
-        if on == self.chocobo {
+    /// Switches to the vehicle `control` (`w_moveCHRControl` entry): 0 on
+    /// foot, 1 to 5 the chocobos (the foot movement with their own speed and
+    /// ground limits), 6 the gold chocobo in the air and 7 the Blue Narciss
+    /// (a ship on the water topographs, `VehicleSpec` kind 2). The ship only
+    /// casts off from water; anything else is ignored.
+    pub fn set_ride(&mut self, control: u8) {
+        if control == self.ride || control > 7 {
             return;
         }
         let old = &self.walker;
-        let Ok(mut walker) = FootWalker::new(usize::from(on), old.pos, old.rot_y) else {
+        let (pos, rot_y, rot_true, camera) = (old.pos, old.rot_y, old.rot_true, old.camera);
+        let flying = control == 6;
+        let motor = control >= 6;
+        if control == 7 && !self.water_at(pos) {
+            return;
+        }
+        let Ok(mut walker) =
+            FootWalker::new(if motor { 0 } else { usize::from(control) }, pos, rot_y)
+        else {
             return;
         };
-        walker.rot_true = old.rot_true;
-        walker.camera = old.camera;
-        walker.place(&self.walk, old.pos);
+        walker.rot_true = rot_true;
+        walker.camera = camera;
+        walker.place(&self.walk, pos);
+        if flying {
+            // Take off a little above the ground, still.
+            walker.pos.y += AIR_START_HEIGHT;
+        }
+        if motor {
+            self.air = VehicleMotion {
+                rot_y,
+                rot_true: rot_y,
+                ..VehicleMotion::default()
+            };
+        }
         self.walker = walker;
-        self.chocobo = on;
+        self.ride = control;
+    }
+
+    /// Whether the player is in the air.
+    pub fn flying(&self) -> bool {
+        self.ride == 6
+    }
+
+    /// Whether the player is on the Blue Narciss.
+    pub fn sailing(&self) -> bool {
+        self.ride == 7
+    }
+
+    /// Whether the Narciss may float at `pos` (the ship's topograph limit).
+    fn water_at(&self, pos: Vec3) -> bool {
+        let Some(spec) = VehicleSpec::get(7) else {
+            return false;
+        };
+        let mode = RaycastMode {
+            cast_from_sky: true,
+            ignore_exceptions: true,
+            control_type: 2,
+        };
+        let hit = self.walk.nwp_hit(pos, &mode, None);
+        hit.pno == 1000 && spec.can_enter(hit.id)
+    }
+
+    /// One frame under sail (`w_movementShipOperation`): up and down are
+    /// ahead and astern, left and right turn. The ship stops at the shore.
+    fn sail(&mut self, held: i32) {
+        let Some(spec) = VehicleSpec::get(7) else {
+            return;
+        };
+        let axis = |negative: i32, positive: i32| match (held & negative != 0, held & positive != 0)
+        {
+            (true, false) => -127,
+            (false, true) => 127,
+            _ => 0,
+        };
+        let input = ShipInput {
+            rotate: axis(LEFT, RIGHT),
+            left_y: axis(UP, DOWN),
+            l1: held & L1 != 0,
+            r1: held & R1 != 0,
+            ..ShipInput::default()
+        };
+        let output = ship_step(spec, &mut self.air, &input);
+        let last = self.walker.pos;
+        let mut pos = wrap_position_keep_y(advance_xz(last, self.air.rot_true, self.air.xz_speed));
+        if !self.water_at(pos) {
+            // Shore ahead: stay put and let the speed die.
+            pos = last;
+            self.air.xz_speed = 0.0;
+            self.air.xz_alpha = 0.0;
+        }
+        let mode = RaycastMode {
+            cast_from_sky: true,
+            ignore_exceptions: true,
+            control_type: 2,
+        };
+        let hit = self.walk.nwp_hit(pos, &mode, None);
+        if hit.pno == 1000 {
+            pos.y = hit.height;
+        }
+        let walker = &mut self.walker;
+        walker.last = last;
+        walker.pos = pos;
+        walker.rot_y = self.air.rot_y;
+        walker.rot_true = self.air.rot_true;
+        walker.moved = pos != last;
+        let mut turn = (self.air.rot_true - walker.camera.rotation) % 360.0;
+        if turn > 180.0 {
+            turn -= 360.0;
+        }
+        if turn < -180.0 {
+            turn += 360.0;
+        }
+        walker.camera.rotation = (walker.camera.rotation + turn * AIR_CAMERA_FOLLOW) % 360.0;
+        walker.camera.rotation += output.camera_rotation_delta;
+    }
+
+    /// One frame of flight (`w_movementPlaneOperation` then `w_movementControl`'s
+    /// flying branch). Up and down are throttle and brake, left and right
+    /// turn, L2 climbs and R2 descends.
+    fn fly(&mut self, held: i32) {
+        let Some(spec) = VehicleSpec::get(usize::from(self.ride)) else {
+            return;
+        };
+        let axis = |negative: i32, positive: i32| match (held & negative != 0, held & positive != 0)
+        {
+            (true, false) => -127,
+            (false, true) => 127,
+            _ => 0,
+        };
+        let input = PlaneInput {
+            left_x: axis(LEFT, RIGHT),
+            left_y: axis(L2, R2),
+            right: -axis(UP, DOWN),
+            l1: held & L1 != 0,
+            r1: held & R1 != 0,
+            ..PlaneInput::default()
+        };
+        let output = plane_step(spec, &mut self.air, &input);
+        let walker = &mut self.walker;
+        walker.last = walker.pos;
+        let mut pos = advance_xz(walker.pos, self.air.rot_true, self.air.xz_speed);
+        pos = advance_y(pos, self.air.y_speed);
+        pos = wrap_position_keep_y(pos);
+        let mode = RaycastMode {
+            cast_from_sky: true,
+            ignore_exceptions: true,
+            control_type: 1,
+        };
+        let ground = self.walk.nwp_hit(pos, &mode, None);
+        let floor = if ground.pno == 1000 {
+            ground.height
+        } else {
+            0.0
+        } + AIR_MIN_HEIGHT;
+        pos.y = pos.y.clamp(floor, AIR_MAX_HEIGHT.max(floor));
+        walker.pos = pos;
+        walker.rot_y = self.air.rot_y;
+        walker.rot_true = self.air.rot_true;
+        walker.moved = self.air.xz_speed.abs() > 1e-4;
+        // The camera swings in behind the heading.
+        let mut turn = (self.air.rot_true - walker.camera.rotation) % 360.0;
+        if turn > 180.0 {
+            turn -= 360.0;
+        }
+        if turn < -180.0 {
+            turn += 360.0;
+        }
+        walker.camera.rotation = (walker.camera.rotation + turn * AIR_CAMERA_FOLLOW) % 360.0;
+        walker.camera.rotation += output.camera_rotation_delta;
     }
 
     fn random8(&mut self) -> u8 {
@@ -199,6 +375,16 @@ impl WorldPlay {
             menu_open,
             ..FrameInputs::default()
         };
+        if self.sailing() {
+            self.sail(held);
+            return WorldTick::default();
+        }
+        if self.flying() {
+            self.fly(held);
+            let pos = wrap_position_keep_y(self.walker.pos);
+            self.walker.pos = pos;
+            return WorldTick::default();
+        }
         let report = self.walker.step(&self.walk, &inputs);
         // The world wraps at every edge (`WMWorld.Wrap`).
         let wrapped = wrap_position(self.walker.pos);

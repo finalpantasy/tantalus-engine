@@ -145,22 +145,53 @@ fn the_world_wraps_and_blocks_take_their_second_form() {
 }
 
 #[test]
-fn riding_the_chocobo_is_faster_than_walking() {
+fn chocobos_and_the_airship_move_the_player() {
     let Some(dir) = streaming() else {
         eprintln!("install not found; skipping");
         return;
     };
     let assets = Arc::new(WorldAssets::load(&dir, 1).expect("world assets"));
-    let run = |ride: bool| {
+    let run = |ride: u8, held: i32| {
         let mut play = WorldPlay::new(assets.clone(), BTreeMap::new(), 1100.0, -800.0, 1).unwrap();
-        play.set_chocobo(ride);
-        assert_eq!(play.chocobo, ride);
+        play.set_ride(ride);
+        assert_eq!(play.ride, ride);
         let start = play.walker.pos;
         for _ in 0..60 {
-            play.tick(UP, 0, CONFIRM, false);
+            play.tick(held, 0, CONFIRM, false);
         }
         (play.walker.pos.z - start.z).abs()
     };
-    let (foot, chocobo) = (run(false), run(true));
-    assert!(chocobo > foot * 1.3, "foot {foot} chocobo {chocobo}");
+    let foot = run(0, UP);
+    assert!(run(1, UP) > foot * 1.3, "yellow chocobo");
+    for kind in 2..=5 {
+        assert!(run(kind, UP) > 0.0, "chocobo kind {kind} moves");
+    }
+    // The gold chocobo flies: throttle moves it and L2 climbs.
+    let air = run(6, UP);
+    assert!(air > foot, "gold chocobo {air} foot {foot}");
+    let mut play = WorldPlay::new(assets.clone(), BTreeMap::new(), 1100.0, -800.0, 1).unwrap();
+    play.set_ride(6);
+    assert!(play.flying());
+    let ground = play.walker.pos.y;
+    for _ in 0..30 {
+        play.tick(0x100, 0, CONFIRM, false);
+    }
+    assert!(play.walker.pos.y > ground, "climb");
+    // The Blue Narciss casts off from the sea only, and sails on it.
+    let mut land = WorldPlay::new(assets.clone(), BTreeMap::new(), 1100.0, -800.0, 1).unwrap();
+    land.set_ride(7);
+    assert_eq!(land.ride, 0, "no ship on dry land");
+    let mut ship = WorldPlay::new(assets, BTreeMap::new(), 40.0, -400.0, 1).unwrap();
+    ship.set_ride(7);
+    assert!(ship.sailing());
+    let start = ship.walker.pos;
+    for _ in 0..90 {
+        ship.tick(UP, 0, CONFIRM, false);
+    }
+    let moved = (ship.walker.pos.z - start.z).hypot(ship.walker.pos.x - start.x);
+    assert!(moved > 5.0, "the ship sails {moved}");
+    let play = &mut play;
+    // Wrapping keeps the flight inside the world.
+    play.set_ride(0);
+    assert!(!play.flying());
 }

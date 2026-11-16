@@ -1507,7 +1507,9 @@ impl PlayGame {
             return Ok(());
         };
         if pressed & pad::SQUARE != 0 {
-            play.set_chocobo(!play.chocobo);
+            // Square steps through the rides: on foot, the five chocobos,
+            // the gold chocobo in the air, the Blue Narciss, on foot.
+            play.set_ride((play.ride + 1) % 8);
         }
         let tick = play.tick(held, pressed, CONFIRM, false);
         if let Some(scene) = tick.battle {

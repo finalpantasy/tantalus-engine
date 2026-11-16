@@ -10,9 +10,15 @@
 
 use crate::battle_raster::Frame;
 
-/// `WMTweaker._FogStartDistance` and `_FogEndDistance`, in world units.
-pub const FOG_START: f32 = 47.9;
-pub const FOG_END: f32 = 59.0;
+/// Where the haze starts and where it is full, in world units from the
+/// camera. `ff9.w_weatherModeCheck_ChangeSettings` puts the radial mist at
+/// `100 * MistStartDistance_base` (80 by default) plus the camera-height
+/// blend of 64 to 80 past the camera, about 145 units, so the ground and the
+/// mountains within a block or two of the player stay clear and the far
+/// ones fade. (`WMTweaker._FogStartDistance` 47.9 and 59 only feed the actor
+/// shaders.)
+pub const FOG_START: f32 = 140.0;
+pub const FOG_END: f32 = 250.0;
 
 /// One row of `WeatherColors.csv` after the weather change has finished
 /// (`Color[2]`, `[6]`, `[10]`, `[14]`): daylight, evening, night, purple sky.
@@ -142,7 +148,7 @@ mod tests {
     fn empty_pixels_take_the_sky_and_far_ground_the_fog() {
         let mut frame = Frame::new(2, 2, [0, 0, 0, 255]);
         frame.depth[2] = 10.0;
-        frame.depth[3] = 100.0;
+        frame.depth[3] = 400.0;
         frame.rgba[8..12].copy_from_slice(&[10, 10, 10, 255]);
         frame.rgba[12..16].copy_from_slice(&[10, 10, 10, 255]);
         DAYLIGHT.apply(&mut frame, 1.0);

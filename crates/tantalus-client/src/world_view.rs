@@ -22,9 +22,9 @@ use crate::world_minimap::Minimap;
 use crate::world_weather::Weather;
 
 /// Blocks drawn each side of the player's block.
-const RADIUS: i32 = 3;
+const RADIUS: i32 = 4;
 /// Loaded blocks kept past the drawn ring before the farthest go.
-const KEEP: i32 = 5;
+const KEEP: i32 = 6;
 /// How much of the water shows over what is under it (`Sea*` meshes).
 const WATER_OPACITY: u8 = 190;
 
@@ -42,13 +42,37 @@ pub const WORLD_LAYER: usize = 8;
 const ZIDANE_MODEL: u16 = 310;
 const ZIDANE_IDLE: u16 = 4719;
 const ZIDANE_RUN: u16 = 4722;
-/// `GEO_SUB_W0_003`, the chocobo, with `ANH_SUB_W0_003_IDLE1_CHO` and
-/// `_RUN_CHO` (`WMAnimationBank`).
+/// `GEO_SUB_W0_003`, the chocobo, with `ANH_SUB_W0_003_IDLE1_CHO`, `_RUN_CHO`
+/// and `_FLY_CHO` (`WMAnimationBank`).
 const CHOCOBO_MODEL: u16 = 308;
 const CHOCOBO_IDLE: u16 = 4707;
 const CHOCOBO_RUN: u16 = 4710;
+const CHOCOBO_FLY: u16 = 4991;
+/// Zidane mounted: `ANH_SUB_W0_001_IDLE1_CHO`, `_RUN_CHO` and `_FLY_CHO`,
+/// authored on the chocobo's own origin, so he is drawn with the chocobo's
+/// transform.
+const RIDER_IDLE: u16 = 4724;
+const RIDER_RUN: u16 = 4727;
+const RIDER_FLY: u16 = 1143;
+/// `GEO_SUB_W0_008`, the Blue Narciss, and its `ANH_SUB_W0_008_IDLE1_BN`
+/// clip; `WMActor.SetScale(106, 106, 106)`.
+const NARCISS_MODEL: u16 = 321;
+const NARCISS_IDLE: u16 = 5144;
+const NARCISS_SCALE: f32 = 106.0 / 64.0 / 256.0;
 /// `WMActor.SetScale(67, 67, 67)`: 67 / 64 of 1/256.
 const MODEL_SCALE: f32 = 67.0 / 64.0 / 256.0;
+/// Hue turn in degrees and brightness that stand in for the other chocobo
+/// colors (control entries 1 to 6: yellow, light blue, red, deep blue, gold
+/// on the ground and in the air). The reference swaps in textures from
+/// Memoria's embedded assets, which an install does not carry.
+const CHOCOBO_TINTS: [(f32, f32); 6] = [
+    (0.0, 1.0),
+    (140.0, 1.0),
+    (-50.0, 0.95),
+    (185.0, 0.9),
+    (-8.0, 1.15),
+    (-8.0, 1.15),
+];
 
 pub struct WorldRenderer {
     models: ActorModels,
@@ -67,6 +91,11 @@ impl WorldRenderer {
             (ZIDANE_MODEL, ZIDANE_RUN),
             (CHOCOBO_MODEL, CHOCOBO_IDLE),
             (CHOCOBO_MODEL, CHOCOBO_RUN),
+            (CHOCOBO_MODEL, CHOCOBO_FLY),
+            (ZIDANE_MODEL, RIDER_IDLE),
+            (ZIDANE_MODEL, RIDER_RUN),
+            (ZIDANE_MODEL, RIDER_FLY),
+            (NARCISS_MODEL, NARCISS_IDLE),
         ]
         .map(|(model, animation)| ActorPose {
             model: Some(model),
@@ -162,27 +191,62 @@ impl WorldRenderer {
         }
         let moving = play.walker.moved;
         let time = play.frames as f32 / 30.0;
-        let (model, animation) = match (play.chocobo, moving) {
-            (false, true) => (ZIDANE_MODEL, ZIDANE_RUN),
-            (false, false) => (ZIDANE_MODEL, ZIDANE_IDLE),
-            (true, true) => (CHOCOBO_MODEL, CHOCOBO_RUN),
-            (true, false) => (CHOCOBO_MODEL, CHOCOBO_IDLE),
+        let at = [pos.x, pos.y, pos.z];
+        let place = |scale: f32, tint: (f32, f32)| Placement {
+            at,
+            yaw: play.walker.rot_y,
+            scale,
+            tint,
         };
-        if !draw_character(
-            &mut frame,
-            &camera,
-            &self.models,
-            (model, animation),
-            [pos.x, pos.y, pos.z],
-            play.walker.rot_y,
-            time,
-        ) {
-            draw_marker(
+        let plain = (0.0, 1.0);
+        let drawn_player = match play.ride {
+            0 => {
+                let clip = if moving { ZIDANE_RUN } else { ZIDANE_IDLE };
+                draw_character(
+                    &mut frame,
+                    &camera,
+                    &self.models,
+                    (ZIDANE_MODEL, clip),
+                    &place(MODEL_SCALE, plain),
+                    time,
+                )
+            }
+            7 => draw_character(
                 &mut frame,
                 &camera,
-                [pos.x, pos.y, pos.z],
-                play.walker.rot_y,
-            );
+                &self.models,
+                (NARCISS_MODEL, NARCISS_IDLE),
+                &place(NARCISS_SCALE, plain),
+                time,
+            ),
+            ride => {
+                let (mount, rider) = match (ride, moving) {
+                    (6, _) => (CHOCOBO_FLY, RIDER_FLY),
+                    (_, true) => (CHOCOBO_RUN, RIDER_RUN),
+                    (_, false) => (CHOCOBO_IDLE, RIDER_IDLE),
+                };
+                let tint = CHOCOBO_TINTS[usize::from(ride) - 1];
+                let drew = draw_character(
+                    &mut frame,
+                    &camera,
+                    &self.models,
+                    (CHOCOBO_MODEL, mount),
+                    &place(MODEL_SCALE, tint),
+                    time,
+                );
+                draw_character(
+                    &mut frame,
+                    &camera,
+                    &self.models,
+                    (ZIDANE_MODEL, rider),
+                    &place(MODEL_SCALE, plain),
+                    time,
+                );
+                drew
+            }
+        };
+        if !drawn_player {
+            draw_marker(&mut frame, &camera, at, play.walker.rot_y);
         }
         let view = play.camera();
         let (dx, dz) = (view.aim[0] - view.eye[0], view.aim[2] - view.eye[2]);
@@ -273,17 +337,63 @@ fn draw_block(frame: &mut Frame, camera: &BattleCamera, item: &Drawn, pass: Pass
     }
 }
 
-/// Zidane's skinned model at `at`, turned to `yaw` degrees. False when the
+/// Where and how big a model stands.
+struct Placement {
+    at: [f32; 3],
+    /// Degrees about the up axis.
+    yaw: f32,
+    scale: f32,
+    /// Hue turn in degrees and brightness of the texture.
+    tint: (f32, f32),
+}
+
+/// `rgba` with its hue turned `degrees` and its brightness scaled by `gain`.
+fn tinted(rgba: &[u8], (degrees, gain): (f32, f32)) -> Vec<u8> {
+    let (sin, cos) = degrees.to_radians().sin_cos();
+    // The standard hue rotation about the gray axis.
+    let m = [
+        [
+            0.213 + cos * 0.787 - sin * 0.213,
+            0.715 - cos * 0.715 - sin * 0.715,
+            0.072 - cos * 0.072 + sin * 0.928,
+        ],
+        [
+            0.213 - cos * 0.213 + sin * 0.143,
+            0.715 + cos * 0.285 + sin * 0.140,
+            0.072 - cos * 0.072 - sin * 0.283,
+        ],
+        [
+            0.213 - cos * 0.213 - sin * 0.787,
+            0.715 - cos * 0.715 + sin * 0.715,
+            0.072 + cos * 0.928 + sin * 0.072,
+        ],
+    ];
+    let mut out = rgba.to_vec();
+    for pixel in out.chunks_exact_mut(4) {
+        let rgb = [
+            f32::from(pixel[0]),
+            f32::from(pixel[1]),
+            f32::from(pixel[2]),
+        ];
+        for (channel, row) in m.iter().enumerate() {
+            let value = (row[0] * rgb[0] + row[1] * rgb[1] + row[2] * rgb[2]) * gain;
+            pixel[channel] = value.round().clamp(0.0, 255.0) as u8;
+        }
+    }
+    out
+}
+
+/// A skinned world model, turned and scaled as `place` says. False when the
 /// model did not load.
 fn draw_character(
     frame: &mut Frame,
     camera: &BattleCamera,
     models: &ActorModels,
     clip: (u16, u16),
-    at: [f32; 3],
-    yaw: f32,
+    place: &Placement,
     time: f32,
 ) -> bool {
+    let (at, yaw) = (place.at, place.yaw);
     let Some((model, skinned)) = models.skinned(clip.0, Some(clip.1), time) else {
         return false;
     };
@@ -301,7 +411,7 @@ fn draw_character(
         let view: Vec<Vec3> = vertices
             .iter()
             .map(|vertex| {
-                let world = origin + rotation * (Vec3::from_array(*vertex) * MODEL_SCALE);
+                let world = origin + rotation * (Vec3::from_array(*vertex) * place.scale);
                 camera.to_view(world.to_array())
             })
             .collect();
@@ -309,20 +419,23 @@ fn draw_character(
             if submesh.topology != 0 {
                 continue;
             }
-            let texture = submesh.material.as_ref().and_then(|material| {
+            let source = submesh.material.as_ref().and_then(|material| {
                 material.textures.iter().find_map(|texture| {
                     let rgba = texture.rgba.as_deref()?;
                     let width = usize::try_from(texture.width).ok()?;
                     let height = usize::try_from(texture.height).ok()?;
-                    (width > 0 && height > 0 && rgba.len() >= width * height * 4).then_some(
-                        Texture {
-                            width,
-                            height,
-                            rgba,
-                            clamp: false,
-                        },
-                    )
+                    (width > 0 && height > 0 && rgba.len() >= width * height * 4)
+                        .then_some((width, height, rgba))
                 })
+            });
+            let recolored = source
+                .filter(|_| place.tint != (0.0, 1.0))
+                .map(|(_, _, rgba)| tinted(rgba, place.tint));
+            let texture = source.map(|(width, height, rgba)| Texture {
+                width,
+                height,
+                rgba: recolored.as_deref().unwrap_or(rgba),
+                clamp: false,
             });
             let first = submesh.first_index as usize;
             let end = first + submesh.index_count as usize;
