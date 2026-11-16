@@ -137,8 +137,9 @@ fn has_root(dir: &ModelDir) -> bool {
 
 fn models_catalog() -> ModelCatalog {
     ModelCatalog::from_container(&[
-        entry("assets/resources/models/3/233/233.fbx", 1),
-        entry("assets/resources/models/3/233/233.fbx", 43),
+        // Geo 233 is `GEO_ACC_F0_OPB`, an `acc` (type 1) directory.
+        entry("assets/resources/models/1/233/233.fbx", 1),
+        entry("assets/resources/models/1/233/233.fbx", 43),
     ])
 }
 
@@ -478,8 +479,8 @@ fn players_cover_nineteen_rows_with_thirty_four_animations() {
 
 #[test]
 fn players_report_missing_clips_and_models() {
-    let catalog =
-        ModelCatalog::from_container(&[entry("assets/resources/models/2/5414/5414.fbx", 1)]);
+    // `GEO_MAIN_B0_000` (5414) loads the field model directory 2/98 (`model_factory`).
+    let catalog = ModelCatalog::from_container(&[entry("assets/resources/models/2/98/98.fbx", 1)]);
     let clips = ClipIndex::new(&[clip(5414, "125")]);
     let report = build_player_report(
         Some(&catalog),

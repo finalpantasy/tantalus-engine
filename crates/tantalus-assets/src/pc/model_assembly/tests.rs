@@ -216,7 +216,7 @@ fn fixture(bones: Vec<PPtr>, material_slots: &[(&str, i64)]) -> FixtureStore {
         }),
     );
     store.textures.insert(140, dxt5_red());
-    store.textures.insert(141, texture("raw", 4, vec![0; 64]));
+    store.textures.insert(141, texture("raw", 13, vec![0; 32]));
     store
 }
 
@@ -253,7 +253,7 @@ fn assembles_nodes_bones_materials_and_textures() {
     assert_eq!(decoded.rgba.as_ref().unwrap()[3], 255);
     let raw = &material.textures[1];
     assert!(raw.rgba.is_none());
-    assert!(raw.undecodable.as_ref().unwrap().contains("format 4"));
+    assert!(raw.undecodable.as_ref().unwrap().contains("format 13"));
 
     let summary = model.summary();
     assert_eq!(summary.distinct_bones, 2);

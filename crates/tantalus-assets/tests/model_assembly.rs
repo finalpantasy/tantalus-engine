@@ -65,7 +65,7 @@ fn real_install_assembles_every_model_and_binds_clips() {
     assert_eq!(report.nodes, 16_645);
     assert_eq!(report.bone_resolution_failures, 0);
     assert_eq!(report.bone_count_mismatches, 0);
-    assert_eq!(report.textures_undecodable, 2);
+    assert_eq!(report.textures_undecodable, 0);
 
     let embedded = embedded_clip_report(&store, &models, Interpolation::Hermite);
     assert_eq!(embedded.clips, 105);

@@ -1045,27 +1045,18 @@ impl Assembler<'_> {
             Ok(None) => return Ok(absent("texture object is missing".to_owned())),
             Err(error) => return Ok(absent(error.to_string())),
         };
-        let block_bytes = if texture.format == crate::pc::texture::DXT1_FORMAT {
-            8
-        } else {
-            16
-        };
-        let blocks = (texture.width.max(0) as usize).div_ceil(4)
-            * (texture.height.max(0) as usize).div_ceil(4);
-        let verdict = if texture.format != crate::pc::texture::DXT5_FORMAT
-            && texture.format != crate::pc::texture::DXT1_FORMAT
-        {
+        let first_level = texture.first_level_bytes();
+        let verdict = if !Texture2D::is_decodable_format(texture.format) {
             Some(format!(
-                "Texture2D format {} is not DXT1 or DXT5; no decoder",
+                "Texture2D format {} has no decoder in this reader",
                 texture.format
             ))
         } else if texture.width <= 0 || texture.height <= 0 {
             Some(format!("invalid size {}x{}", texture.width, texture.height))
-        } else if texture.image_data.len() < blocks * block_bytes {
+        } else if texture.image_data.len() < first_level {
             Some(format!(
-                "image data has {} bytes; first mip needs {}",
+                "image data has {} bytes; first mip needs {first_level}",
                 texture.image_data.len(),
-                blocks * block_bytes
             ))
         } else {
             None

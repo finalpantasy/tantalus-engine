@@ -6,7 +6,10 @@
 //! * Enemy model: `btl_init.InitEnemyData` sets `dms_geo_id = BTL_SCENE.GetMonGeoID(placement)`,
 //!   which is `MonAddr[TypeNo].Geo` unless the placement is a multipart slave
 //!   (`TypeNo > 0` and `FLG_MULTIPART`), which gets -1 and no model. The model name is
-//!   `FF9BattleDB.GEO.GetValue(geo)`, a `GEO_MON_*` directory under `models/3/<geo id>`.
+//!   `FF9BattleDB.GEO.GetValue(geo)`. `ModelFactory.CreateModel` loads the directory of that
+//!   name's `upscaleTable`/`revertUpscaleTable` target (`model_factory`), which is `models/3/<id>`
+//!   for most monsters but the party member's field model for the party-member stand-ins (`ModelFactory.IsUseAsEnemyCharacter`)
+//!   character stand-ins.
 //! * Enemy animations: `SetupBattleEnemy` calls `SetMonsterParameter` for every type, which does
 //!   `mot[i] = FF9BattleDB.Animation[Mot[i]]` (six ids, a missing key throws). Sequence streams
 //!   add `Anim` operands: `FF9BattleDB.Animation[AnmAddrList[AnmOfsList[slot] + code]]` (code
@@ -23,7 +26,8 @@
 //!   `BBG_B<bbgnumber>_OBJ1..objanim` and, when `texanim != 0`, plays the animations from
 //!   `BattleMap/BattleTexAnim/TAM_Bnnn.tab`. A missing `.tab` with `texanim == 0` only logs.
 //! * Players: `btl_mot.BattleParameterList[serial]` (Memoria's `BattleParameters.csv`): model,
-//!   trance model and 34 animation names (`SetPlayerDefMotion`). Weapon: `btl_eqp.InitWeapon`
+//!   trance model and 34 animation names (`SetPlayerDefMotion`). The model names resolve
+//!   through the same `CreateModel` rules: `GEO_MAIN_B0_000` (Zidane) loads the field model `2/98`. Weapon: `btl_eqp.InitWeapon`
 //!   uses `FF9BattleDB.GEO.GetValue(weapon.ModelId)` and, for `GEO_WEP*`, the directory
 //!   `BattleMap/BattleModel/battle_weapon/<name>`; a weapon without a model name gets a dummy
 //!   object and is not a failure.

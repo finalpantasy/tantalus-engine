@@ -3,6 +3,52 @@ use serde::{Deserialize, Serialize};
 
 pub const DXT5_FORMAT: i32 = 12;
 pub const DXT1_FORMAT: i32 = 10;
+/// Unity `TextureFormat.Alpha8`: one byte per pixel, alpha only.
+pub const ALPHA8_FORMAT: i32 = 1;
+/// Unity `TextureFormat.RGB24`: bytes R, G, B.
+pub const RGB24_FORMAT: i32 = 3;
+/// Unity `TextureFormat.RGBA32`: bytes R, G, B, A.
+pub const RGBA32_FORMAT: i32 = 4;
+/// Unity `TextureFormat.ARGB32`: bytes A, R, G, B.
+pub const ARGB32_FORMAT: i32 = 5;
+/// Unity `TextureFormat.RGB565`: little-endian 16-bit, red in the high 5 bits.
+pub const RGB565_FORMAT: i32 = 7;
+/// Unity `TextureFormat.BGRA32`: bytes B, G, R, A.
+pub const BGRA32_FORMAT: i32 = 14;
+
+/// Bytes per 4x4 block for a block-compressed format, or bytes per pixel for a
+/// raw one; `None` when this reader has no decoder for the format.
+fn layout(format: i32) -> Option<(bool, usize)> {
+    match format {
+        DXT1_FORMAT => Some((true, 8)),
+        DXT5_FORMAT => Some((true, 16)),
+        ALPHA8_FORMAT => Some((false, 1)),
+        RGB24_FORMAT => Some((false, 3)),
+        RGBA32_FORMAT | ARGB32_FORMAT | BGRA32_FORMAT => Some((false, 4)),
+        RGB565_FORMAT => Some((false, 2)),
+        _ => None,
+    }
+}
+
+/// Bytes of one mip level of `width` x `height` pixels.
+fn level_bytes(format: i32, width: usize, height: usize) -> Option<usize> {
+    let (blocked, size) = layout(format)?;
+    Some(if blocked {
+        width.div_ceil(4) * height.div_ceil(4) * size
+    } else {
+        width * height * size
+    })
+}
+
+/// Total bytes of a Unity mip chain: level 0 first, each next level half the
+/// size (at least 1 pixel), `mip_count` levels in all.
+fn chain_bytes(format: i32, width: usize, height: usize, mip_count: usize) -> Option<usize> {
+    let mut total = 0usize;
+    for level in 0..mip_count {
+        total += level_bytes(format, (width >> level).max(1), (height >> level).max(1))?;
+    }
+    Some(total)
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TextureSettings {
@@ -68,24 +114,30 @@ impl Texture2D {
                 "Texture2D complete image size does not match its data",
             ));
         }
-        if format != DXT5_FORMAT && format != DXT1_FORMAT {
+        if layout(format).is_none() {
             return Err(ImportError::unsupported(
                 source,
                 format!("Texture2D format {format}"),
             ));
         }
-        let block_bytes = if format == DXT1_FORMAT { 8 } else { 16 };
-        let expected = (width as usize).div_ceil(4) * (height as usize).div_ceil(4) * block_bytes;
+        if mip_count <= 0 || mip_count > 15 {
+            return Err(invalid(
+                source,
+                "Texture2D mip/image/dimension declaration is unsupported",
+            ));
+        }
+        let expected = chain_bytes(format, width as usize, height as usize, mip_count as usize)
+            .expect("layout checked above");
         if image_data.len() != expected {
             return Err(invalid(
                 source,
                 format!(
-                    "DXT data has {} bytes for {width}x{height}, expected {expected}",
+                    "pixel data has {} bytes for {width}x{height} format {format} with {mip_count} mip level(s), expected {expected}",
                     image_data.len()
                 ),
             ));
         }
-        if mip_count <= 0 || image_count != 1 || texture_dimension != 2 {
+        if image_count != 1 || texture_dimension != 2 {
             return Err(invalid(
                 source,
                 "Texture2D mip/image/dimension declaration is unsupported",
@@ -109,11 +161,26 @@ impl Texture2D {
         })
     }
 
+    /// True when this reader has a decoder for `format`.
+    pub fn is_decodable_format(format: i32) -> bool {
+        layout(format).is_some()
+    }
+
+    /// Bytes of the first (full-size) mip level inside `image_data`.
+    pub fn first_level_bytes(&self) -> usize {
+        level_bytes(self.format, self.width as usize, self.height as usize).unwrap_or(0)
+    }
+
+    /// Decodes the first mip level to RGBA8, rows bottom-up flipped to top-down.
     pub fn rgba_bytes(&self) -> Result<Vec<u8>, ImportError> {
-        let decoded = if self.format == DXT1_FORMAT {
-            decode_dxt1(self)
-        } else {
-            decode_dxt5(self)?
+        let first = self.first_level_bytes();
+        let Some(level) = self.image_data.get(..first) else {
+            return Err(invalid("Texture2D", "first mip level is truncated"));
+        };
+        let decoded = match self.format {
+            DXT1_FORMAT => decode_dxt1(self, level),
+            DXT5_FORMAT => decode_dxt5(self, level)?,
+            other => decode_raw(self, other, level)?,
         };
         let width = self.width as usize;
         let height = self.height as usize;
@@ -197,12 +264,12 @@ impl Cursor<'_> {
     }
 }
 
-fn decode_dxt5(texture: &Texture2D) -> Result<Vec<u8>, ImportError> {
+fn decode_dxt5(texture: &Texture2D, data: &[u8]) -> Result<Vec<u8>, ImportError> {
     let width = texture.width as usize;
     let height = texture.height as usize;
     let mut output = vec![0; width * height * 4];
     let blocks_per_row = width.div_ceil(4);
-    for (block_index, block) in texture.image_data.chunks_exact(16).enumerate() {
+    for (block_index, block) in data.chunks_exact(16).enumerate() {
         let block_x = (block_index % blocks_per_row) * 4;
         let block_y = (block_index / blocks_per_row) * 4;
         let alpha = alpha_palette(block[0], block[1]);
@@ -233,12 +300,12 @@ fn decode_dxt5(texture: &Texture2D) -> Result<Vec<u8>, ImportError> {
 }
 
 /// BC1: 4-color blocks when `c0 > c1`, otherwise 3 colors plus transparent.
-fn decode_dxt1(texture: &Texture2D) -> Vec<u8> {
+fn decode_dxt1(texture: &Texture2D, data: &[u8]) -> Vec<u8> {
     let width = texture.width as usize;
     let height = texture.height as usize;
     let mut output = vec![0; width * height * 4];
     let blocks_per_row = width.div_ceil(4);
-    for (block_index, block) in texture.image_data.chunks_exact(8).enumerate() {
+    for (block_index, block) in data.chunks_exact(8).enumerate() {
         let block_x = (block_index % blocks_per_row) * 4;
         let block_y = (block_index / blocks_per_row) * 4;
         let first = u16::from_le_bytes([block[0], block[1]]);
@@ -265,6 +332,48 @@ fn decode_dxt1(texture: &Texture2D) -> Vec<u8> {
         }
     }
     output
+}
+
+/// Uncompressed formats to RGBA8 (byte orders as Unity stores them).
+fn decode_raw(texture: &Texture2D, format: i32, data: &[u8]) -> Result<Vec<u8>, ImportError> {
+    let pixels = texture.width as usize * texture.height as usize;
+    let mut output = Vec::with_capacity(pixels * 4);
+    match format {
+        ALPHA8_FORMAT => {
+            for &alpha in data {
+                output.extend_from_slice(&[255, 255, 255, alpha]);
+            }
+        }
+        RGB24_FORMAT => {
+            for pixel in data.chunks_exact(3) {
+                output.extend_from_slice(&[pixel[0], pixel[1], pixel[2], 255]);
+            }
+        }
+        RGBA32_FORMAT => output.extend_from_slice(data),
+        ARGB32_FORMAT => {
+            for pixel in data.chunks_exact(4) {
+                output.extend_from_slice(&[pixel[1], pixel[2], pixel[3], pixel[0]]);
+            }
+        }
+        BGRA32_FORMAT => {
+            for pixel in data.chunks_exact(4) {
+                output.extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
+            }
+        }
+        RGB565_FORMAT => {
+            for pixel in data.chunks_exact(2) {
+                let [red, green, blue] = rgb565(u16::from_le_bytes([pixel[0], pixel[1]]));
+                output.extend_from_slice(&[red, green, blue, 255]);
+            }
+        }
+        other => {
+            return Err(ImportError::unsupported(
+                "Texture2D",
+                format!("Texture2D format {other}"),
+            ));
+        }
+    }
+    Ok(output)
 }
 
 fn alpha_palette(first: u8, second: u8) -> [u8; 8] {

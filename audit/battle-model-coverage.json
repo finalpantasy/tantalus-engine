@@ -16,14 +16,14 @@
       "scenes": 562,
       "scenes_read": 562,
       "scenes_with_sequence_file": 562,
-      "scenes_fully_resolved": 547,
+      "scenes_fully_resolved": 560,
       "enemy_types": 727,
       "enemy_types_in_pattern": 727,
       "enemy_models": {
         "references": 712,
-        "references_resolved": 696,
+        "references_resolved": 712,
         "distinct": 182,
-        "distinct_resolved": 168
+        "distinct_resolved": 182
       },
       "enemy_animations": {
         "references": 4362,
@@ -43,10 +43,9 @@
         "distinct": 176,
         "distinct_resolved": 176
       },
-      "backgrounds_with_undecoded_textures": 19,
+      "backgrounds_with_undecoded_textures": 0,
       "enemy_model_status": {
-        "no_directory": 14,
-        "resolved": 168
+        "resolved": 182
       },
       "animation_status": {
         "clip_missing": 2,
@@ -60,6 +59,16 @@
       {
         "model_id": 0,
         "geo_name": "GEO_MON_B3_147",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_147",
+          "upscaled": "GEO_MON_UP3_147",
+          "loaded_name": "GEO_MON_B3_147",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 0
+          }
+        },
         "directories": [
           "3/0"
         ],
@@ -68,6 +77,16 @@
       {
         "model_id": 1,
         "geo_name": "GEO_MON_B3_186",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_186",
+          "upscaled": "GEO_MON_UP3_186",
+          "loaded_name": "GEO_MON_B3_186",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 1
+          }
+        },
         "directories": [
           "3/1"
         ],
@@ -76,6 +95,16 @@
       {
         "model_id": 5,
         "geo_name": "GEO_MON_B3_125",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_125",
+          "upscaled": "GEO_MON_UP3_125",
+          "loaded_name": "GEO_MON_B3_125",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 5
+          }
+        },
         "directories": [
           "3/5"
         ],
@@ -84,6 +113,16 @@
       {
         "model_id": 7,
         "geo_name": "GEO_MON_B3_000",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_000",
+          "upscaled": "GEO_MON_B3_000",
+          "loaded_name": "GEO_MON_B3_000",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 7
+          }
+        },
         "directories": [
           "3/7"
         ],
@@ -92,6 +131,16 @@
       {
         "model_id": 9,
         "geo_name": "GEO_MON_B3_004",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_004",
+          "upscaled": "GEO_MON_B3_004",
+          "loaded_name": "GEO_MON_B3_004",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 9
+          }
+        },
         "directories": [
           "3/9"
         ],
@@ -100,6 +149,16 @@
       {
         "model_id": 14,
         "geo_name": "GEO_MON_B3_196",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_196",
+          "upscaled": "GEO_MON_B3_196",
+          "loaded_name": "GEO_MON_B3_196",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 14
+          }
+        },
         "directories": [
           "3/14"
         ],
@@ -108,6 +167,16 @@
       {
         "model_id": 28,
         "geo_name": "GEO_MON_B3_020",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_020",
+          "upscaled": "GEO_MON_B3_020",
+          "loaded_name": "GEO_MON_B3_020",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 28
+          }
+        },
         "directories": [
           "3/28"
         ],
@@ -116,6 +185,16 @@
       {
         "model_id": 36,
         "geo_name": "GEO_MON_B3_136",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_136",
+          "upscaled": "GEO_MON_UP0_136",
+          "loaded_name": "GEO_MON_B3_136",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 36
+          }
+        },
         "directories": [
           "3/36"
         ],
@@ -124,6 +203,16 @@
       {
         "model_id": 38,
         "geo_name": "GEO_MON_B3_141",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_141",
+          "upscaled": "GEO_MON_UP3_141",
+          "loaded_name": "GEO_MON_B3_141",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 38
+          }
+        },
         "directories": [
           "3/38"
         ],
@@ -132,6 +221,16 @@
       {
         "model_id": 46,
         "geo_name": "GEO_MON_B3_043",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_043",
+          "upscaled": "GEO_MON_B3_043",
+          "loaded_name": "GEO_MON_B3_043",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 46
+          }
+        },
         "directories": [
           "3/46"
         ],
@@ -140,6 +239,16 @@
       {
         "model_id": 47,
         "geo_name": "GEO_MON_B3_051",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_051",
+          "upscaled": "GEO_MON_B3_051",
+          "loaded_name": "GEO_MON_B3_051",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 47
+          }
+        },
         "directories": [
           "3/47"
         ],
@@ -148,6 +257,16 @@
       {
         "model_id": 57,
         "geo_name": "GEO_MON_B3_038",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_038",
+          "upscaled": "GEO_MON_B3_038",
+          "loaded_name": "GEO_MON_B3_038",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 57
+          }
+        },
         "directories": [
           "3/57"
         ],
@@ -156,6 +275,16 @@
       {
         "model_id": 58,
         "geo_name": "GEO_MON_B3_003",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_003",
+          "upscaled": "GEO_MON_B3_003",
+          "loaded_name": "GEO_MON_B3_003",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 58
+          }
+        },
         "directories": [
           "3/58"
         ],
@@ -164,6 +293,16 @@
       {
         "model_id": 59,
         "geo_name": "GEO_MON_B3_013",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_013",
+          "upscaled": "GEO_MON_B3_013",
+          "loaded_name": "GEO_MON_B3_013",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 59
+          }
+        },
         "directories": [
           "3/59"
         ],
@@ -172,6 +311,16 @@
       {
         "model_id": 60,
         "geo_name": "GEO_MON_B3_014",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_014",
+          "upscaled": "GEO_MON_B3_014",
+          "loaded_name": "GEO_MON_B3_014",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 60
+          }
+        },
         "directories": [
           "3/60"
         ],
@@ -180,6 +329,16 @@
       {
         "model_id": 77,
         "geo_name": "GEO_MON_B3_063",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_063",
+          "upscaled": "GEO_MON_B3_063",
+          "loaded_name": "GEO_MON_B3_063",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 77
+          }
+        },
         "directories": [
           "3/77"
         ],
@@ -188,6 +347,16 @@
       {
         "model_id": 78,
         "geo_name": "GEO_MON_B3_062",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_062",
+          "upscaled": "GEO_MON_B3_062",
+          "loaded_name": "GEO_MON_B3_062",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 78
+          }
+        },
         "directories": [
           "3/78"
         ],
@@ -196,6 +365,16 @@
       {
         "model_id": 79,
         "geo_name": "GEO_MON_B3_060",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_060",
+          "upscaled": "GEO_MON_B3_060",
+          "loaded_name": "GEO_MON_B3_060",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 79
+          }
+        },
         "directories": [
           "3/79"
         ],
@@ -204,6 +383,16 @@
       {
         "model_id": 80,
         "geo_name": "GEO_MON_B3_067",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_067",
+          "upscaled": "GEO_MON_B3_067",
+          "loaded_name": "GEO_MON_B3_067",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 80
+          }
+        },
         "directories": [
           "3/80"
         ],
@@ -212,6 +401,16 @@
       {
         "model_id": 81,
         "geo_name": "GEO_MON_B3_066",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_066",
+          "upscaled": "GEO_MON_B3_066",
+          "loaded_name": "GEO_MON_B3_066",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 81
+          }
+        },
         "directories": [
           "3/81"
         ],
@@ -220,6 +419,16 @@
       {
         "model_id": 82,
         "geo_name": "GEO_MON_B3_064",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_064",
+          "upscaled": "GEO_MON_B3_064",
+          "loaded_name": "GEO_MON_B3_064",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 82
+          }
+        },
         "directories": [
           "3/82"
         ],
@@ -228,6 +437,16 @@
       {
         "model_id": 83,
         "geo_name": "GEO_MON_B3_072",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_072",
+          "upscaled": "GEO_MON_B3_072",
+          "loaded_name": "GEO_MON_B3_072",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 83
+          }
+        },
         "directories": [
           "3/83"
         ],
@@ -236,6 +455,16 @@
       {
         "model_id": 84,
         "geo_name": "GEO_MON_B3_042",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_042",
+          "upscaled": "GEO_MON_B3_042",
+          "loaded_name": "GEO_MON_B3_042",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 84
+          }
+        },
         "directories": [
           "3/84"
         ],
@@ -244,6 +473,16 @@
       {
         "model_id": 85,
         "geo_name": "GEO_MON_B3_041",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_041",
+          "upscaled": "GEO_MON_B3_041",
+          "loaded_name": "GEO_MON_B3_041",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 85
+          }
+        },
         "directories": [
           "3/85"
         ],
@@ -252,6 +491,16 @@
       {
         "model_id": 86,
         "geo_name": "GEO_MON_B3_040",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_040",
+          "upscaled": "GEO_MON_B3_040",
+          "loaded_name": "GEO_MON_B3_040",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 86
+          }
+        },
         "directories": [
           "3/86"
         ],
@@ -260,6 +509,16 @@
       {
         "model_id": 87,
         "geo_name": "GEO_MON_B3_047",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_047",
+          "upscaled": "GEO_MON_B3_047",
+          "loaded_name": "GEO_MON_B3_047",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 87
+          }
+        },
         "directories": [
           "3/87"
         ],
@@ -268,6 +527,16 @@
       {
         "model_id": 88,
         "geo_name": "GEO_MON_B3_046",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_046",
+          "upscaled": "GEO_MON_B3_046",
+          "loaded_name": "GEO_MON_B3_046",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 88
+          }
+        },
         "directories": [
           "3/88"
         ],
@@ -276,6 +545,16 @@
       {
         "model_id": 89,
         "geo_name": "GEO_MON_B3_045",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_045",
+          "upscaled": "GEO_MON_B3_045",
+          "loaded_name": "GEO_MON_B3_045",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 89
+          }
+        },
         "directories": [
           "3/89"
         ],
@@ -284,6 +563,16 @@
       {
         "model_id": 90,
         "geo_name": "GEO_MON_B3_044",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_044",
+          "upscaled": "GEO_MON_B3_044",
+          "loaded_name": "GEO_MON_B3_044",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 90
+          }
+        },
         "directories": [
           "3/90"
         ],
@@ -292,6 +581,16 @@
       {
         "model_id": 92,
         "geo_name": "GEO_MON_B3_049",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_049",
+          "upscaled": "GEO_MON_B3_049",
+          "loaded_name": "GEO_MON_B3_049",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 92
+          }
+        },
         "directories": [
           "3/92"
         ],
@@ -300,6 +599,16 @@
       {
         "model_id": 93,
         "geo_name": "GEO_MON_B3_048",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_048",
+          "upscaled": "GEO_MON_B3_048",
+          "loaded_name": "GEO_MON_B3_048",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 93
+          }
+        },
         "directories": [
           "3/93"
         ],
@@ -308,6 +617,16 @@
       {
         "model_id": 94,
         "geo_name": "GEO_MON_B3_053",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_053",
+          "upscaled": "GEO_MON_B3_053",
+          "loaded_name": "GEO_MON_B3_053",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 94
+          }
+        },
         "directories": [
           "3/94"
         ],
@@ -316,6 +635,16 @@
       {
         "model_id": 95,
         "geo_name": "GEO_MON_B3_052",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_052",
+          "upscaled": "GEO_MON_B3_052",
+          "loaded_name": "GEO_MON_B3_052",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 95
+          }
+        },
         "directories": [
           "3/95"
         ],
@@ -324,6 +653,16 @@
       {
         "model_id": 96,
         "geo_name": "GEO_MON_B3_050",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_050",
+          "upscaled": "GEO_MON_B3_050",
+          "loaded_name": "GEO_MON_B3_050",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 96
+          }
+        },
         "directories": [
           "3/96"
         ],
@@ -332,6 +671,16 @@
       {
         "model_id": 97,
         "geo_name": "GEO_MON_B3_056",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_056",
+          "upscaled": "GEO_MON_B3_056",
+          "loaded_name": "GEO_MON_B3_056",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 97
+          }
+        },
         "directories": [
           "3/97"
         ],
@@ -340,6 +689,16 @@
       {
         "model_id": 105,
         "geo_name": "GEO_MON_B3_023",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_023",
+          "upscaled": "GEO_MON_B3_023",
+          "loaded_name": "GEO_MON_B3_023",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 105
+          }
+        },
         "directories": [
           "3/105"
         ],
@@ -348,6 +707,16 @@
       {
         "model_id": 125,
         "geo_name": "GEO_MON_B3_113",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_113",
+          "upscaled": "GEO_MON_UP3_113",
+          "loaded_name": "GEO_MON_B3_113",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 125
+          }
+        },
         "directories": [
           "3/125"
         ],
@@ -356,6 +725,16 @@
       {
         "model_id": 135,
         "geo_name": "GEO_MON_B3_022",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_022",
+          "upscaled": "GEO_MON_B3_022",
+          "loaded_name": "GEO_MON_B3_022",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 135
+          }
+        },
         "directories": [
           "3/135"
         ],
@@ -364,6 +743,16 @@
       {
         "model_id": 136,
         "geo_name": "GEO_MON_B3_027",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_027",
+          "upscaled": "GEO_MON_B3_027",
+          "loaded_name": "GEO_MON_B3_027",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 136
+          }
+        },
         "directories": [
           "3/136"
         ],
@@ -372,6 +761,16 @@
       {
         "model_id": 137,
         "geo_name": "GEO_MON_B3_026",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_026",
+          "upscaled": "GEO_MON_B3_026",
+          "loaded_name": "GEO_MON_B3_026",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 137
+          }
+        },
         "directories": [
           "3/137"
         ],
@@ -380,6 +779,16 @@
       {
         "model_id": 138,
         "geo_name": "GEO_MON_B3_025",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_025",
+          "upscaled": "GEO_MON_B3_025",
+          "loaded_name": "GEO_MON_B3_025",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 138
+          }
+        },
         "directories": [
           "3/138"
         ],
@@ -388,6 +797,16 @@
       {
         "model_id": 141,
         "geo_name": "GEO_MON_B3_028",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_028",
+          "upscaled": "GEO_MON_B3_028",
+          "loaded_name": "GEO_MON_B3_028",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 141
+          }
+        },
         "directories": [
           "3/141"
         ],
@@ -396,6 +815,16 @@
       {
         "model_id": 142,
         "geo_name": "GEO_MON_B3_033",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_033",
+          "upscaled": "GEO_MON_B3_033",
+          "loaded_name": "GEO_MON_B3_033",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 142
+          }
+        },
         "directories": [
           "3/142"
         ],
@@ -404,6 +833,16 @@
       {
         "model_id": 143,
         "geo_name": "GEO_MON_B3_032",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_032",
+          "upscaled": "GEO_MON_B3_032",
+          "loaded_name": "GEO_MON_B3_032",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 143
+          }
+        },
         "directories": [
           "3/143"
         ],
@@ -412,6 +851,16 @@
       {
         "model_id": 144,
         "geo_name": "GEO_MON_B3_031",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_031",
+          "upscaled": "GEO_MON_B3_031",
+          "loaded_name": "GEO_MON_B3_031",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 144
+          }
+        },
         "directories": [
           "3/144"
         ],
@@ -420,6 +869,16 @@
       {
         "model_id": 145,
         "geo_name": "GEO_MON_B3_030",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_030",
+          "upscaled": "GEO_MON_B3_030",
+          "loaded_name": "GEO_MON_B3_030",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 145
+          }
+        },
         "directories": [
           "3/145"
         ],
@@ -428,6 +887,16 @@
       {
         "model_id": 146,
         "geo_name": "GEO_MON_B3_037",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_037",
+          "upscaled": "GEO_MON_B3_037",
+          "loaded_name": "GEO_MON_B3_037",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 146
+          }
+        },
         "directories": [
           "3/146"
         ],
@@ -436,6 +905,16 @@
       {
         "model_id": 147,
         "geo_name": "GEO_MON_B3_036",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_036",
+          "upscaled": "GEO_MON_B3_036",
+          "loaded_name": "GEO_MON_B3_036",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 147
+          }
+        },
         "directories": [
           "3/147"
         ],
@@ -444,6 +923,16 @@
       {
         "model_id": 148,
         "geo_name": "GEO_MON_B3_035",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_035",
+          "upscaled": "GEO_MON_B3_035",
+          "loaded_name": "GEO_MON_B3_035",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 148
+          }
+        },
         "directories": [
           "3/148"
         ],
@@ -452,6 +941,16 @@
       {
         "model_id": 149,
         "geo_name": "GEO_MON_B3_034",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_034",
+          "upscaled": "GEO_MON_B3_034",
+          "loaded_name": "GEO_MON_B3_034",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 149
+          }
+        },
         "directories": [
           "3/149"
         ],
@@ -460,6 +959,16 @@
       {
         "model_id": 150,
         "geo_name": "GEO_MON_B3_039",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_039",
+          "upscaled": "GEO_MON_B3_039",
+          "loaded_name": "GEO_MON_B3_039",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 150
+          }
+        },
         "directories": [
           "3/150"
         ],
@@ -468,6 +977,16 @@
       {
         "model_id": 151,
         "geo_name": "GEO_MON_B3_002",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_002",
+          "upscaled": "GEO_MON_B3_002",
+          "loaded_name": "GEO_MON_B3_002",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 151
+          }
+        },
         "directories": [
           "3/151"
         ],
@@ -476,6 +995,16 @@
       {
         "model_id": 152,
         "geo_name": "GEO_MON_B3_001",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_001",
+          "upscaled": "GEO_MON_B3_001",
+          "loaded_name": "GEO_MON_B3_001",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 152
+          }
+        },
         "directories": [
           "3/152"
         ],
@@ -484,6 +1013,16 @@
       {
         "model_id": 153,
         "geo_name": "GEO_MON_B3_007",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_007",
+          "upscaled": "GEO_MON_B3_007",
+          "loaded_name": "GEO_MON_B3_007",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 153
+          }
+        },
         "directories": [
           "3/153"
         ],
@@ -492,6 +1031,16 @@
       {
         "model_id": 154,
         "geo_name": "GEO_MON_B3_006",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_006",
+          "upscaled": "GEO_MON_B3_006",
+          "loaded_name": "GEO_MON_B3_006",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 154
+          }
+        },
         "directories": [
           "3/154"
         ],
@@ -500,6 +1049,16 @@
       {
         "model_id": 155,
         "geo_name": "GEO_MON_B3_005",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_005",
+          "upscaled": "GEO_MON_B3_005",
+          "loaded_name": "GEO_MON_B3_005",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 155
+          }
+        },
         "directories": [
           "3/155"
         ],
@@ -508,6 +1067,16 @@
       {
         "model_id": 156,
         "geo_name": "GEO_MON_B3_009",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_009",
+          "upscaled": "GEO_MON_B3_009",
+          "loaded_name": "GEO_MON_B3_009",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 156
+          }
+        },
         "directories": [
           "3/156"
         ],
@@ -516,6 +1085,16 @@
       {
         "model_id": 157,
         "geo_name": "GEO_MON_B3_008",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_008",
+          "upscaled": "GEO_MON_B3_008",
+          "loaded_name": "GEO_MON_B3_008",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 157
+          }
+        },
         "directories": [
           "3/157"
         ],
@@ -524,6 +1103,16 @@
       {
         "model_id": 158,
         "geo_name": "GEO_MON_B3_012",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_012",
+          "upscaled": "GEO_MON_B3_012",
+          "loaded_name": "GEO_MON_B3_012",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 158
+          }
+        },
         "directories": [
           "3/158"
         ],
@@ -532,6 +1121,16 @@
       {
         "model_id": 159,
         "geo_name": "GEO_MON_B3_010",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_010",
+          "upscaled": "GEO_MON_B3_010",
+          "loaded_name": "GEO_MON_B3_010",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 159
+          }
+        },
         "directories": [
           "3/159"
         ],
@@ -540,6 +1139,16 @@
       {
         "model_id": 160,
         "geo_name": "GEO_MON_B3_017",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_017",
+          "upscaled": "GEO_MON_B3_017",
+          "loaded_name": "GEO_MON_B3_017",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 160
+          }
+        },
         "directories": [
           "3/160"
         ],
@@ -548,6 +1157,16 @@
       {
         "model_id": 161,
         "geo_name": "GEO_MON_B3_016",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_016",
+          "upscaled": "GEO_MON_B3_016",
+          "loaded_name": "GEO_MON_B3_016",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 161
+          }
+        },
         "directories": [
           "3/161"
         ],
@@ -556,6 +1175,16 @@
       {
         "model_id": 162,
         "geo_name": "GEO_MON_B3_015",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_015",
+          "upscaled": "GEO_MON_B3_015",
+          "loaded_name": "GEO_MON_B3_015",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 162
+          }
+        },
         "directories": [
           "3/162"
         ],
@@ -564,6 +1193,16 @@
       {
         "model_id": 163,
         "geo_name": "GEO_MON_B3_018",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_018",
+          "upscaled": "GEO_MON_B3_018",
+          "loaded_name": "GEO_MON_B3_018",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 163
+          }
+        },
         "directories": [
           "3/163"
         ],
@@ -572,6 +1211,16 @@
       {
         "model_id": 164,
         "geo_name": "GEO_MON_B3_082",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_082",
+          "upscaled": "GEO_MON_B3_082",
+          "loaded_name": "GEO_MON_B3_082",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 164
+          }
+        },
         "directories": [
           "3/164"
         ],
@@ -580,6 +1229,16 @@
       {
         "model_id": 165,
         "geo_name": "GEO_MON_B3_086",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_086",
+          "upscaled": "GEO_MON_B3_086",
+          "loaded_name": "GEO_MON_B3_086",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 165
+          }
+        },
         "directories": [
           "3/165"
         ],
@@ -588,6 +1247,16 @@
       {
         "model_id": 166,
         "geo_name": "GEO_MON_B3_092",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_092",
+          "upscaled": "GEO_MON_B3_092",
+          "loaded_name": "GEO_MON_B3_092",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 166
+          }
+        },
         "directories": [
           "3/166"
         ],
@@ -596,6 +1265,16 @@
       {
         "model_id": 184,
         "geo_name": "GEO_MON_B3_054",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_054",
+          "upscaled": "GEO_MON_B3_054",
+          "loaded_name": "GEO_MON_B3_054",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 184
+          }
+        },
         "directories": [
           "3/184"
         ],
@@ -604,6 +1283,16 @@
       {
         "model_id": 221,
         "geo_name": "GEO_MON_B3_057",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_057",
+          "upscaled": "GEO_MON_B3_057",
+          "loaded_name": "GEO_MON_B3_057",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 221
+          }
+        },
         "directories": [
           "3/221"
         ],
@@ -612,6 +1301,16 @@
       {
         "model_id": 244,
         "geo_name": "GEO_MON_B3_061",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_061",
+          "upscaled": "GEO_MON_B3_061",
+          "loaded_name": "GEO_MON_B3_061",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 244
+          }
+        },
         "directories": [
           "3/244"
         ],
@@ -620,6 +1319,16 @@
       {
         "model_id": 261,
         "geo_name": "GEO_MON_B3_055",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_055",
+          "upscaled": "GEO_MON_B3_055",
+          "loaded_name": "GEO_MON_B3_055",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 261
+          }
+        },
         "directories": [
           "3/261"
         ],
@@ -628,6 +1337,16 @@
       {
         "model_id": 265,
         "geo_name": "GEO_MON_B3_059",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_059",
+          "upscaled": "GEO_MON_B3_059",
+          "loaded_name": "GEO_MON_B3_059",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 265
+          }
+        },
         "directories": [
           "3/265"
         ],
@@ -636,6 +1355,16 @@
       {
         "model_id": 266,
         "geo_name": "GEO_MON_B3_058",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_058",
+          "upscaled": "GEO_MON_B3_058",
+          "loaded_name": "GEO_MON_B3_058",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 266
+          }
+        },
         "directories": [
           "3/266"
         ],
@@ -644,6 +1373,16 @@
       {
         "model_id": 278,
         "geo_name": "GEO_MON_B3_115",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_115",
+          "upscaled": "GEO_MON_UP3_115",
+          "loaded_name": "GEO_MON_B3_115",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 278
+          }
+        },
         "directories": [
           "3/278"
         ],
@@ -652,40 +1391,106 @@
       {
         "model_id": 295,
         "geo_name": "GEO_MON_B3_172",
-        "directories": [],
-        "status": "no_directory"
+        "loaded_as": {
+          "requested": "GEO_MON_B3_172",
+          "upscaled": "GEO_MAIN_UP0_KUI",
+          "loaded_name": "GEO_MAIN_F0_KUI",
+          "target": {
+            "kind": "directory",
+            "model_type": 2,
+            "geo_id": 273
+          }
+        },
+        "directories": [
+          "2/273"
+        ],
+        "status": "resolved"
       },
       {
         "model_id": 296,
         "geo_name": "GEO_MON_B3_171",
-        "directories": [],
-        "status": "no_directory"
+        "loaded_as": {
+          "requested": "GEO_MON_B3_171",
+          "upscaled": "GEO_MAIN_UP1_STN",
+          "loaded_name": "GEO_MAIN_F1_STN",
+          "target": {
+            "kind": "directory",
+            "model_type": 2,
+            "geo_id": 658
+          }
+        },
+        "directories": [
+          "2/658"
+        ],
+        "status": "resolved"
       },
       {
         "model_id": 297,
         "geo_name": "GEO_MON_B3_174",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_174",
+          "upscaled": "GEO_MAIN_UP0_FRJ",
+          "loaded_name": "GEO_MAIN_F0_FRJ",
+          "target": {
+            "kind": "directory",
+            "model_type": 2,
+            "geo_id": 192
+          }
+        },
         "directories": [
-          "3/297"
+          "2/192"
         ],
         "status": "resolved"
       },
       {
         "model_id": 298,
         "geo_name": "GEO_MON_B3_148",
-        "directories": [],
-        "status": "no_directory"
+        "loaded_as": {
+          "requested": "GEO_MON_B3_148",
+          "upscaled": "GEO_MAIN_UP1_STN",
+          "loaded_name": "GEO_MAIN_F1_STN",
+          "target": {
+            "kind": "directory",
+            "model_type": 2,
+            "geo_id": 658
+          }
+        },
+        "directories": [
+          "2/658"
+        ],
+        "status": "resolved"
       },
       {
         "model_id": 299,
         "geo_name": "GEO_MON_B3_152",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_152",
+          "upscaled": "GEO_SUB_UP0_ZNR",
+          "loaded_name": "GEO_SUB_F0_ZNR",
+          "target": {
+            "kind": "directory",
+            "model_type": 5,
+            "geo_id": 5500
+          }
+        },
         "directories": [
-          "3/299"
+          "5/5500"
         ],
         "status": "resolved"
       },
       {
         "model_id": 300,
         "geo_name": "GEO_MON_B3_120",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_120",
+          "upscaled": "GEO_MON_UP3_120",
+          "loaded_name": "GEO_MON_B3_120",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 300
+          }
+        },
         "directories": [
           "3/300"
         ],
@@ -694,6 +1499,16 @@
       {
         "model_id": 301,
         "geo_name": "GEO_MON_B3_105",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_105",
+          "upscaled": "GEO_MON_B3_105",
+          "loaded_name": "GEO_MON_B3_105",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 301
+          }
+        },
         "directories": [
           "3/301"
         ],
@@ -702,6 +1517,16 @@
       {
         "model_id": 302,
         "geo_name": "GEO_MON_B3_119",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_119",
+          "upscaled": "GEO_MON_UP3_119",
+          "loaded_name": "GEO_MON_B3_119",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 302
+          }
+        },
         "directories": [
           "3/302"
         ],
@@ -710,6 +1535,16 @@
       {
         "model_id": 303,
         "geo_name": "GEO_MON_B3_179",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_179",
+          "upscaled": "GEO_MON_B3_179",
+          "loaded_name": "GEO_MON_B3_179",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 303
+          }
+        },
         "directories": [
           "3/303"
         ],
@@ -718,6 +1553,16 @@
       {
         "model_id": 304,
         "geo_name": "GEO_MON_B3_178",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_178",
+          "upscaled": "GEO_MON_B3_178",
+          "loaded_name": "GEO_MON_B3_178",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 304
+          }
+        },
         "directories": [
           "3/304"
         ],
@@ -726,6 +1571,16 @@
       {
         "model_id": 305,
         "geo_name": "GEO_MON_B3_180",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_180",
+          "upscaled": "GEO_MON_B3_180",
+          "loaded_name": "GEO_MON_B3_180",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 305
+          }
+        },
         "directories": [
           "3/305"
         ],
@@ -734,6 +1589,16 @@
       {
         "model_id": 323,
         "geo_name": "GEO_MON_B3_065",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_065",
+          "upscaled": "GEO_MON_B3_065",
+          "loaded_name": "GEO_MON_B3_065",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 323
+          }
+        },
         "directories": [
           "3/323"
         ],
@@ -742,6 +1607,16 @@
       {
         "model_id": 324,
         "geo_name": "GEO_MON_B3_068",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_068",
+          "upscaled": "GEO_MON_B3_068",
+          "loaded_name": "GEO_MON_B3_068",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 324
+          }
+        },
         "directories": [
           "3/324"
         ],
@@ -750,6 +1625,16 @@
       {
         "model_id": 325,
         "geo_name": "GEO_MON_B3_069",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_069",
+          "upscaled": "GEO_MON_B3_069",
+          "loaded_name": "GEO_MON_B3_069",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 325
+          }
+        },
         "directories": [
           "3/325"
         ],
@@ -758,6 +1643,16 @@
       {
         "model_id": 326,
         "geo_name": "GEO_MON_B3_073",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_073",
+          "upscaled": "GEO_MON_B3_073",
+          "loaded_name": "GEO_MON_B3_073",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 326
+          }
+        },
         "directories": [
           "3/326"
         ],
@@ -766,6 +1661,16 @@
       {
         "model_id": 327,
         "geo_name": "GEO_MON_B3_071",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_071",
+          "upscaled": "GEO_MON_B3_071",
+          "loaded_name": "GEO_MON_B3_071",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 327
+          }
+        },
         "directories": [
           "3/327"
         ],
@@ -774,6 +1679,16 @@
       {
         "model_id": 328,
         "geo_name": "GEO_MON_B3_070",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_070",
+          "upscaled": "GEO_MON_B3_070",
+          "loaded_name": "GEO_MON_B3_070",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 328
+          }
+        },
         "directories": [
           "3/328"
         ],
@@ -782,6 +1697,16 @@
       {
         "model_id": 329,
         "geo_name": "GEO_MON_B3_074",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_074",
+          "upscaled": "GEO_MON_B3_074",
+          "loaded_name": "GEO_MON_B3_074",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 329
+          }
+        },
         "directories": [
           "3/329"
         ],
@@ -790,6 +1715,16 @@
       {
         "model_id": 330,
         "geo_name": "GEO_MON_B3_077",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_077",
+          "upscaled": "GEO_MON_B3_077",
+          "loaded_name": "GEO_MON_B3_077",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 330
+          }
+        },
         "directories": [
           "3/330"
         ],
@@ -798,6 +1733,16 @@
       {
         "model_id": 331,
         "geo_name": "GEO_MON_B3_076",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_076",
+          "upscaled": "GEO_MON_B3_076",
+          "loaded_name": "GEO_MON_B3_076",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 331
+          }
+        },
         "directories": [
           "3/331"
         ],
@@ -806,6 +1751,16 @@
       {
         "model_id": 332,
         "geo_name": "GEO_MON_B3_075",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_075",
+          "upscaled": "GEO_MON_B3_075",
+          "loaded_name": "GEO_MON_B3_075",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 332
+          }
+        },
         "directories": [
           "3/332"
         ],
@@ -814,6 +1769,16 @@
       {
         "model_id": 333,
         "geo_name": "GEO_MON_B3_079",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_079",
+          "upscaled": "GEO_MON_B3_079",
+          "loaded_name": "GEO_MON_B3_079",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 333
+          }
+        },
         "directories": [
           "3/333"
         ],
@@ -822,6 +1787,16 @@
       {
         "model_id": 334,
         "geo_name": "GEO_MON_B3_078",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_078",
+          "upscaled": "GEO_MON_B3_078",
+          "loaded_name": "GEO_MON_B3_078",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 334
+          }
+        },
         "directories": [
           "3/334"
         ],
@@ -830,6 +1805,16 @@
       {
         "model_id": 335,
         "geo_name": "GEO_MON_B3_080",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_080",
+          "upscaled": "GEO_MON_B3_080",
+          "loaded_name": "GEO_MON_B3_080",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 335
+          }
+        },
         "directories": [
           "3/335"
         ],
@@ -838,6 +1823,16 @@
       {
         "model_id": 336,
         "geo_name": "GEO_MON_B3_083",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_083",
+          "upscaled": "GEO_MON_B3_083",
+          "loaded_name": "GEO_MON_B3_083",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 336
+          }
+        },
         "directories": [
           "3/336"
         ],
@@ -846,6 +1841,16 @@
       {
         "model_id": 337,
         "geo_name": "GEO_MON_B3_081",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_081",
+          "upscaled": "GEO_MON_B3_081",
+          "loaded_name": "GEO_MON_B3_081",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 337
+          }
+        },
         "directories": [
           "3/337"
         ],
@@ -854,6 +1859,16 @@
       {
         "model_id": 338,
         "geo_name": "GEO_MON_B3_085",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_085",
+          "upscaled": "GEO_MON_B3_085",
+          "loaded_name": "GEO_MON_B3_085",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 338
+          }
+        },
         "directories": [
           "3/338"
         ],
@@ -862,6 +1877,16 @@
       {
         "model_id": 339,
         "geo_name": "GEO_MON_B3_084",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_084",
+          "upscaled": "GEO_MON_B3_084",
+          "loaded_name": "GEO_MON_B3_084",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 339
+          }
+        },
         "directories": [
           "3/339"
         ],
@@ -870,6 +1895,16 @@
       {
         "model_id": 340,
         "geo_name": "GEO_MON_B3_087",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_087",
+          "upscaled": "GEO_MON_B3_087",
+          "loaded_name": "GEO_MON_B3_087",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 340
+          }
+        },
         "directories": [
           "3/340"
         ],
@@ -878,6 +1913,16 @@
       {
         "model_id": 341,
         "geo_name": "GEO_MON_B3_088",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_088",
+          "upscaled": "GEO_MON_B3_088",
+          "loaded_name": "GEO_MON_B3_088",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 341
+          }
+        },
         "directories": [
           "3/341"
         ],
@@ -886,6 +1931,16 @@
       {
         "model_id": 342,
         "geo_name": "GEO_MON_B3_093",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_093",
+          "upscaled": "GEO_MON_B3_093",
+          "loaded_name": "GEO_MON_B3_093",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 342
+          }
+        },
         "directories": [
           "3/342"
         ],
@@ -894,6 +1949,16 @@
       {
         "model_id": 343,
         "geo_name": "GEO_MON_B3_094",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_094",
+          "upscaled": "GEO_MON_B3_094",
+          "loaded_name": "GEO_MON_B3_094",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 343
+          }
+        },
         "directories": [
           "3/343"
         ],
@@ -902,6 +1967,16 @@
       {
         "model_id": 344,
         "geo_name": "GEO_MON_B3_103",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_103",
+          "upscaled": "GEO_MON_B3_103",
+          "loaded_name": "GEO_MON_B3_103",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 344
+          }
+        },
         "directories": [
           "3/344"
         ],
@@ -910,12 +1985,34 @@
       {
         "model_id": 345,
         "geo_name": "GEO_MON_B3_108",
-        "directories": [],
-        "status": "no_directory"
+        "loaded_as": {
+          "requested": "GEO_MON_B3_108",
+          "upscaled": "GEO_MON_B3_108",
+          "loaded_name": "GEO_MON_F1_EFM",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 524
+          }
+        },
+        "directories": [
+          "3/524"
+        ],
+        "status": "resolved"
       },
       {
         "model_id": 346,
         "geo_name": "GEO_MON_B3_112",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_112",
+          "upscaled": "GEO_MON_UP3_112",
+          "loaded_name": "GEO_MON_B3_112",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 346
+          }
+        },
         "directories": [
           "3/346"
         ],
@@ -924,6 +2021,16 @@
       {
         "model_id": 347,
         "geo_name": "GEO_MON_F2_EFM",
+        "loaded_as": {
+          "requested": "GEO_MON_F2_EFM",
+          "upscaled": "GEO_MON_UP0_110",
+          "loaded_name": "GEO_MON_F2_EFM",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 347
+          }
+        },
         "directories": [
           "3/347"
         ],
@@ -932,6 +2039,16 @@
       {
         "model_id": 348,
         "geo_name": "GEO_MON_B3_117",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_117",
+          "upscaled": "GEO_MON_UP0_117",
+          "loaded_name": "GEO_MON_B3_117",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 348
+          }
+        },
         "directories": [
           "3/348"
         ],
@@ -940,6 +2057,16 @@
       {
         "model_id": 349,
         "geo_name": "GEO_MON_B3_114",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_114",
+          "upscaled": "GEO_MON_UP0_114",
+          "loaded_name": "GEO_MON_B3_114",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 349
+          }
+        },
         "directories": [
           "3/349"
         ],
@@ -948,6 +2075,16 @@
       {
         "model_id": 350,
         "geo_name": "GEO_MON_B3_118",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_118",
+          "upscaled": "GEO_MON_UP0_118",
+          "loaded_name": "GEO_MON_B3_118",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 350
+          }
+        },
         "directories": [
           "3/350"
         ],
@@ -956,6 +2093,16 @@
       {
         "model_id": 351,
         "geo_name": "GEO_MON_B3_140",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_140",
+          "upscaled": "GEO_MON_UP3_140",
+          "loaded_name": "GEO_MON_B3_140",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 351
+          }
+        },
         "directories": [
           "3/351"
         ],
@@ -964,6 +2111,16 @@
       {
         "model_id": 352,
         "geo_name": "GEO_MON_B3_121",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_121",
+          "upscaled": "GEO_MON_UP3_121",
+          "loaded_name": "GEO_MON_B3_121",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 352
+          }
+        },
         "directories": [
           "3/352"
         ],
@@ -972,6 +2129,16 @@
       {
         "model_id": 353,
         "geo_name": "GEO_MON_B3_126",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_126",
+          "upscaled": "GEO_MON_B3_126",
+          "loaded_name": "GEO_MON_B3_126",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 353
+          }
+        },
         "directories": [
           "3/353"
         ],
@@ -980,6 +2147,16 @@
       {
         "model_id": 354,
         "geo_name": "GEO_MON_B3_130",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_130",
+          "upscaled": "GEO_MON_UP3_130",
+          "loaded_name": "GEO_MON_B3_130",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 354
+          }
+        },
         "directories": [
           "3/354"
         ],
@@ -988,6 +2165,16 @@
       {
         "model_id": 355,
         "geo_name": "GEO_MON_B3_166",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_166",
+          "upscaled": "GEO_MON_B3_166",
+          "loaded_name": "GEO_MON_B3_166",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 355
+          }
+        },
         "directories": [
           "3/355"
         ],
@@ -996,6 +2183,16 @@
       {
         "model_id": 356,
         "geo_name": "GEO_MON_B3_187",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_187",
+          "upscaled": "GEO_MON_UP3_187",
+          "loaded_name": "GEO_MON_B3_187",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 356
+          }
+        },
         "directories": [
           "3/356"
         ],
@@ -1004,6 +2201,16 @@
       {
         "model_id": 357,
         "geo_name": "GEO_MON_B3_188",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_188",
+          "upscaled": "GEO_MON_B3_188",
+          "loaded_name": "GEO_MON_B3_188",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 357
+          }
+        },
         "directories": [
           "3/357"
         ],
@@ -1012,12 +2219,34 @@
       {
         "model_id": 359,
         "geo_name": "GEO_MON_B3_106",
-        "directories": [],
-        "status": "no_directory"
+        "loaded_as": {
+          "requested": "GEO_MON_B3_106",
+          "upscaled": "GEO_SUB_UP2_BAK",
+          "loaded_name": "GEO_SUB_F1_BAK",
+          "target": {
+            "kind": "directory",
+            "model_type": 5,
+            "geo_id": 5501
+          }
+        },
+        "directories": [
+          "5/5501"
+        ],
+        "status": "resolved"
       },
       {
         "model_id": 362,
         "geo_name": "GEO_MON_B3_123",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_123",
+          "upscaled": "GEO_MON_UP3_123",
+          "loaded_name": "GEO_MON_B3_123",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 362
+          }
+        },
         "directories": [
           "3/362"
         ],
@@ -1026,6 +2255,16 @@
       {
         "model_id": 363,
         "geo_name": "GEO_MON_B3_124",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_124",
+          "upscaled": "GEO_MON_UP0_124",
+          "loaded_name": "GEO_MON_B3_124",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 363
+          }
+        },
         "directories": [
           "3/363"
         ],
@@ -1034,6 +2273,16 @@
       {
         "model_id": 364,
         "geo_name": "GEO_MON_B3_132",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_132",
+          "upscaled": "GEO_MON_UP0_132",
+          "loaded_name": "GEO_MON_B3_132",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 364
+          }
+        },
         "directories": [
           "3/364"
         ],
@@ -1042,6 +2291,16 @@
       {
         "model_id": 369,
         "geo_name": "GEO_MON_B3_167",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_167",
+          "upscaled": "GEO_MON_B3_167",
+          "loaded_name": "GEO_MON_B3_167",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 369
+          }
+        },
         "directories": [
           "3/369"
         ],
@@ -1050,6 +2309,16 @@
       {
         "model_id": 370,
         "geo_name": "GEO_MON_B3_143",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_143",
+          "upscaled": "GEO_MON_UP3_143",
+          "loaded_name": "GEO_MON_B3_143",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 370
+          }
+        },
         "directories": [
           "3/370"
         ],
@@ -1058,6 +2327,16 @@
       {
         "model_id": 371,
         "geo_name": "GEO_MON_B3_131",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_131",
+          "upscaled": "GEO_MON_UP0_131",
+          "loaded_name": "GEO_MON_B3_131",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 371
+          }
+        },
         "directories": [
           "3/371"
         ],
@@ -1066,6 +2345,16 @@
       {
         "model_id": 378,
         "geo_name": "GEO_MON_B3_142",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_142",
+          "upscaled": "GEO_MON_UP3_142",
+          "loaded_name": "GEO_MON_B3_142",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 378
+          }
+        },
         "directories": [
           "3/378"
         ],
@@ -1074,6 +2363,16 @@
       {
         "model_id": 379,
         "geo_name": "GEO_MON_B3_102",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_102",
+          "upscaled": "GEO_MON_B3_102",
+          "loaded_name": "GEO_MON_B3_102",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 379
+          }
+        },
         "directories": [
           "3/379"
         ],
@@ -1082,6 +2381,16 @@
       {
         "model_id": 398,
         "geo_name": "GEO_MON_B3_157",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_157",
+          "upscaled": "GEO_MON_B3_157",
+          "loaded_name": "GEO_MON_B3_157",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 398
+          }
+        },
         "directories": [
           "3/398"
         ],
@@ -1090,6 +2399,16 @@
       {
         "model_id": 399,
         "geo_name": "GEO_MON_B3_156",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_156",
+          "upscaled": "GEO_MON_B3_156",
+          "loaded_name": "GEO_MON_B3_156",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 399
+          }
+        },
         "directories": [
           "3/399"
         ],
@@ -1098,6 +2417,16 @@
       {
         "model_id": 400,
         "geo_name": "GEO_MON_B3_158",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_158",
+          "upscaled": "GEO_MON_B3_158",
+          "loaded_name": "GEO_MON_B3_158",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 400
+          }
+        },
         "directories": [
           "3/400"
         ],
@@ -1106,6 +2435,16 @@
       {
         "model_id": 401,
         "geo_name": "GEO_MON_B3_162",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_162",
+          "upscaled": "GEO_MON_B3_162",
+          "loaded_name": "GEO_MON_B3_162",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 401
+          }
+        },
         "directories": [
           "3/401"
         ],
@@ -1114,6 +2453,16 @@
       {
         "model_id": 402,
         "geo_name": "GEO_MON_B3_160",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_160",
+          "upscaled": "GEO_MON_B3_160",
+          "loaded_name": "GEO_MON_B3_160",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 402
+          }
+        },
         "directories": [
           "3/402"
         ],
@@ -1122,6 +2471,16 @@
       {
         "model_id": 403,
         "geo_name": "GEO_MON_B3_165",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_165",
+          "upscaled": "GEO_MON_B3_165",
+          "loaded_name": "GEO_MON_B3_165",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 403
+          }
+        },
         "directories": [
           "3/403"
         ],
@@ -1130,6 +2489,16 @@
       {
         "model_id": 404,
         "geo_name": "GEO_MON_B3_164",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_164",
+          "upscaled": "GEO_MON_B3_164",
+          "loaded_name": "GEO_MON_B3_164",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 404
+          }
+        },
         "directories": [
           "3/404"
         ],
@@ -1138,6 +2507,16 @@
       {
         "model_id": 405,
         "geo_name": "GEO_MON_B3_159",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_159",
+          "upscaled": "GEO_MON_B3_159",
+          "loaded_name": "GEO_MON_B3_159",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 405
+          }
+        },
         "directories": [
           "3/405"
         ],
@@ -1146,6 +2525,16 @@
       {
         "model_id": 410,
         "geo_name": "GEO_MON_B3_122",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_122",
+          "upscaled": "GEO_MON_UP3_122",
+          "loaded_name": "GEO_MON_B3_122",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 410
+          }
+        },
         "directories": [
           "3/410"
         ],
@@ -1154,6 +2543,16 @@
       {
         "model_id": 416,
         "geo_name": "GEO_MON_B3_137",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_137",
+          "upscaled": "GEO_MON_UP3_137",
+          "loaded_name": "GEO_MON_B3_137",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 416
+          }
+        },
         "directories": [
           "3/416"
         ],
@@ -1162,20 +2561,52 @@
       {
         "model_id": 427,
         "geo_name": "GEO_MON_B3_155",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_155",
+          "upscaled": "GEO_SUB_UP0_BTX",
+          "loaded_name": "GEO_SUB_F0_BTX",
+          "target": {
+            "kind": "directory",
+            "model_type": 5,
+            "geo_id": 204
+          }
+        },
         "directories": [
-          "3/427"
+          "5/204"
         ],
         "status": "resolved"
       },
       {
         "model_id": 428,
         "geo_name": "GEO_MON_B3_107",
-        "directories": [],
-        "status": "no_directory"
+        "loaded_as": {
+          "requested": "GEO_MON_B3_107",
+          "upscaled": "GEO_SUB_UP1_BAK",
+          "loaded_name": "GEO_SUB_F2_BAK",
+          "target": {
+            "kind": "directory",
+            "model_type": 5,
+            "geo_id": 186
+          }
+        },
+        "directories": [
+          "5/186"
+        ],
+        "status": "resolved"
       },
       {
         "model_id": 429,
         "geo_name": "GEO_MON_B3_183",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_183",
+          "upscaled": "GEO_SUB_UP0_MASK_183",
+          "loaded_name": "GEO_MON_B3_183",
+          "target": {
+            "kind": "directory",
+            "model_type": 5,
+            "geo_id": 429
+          }
+        },
         "directories": [
           "5/429"
         ],
@@ -1184,6 +2615,16 @@
       {
         "model_id": 430,
         "geo_name": "GEO_MON_B3_184",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_184",
+          "upscaled": "GEO_SUB_UP0_MASK_184",
+          "loaded_name": "GEO_MON_B3_184",
+          "target": {
+            "kind": "directory",
+            "model_type": 5,
+            "geo_id": 430
+          }
+        },
         "directories": [
           "5/430"
         ],
@@ -1192,6 +2633,16 @@
       {
         "model_id": 445,
         "geo_name": "GEO_MON_B3_181",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_181",
+          "upscaled": "GEO_MON_UP3_181",
+          "loaded_name": "GEO_MON_B3_181",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 445
+          }
+        },
         "directories": [
           "3/445"
         ],
@@ -1200,6 +2651,16 @@
       {
         "model_id": 446,
         "geo_name": "GEO_MON_B3_185",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_185",
+          "upscaled": "GEO_MON_UP3_185",
+          "loaded_name": "GEO_MON_B3_185",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 446
+          }
+        },
         "directories": [
           "3/446"
         ],
@@ -1208,6 +2669,16 @@
       {
         "model_id": 450,
         "geo_name": "GEO_MON_B3_111",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_111",
+          "upscaled": "GEO_MON_UP3_111",
+          "loaded_name": "GEO_MON_B3_111",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 450
+          }
+        },
         "directories": [
           "3/450"
         ],
@@ -1216,6 +2687,16 @@
       {
         "model_id": 451,
         "geo_name": "GEO_MON_B3_190",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_190",
+          "upscaled": "GEO_MON_B3_190",
+          "loaded_name": "GEO_MON_B3_190",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 451
+          }
+        },
         "directories": [
           "3/451"
         ],
@@ -1224,6 +2705,16 @@
       {
         "model_id": 512,
         "geo_name": "GEO_MON_B3_128",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_128",
+          "upscaled": "GEO_MON_UP3_128",
+          "loaded_name": "GEO_MON_B3_128",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 512
+          }
+        },
         "directories": [
           "3/512"
         ],
@@ -1232,6 +2723,16 @@
       {
         "model_id": 545,
         "geo_name": "GEO_MON_B3_138",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_138",
+          "upscaled": "GEO_MON_UP3_138",
+          "loaded_name": "GEO_MON_B3_138",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 545
+          }
+        },
         "directories": [
           "3/545"
         ],
@@ -1240,6 +2741,16 @@
       {
         "model_id": 546,
         "geo_name": "GEO_MON_B3_189",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_189",
+          "upscaled": "GEO_MON_B3_189",
+          "loaded_name": "GEO_MON_B3_189",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 546
+          }
+        },
         "directories": [
           "3/546"
         ],
@@ -1248,6 +2759,16 @@
       {
         "model_id": 548,
         "geo_name": "GEO_MON_B3_161",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_161",
+          "upscaled": "GEO_MON_B3_161",
+          "loaded_name": "GEO_MON_B3_161",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 548
+          }
+        },
         "directories": [
           "3/548"
         ],
@@ -1256,6 +2777,16 @@
       {
         "model_id": 553,
         "geo_name": "GEO_MON_B3_163",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_163",
+          "upscaled": "GEO_MON_B3_163",
+          "loaded_name": "GEO_MON_B3_163",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 553
+          }
+        },
         "directories": [
           "3/553"
         ],
@@ -1264,6 +2795,16 @@
       {
         "model_id": 556,
         "geo_name": "GEO_MON_B3_127",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_127",
+          "upscaled": "GEO_MON_B3_127",
+          "loaded_name": "GEO_MON_B3_127",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 556
+          }
+        },
         "directories": [
           "3/556"
         ],
@@ -1272,18 +2813,52 @@
       {
         "model_id": 557,
         "geo_name": "GEO_MON_B3_149",
-        "directories": [],
-        "status": "no_directory"
+        "loaded_as": {
+          "requested": "GEO_MON_B3_149",
+          "upscaled": "GEO_MAIN_UP0_GRN",
+          "loaded_name": "GEO_MAIN_F0_GRN",
+          "target": {
+            "kind": "directory",
+            "model_type": 2,
+            "geo_id": 185
+          }
+        },
+        "directories": [
+          "2/185"
+        ],
+        "status": "resolved"
       },
       {
         "model_id": 558,
         "geo_name": "GEO_MON_B3_151",
-        "directories": [],
-        "status": "no_directory"
+        "loaded_as": {
+          "requested": "GEO_MON_B3_151",
+          "upscaled": "GEO_MAIN_UP0_VIV",
+          "loaded_name": "GEO_MAIN_B0_006",
+          "target": {
+            "kind": "directory",
+            "model_type": 2,
+            "geo_id": 5415
+          }
+        },
+        "directories": [
+          "2/5415"
+        ],
+        "status": "resolved"
       },
       {
         "model_id": 566,
         "geo_name": "GEO_MON_B3_145",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_145",
+          "upscaled": "GEO_MON_UP3_145",
+          "loaded_name": "GEO_MON_B3_145",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 566
+          }
+        },
         "directories": [
           "3/566"
         ],
@@ -1292,6 +2867,16 @@
       {
         "model_id": 567,
         "geo_name": "GEO_MON_B3_144",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_144",
+          "upscaled": "GEO_MON_UP3_144",
+          "loaded_name": "GEO_MON_B3_144",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 567
+          }
+        },
         "directories": [
           "3/567"
         ],
@@ -1300,6 +2885,16 @@
       {
         "model_id": 569,
         "geo_name": "GEO_MON_B3_168",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_168",
+          "upscaled": "GEO_MON_UP0_168",
+          "loaded_name": "GEO_MON_B3_168",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 569
+          }
+        },
         "directories": [
           "3/569"
         ],
@@ -1308,32 +2903,88 @@
       {
         "model_id": 570,
         "geo_name": "GEO_MON_B3_173",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_173",
+          "upscaled": "GEO_MAIN_UP0_EIK",
+          "loaded_name": "GEO_MAIN_F0_EIK",
+          "target": {
+            "kind": "directory",
+            "model_type": 2,
+            "geo_id": 443
+          }
+        },
         "directories": [
-          "3/570"
+          "2/443"
         ],
         "status": "resolved"
       },
       {
         "model_id": 571,
         "geo_name": "GEO_MON_B3_170",
-        "directories": [],
-        "status": "no_directory"
+        "loaded_as": {
+          "requested": "GEO_MON_B3_170",
+          "upscaled": "GEO_MAIN_UP1_VIV",
+          "loaded_name": "GEO_MAIN_F0_VIV",
+          "target": {
+            "kind": "directory",
+            "model_type": 2,
+            "geo_id": 8
+          }
+        },
+        "directories": [
+          "2/8"
+        ],
+        "status": "resolved"
       },
       {
         "model_id": 572,
         "geo_name": "GEO_MON_B3_175",
-        "directories": [],
-        "status": "no_directory"
+        "loaded_as": {
+          "requested": "GEO_MON_B3_175",
+          "upscaled": "GEO_MAIN_UP0_SLM",
+          "loaded_name": "GEO_MAIN_F0_SLM",
+          "target": {
+            "kind": "directory",
+            "model_type": 2,
+            "geo_id": 509
+          }
+        },
+        "directories": [
+          "2/509"
+        ],
+        "status": "resolved"
       },
       {
         "model_id": 573,
         "geo_name": "GEO_MON_B3_182",
-        "directories": [],
-        "status": "no_directory"
+        "loaded_as": {
+          "requested": "GEO_MON_B3_182",
+          "upscaled": "GEO_MAIN_UP0_SLM",
+          "loaded_name": "GEO_MAIN_F0_SLM",
+          "target": {
+            "kind": "directory",
+            "model_type": 2,
+            "geo_id": 509
+          }
+        },
+        "directories": [
+          "2/509"
+        ],
+        "status": "resolved"
       },
       {
         "model_id": 576,
         "geo_name": "GEO_MON_B3_146",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_146",
+          "upscaled": "GEO_MON_UP3_146",
+          "loaded_name": "GEO_MON_B3_146",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 576
+          }
+        },
         "directories": [
           "3/576"
         ],
@@ -1342,6 +2993,16 @@
       {
         "model_id": 591,
         "geo_name": "GEO_MON_B3_177",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_177",
+          "upscaled": "GEO_MON_B3_177",
+          "loaded_name": "GEO_MON_B3_177",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 591
+          }
+        },
         "directories": [
           "3/591"
         ],
@@ -1350,6 +3011,16 @@
       {
         "model_id": 592,
         "geo_name": "GEO_MON_B3_154",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_154",
+          "upscaled": "GEO_MON_B3_154",
+          "loaded_name": "GEO_MON_B3_154",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 592
+          }
+        },
         "directories": [
           "3/592"
         ],
@@ -1358,6 +3029,16 @@
       {
         "model_id": 593,
         "geo_name": "GEO_MON_B3_116",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_116",
+          "upscaled": "GEO_MON_UP3_116",
+          "loaded_name": "GEO_MON_B3_116",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 593
+          }
+        },
         "directories": [
           "3/593"
         ],
@@ -1366,6 +3047,16 @@
       {
         "model_id": 610,
         "geo_name": "GEO_MON_B3_176",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_176",
+          "upscaled": "GEO_MON_UP0_176",
+          "loaded_name": "GEO_MON_B3_176",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 610
+          }
+        },
         "directories": [
           "3/610"
         ],
@@ -1374,6 +3065,16 @@
       {
         "model_id": 618,
         "geo_name": "GEO_MON_B3_193",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_193",
+          "upscaled": "GEO_MON_UP3_193",
+          "loaded_name": "GEO_MON_B3_193",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 618
+          }
+        },
         "directories": [
           "3/618"
         ],
@@ -1382,6 +3083,16 @@
       {
         "model_id": 619,
         "geo_name": "GEO_MON_B3_192",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_192",
+          "upscaled": "GEO_MON_UP3_192",
+          "loaded_name": "GEO_MON_B3_192",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 619
+          }
+        },
         "directories": [
           "3/619"
         ],
@@ -1390,6 +3101,16 @@
       {
         "model_id": 620,
         "geo_name": "GEO_MON_B3_191",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_191",
+          "upscaled": "GEO_MON_UP3_191",
+          "loaded_name": "GEO_MON_B3_191",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 620
+          }
+        },
         "directories": [
           "3/620"
         ],
@@ -1398,6 +3119,16 @@
       {
         "model_id": 621,
         "geo_name": "GEO_MON_B3_194",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_194",
+          "upscaled": "GEO_MON_UP3_194",
+          "loaded_name": "GEO_MON_B3_194",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 621
+          }
+        },
         "directories": [
           "3/621"
         ],
@@ -1406,12 +3137,34 @@
       {
         "model_id": 639,
         "geo_name": "GEO_MON_B3_195",
-        "directories": [],
-        "status": "no_directory"
+        "loaded_as": {
+          "requested": "GEO_MON_B3_195",
+          "upscaled": "GEO_SUB_UP0_BLN",
+          "loaded_name": "GEO_SUB_F0_BLN",
+          "target": {
+            "kind": "directory",
+            "model_type": 5,
+            "geo_id": 5467
+          }
+        },
+        "directories": [
+          "5/5467"
+        ],
+        "status": "resolved"
       },
       {
         "model_id": 663,
         "geo_name": "GEO_MON_B3_197",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_197",
+          "upscaled": "GEO_MON_B3_197",
+          "loaded_name": "GEO_MON_B3_197",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 663
+          }
+        },
         "directories": [
           "3/663"
         ],
@@ -1420,18 +3173,52 @@
       {
         "model_id": 664,
         "geo_name": "GEO_MON_B3_198",
-        "directories": [],
-        "status": "no_directory"
+        "loaded_as": {
+          "requested": "GEO_MON_B3_198",
+          "upscaled": "GEO_SUB_UP0_ZNR",
+          "loaded_name": "GEO_SUB_F0_ZNR",
+          "target": {
+            "kind": "directory",
+            "model_type": 5,
+            "geo_id": 5500
+          }
+        },
+        "directories": [
+          "5/5500"
+        ],
+        "status": "resolved"
       },
       {
         "model_id": 671,
         "geo_name": "GEO_MON_B3_169",
-        "directories": [],
-        "status": "no_directory"
+        "loaded_as": {
+          "requested": "GEO_MON_B3_169",
+          "upscaled": "GEO_MAIN_UP0_GRN",
+          "loaded_name": "GEO_MAIN_F0_GRN",
+          "target": {
+            "kind": "directory",
+            "model_type": 2,
+            "geo_id": 185
+          }
+        },
+        "directories": [
+          "2/185"
+        ],
+        "status": "resolved"
       },
       {
         "model_id": 672,
         "geo_name": "GEO_MON_B3_199",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_199",
+          "upscaled": "GEO_MON_UP3_199",
+          "loaded_name": "GEO_MON_B3_199",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 672
+          }
+        },
         "directories": [
           "3/672"
         ],
@@ -1440,6 +3227,16 @@
       {
         "model_id": 673,
         "geo_name": "GEO_MON_B3_200",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_200",
+          "upscaled": "GEO_MON_B3_200",
+          "loaded_name": "GEO_MON_B3_200",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 673
+          }
+        },
         "directories": [
           "3/673"
         ],
@@ -1448,6 +3245,16 @@
       {
         "model_id": 676,
         "geo_name": "GEO_MON_B3_205",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_205",
+          "upscaled": "GEO_MON_B3_205",
+          "loaded_name": "GEO_MON_B3_205",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 676
+          }
+        },
         "directories": [
           "3/676"
         ],
@@ -1456,6 +3263,16 @@
       {
         "model_id": 5458,
         "geo_name": "GEO_MON_B3_011",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_011",
+          "upscaled": "GEO_MON_B3_011",
+          "loaded_name": "GEO_MON_B3_011",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 5458
+          }
+        },
         "directories": [
           "3/5458"
         ],
@@ -1464,6 +3281,16 @@
       {
         "model_id": 5459,
         "geo_name": "GEO_MON_B3_019",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_019",
+          "upscaled": "GEO_MON_B3_019",
+          "loaded_name": "GEO_MON_B3_019",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 5459
+          }
+        },
         "directories": [
           "3/5459"
         ],
@@ -1472,6 +3299,16 @@
       {
         "model_id": 5460,
         "geo_name": "GEO_MON_B3_021",
+        "loaded_as": {
+          "requested": "GEO_MON_B3_021",
+          "upscaled": "GEO_MON_B3_021",
+          "loaded_name": "GEO_MON_B3_021",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 5460
+          }
+        },
         "directories": [
           "3/5460"
         ],
@@ -1480,6 +3317,16 @@
       {
         "model_id": 5461,
         "geo_name": "GEO_MON_F0_EFM",
+        "loaded_as": {
+          "requested": "GEO_MON_F0_EFM",
+          "upscaled": "GEO_MON_UP0_109",
+          "loaded_name": "GEO_MON_F0_EFM",
+          "target": {
+            "kind": "directory",
+            "model_type": 3,
+            "geo_id": 5461
+          }
+        },
         "directories": [
           "3/5461"
         ],
@@ -23243,7 +25090,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 1
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B023",
@@ -23323,7 +25170,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 1
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B031",
@@ -23383,7 +25230,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 2
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B037",
@@ -23463,7 +25310,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 1
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B045",
@@ -23473,7 +25320,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 12
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B046",
@@ -23513,7 +25360,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 1
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B050",
@@ -23643,7 +25490,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 1
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B063",
@@ -23753,7 +25600,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 1
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B074",
@@ -23763,7 +25610,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 1
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B075",
@@ -23863,7 +25710,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 1
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B085",
@@ -23923,7 +25770,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 1
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B091",
@@ -24013,7 +25860,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 3
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B100",
@@ -24193,7 +26040,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 2
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B118",
@@ -24223,7 +26070,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 2
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B121",
@@ -24363,7 +26210,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 1
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B135",
@@ -24393,7 +26240,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 1
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B138",
@@ -24463,7 +26310,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 3
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B145",
@@ -24513,7 +26360,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 1
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B150",
@@ -24533,7 +26380,7 @@
         "objanim": 0,
         "info_number_differs": false,
         "problems": [],
-        "undecoded_textures": 1
+        "undecoded_textures": 0
       },
       {
         "background": "BBG_B152",
@@ -25824,7 +27671,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 2
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -26020,7 +27867,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 2
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -26164,7 +28011,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 2
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -26387,7 +28234,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 2
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -26631,7 +28478,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -26772,7 +28619,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -26829,7 +28676,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -26886,7 +28733,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -27002,7 +28849,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -27061,7 +28908,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -27186,7 +29033,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -27252,7 +29099,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -27560,7 +29407,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 2
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -28298,7 +30145,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 2
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -28411,7 +30258,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 2
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -29850,7 +31697,7 @@
           "problems": [],
           "undecoded_textures": 0
         },
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "scene": "EF_E007",
@@ -29922,7 +31769,7 @@
           "problems": [],
           "undecoded_textures": 0
         },
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "scene": "EF_E009",
@@ -30015,7 +31862,7 @@
           "problems": [],
           "undecoded_textures": 0
         },
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "scene": "EF_R002",
@@ -30427,7 +32274,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -31291,7 +33138,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -31343,7 +33190,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -31809,7 +33656,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -31988,7 +33835,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -32412,7 +34259,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -32598,7 +34445,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -32646,7 +34493,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -32886,7 +34733,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -33026,7 +34873,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -33500,7 +35347,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -33553,7 +35400,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -36463,7 +38310,7 @@
           "problems": [],
           "undecoded_textures": 0
         },
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "scene": "PD_E055",
@@ -37469,7 +39316,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -37515,7 +39362,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -38276,7 +40123,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -38510,7 +40357,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -38624,7 +40471,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -38708,7 +40555,7 @@
           "problems": [],
           "undecoded_textures": 0
         },
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "scene": "TH_E002",
@@ -38795,7 +40642,7 @@
           "problems": [],
           "undecoded_textures": 0
         },
-        "unresolved": 2
+        "unresolved": 0
       },
       {
         "scene": "TH_E003",
@@ -38854,7 +40701,7 @@
           "problems": [],
           "undecoded_textures": 0
         },
-        "unresolved": 2
+        "unresolved": 0
       },
       {
         "scene": "TH_E004",
@@ -38930,7 +40777,7 @@
           "problems": [],
           "undecoded_textures": 0
         },
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "scene": "TH_E005",
@@ -38987,7 +40834,7 @@
           "problems": [],
           "undecoded_textures": 0
         },
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "scene": "TR_E074A",
@@ -39254,7 +41101,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 12
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -39366,7 +41213,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 12
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -39670,7 +41517,7 @@
           "problems": [],
           "undecoded_textures": 0
         },
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "scene": "UV_R008",
@@ -39853,7 +41700,7 @@
           "problems": [],
           "undecoded_textures": 0
         },
-        "unresolved": 3
+        "unresolved": 2
       },
       {
         "scene": "UV_R011",
@@ -39914,7 +41761,7 @@
           "problems": [],
           "undecoded_textures": 0
         },
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "scene": "UV_R012",
@@ -39975,7 +41822,7 @@
           "problems": [],
           "undecoded_textures": 0
         },
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "scene": "UV_R013",
@@ -40097,7 +41944,7 @@
           "problems": [],
           "undecoded_textures": 0
         },
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "scene": "WM_0000",
@@ -40609,7 +42456,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -40767,7 +42614,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -40883,7 +42730,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -41235,7 +43082,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -41958,7 +43805,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -42279,7 +44126,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -42396,7 +44243,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -42752,7 +44599,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -43278,7 +45125,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -43481,7 +45328,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -43800,7 +45647,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -44032,7 +45879,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -44295,7 +46142,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -44587,7 +46434,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -44889,7 +46736,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -45483,7 +47330,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -45620,7 +47467,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -46015,7 +47862,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -46118,7 +47965,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -49420,7 +51267,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -49526,7 +51373,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -49878,7 +51725,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -49960,7 +51807,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -50042,7 +51889,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -50191,7 +52038,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -50299,7 +52146,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -50957,7 +52804,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -51266,7 +53113,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -51325,7 +53172,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 1
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -51887,7 +53734,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -52045,7 +53892,7 @@
           "objanim": 0,
           "info_number_differs": false,
           "problems": [],
-          "undecoded_textures": 3
+          "undecoded_textures": 0
         },
         "unresolved": 0
       },
@@ -54620,123 +56467,6 @@
         "in_pattern": true
       },
       {
-        "scene": "EF_E006",
-        "kind": "enemy_model",
-        "type_no": 1,
-        "id": 557,
-        "name": "GEO_MON_B3_149",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
-        "scene": "EF_E007",
-        "kind": "enemy_model",
-        "type_no": 1,
-        "id": 558,
-        "name": "GEO_MON_B3_151",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
-        "scene": "EF_E010",
-        "kind": "enemy_model",
-        "type_no": 0,
-        "id": 345,
-        "name": "GEO_MON_B3_108",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
-        "scene": "MS_E075",
-        "kind": "enemy_model",
-        "type_no": 0,
-        "id": 573,
-        "name": "GEO_MON_B3_182",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
-        "scene": "TH_E001",
-        "kind": "enemy_model",
-        "type_no": 0,
-        "id": 428,
-        "name": "GEO_MON_B3_107",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
-        "scene": "TH_E002",
-        "kind": "enemy_model",
-        "type_no": 0,
-        "id": 359,
-        "name": "GEO_MON_B3_106",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
-        "scene": "TH_E002",
-        "kind": "enemy_model",
-        "type_no": 2,
-        "id": 664,
-        "name": "GEO_MON_B3_198",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
-        "scene": "TH_E003",
-        "kind": "enemy_model",
-        "type_no": 0,
-        "id": 298,
-        "name": "GEO_MON_B3_148",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
-        "scene": "TH_E003",
-        "kind": "enemy_model",
-        "type_no": 1,
-        "id": 639,
-        "name": "GEO_MON_B3_195",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
-        "scene": "TH_E004",
-        "kind": "enemy_model",
-        "type_no": 0,
-        "id": 298,
-        "name": "GEO_MON_B3_148",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
-        "scene": "TH_E005",
-        "kind": "enemy_model",
-        "type_no": 1,
-        "id": 298,
-        "name": "GEO_MON_B3_148",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
-        "scene": "UV_R007",
-        "kind": "enemy_model",
-        "type_no": 1,
-        "id": 296,
-        "name": "GEO_MON_B3_171",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
-        "scene": "UV_R010",
-        "kind": "enemy_model",
-        "type_no": 1,
-        "id": 671,
-        "name": "GEO_MON_B3_169",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
         "scene": "UV_R010",
         "kind": "enemy_animation",
         "type_no": 1,
@@ -54752,33 +56482,6 @@
         "id": 9957,
         "name": "ANH_MON_B3_169_002",
         "reason": "clip_missing",
-        "in_pattern": true
-      },
-      {
-        "scene": "UV_R011",
-        "kind": "enemy_model",
-        "type_no": 1,
-        "id": 571,
-        "name": "GEO_MON_B3_170",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
-        "scene": "UV_R012",
-        "kind": "enemy_model",
-        "type_no": 1,
-        "id": 572,
-        "name": "GEO_MON_B3_175",
-        "reason": "no_directory",
-        "in_pattern": true
-      },
-      {
-        "scene": "UV_R015",
-        "kind": "enemy_model",
-        "type_no": 1,
-        "id": 295,
-        "name": "GEO_MON_B3_172",
-        "reason": "no_directory",
         "in_pattern": true
       }
     ]
@@ -54794,10 +56497,22 @@
           "resolution": {
             "model_id": 5414,
             "geo_name": "GEO_MAIN_B0_000",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_000",
+              "upscaled": "GEO_MAIN_UP0_ZDN",
+              "loaded_name": "GEO_MAIN_F0_ZDN",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 98
+              }
+            },
+            "directories": [
+              "2/98"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_022",
@@ -54805,6 +56520,16 @@
           "resolution": {
             "model_id": 581,
             "geo_name": "GEO_MAIN_B0_022",
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_022",
+              "upscaled": "GEO_MAIN_UP0_ZDNT",
+              "loaded_name": "GEO_MAIN_B0_022",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 581
+              }
+            },
             "directories": [
               "2/581"
             ],
@@ -55088,7 +56813,7 @@
         ],
         "attack_sequence": 100,
         "weapon_bone": 13,
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "serial": 1,
@@ -55099,10 +56824,22 @@
           "resolution": {
             "model_id": 285,
             "geo_name": "GEO_MAIN_B0_001",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_001",
+              "upscaled": "GEO_MAIN_UP0_ZDN",
+              "loaded_name": "GEO_MAIN_F0_ZDN",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 98
+              }
+            },
+            "directories": [
+              "2/98"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_023",
@@ -55110,10 +56847,22 @@
           "resolution": {
             "model_id": 580,
             "geo_name": "GEO_MAIN_B0_023",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_023",
+              "upscaled": "GEO_MAIN_UP0_ZDNT",
+              "loaded_name": "GEO_MAIN_B0_022",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 581
+              }
+            },
+            "directories": [
+              "2/581"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "animations": [
           {
@@ -55391,7 +57140,7 @@
         ],
         "attack_sequence": 101,
         "weapon_bone": 13,
-        "unresolved": 2
+        "unresolved": 0
       },
       {
         "serial": 2,
@@ -55402,6 +57151,16 @@
           "resolution": {
             "model_id": 5415,
             "geo_name": "GEO_MAIN_B0_006",
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_006",
+              "upscaled": "GEO_MAIN_UP0_VIV",
+              "loaded_name": "GEO_MAIN_B0_006",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 5415
+              }
+            },
             "directories": [
               "2/5415"
             ],
@@ -55415,6 +57174,16 @@
           "resolution": {
             "model_id": 584,
             "geo_name": "GEO_MAIN_B0_028",
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_028",
+              "upscaled": "GEO_MAIN_UP0_VIVT",
+              "loaded_name": "GEO_MAIN_B0_028",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 584
+              }
+            },
             "directories": [
               "2/584"
             ],
@@ -55709,10 +57478,22 @@
           "resolution": {
             "model_id": 281,
             "geo_name": "GEO_MAIN_B0_002",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_002",
+              "upscaled": "GEO_MAIN_UP0_GRN",
+              "loaded_name": "GEO_MAIN_F0_GRN",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 185
+              }
+            },
+            "directories": [
+              "2/185"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_024",
@@ -55720,6 +57501,16 @@
           "resolution": {
             "model_id": 583,
             "geo_name": "GEO_MAIN_B0_024",
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_024",
+              "upscaled": "GEO_MAIN_UP0_GRNT",
+              "loaded_name": "GEO_MAIN_B0_024",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 583
+              }
+            },
             "directories": [
               "2/583"
             ],
@@ -56003,7 +57794,7 @@
         ],
         "attack_sequence": 103,
         "weapon_bone": 15,
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "serial": 4,
@@ -56014,10 +57805,22 @@
           "resolution": {
             "model_id": 283,
             "geo_name": "GEO_MAIN_B0_003",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_003",
+              "upscaled": "GEO_MAIN_UP0_GRN",
+              "loaded_name": "GEO_MAIN_F0_GRN",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 185
+              }
+            },
+            "directories": [
+              "2/185"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_025",
@@ -56025,10 +57828,22 @@
           "resolution": {
             "model_id": 602,
             "geo_name": "GEO_MAIN_B0_025",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_025",
+              "upscaled": "GEO_MAIN_UP0_GRNT",
+              "loaded_name": "GEO_MAIN_B0_024",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 583
+              }
+            },
+            "directories": [
+              "2/583"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "animations": [
           {
@@ -56306,7 +58121,7 @@
         ],
         "attack_sequence": 104,
         "weapon_bone": 15,
-        "unresolved": 2
+        "unresolved": 0
       },
       {
         "serial": 5,
@@ -56317,10 +58132,22 @@
           "resolution": {
             "model_id": 288,
             "geo_name": "GEO_MAIN_B0_004",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_004",
+              "upscaled": "GEO_MAIN_UP0_GRN",
+              "loaded_name": "GEO_MAIN_F0_GRN",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 185
+              }
+            },
+            "directories": [
+              "2/185"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_026",
@@ -56328,10 +58155,22 @@
           "resolution": {
             "model_id": 582,
             "geo_name": "GEO_MAIN_B0_026",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_026",
+              "upscaled": "GEO_MAIN_UP0_GRNT",
+              "loaded_name": "GEO_MAIN_B0_024",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 583
+              }
+            },
+            "directories": [
+              "2/583"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "animations": [
           {
@@ -56609,7 +58448,7 @@
         ],
         "attack_sequence": 105,
         "weapon_bone": 15,
-        "unresolved": 2
+        "unresolved": 0
       },
       {
         "serial": 6,
@@ -56620,10 +58459,22 @@
           "resolution": {
             "model_id": 287,
             "geo_name": "GEO_MAIN_B0_005",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_005",
+              "upscaled": "GEO_MAIN_UP0_GRN",
+              "loaded_name": "GEO_MAIN_F0_GRN",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 185
+              }
+            },
+            "directories": [
+              "2/185"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_027",
@@ -56631,10 +58482,22 @@
           "resolution": {
             "model_id": 601,
             "geo_name": "GEO_MAIN_B0_027",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_027",
+              "upscaled": "GEO_MAIN_UP0_GRNT",
+              "loaded_name": "GEO_MAIN_B0_024",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 583
+              }
+            },
+            "directories": [
+              "2/583"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "animations": [
           {
@@ -56912,7 +58775,7 @@
         ],
         "attack_sequence": 106,
         "weapon_bone": 15,
-        "unresolved": 2
+        "unresolved": 0
       },
       {
         "serial": 7,
@@ -56923,10 +58786,22 @@
           "resolution": {
             "model_id": 655,
             "geo_name": "GEO_MAIN_B0_018",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_018",
+              "upscaled": "GEO_MAIN_UP1_STN",
+              "loaded_name": "GEO_MAIN_F1_STN",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 658
+              }
+            },
+            "directories": [
+              "2/658"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_029",
@@ -56934,6 +58809,16 @@
           "resolution": {
             "model_id": 606,
             "geo_name": "GEO_MAIN_B0_029",
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_029",
+              "upscaled": "GEO_MAIN_UP0_STNT",
+              "loaded_name": "GEO_MAIN_B0_029",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 606
+              }
+            },
             "directories": [
               "2/606"
             ],
@@ -57217,7 +59102,7 @@
         ],
         "attack_sequence": 107,
         "weapon_bone": 16,
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "serial": 8,
@@ -57228,10 +59113,22 @@
           "resolution": {
             "model_id": 286,
             "geo_name": "GEO_MAIN_B0_007",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_007",
+              "upscaled": "GEO_MAIN_UP0_STN",
+              "loaded_name": "GEO_MAIN_F0_STN",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 5489
+              }
+            },
+            "directories": [
+              "2/5489"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_029",
@@ -57239,6 +59136,16 @@
           "resolution": {
             "model_id": 606,
             "geo_name": "GEO_MAIN_B0_029",
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_029",
+              "upscaled": "GEO_MAIN_UP0_STNT",
+              "loaded_name": "GEO_MAIN_B0_029",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 606
+              }
+            },
             "directories": [
               "2/606"
             ],
@@ -57522,7 +59429,7 @@
         ],
         "attack_sequence": 108,
         "weapon_bone": 16,
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "serial": 9,
@@ -57533,10 +59440,22 @@
           "resolution": {
             "model_id": 289,
             "geo_name": "GEO_MAIN_B0_008",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_008",
+              "upscaled": "GEO_MAIN_UP0_KUI",
+              "loaded_name": "GEO_MAIN_F0_KUI",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 273
+              }
+            },
+            "directories": [
+              "2/273"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_030",
@@ -57544,6 +59463,16 @@
           "resolution": {
             "model_id": 607,
             "geo_name": "GEO_MAIN_B0_030",
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_030",
+              "upscaled": "GEO_MAIN_UP0_KUIT",
+              "loaded_name": "GEO_MAIN_B0_030",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 607
+              }
+            },
             "directories": [
               "2/607"
             ],
@@ -57827,7 +59756,7 @@
         ],
         "attack_sequence": 109,
         "weapon_bone": 14,
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "serial": 10,
@@ -57838,10 +59767,22 @@
           "resolution": {
             "model_id": 284,
             "geo_name": "GEO_MAIN_B0_009",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_009",
+              "upscaled": "GEO_MAIN_UP0_EIK",
+              "loaded_name": "GEO_MAIN_F0_EIK",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 443
+              }
+            },
+            "directories": [
+              "2/443"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_031",
@@ -57849,6 +59790,16 @@
           "resolution": {
             "model_id": 645,
             "geo_name": "GEO_MAIN_B0_031",
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_031",
+              "upscaled": "GEO_MAIN_UP0_EIKT",
+              "loaded_name": "GEO_MAIN_B0_031",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 645
+              }
+            },
             "directories": [
               "2/645"
             ],
@@ -58132,7 +60083,7 @@
         ],
         "attack_sequence": 110,
         "weapon_bone": 15,
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "serial": 11,
@@ -58143,10 +60094,22 @@
           "resolution": {
             "model_id": 291,
             "geo_name": "GEO_MAIN_B0_010",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_010",
+              "upscaled": "GEO_MAIN_UP0_EIK",
+              "loaded_name": "GEO_MAIN_F0_EIK",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 443
+              }
+            },
+            "directories": [
+              "2/443"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_032",
@@ -58154,10 +60117,22 @@
           "resolution": {
             "model_id": 644,
             "geo_name": "GEO_MAIN_B0_032",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_032",
+              "upscaled": "GEO_MAIN_UP0_EIKT",
+              "loaded_name": "GEO_MAIN_B0_031",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 645
+              }
+            },
+            "directories": [
+              "2/645"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "animations": [
           {
@@ -58435,7 +60410,7 @@
         ],
         "attack_sequence": 111,
         "weapon_bone": 15,
-        "unresolved": 2
+        "unresolved": 0
       },
       {
         "serial": 12,
@@ -58446,10 +60421,22 @@
           "resolution": {
             "model_id": 290,
             "geo_name": "GEO_MAIN_B0_011",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_011",
+              "upscaled": "GEO_MAIN_UP0_FRJ",
+              "loaded_name": "GEO_MAIN_F0_FRJ",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 192
+              }
+            },
+            "directories": [
+              "2/192"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_033",
@@ -58457,6 +60444,16 @@
           "resolution": {
             "model_id": 585,
             "geo_name": "GEO_MAIN_B0_033",
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_033",
+              "upscaled": "GEO_MAIN_UP0_FRJT",
+              "loaded_name": "GEO_MAIN_B0_033",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 585
+              }
+            },
             "directories": [
               "2/585"
             ],
@@ -58740,7 +60737,7 @@
         ],
         "attack_sequence": 112,
         "weapon_bone": 6,
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "serial": 13,
@@ -58751,10 +60748,22 @@
           "resolution": {
             "model_id": 444,
             "geo_name": "GEO_MAIN_B0_012",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_012",
+              "upscaled": "GEO_MAIN_UP0_SLM",
+              "loaded_name": "GEO_MAIN_F0_SLM",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 509
+              }
+            },
+            "directories": [
+              "2/509"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_034",
@@ -58762,6 +60771,16 @@
           "resolution": {
             "model_id": 648,
             "geo_name": "GEO_MAIN_B0_034",
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_034",
+              "upscaled": "GEO_MAIN_UP0_SLMT",
+              "loaded_name": "GEO_MAIN_B0_034",
+              "target": {
+                "kind": "directory",
+                "model_type": 2,
+                "geo_id": 648
+              }
+            },
             "directories": [
               "2/648"
             ],
@@ -59045,7 +61064,7 @@
         ],
         "attack_sequence": 113,
         "weapon_bone": 16,
-        "unresolved": 1
+        "unresolved": 0
       },
       {
         "serial": 14,
@@ -59056,8 +61075,18 @@
           "resolution": {
             "model_id": 39,
             "geo_name": "GEO_MAIN_B0_013",
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_013",
+              "upscaled": "GEO_SUB_UP0_CNA",
+              "loaded_name": "GEO_SUB_F0_CNA",
+              "target": {
+                "kind": "directory",
+                "model_type": 5,
+                "geo_id": 107
+              }
+            },
             "directories": [
-              "2/39"
+              "5/107"
             ],
             "status": "resolved"
           },
@@ -59069,8 +61098,18 @@
           "resolution": {
             "model_id": 39,
             "geo_name": "GEO_MAIN_B0_013",
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_013",
+              "upscaled": "GEO_SUB_UP0_CNA",
+              "loaded_name": "GEO_SUB_F0_CNA",
+              "target": {
+                "kind": "directory",
+                "model_type": 5,
+                "geo_id": 107
+              }
+            },
             "directories": [
-              "2/39"
+              "5/107"
             ],
             "status": "resolved"
           },
@@ -59363,8 +61402,18 @@
           "resolution": {
             "model_id": 45,
             "geo_name": "GEO_MAIN_B0_014",
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_014",
+              "upscaled": "GEO_SUB_UP0_MRC",
+              "loaded_name": "GEO_SUB_F0_MRC",
+              "target": {
+                "kind": "directory",
+                "model_type": 5,
+                "geo_id": 109
+              }
+            },
             "directories": [
-              "2/45"
+              "5/109"
             ],
             "status": "resolved"
           },
@@ -59376,8 +61425,18 @@
           "resolution": {
             "model_id": 45,
             "geo_name": "GEO_MAIN_B0_014",
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_014",
+              "upscaled": "GEO_SUB_UP0_MRC",
+              "loaded_name": "GEO_SUB_F0_MRC",
+              "target": {
+                "kind": "directory",
+                "model_type": 5,
+                "geo_id": 109
+              }
+            },
             "directories": [
-              "2/45"
+              "5/109"
             ],
             "status": "resolved"
           },
@@ -59670,10 +61729,22 @@
           "resolution": {
             "model_id": 42,
             "geo_name": "GEO_MAIN_B0_015",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_015",
+              "upscaled": "GEO_SUB_UP0_BLN",
+              "loaded_name": "GEO_SUB_F0_BLN",
+              "target": {
+                "kind": "directory",
+                "model_type": 5,
+                "geo_id": 5467
+              }
+            },
+            "directories": [
+              "5/5467"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_015",
@@ -59681,10 +61752,22 @@
           "resolution": {
             "model_id": 42,
             "geo_name": "GEO_MAIN_B0_015",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_015",
+              "upscaled": "GEO_SUB_UP0_BLN",
+              "loaded_name": "GEO_SUB_F0_BLN",
+              "target": {
+                "kind": "directory",
+                "model_type": 5,
+                "geo_id": 5467
+              }
+            },
+            "directories": [
+              "5/5467"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "animations": [
           {
@@ -59962,7 +62045,7 @@
         ],
         "attack_sequence": 116,
         "weapon_bone": 14,
-        "unresolved": 2
+        "unresolved": 0
       },
       {
         "serial": 17,
@@ -59973,10 +62056,22 @@
           "resolution": {
             "model_id": 608,
             "geo_name": "GEO_MAIN_B0_016",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_016",
+              "upscaled": "GEO_SUB_UP1_BLN",
+              "loaded_name": "GEO_SUB_F1_BLN",
+              "target": {
+                "kind": "directory",
+                "model_type": 5,
+                "geo_id": 190
+              }
+            },
+            "directories": [
+              "5/190"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_016",
@@ -59984,10 +62079,22 @@
           "resolution": {
             "model_id": 608,
             "geo_name": "GEO_MAIN_B0_016",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_016",
+              "upscaled": "GEO_SUB_UP1_BLN",
+              "loaded_name": "GEO_SUB_F1_BLN",
+              "target": {
+                "kind": "directory",
+                "model_type": 5,
+                "geo_id": 190
+              }
+            },
+            "directories": [
+              "5/190"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "animations": [
           {
@@ -60265,7 +62372,7 @@
         ],
         "attack_sequence": 117,
         "weapon_bone": 14,
-        "unresolved": 2
+        "unresolved": 0
       },
       {
         "serial": 18,
@@ -60276,10 +62383,22 @@
           "resolution": {
             "model_id": 358,
             "geo_name": "GEO_MAIN_B0_017",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_017",
+              "upscaled": "GEO_SUB_UP0_BTX",
+              "loaded_name": "GEO_SUB_F0_BTX",
+              "target": {
+                "kind": "directory",
+                "model_type": 5,
+                "geo_id": 204
+              }
+            },
+            "directories": [
+              "5/204"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "trance_model": {
           "name": "GEO_MAIN_B0_017",
@@ -60287,10 +62406,22 @@
           "resolution": {
             "model_id": 358,
             "geo_name": "GEO_MAIN_B0_017",
-            "directories": [],
-            "status": "no_directory"
+            "loaded_as": {
+              "requested": "GEO_MAIN_B0_017",
+              "upscaled": "GEO_SUB_UP0_BTX",
+              "loaded_name": "GEO_SUB_F0_BTX",
+              "target": {
+                "kind": "directory",
+                "model_type": 5,
+                "geo_id": 204
+              }
+            },
+            "directories": [
+              "5/204"
+            ],
+            "status": "resolved"
           },
-          "status": "no_directory"
+          "status": "resolved"
         },
         "animations": [
           {
@@ -60568,7 +62699,7 @@
         ],
         "attack_sequence": 118,
         "weapon_bone": 16,
-        "unresolved": 2
+        "unresolved": 0
       }
     ],
     "weapons": [
@@ -61362,7 +63493,7 @@
     "totals": {
       "players": 19,
       "model_references": 38,
-      "model_references_resolved": 14,
+      "model_references_resolved": 38,
       "animation_references": 646,
       "animation_references_resolved": 646,
       "distinct_animations": 590,
@@ -61411,7 +63542,7 @@
       "p0data7.bin"
     ],
     "unreadable": [],
-    "geo_ids_searched": 35,
+    "geo_ids_searched": 0,
     "found": []
   },
   "player_ability_sequences": {
@@ -63466,6 +65597,8 @@
   "not_done": [
     "Background models are static meshes: their meshes and textures are decoded as objects, not assembled (the assembler only reads skinned prefabs).",
     "Texture animation tables (`TAM_B*.tab`) are checked for presence only, not parsed.",
+    "Model directories follow `ModelFactory.CreateModel` (`model_factory`); a party member's `battle_model` child inside the shared field model is not inspected, and the texture swap for `GEO_MAIN_F3_ZDN` to `F5_ZDN` is not applied.",
+    "Two animation clips (`ANH_MON_B3_169_002`, `ANH_MON_B3_140_012`) are in no `p0data5` folder; what the game does without them is not shown by the pinned source.",
     "Player models, animation names and `AttackSequence` come from the pinned Memoria `BattleParameters.csv` (the reference's defaults); the installed assembly's own player table (`ff9play`, `btl_mot`) is not evaluated.",
     "Weapons: every row of the installed weapon table is checked; which weapon a given equipped item selects is not walked.",
     "`Vfx2` is checked as a reference; the conditions that pick `Vfx2` over `VfxIndex` are not evaluated.",

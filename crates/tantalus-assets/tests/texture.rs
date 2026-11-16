@@ -107,3 +107,90 @@ fn dxt1_texture_decodes_four_color_and_transparent_blocks() {
         .unwrap();
     assert!(rgba.chunks_exact(4).all(|pixel| pixel[3] == 255));
 }
+
+/// A fixture with another pixel format and mip count (`fixture` writes DXT5 and one level).
+fn fixture_as(width: i32, height: i32, format: i32, mips: i32, data: &[u8]) -> Vec<u8> {
+    let mut bytes = fixture(width, height, data);
+    bytes[24..28].copy_from_slice(&format.to_le_bytes());
+    bytes[28..32].copy_from_slice(&mips.to_le_bytes());
+    bytes
+}
+
+#[test]
+fn raw_formats_decode_with_unity_byte_orders() {
+    // Two pixels each; rows are flipped, but a one-row texture is unchanged.
+    let rgba32 = Texture2D::parse(&fixture_as(2, 1, 4, 1, &[1, 2, 3, 4, 5, 6, 7, 8]), "rgba32");
+    assert_eq!(
+        rgba32.unwrap().rgba_bytes().unwrap(),
+        [1, 2, 3, 4, 5, 6, 7, 8]
+    );
+    // ARGB32 stores A, R, G, B.
+    let argb32 = Texture2D::parse(&fixture_as(2, 1, 5, 1, &[4, 1, 2, 3, 8, 5, 6, 7]), "argb32");
+    assert_eq!(
+        argb32.unwrap().rgba_bytes().unwrap(),
+        [1, 2, 3, 4, 5, 6, 7, 8]
+    );
+    // BGRA32 stores B, G, R, A.
+    let bgra32 = Texture2D::parse(&fixture_as(1, 1, 14, 1, &[3, 2, 1, 9]), "bgra32");
+    assert_eq!(bgra32.unwrap().rgba_bytes().unwrap(), [1, 2, 3, 9]);
+    // RGB24 is opaque; Alpha8 is white with the stored alpha.
+    let rgb24 = Texture2D::parse(&fixture_as(1, 1, 3, 1, &[10, 20, 30]), "rgb24");
+    assert_eq!(rgb24.unwrap().rgba_bytes().unwrap(), [10, 20, 30, 255]);
+    let alpha8 = Texture2D::parse(&fixture_as(2, 1, 1, 1, &[0, 77]), "alpha8");
+    assert_eq!(
+        alpha8.unwrap().rgba_bytes().unwrap(),
+        [255, 255, 255, 0, 255, 255, 255, 77]
+    );
+    // RGB565 is a little-endian 16-bit value with red in the top five bits.
+    let mut pixels = Vec::new();
+    for value in [0xf800_u16, 0x07e0, 0x001f] {
+        pixels.extend_from_slice(&value.to_le_bytes());
+    }
+    let rgb565 = Texture2D::parse(&fixture_as(3, 1, 7, 1, &pixels), "rgb565");
+    assert_eq!(
+        rgb565.unwrap().rgba_bytes().unwrap(),
+        [255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255]
+    );
+}
+
+#[test]
+fn raw_format_size_must_match_the_declared_chain() {
+    assert!(Texture2D::parse(&fixture_as(2, 1, 4, 1, &[0; 7]), "short").is_err());
+    assert!(Texture2D::parse(&fixture_as(2, 2, 4, 1, &[0; 12]), "short").is_err());
+    // Two levels of a 2x2 RGBA32: 16 + 4 bytes.
+    assert!(Texture2D::parse(&fixture_as(2, 2, 4, 2, &[0; 20]), "chain").is_ok());
+    assert!(Texture2D::parse(&fixture_as(2, 2, 4, 2, &[0; 16]), "chain").is_err());
+}
+
+#[test]
+fn dxt_mip_chain_decodes_the_first_level_only() {
+    // 8x8 DXT5 with four levels: 8x8 (4 blocks), 4x4, 2x2 and 1x1 (one block each).
+    let mut data = Vec::new();
+    for _ in 0..4 {
+        data.extend_from_slice(&solid_dxt5());
+    }
+    let mut smaller = solid_dxt5();
+    smaller[8..10].copy_from_slice(&0x001f_u16.to_le_bytes());
+    smaller[10..12].copy_from_slice(&0x001f_u16.to_le_bytes());
+    for _ in 0..3 {
+        data.extend_from_slice(&smaller);
+    }
+    assert_eq!(data.len(), 112);
+    let texture = Texture2D::parse(&fixture_as(8, 8, DXT5_FORMAT, 4, &data), "chain").unwrap();
+    assert_eq!(texture.mip_count, 4);
+    assert_eq!(texture.image_data.len(), 112);
+    assert_eq!(texture.first_level_bytes(), 64);
+    let rgba = texture.rgba_bytes().unwrap();
+    assert_eq!(rgba.len(), 8 * 8 * 4);
+    assert!(rgba.chunks_exact(4).all(|pixel| pixel == [255, 0, 0, 255]));
+    // Level data that is not the whole chain is rejected.
+    assert!(Texture2D::parse(&fixture_as(8, 8, DXT5_FORMAT, 4, &data[..64]), "cut").is_err());
+    // A 1x1 chain tail needs a full block, so a 256x256 DXT1 chain of nine levels is 43,704 bytes.
+    let total: usize = (0..9)
+        .map(|level| {
+            let side = (256_usize >> level).max(1);
+            side.div_ceil(4) * side.div_ceil(4) * 8
+        })
+        .sum();
+    assert_eq!(total, 43_704);
+}

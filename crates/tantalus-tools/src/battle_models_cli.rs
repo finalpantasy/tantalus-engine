@@ -17,6 +17,7 @@ use tantalus_assets::pc::battle_models::{
 use tantalus_assets::pc::battle_scene::BattleBundleData;
 use tantalus_assets::pc::battle_sequence::SequenceFile;
 use tantalus_assets::pc::battle_tables::{BattleTables, extract_battle_tables};
+use tantalus_assets::pc::field_models::model_dirs;
 use tantalus_assets::pc::managed_il::Assembly;
 use tantalus_assets::pc::model_assembly::{
     AssembleOptions, ContainerEntry, ModelCatalog, ModelDir, ObjectStore, SerializedStore,
@@ -182,7 +183,7 @@ fn model_side(
         };
         let mut assembled = HashMap::new();
         for geo in wanted_geo {
-            for dir in catalog.dirs_for_geo(*geo) {
+            for dir in model_dirs(*geo, &catalog) {
                 let ok = dir.roots.first().is_some_and(|root| {
                     assemble_model(
                         store,
@@ -230,7 +231,10 @@ fn battle_bundle_side(
                     Err(error) => Some(error.to_string()),
                 },
                 28 => match store.texture(entry.path_id) {
-                    Ok(Some(_)) => None,
+                    Ok(Some(texture)) => texture
+                        .rgba_bytes()
+                        .err()
+                        .map(|error| format!("pixel decode: {error}")),
                     Ok(None) => Some("not a Texture2D".to_owned()),
                     Err(error) => Some(error.to_string()),
                 },
@@ -254,7 +258,7 @@ fn battle_bundle_side(
         let catalog = ModelCatalog::from_container_with_prefix(&entries, WEAPON_MODEL_PREFIX);
         let mut assembled = HashMap::new();
         for geo in wanted_weapon_geo {
-            for dir in catalog.dirs_for_geo(*geo) {
+            for dir in model_dirs(*geo, &catalog) {
                 let ok = dir.roots.first().is_some_and(|root| {
                     assemble_model(
                         store,
@@ -528,7 +532,7 @@ pub fn build_report(
         let missing: BTreeSet<u32> = wanted_geo
             .iter()
             .copied()
-            .filter(|geo| side.catalog.dirs_for_geo(*geo).is_empty())
+            .filter(|geo| model_dirs(*geo, &side.catalog).is_empty())
             .collect();
         search_elsewhere(
             battle_path,
@@ -655,6 +659,8 @@ pub fn build_report(
         not_done: vec![
             "Background models are static meshes: their meshes and textures are decoded as objects, not assembled (the assembler only reads skinned prefabs).",
             "Texture animation tables (`TAM_B*.tab`) are checked for presence only, not parsed.",
+            "Model directories follow `ModelFactory.CreateModel` (`model_factory`); a party member's `battle_model` child inside the shared field model is not inspected, and the texture swap for `GEO_MAIN_F3_ZDN` to `F5_ZDN` is not applied.",
+            "Two animation clips (`ANH_MON_B3_169_002`, `ANH_MON_B3_140_012`) are in no `p0data5` folder; what the game does without them is not shown by the pinned source.",
             "Player models, animation names and `AttackSequence` come from the pinned Memoria `BattleParameters.csv` (the reference's defaults); the installed assembly's own player table (`ff9play`, `btl_mot`) is not evaluated.",
             "Weapons: every row of the installed weapon table is checked; which weapon a given equipped item selects is not walked.",
             "`Vfx2` is checked as a reference; the conditions that pick `Vfx2` over `VfxIndex` are not evaluated.",

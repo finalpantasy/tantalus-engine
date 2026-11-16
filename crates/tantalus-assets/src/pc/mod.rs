@@ -18,6 +18,7 @@ pub mod map_config;
 pub mod mbg;
 pub mod mes;
 pub mod model_assembly;
+pub mod model_factory;
 pub mod ogg;
 pub mod resource_container;
 pub mod serialized;

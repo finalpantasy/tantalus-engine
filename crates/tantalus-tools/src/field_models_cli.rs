@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use tantalus_assets::pc::asset_bundle::AssetBundleMetadata;
 use tantalus_assets::pc::field_models::{
-    AnimationRole, FieldModelCoverage, FieldScriptUsage, build_coverage,
+    AnimationRole, FieldModelCoverage, FieldScriptUsage, build_coverage, model_dirs,
 };
 use tantalus_assets::pc::model_assembly::{
     AssembleOptions, ModelCatalog, SerializedStore, assemble_model, clip_entries,
@@ -397,7 +397,7 @@ pub fn build_report(
                 .collect();
             let mut assembled: HashMap<String, bool> = HashMap::new();
             for id in wanted {
-                for dir in catalog.dirs_for_geo(u32::from(id)) {
+                for dir in model_dirs(u32::from(id), &catalog) {
                     let ok = dir.roots.first().is_some_and(|root| {
                         assemble_model(store, &dir.label, *root, AssembleOptions::default()).is_ok()
                     });
