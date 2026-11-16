@@ -497,9 +497,15 @@ pub struct ModelCatalog {
 
 impl ModelCatalog {
     pub fn from_container(entries: &[ContainerEntry]) -> Self {
+        Self::from_container_with_prefix(entries, MODELS_PREFIX)
+    }
+
+    /// Same as [`Self::from_container`] for another `<type>/<geo id>/<file>` root: the battle
+    /// bundle keeps weapon models under `assets/resources/battlemap/battlemodel/6/<geo id>/`.
+    pub fn from_container_with_prefix(entries: &[ContainerEntry], prefix: &str) -> Self {
         let mut catalog = Self::default();
         for entry in entries {
-            let Some(rest) = entry.path.strip_prefix(MODELS_PREFIX) else {
+            let Some(rest) = entry.path.strip_prefix(prefix) else {
                 catalog.other_entries.push(entry.path.clone());
                 continue;
             };

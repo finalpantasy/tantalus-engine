@@ -297,6 +297,18 @@ pub fn rasterize_camera(
     atlas: &AtlasPixels<'_>,
     include: impl Fn(&OverlayLayer) -> bool,
 ) -> Result<Option<Raster>, ImportError> {
+    rasterize_camera_placed(plan, atlas, include, |_, tile| Ok([tile.x, tile.y]))
+}
+
+/// [`rasterize_camera`] with a caller-chosen field position per tile. The
+/// canvas still covers the tiles' plan positions, so every tick of a field
+/// shares one frame of reference; a tile placed outside it is clipped.
+pub fn rasterize_camera_placed(
+    plan: &CameraPlan,
+    atlas: &AtlasPixels<'_>,
+    include: impl Fn(&OverlayLayer) -> bool,
+    place: impl Fn(&OverlayLayer, &LayerTile) -> Result<[i32; 2], ImportError>,
+) -> Result<Option<Raster>, ImportError> {
     if atlas.tile_size == 0 || !atlas.tile_size.is_multiple_of(NATIVE_TILE) {
         return Err(ImportError::invalid(
             "field-composition",
@@ -348,11 +360,20 @@ pub fn rasterize_camera(
         )
     });
     let side = atlas.tile_size as usize;
-    for (_, tile) in &tiles {
-        let dest_x = ((tile.x - bounds[0]) as u32 * scale) as usize;
-        let dest_y = ((tile.y - bounds[1]) as u32 * scale) as usize;
+    for (layer, tile) in &tiles {
+        let [x, y] = place(layer, tile)?;
+        let dest_x = (x as i64 - bounds[0] as i64) * scale as i64;
+        let dest_y = (y as i64 - bounds[1] as i64) * scale as i64;
         for row in 0..side {
+            let target_y = dest_y + row as i64;
+            if target_y < 0 || target_y >= height as i64 {
+                continue;
+            }
             for column in 0..side {
+                let target_x = dest_x + column as i64;
+                if target_x < 0 || target_x >= width as i64 {
+                    continue;
+                }
                 let source = ((tile.atlas_rect[1] as usize + row) * atlas.width as usize
                     + tile.atlas_rect[0] as usize
                     + column)
@@ -361,7 +382,7 @@ pub fn rasterize_camera(
                 if src[3] == 0 {
                     continue;
                 }
-                let target = ((dest_y + row) * width as usize + dest_x + column) * 4;
+                let target = (target_y as usize * width as usize + target_x as usize) * 4;
                 blend(&mut canvas[target..target + 4], src, tile);
             }
         }
@@ -777,6 +798,125 @@ pub fn compose_bundle(
     Ok(outcome)
 }
 
+/// Decodes the atlas registered for `field`: `(width, height, rgba)`.
+fn decode_field_atlas(
+    serialized: &SerializedFile<'_>,
+    metadata: &AssetBundleMetadata,
+    field: &str,
+) -> Result<(u32, u32, Vec<u8>), String> {
+    let Some(info) = metadata.atlas_for(field) else {
+        return Err("no atlas is registered for the field".to_owned());
+    };
+    let Some(atlas_index) = serialized
+        .report()
+        .objects
+        .iter()
+        .position(|object| object.class_id == 28 && object.path_id == info.path_id)
+    else {
+        return Err(format!(
+            "atlas path ID {} is not a Texture2D in this bundle",
+            info.path_id
+        ));
+    };
+    let texture = match serialized
+        .object_data(atlas_index)
+        .and_then(|data| Texture2D::parse(data, field))
+    {
+        Ok(texture) => texture,
+        Err(error) => return Err(format!("atlas does not parse: {error}")),
+    };
+    let rgba = match texture.rgba_bytes() {
+        Ok(rgba) => rgba,
+        Err(error) => return Err(format!("atlas does not decode: {error}")),
+    };
+    let (Ok(width), Ok(height)) = (u32::try_from(texture.width), u32::try_from(texture.height))
+    else {
+        return Err("atlas has a negative size".to_owned());
+    };
+    Ok((width, height, rgba))
+}
+
+/// One field handed to [`visit_bundle_fields`].
+pub struct FieldVisit<'a> {
+    pub field: &'a str,
+    pub bundle: &'a str,
+    pub scene: &'a BgsFile,
+    pub atlas: AtlasPixels<'a>,
+}
+
+/// Calls `visit` for every non-locale field of one field bundle, optionally
+/// only the field named `only`. A field whose scene or atlas cannot be
+/// loaded is reported through `problem` and skipped.
+pub fn visit_bundle_fields(
+    path: &Path,
+    only: Option<&str>,
+    mut visit: impl FnMut(FieldVisit<'_>),
+    mut problem: impl FnMut(&str, String),
+) -> Result<usize, ImportError> {
+    let source = path.display().to_string();
+    let bundle_name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| source.clone());
+    let bundle = UnityRawBundle::open(path)?;
+    let bytes = bundle.read_entry(0, MAX_BUNDLE_BYTES)?;
+    let serialized = SerializedFile::parse(&bytes, &source)?;
+    let metadata_index = serialized
+        .report()
+        .objects
+        .iter()
+        .position(|object| object.class_id == 142)
+        .ok_or_else(|| ImportError::invalid(&source, "AssetBundle metadata is missing"))?;
+    let metadata = AssetBundleMetadata::parse(
+        serialized.object_data(metadata_index)?,
+        &format!("{source}:AssetBundle"),
+    )?;
+    let mut scenes: BTreeMap<String, Vec<u8>> = BTreeMap::new();
+    for (index, object) in serialized.report().objects.iter().enumerate() {
+        if object.class_id != 49 {
+            continue;
+        }
+        let asset = TextAsset::parse(serialized.object_data(index)?, &source)?;
+        if let Some(name) = asset.name.strip_suffix(".bgs") {
+            scenes.insert(name.to_owned(), asset.script);
+        }
+    }
+    let mut visited = 0;
+    for (field, script) in &scenes {
+        if locale_base(field, &scenes).is_some() || only.is_some_and(|name| name != field) {
+            continue;
+        }
+        let scene = match BgsFile::parse(script, field) {
+            Ok(scene) => scene,
+            Err(error) => {
+                problem(field, format!("scene does not parse: {error}"));
+                continue;
+            }
+        };
+        let (width, height, rgba) = match decode_field_atlas(&serialized, &metadata, field) {
+            Ok(decoded) => decoded,
+            Err(reason) => {
+                problem(field, reason);
+                continue;
+            }
+        };
+        visited += 1;
+        visit(FieldVisit {
+            field,
+            bundle: &bundle_name,
+            scene: &scene,
+            atlas: AtlasPixels {
+                width,
+                height,
+                rgba: &rgba,
+                tile_size: ATLAS_TILE,
+                padding: ATLAS_PADDING,
+            },
+        });
+    }
+    Ok(visited)
+}
+
 fn compose_one(
     serialized: &SerializedFile<'_>,
     metadata: &AssetBundleMetadata,
@@ -813,34 +953,9 @@ fn compose_one(
         Ok(scene) => scene,
         Err(error) => return failed(format!("scene does not parse: {error}")),
     };
-    let Some(info) = metadata.atlas_for(field) else {
-        return failed("no atlas is registered for the field".to_owned());
-    };
-    let Some(atlas_index) = serialized
-        .report()
-        .objects
-        .iter()
-        .position(|object| object.class_id == 28 && object.path_id == info.path_id)
-    else {
-        return failed(format!(
-            "atlas path ID {} is not a Texture2D in this bundle",
-            info.path_id
-        ));
-    };
-    let texture = match serialized
-        .object_data(atlas_index)
-        .and_then(|data| Texture2D::parse(data, field))
-    {
-        Ok(texture) => texture,
-        Err(error) => return failed(format!("atlas does not parse: {error}")),
-    };
-    let rgba = match texture.rgba_bytes() {
-        Ok(rgba) => rgba,
-        Err(error) => return failed(format!("atlas does not decode: {error}")),
-    };
-    let (Ok(width), Ok(height)) = (u32::try_from(texture.width), u32::try_from(texture.height))
-    else {
-        return failed("atlas has a negative size".to_owned());
+    let (width, height, rgba) = match decode_field_atlas(serialized, metadata, field) {
+        Ok(decoded) => decoded,
+        Err(reason) => return failed(reason),
     };
     compose_field(
         field,

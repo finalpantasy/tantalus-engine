@@ -1,6 +1,7 @@
 pub mod akb2;
 pub mod asset_bundle;
 pub mod audio_decode;
+pub mod battle_models;
 pub mod battle_scene;
 pub mod battle_sequence;
 pub mod battle_tables;
@@ -9,6 +10,7 @@ pub mod bgs;
 pub mod bundled_field;
 pub mod dialog_render;
 pub mod field;
+pub mod field_animation;
 pub mod field_composition;
 pub mod field_models;
 pub mod font_bundle;

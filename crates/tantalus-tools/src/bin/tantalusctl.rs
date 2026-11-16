@@ -539,6 +539,8 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut battle_scenes = false;
     let mut battle_scripts_probe: Option<PathBuf> = None;
     let mut battle_sequences: Option<PathBuf> = None;
+    let mut battle_model_coverage: Option<PathBuf> = None;
+    let mut battle_dll: Option<PathBuf> = None;
     let mut battle_scene = None;
     let mut world_map = false;
     let mut world_map_audit = None;
@@ -549,6 +551,10 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     let mut field_composition = false;
     let mut composition_png: Option<PathBuf> = None;
     let mut composition_out: Option<PathBuf> = None;
+    let mut field_animation_check = false;
+    let mut animation_out: Option<PathBuf> = None;
+    let mut animation_camera: u8 = 0;
+    let mut animation_frames: Option<(String, u32, PathBuf)> = None;
     let mut models_bundle: Option<PathBuf> = None;
     let mut clips_bundle = None;
     let mut index = 2;
@@ -749,6 +755,27 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                     return Err("`--battle-sequences` may only be supplied once".to_owned());
                 }
             }
+            Some("--battle-model-coverage") => {
+                index += 1;
+                let value = args.get(index).ok_or_else(|| {
+                    "`--battle-model-coverage` requires an output path".to_owned()
+                })?;
+                if battle_model_coverage
+                    .replace(PathBuf::from(value))
+                    .is_some()
+                {
+                    return Err("`--battle-model-coverage` may only be supplied once".to_owned());
+                }
+            }
+            Some("--dll") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| "`--dll` requires an Assembly-CSharp.dll path".to_owned())?;
+                if battle_dll.replace(PathBuf::from(value)).is_some() {
+                    return Err("`--dll` may only be supplied once".to_owned());
+                }
+            }
             Some("--battle-scene") => {
                 index += 1;
                 let value = args
@@ -801,6 +828,41 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             Some("--assemble-all") => assemble_all_models = true,
             Some("--field-models") => field_models = true,
             Some("--field-composition") => field_composition = true,
+            Some("--field-animation-check") => field_animation_check = true,
+            Some("--animation-out") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| "`--animation-out` requires a path".to_owned())?;
+                animation_out = Some(PathBuf::from(value));
+            }
+            Some("--animation-camera") => {
+                index += 1;
+                animation_camera = args
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .and_then(|value| value.parse().ok())
+                    .ok_or_else(|| "`--animation-camera` requires a camera number".to_owned())?;
+            }
+            Some("--field-animation-frames") => {
+                let field = args
+                    .get(index + 1)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| "`--field-animation-frames` requires a field name".to_owned())?
+                    .to_owned();
+                let tick: u32 = args
+                    .get(index + 2)
+                    .and_then(|value| value.to_str())
+                    .and_then(|value| value.parse().ok())
+                    .ok_or_else(|| {
+                        "`--field-animation-frames` requires a tick number".to_owned()
+                    })?;
+                let out = args.get(index + 3).ok_or_else(|| {
+                    "`--field-animation-frames` requires an output PNG path".to_owned()
+                })?;
+                animation_frames = Some((field, tick, PathBuf::from(out)));
+                index += 3;
+            }
             Some(flag @ ("--png" | "--composition-out")) => {
                 index += 1;
                 let value = args
@@ -879,8 +941,35 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
     if let Some(out) = battle_sequences.as_deref() {
         return run_battle_sequences(&path, out);
     }
+    if let Some(out) = battle_model_coverage {
+        return tantalus_tools::battle_models_cli::run_battle_model_coverage(
+            &path,
+            &tantalus_tools::battle_models_cli::BattleModelsRequest {
+                models: models_bundle,
+                clips: clips_bundle,
+                dll: battle_dll,
+                resources_assets,
+                out,
+            },
+        );
+    }
     if field_composition {
         return run_field_composition(&path, composition_out, composition_png);
+    }
+    if field_animation_check {
+        return tantalus_tools::field_animation_cli::run_field_animation_check(
+            &path,
+            animation_out,
+        );
+    }
+    if let Some((field, tick, out)) = &animation_frames {
+        return tantalus_tools::field_animation_cli::run_field_animation_frames(
+            &path,
+            field,
+            *tick,
+            animation_camera,
+            out,
+        );
     }
     if let Some(out) = world_walk.as_deref() {
         return tantalus_tools::world_walk_cli::run_world_walk(&path, out, json);
@@ -2134,12 +2223,12 @@ fn run_field_composition(
 }
 
 fn usage() -> &'static str {
-    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--decode-frames <name> <n|all> [--png <dir>]] [--out <path>] [--json]`, `assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--world-walk <out json>] [--battle-sequences <out json>] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
+    "expected `install inspect --root <path> [--json]`, `assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]`, `assets inspect-movie --dir <dir> [--verify-crc] [--decode-frames <name> <n|all> [--png <dir>]] [--out <path>] [--json]`, `assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]`, `assets import --plan <path> [--json]`, `assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--audio-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--field-animation-check [--animation-out <json>]] [--field-animation-frames <field> <tick> <out.png> [--animation-camera <n>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--world-walk <out json>] [--battle-sequences <out json>] [--battle-model-coverage <out json> [--models <p0data4.bin>] [--clips <p0data5.bin>] [--dll <Assembly-CSharp.dll>] [--resources-assets <path>]] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]`, or `scenario run --case <path> [--bundle <path>] [--json]`"
 }
 
 fn print_help() {
     println!(
-        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--decode-frames <name> <n|all> [--png <dir>]] [--out <path>] [--json]\n    tantalusctl assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--world-walk <out json>] [--battle-sequences <out json>] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
+        "tantalusctl\n\nUSAGE:\n    tantalusctl install inspect --root <path> [--json]\n    tantalusctl assets inspect-serialized --path <file> [--json] [--out <path>] [--mes <name>|--mes-all] [--ui-atlases] [--atlas-png <name> <out>] [--fonts [--font-png <dir>]] [--render-dialog <mes name> <entry> <out.png> [--dialog-variant <n>] [--dialog-page <n>] [--dialog-window blue|gray] [--dialog-size auto|hint]]\n    tantalusctl assets inspect-movie --dir <dir> [--verify-crc] [--decode-frames <name> <n|all> [--png <dir>]] [--out <path>] [--json]\n    tantalusctl assets battle-tables --dll <Assembly-CSharp.dll> [--out <audit json>] [--tables-out <full json>] [--json]\n    tantalusctl assets import --plan <path> [--json]\n    tantalusctl assets inspect-bundle --path <path> [--objects] [--text-asset <name>] [--inventory] [--mbg-all] [--map-config-all] [--audio-decode [--audio-out <path>] [--wav <dir>] [--resources-assets <path>] [--movie-inventory <path>]] [--field-models [--models <p0data4.bin>]] [--field-composition [--composition-out <json>] [--png <dir>]] [--field-animation-check [--animation-out <json>]] [--field-animation-frames <field> <tick> <out.png> [--animation-camera <n>]] [--assemble-model <dir>] [--assemble-all] [--clips <p0data5.bin>] [--world-map] [--world-map-audit <path>] [--world-walk <out json>] [--battle-sequences <out json>] [--battle-model-coverage <out json> [--models <p0data4.bin>] [--clips <p0data5.bin>] [--dll <Assembly-CSharp.dll>] [--resources-assets <path>]] [--audio-all] [--unity-objects [--class <id>]] [--event <name> [--probe]] [--texture <name>] [--texture-id <path-id>] [--rgba-output <path>] [--bgi <name>] [--bgs <name>] [--battle-scenes] [--battle-scripts-probe <out json>] [--battle-scene <EVT_BATTLE_name>] [--field <name>] [--atlas-for <field>] [--json]\n    tantalusctl scenario run --case <path> [--bundle <path>] [--json]\n\nInspect installations and UnityRaw bundles, import validated local asset packs, or run typed headless scenarios."
     );
 }
 
