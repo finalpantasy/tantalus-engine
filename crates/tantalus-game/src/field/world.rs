@@ -1242,4 +1242,23 @@ mod party_slot_tests {
         };
         assert_ne!(draws_a, draws_b, "seeded world streams must differ");
     }
+    #[test]
+    fn wide_draws_compose_full_bytes() {
+        use crate::battle::GameServices;
+        // The widening fix: random_below(65_536) must return a true 16-bit
+        // value. The pre-fix bug returned one u8 % 65_536, which can never
+        // exceed 255 -- so a draw above 255 proves wide draws compose
+        // whole bytes.
+        let mut saw_wide = false;
+        for seed in 0..64u64 {
+            let mut world = FieldWorld::new();
+            world.seed_rng(seed ^ 0xC0FF_EE11_DEAD_BEEF);
+            let mut services = crate::battle::WorldGameServices::new(&mut world);
+            if services.random_below(65_536) > 255 {
+                saw_wide = true;
+                break;
+            }
+        }
+        assert!(saw_wide, "no 16-bit draw exceeded 255 in 64 seeds");
+    }
 }
