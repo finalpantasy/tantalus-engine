@@ -4,6 +4,7 @@ pub mod effects;
 pub mod event;
 pub mod menu;
 pub mod movie;
+pub mod party_menu;
 pub mod quad;
 pub mod saves;
 pub mod shop;
