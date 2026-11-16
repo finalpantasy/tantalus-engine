@@ -117,31 +117,70 @@ impl FieldHost<'_> {
 }
 
 impl FieldHost<'_> {
-    /// Keeps the model and animation ids the renderer needs. Events for an
-    /// actor that does not exist are ignored here; the handlers below
-    /// report them where the reference does.
+    /// Keeps the model, animation and visibility state the renderer needs.
+    /// Events for an actor that does not exist are ignored here; the
+    /// handlers below report them where the reference does.
     fn record_look(&mut self, event: &HostEvent) {
-        let (actor, apply): (EntityId, &dyn Fn(&mut super::world::ActorLook)) = match event {
-            HostEvent::SetActorModel { actor, model, .. } => {
-                (*actor, &|look| look.model = Some(*model))
+        // `PUSHHIDE` (0xD5) saves every object's flags and clears "show
+        // model" (bit 1) unless "don't hide all" (32) is set; `POPSHOW`
+        // (0xD6) restores bit 1 from the saved flags.
+        match event {
+            HostEvent::PreserveAndHideAll => {
+                for state in self.world.actors.values_mut() {
+                    state.look.saved_flags = state.flags;
+                    if state.flags & 32 == 0 {
+                        state.flags &= !1;
+                    }
+                }
+                return;
             }
+            HostEvent::RestoreAllVisibility => {
+                for state in self.world.actors.values_mut() {
+                    state.flags = (state.flags & !1) | (state.look.saved_flags & 1);
+                }
+                return;
+            }
+            _ => {}
+        }
+        // `geoMeshHide`/`geoMeshShow` keep a 16-bit mask (`(UInt16)(1 << mesh)`).
+        let mesh_bit = |mesh: i32| {
+            u32::try_from(mesh)
+                .ok()
+                .and_then(|mesh| 1u32.checked_shl(mesh))
+                .unwrap_or(0)
+                & 0xFFFF
+        };
+        let (actor, apply): (EntityId, &dyn Fn(&mut super::world::ActorState)) = match event {
+            // `MODEL` (0x2F) also sets "show model": `gExec.flags |= 1`.
+            HostEvent::SetActorModel { actor, model, .. } => (*actor, &|state| {
+                state.look.model = Some(*model);
+                state.flags |= 1;
+            }),
             HostEvent::SetIdleAnimation { actor, animation } => {
-                (*actor, &|look| look.idle = Some(*animation))
+                (*actor, &|state| state.look.idle = Some(*animation))
             }
             HostEvent::SetWalkAnimation { actor, animation } => {
-                (*actor, &|look| look.walk = Some(*animation))
+                (*actor, &|state| state.look.walk = Some(*animation))
             }
             HostEvent::SetRunAnimation { actor, animation } => {
-                (*actor, &|look| look.run = Some(*animation))
+                (*actor, &|state| state.look.run = Some(*animation))
             }
             HostEvent::PlayAnimation { actor, animation } => {
-                (*actor, &|look| look.playing = Some(*animation))
+                (*actor, &|state| state.look.playing = Some(*animation))
             }
-            HostEvent::StopAnimation { actor } => (*actor, &|look| look.playing = None),
+            HostEvent::StopAnimation { actor } => (*actor, &|state| state.look.playing = None),
+            HostEvent::HideObjectMeshes { object, mesh } => {
+                let bit = mesh_bit(*mesh);
+                (*object, &move |state| state.look.hidden_meshes |= bit)
+            }
+            HostEvent::ShowObjectMeshes { object, mesh } => {
+                let bit = mesh_bit(*mesh);
+                (*object, &move |state| state.look.hidden_meshes &= !bit)
+            }
             _ => return,
         };
         if let Some(state) = self.world.actors.get_mut(&actor) {
-            apply(&mut state.look);
+            apply(state);
         }
     }
 }
@@ -977,5 +1016,56 @@ mod tests {
         // 999 MP is a full restore.
         set_party_points(&mut world, 0, 999, 999, false);
         assert_eq!(world.character_stats[&0].current_mp, 20);
+    }
+
+    #[test]
+    fn model_hide_all_and_mesh_events_drive_what_the_renderer_draws() {
+        let mut world = FieldWorld::new();
+        let shown = EntityId::new(3);
+        let kept = EntityId::new(4);
+        world.add_actor(shown, [0.0; 3]);
+        world.add_actor(kept, [0.0; 3]);
+        let mut host = FieldHost::new(&mut world);
+        host.apply(&[
+            HostEvent::SetActorModel {
+                actor: shown,
+                model: 98,
+                eye_height: 0,
+            },
+            HostEvent::SetIdleAnimation {
+                actor: shown,
+                animation: 7,
+            },
+            HostEvent::SetObjectFlags {
+                object: kept,
+                flags: 33,
+            },
+            HostEvent::HideObjectMeshes {
+                object: shown,
+                mesh: 1,
+            },
+            HostEvent::PreserveAndHideAll,
+        ])
+        .unwrap();
+        let look = world.actors[&shown].look;
+        assert_eq!(
+            (look.model, look.idle, look.hidden_meshes),
+            (Some(98), Some(7), 2)
+        );
+        // `MODEL` set "show model"; hide-all cleared it except on the
+        // "don't hide all" (32) object.
+        assert_eq!(world.actors[&shown].flags & 1, 0);
+        assert_eq!(world.actors[&kept].flags & 1, 1);
+        let mut host = FieldHost::new(&mut world);
+        host.apply(&[
+            HostEvent::RestoreAllVisibility,
+            HostEvent::ShowObjectMeshes {
+                object: shown,
+                mesh: 1,
+            },
+        ])
+        .unwrap();
+        assert_eq!(world.actors[&shown].flags & 1, 1);
+        assert_eq!(world.actors[&shown].look.hidden_meshes, 0);
     }
 }

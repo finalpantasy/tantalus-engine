@@ -42,6 +42,11 @@ pub struct ActorPose {
     pub animation: Option<u16>,
     /// Seconds into the animation.
     pub time: f32,
+    /// Object flag 1, "show model" (`SetRenderer`: no renderer is on
+    /// without it).
+    pub visible: bool,
+    /// `meshflags`: bit i hides the `mesh<i>` child.
+    pub hidden_meshes: u32,
 }
 
 /// One projected vertex: raster space position, view depth and texture
@@ -371,7 +376,10 @@ impl ActorModels {
         let skinned = skin_model(model, &poses);
         let mut triangles = Vec::new();
         for (part, vertices) in model.parts.iter().zip(&skinned) {
-            if under_battle_model(model, part.node) {
+            if under_battle_model(model, part.node)
+                || mesh_index(model, part.node)
+                    .is_some_and(|mesh| mesh < 32 && pose.hidden_meshes & (1 << mesh) != 0)
+            {
                 continue;
             }
             let projected: Vec<Option<ScreenVertex>> = vertices
@@ -438,6 +446,19 @@ fn under_battle_model(model: &AssembledModel, node: usize) -> bool {
         at = node.parent;
     }
     false
+}
+
+/// The `<i>` of the `mesh<i>` child of the model root that holds `node`
+/// (`PosObj.SetIsEnabledMeshRenderer` toggles those children).
+fn mesh_index(model: &AssembledModel, node: usize) -> Option<u32> {
+    let mut at = node;
+    loop {
+        let parent = model.nodes.get(at)?.parent?;
+        if model.nodes.get(parent)?.parent.is_none() {
+            return model.nodes[at].name.strip_prefix("mesh")?.parse().ok();
+        }
+        at = parent;
+    }
 }
 
 /// The last key time over every curve.

@@ -61,6 +61,7 @@ pub struct ActorState {
 /// the stand, walk and run animations, and the one `ANIM` last started.
 /// Ids are `FF9DBAll` model and animation ids.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ActorLook {
     pub model: Option<u16>,
     pub idle: Option<u16>,
@@ -68,6 +69,11 @@ pub struct ActorLook {
     pub run: Option<u16>,
     /// The animation `PlayAnimation` started, until `StopAnimation`.
     pub playing: Option<u16>,
+    /// `meshflags`: bit i set hides the model's `mesh<i>` child
+    /// (`MESHHIDE`/`MESHSHOW`).
+    pub hidden_meshes: u32,
+    /// `pflags`: the flags `PUSHHIDE` saved for `POPSHOW`.
+    pub saved_flags: i32,
 }
 
 impl ActorLook {

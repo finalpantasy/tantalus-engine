@@ -79,6 +79,8 @@ pub fn world_frame(world: &FieldWorld, tick: u64) -> (TrackFrame, BTreeSet<u64>)
                     model: actor.look.model,
                     animation: actor.look.current(playing, actor.movement.is_some()),
                     time,
+                    visible: actor.flags & 1 != 0,
+                    hidden_meshes: actor.look.hidden_meshes,
                 },
             )
         })

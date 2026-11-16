@@ -110,7 +110,8 @@ pub struct Drawn {
 /// Draws `frame`'s placed actors. An actor whose model `models` has
 /// loaded is drawn as that model; the rest are 12x24 standing boxes whose
 /// bottom edge is the foot point, the controlled character in amber, the
-/// others in cyan.
+/// others in cyan. An actor whose pose has no model or no "show model"
+/// flag is not drawn, as in the game.
 pub fn spawn_frame_markers(
     world: &mut World,
     camera: &LegacyFieldCamera,
@@ -126,6 +127,13 @@ pub fn spawn_frame_markers(
     let mut drawn = Drawn::default();
     for (id, position) in &frame.actors {
         if !placed.contains(id) {
+            continue;
+        }
+        if frame
+            .poses
+            .get(id)
+            .is_some_and(|pose| pose.model.is_none() || !pose.visible)
+        {
             continue;
         }
         let raster = models
