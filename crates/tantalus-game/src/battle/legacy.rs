@@ -456,8 +456,13 @@ pub fn player_machine_unit(
     let mut unit = BattleUnit::new(btl_id, true);
     unit.character_id = u8::try_from(character).unwrap_or(u8::MAX);
     unit.level = base.level;
-    unit.cur_hp = u32::try_from(stats.current_hp).unwrap_or(0);
-    unit.max_hp = u32::try_from(stats.max_hp).unwrap_or(0);
+    // Field rule: a party member never enters battle at 0 HP (the field
+    // keeps at least 1), matching the chain engine's `party_unit` clamp.
+    unit.cur_hp = u32::try_from(stats.current_hp)
+        .unwrap_or(0)
+        .max(1)
+        .min(u32::try_from(stats.max_hp).unwrap_or(1).max(1));
+    unit.max_hp = u32::try_from(stats.max_hp).unwrap_or(0).max(1);
     unit.cur_mp = u32::try_from(stats.current_mp).unwrap_or(0);
     unit.max_mp = u32::try_from(stats.max_mp).unwrap_or(0);
     unit.strength = base.strength;

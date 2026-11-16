@@ -637,7 +637,7 @@ fn run_world_battle_applies_ap_to_equipped_learnables() {
 }
 
 #[test]
-fn run_world_battle_defeat_pays_nothing_and_carries_back_the_wipe() {
+fn run_world_battle_applies_the_field_min_hp_rule() {
     use tantalus_contracts::EntityId;
     use tantalus_game::FieldWorld;
     use tantalus_game::battle::legacy::PlayerBase;
@@ -649,14 +649,15 @@ fn run_world_battle_defeat_pays_nothing_and_carries_back_the_wipe() {
         monster.max_hp = 60;
         monster.stats.spirit = 10;
     }
-    let mut script = b"EV\x02\x00".to_vec();
+    let mut script = b"EV ".to_vec();
     script.resize(128, 0);
 
     let mut world = FieldWorld::new();
     world.party = vec![0];
     world.gil = 500;
-    // The party enters already wiped: the machine decides Defeat on the
-    // first tick, exercising the hand-off's defeat path end to end.
+    // A 0-HP character is healed to 1 by the field rule before battle
+    // (matching the chain engine's `party_unit` clamp): the party fights
+    // and wins instead of entering dead.
     world.character_stats.insert(
         0,
         tantalus_game::field::CharacterStats {
@@ -690,17 +691,15 @@ fn run_world_battle_defeat_pays_nothing_and_carries_back_the_wipe() {
     let outcome = run_world_battle(&mut world, &entities, &scene, 0, &script, &base, 5);
     assert_eq!(
         outcome,
-        Some(tantalus_game::battle::BattleOutcome::Defeat),
-        "a wiped party is an honest defeat"
+        Some(tantalus_game::battle::BattleOutcome::Victory),
+        "the field rule heals the party to 1 HP before battle"
     );
-    assert_eq!(world.gil, 500, "defeat pays nothing");
-    assert!(world.character_exp.is_empty(), "no EXP on defeat");
-    assert!(world.items.is_empty(), "no items on defeat");
+    assert_eq!(world.gil, 800, "the healed party earns the spoils");
     let stats = &world.character_stats[&0];
     assert_eq!(
         (stats.current_hp, stats.current_mp),
-        (0, 0),
-        "the wipe carries back to the field"
+        (1, 0),
+        "post-battle state reflects the 1-HP floor (no enemy attacked)"
     );
 }
 
