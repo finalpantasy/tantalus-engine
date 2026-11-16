@@ -615,7 +615,14 @@ impl FieldWorld {
                     state.turn = None;
                 }
             }
-            if state.animation_frames > 0 {
+            if state.animation_frames == 0 && state.out_frame == u8::MAX {
+                // The idle animation loops (`ExecAnim` restarts it at
+                // frame 0), so member 7 keeps counting; map 66 entry 2
+                // waits for frame 13 of it. Real clip lengths are not
+                // loaded yet, so the loop uses the default length.
+                state.animation_frame =
+                    (state.animation_frame + 1) % self.animation_default_ticks.max(1);
+            } else if state.animation_frames > 0 {
                 state.animation_frames = state.animation_frames.saturating_sub(1);
                 state.animation_frame = state.animation_frame.saturating_add(1);
                 // The finished animation hands over to the idle loop, which

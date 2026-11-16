@@ -12,7 +12,7 @@ It runs each field's archive under the orchestrated `FieldDirector` (each entry'
 
 Same command as the sixth run, with `--route` gaining `153>150`, `--waypoints` gaining `154@-807:-5081`, and `--max-fields 60`.
 
-The new game now runs 40 fields with zero VM errors, past the castle guard (map 150), through the castle and the Pluto Knight towers, then back to the theater ship: Garnet joins, the Steiner chase plays out, and the party reaches the second act on stage (map 65). Scenario goes from 1155 to 1600. Map 65 stops at the tick limit inside a scripted scene, with no player control, while King Leo's dialog plays.
+The new game now runs 40 fields with zero VM errors, past the castle guard (map 150), through the castle and the Pluto Knight towers, then back to the theater ship: Garnet joins, the Steiner chase plays out, and the party reaches the second act on stage (map 65). Scenario goes from 1155 to 1600. Acts 2A and 2B play through (maps 65, 59, 66) to the royal seats (68). After that the explorer returns to the castle and loops there, with no scenario write until `TS_ROYAL_2` (map 69, 1900), which is reached from the cockpit (60).
 
 | Map | Archive | Ticks | Ops | Next | Scenario |
 |---|---|---|---|---|---|
@@ -26,7 +26,10 @@ The new game now runs 40 fields with zero VM errors, past the castle guard (map 
 | 53 | `EVT_ALEX1_TS_MEET_1` | 1304 | 36,939 | 56 | 1500 |
 | 56/57 | `TS_ENGIN_UP` / `TS_ENGIN` | 443 / 318 | | 57, 58 | 1500 |
 | 58 | `EVT_ALEX1_TS_STORAGE` | 1116 | 45,587 | 65 | 1600 (battle 337 skipped) |
-| 65 | `EVT_ALEX1_TS_STAGE_2A` | 4000 | 143,746 | none | 1600 (tick limit, scene still running) |
+| 65 | `EVT_ALEX1_TS_STAGE_2A` | 1080 | | 59 | 1600 (waits for Cancel or Special) |
+| 59 | `EVT_ALEX1_TS_UNDER` | 602 | | 66 | 1600 |
+| 66 | `EVT_ALEX1_TS_STAGE_2B` | 3841 | | 68 | 1600 (waits for an idle frame) |
+| 68 | `EVT_ALEX1_TS_ROYAL_1` | 350 | | 64 | 1600 |
 
 Engine fixes behind this run, each from the Memoria source:
 
@@ -34,6 +37,7 @@ Engine fixes behind this run, each from the Memoria source:
 - `MJPOS` (`DoEventCode.cs:2200`) is implemented. The player's position is projected onto the region's first edge, clamped to 0..256, and stored in `sMapJumpX/Z` (system variables 10 and 11). Since the VM hands it to the host at once, the facing test that follows in the same function reads the new values. Before this, every exit script that compares the player's facing with the exit direction read 0 and refused.
 - `AFRAME` (0x3D) sets an actor's first and last animation frame, `StartTurn` resets them to 0/255, and an animation that ends holds its last frame. The rope climb in map 115 depends on it.
 - A field start clears regions, windows, pending requests, shared scripts, object members and deleted objects from the last field.
+- Idle animations loop. With no animation playing, member 7 (`animFrame`) counts up and wraps at the default clip length, as the reference's idle clip restarts. Map 66 entry 2 waits for frame 13 before its part of the act. Real clip lengths are not loaded yet.
 
 Explorer changes in `tantalus-trace` (they drive the player; the game rules stay in the engine):
 
@@ -42,6 +46,7 @@ Explorer changes in `tantalus-trace` (they drive the player; the game rules stay
 - Floors: walkmesh heights now apply, and a jump keeps the actor on its own floor. A target that only another floor covers is reached by walking the mesh triangle by triangle (breadth-first over shared edges), so map 154's ground floor and its exit to 158 are reachable from the upper floor. An actor standing past the mesh edge starts from the nearest triangle.
 - An exit region that does not fire after its dwell is retried on each other floor under it. Map 164's spiral tower leaves upward only above height 12000.
 - Region targets use a point `IsInQuad` actually contains. Map 164 region 2's vertex average falls outside it.
+- After 300 ticks with no control and no new text, the cutscene taps add Cancel and Special to Confirm. Western builds test script key masks raw (`ETb.KeyOn` swaps Confirm and Cancel only for the Japanese layout), and map 65 entry 3 waits for `KeyOn(0x10000)` or `KeyOn(0x80000)`.
 
 Open items: name text variables are empty ("Captain , do you climb..."); battles are skipped; scene object order is not saved in snapshots yet; the walk facing in `world.rs` (`128 + atan2(dx,-dz)`) has not been checked against `Angle2` (0 = −z, 64 = west).
 

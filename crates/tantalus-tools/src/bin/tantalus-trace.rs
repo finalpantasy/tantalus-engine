@@ -410,6 +410,14 @@ fn nonzero(bytes: &[u8]) -> BTreeMap<usize, u8> {
 
 /// `EventInput.Confirm`.
 const CONFIRM: i32 = 0x20000;
+/// `EventInput.Cancel | EventInput.Special`. Western builds test script
+/// key masks raw (`ETb.KeyOn` swaps Confirm and Cancel only for the
+/// Japanese layout), so a few scenes wait on these (map 65 entry 3,
+/// `KeyOn(0x10000)` or `KeyOn(0x80000)` after text 241).
+const CANCEL_SPECIAL: i32 = 0x90000;
+/// Ticks without control or new text before the cutscene taps add
+/// Cancel and Special to Confirm.
+const STALL_TICKS: u64 = 300;
 const CONFIRM_PERIOD: u64 = 15;
 /// Ticks the scripted player stays in one region before moving on.
 const REGION_DWELL: u64 = 120;
@@ -1507,7 +1515,14 @@ fn chain(
                 && ticks_run > 0
                 && ticks_run.is_multiple_of(CONFIRM_PERIOD)
             {
-                director.world_mut().set_input(CONFIRM | held);
+                let quiet_since = texts_shown.last().map_or(0, |(tick, _)| *tick);
+                let stalled = ticks_run.saturating_sub(quiet_since) >= STALL_TICKS;
+                let keys = if stalled {
+                    CONFIRM | CANCEL_SPECIAL
+                } else {
+                    CONFIRM
+                };
+                director.world_mut().set_input(keys | held);
                 pressed = true;
                 presses += 1;
             }
