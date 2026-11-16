@@ -314,6 +314,11 @@ pub struct BattleScriptHost<'a> {
     sys_list: [u16; 8],
     rng: Option<&'a mut dyn BattleRandom>,
     probe: ProbeHost,
+    /// Invocation command parameters (`EventEngine._btlCmdPrmCmd` /
+    /// `_btlCmdPrmSub`): set by the caller when a script is invoked with
+    /// command context (the reference's `gExec.level <= 2` path); overrides
+    /// sysvars 28/29.
+    cmd_params: Option<(i32, i32)>,
 }
 
 impl<'a> BattleScriptHost<'a> {
@@ -331,6 +336,7 @@ impl<'a> BattleScriptHost<'a> {
             sys_list: [0; 8],
             rng: None,
             probe: ProbeHost,
+            cmd_params: None,
         }
     }
 
@@ -341,7 +347,16 @@ impl<'a> BattleScriptHost<'a> {
             sys_list: [0; 8],
             rng: Some(rng),
             probe: ProbeHost,
+            cmd_params: None,
         }
+    }
+
+    /// Sets the invocation command parameters (`_btlCmdPrmCmd`/`_btlCmdPrmSub`)
+    /// for scripts invoked with command context; sysvars 28/29 then read
+    /// these instead of the resolving command.
+    pub fn with_cmd_params(mut self, cmd_no: i32, sub_no: i32) -> Self {
+        self.cmd_params = Some((cmd_no, sub_no));
+        self
     }
 
     /// The unit map after script writes.
@@ -411,8 +426,16 @@ impl LegacyEventHost for BattleScriptHost<'_> {
             25 => i32::from(data.seq_busy),
             26 => i32::from(data.result_mode),
             27 => data.battle_result,
-            28 => data.current_command.as_ref().map_or(0, |c| c.cmd_no),
-            29 => data.current_command.as_ref().map_or(0, |c| c.sub_no),
+            // GetAttackCommandId / GetAttackId: invocation parameters win on
+            // the `gExec.level <= 2` path (`_btlCmdPrmCmd`/`_btlCmdPrmSub`).
+            28 => self.cmd_params.map_or_else(
+                || data.current_command.as_ref().map_or(0, |c| c.cmd_no),
+                |p| p.0,
+            ),
+            29 => self.cmd_params.map_or_else(
+                || data.current_command.as_ref().map_or(0, |c| c.sub_no),
+                |p| p.1,
+            ),
             30 | 34 => data.btl_phase as i32,
             31 => data.pattern_id,
             32 => i32::from(data.start_type),

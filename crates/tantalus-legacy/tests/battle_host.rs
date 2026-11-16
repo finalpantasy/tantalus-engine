@@ -597,3 +597,26 @@ fn script_writes_apply_back_onto_the_machine() {
     assert_eq!(views[&EntityId::new(16)].hp, 120);
     assert_eq!(views[&EntityId::new(16)].targetable, 0);
 }
+
+#[test]
+fn invocation_command_parameters_override_sysvars_28_29() {
+    let mut data = sample_data();
+    let mut host = BattleScriptHost::new(&data);
+    let read = |host: &mut BattleScriptHost, code: u8| {
+        tantalus_legacy::LegacyEventHost::read_system_variable(host, code).unwrap()
+    };
+    // No invocation context: the resolving command answers.
+    assert_eq!(read(&mut host, 28), 3);
+    assert_eq!(read(&mut host, 29), 0x1D);
+
+    // Invocation parameters (gExec.level <= 2 path) win.
+    let mut host = BattleScriptHost::new(&data).with_cmd_params(9, 0x55);
+    assert_eq!(read(&mut host, 28), 9, "_btlCmdPrmCmd");
+    assert_eq!(read(&mut host, 29), 0x55, "_btlCmdPrmSub");
+
+    // Invocation parameters also apply with no resolving command.
+    data.current_command = None;
+    let mut host = BattleScriptHost::new(&data).with_cmd_params(4, 7);
+    assert_eq!(read(&mut host, 28), 4);
+    assert_eq!(read(&mut host, 29), 7);
+}
