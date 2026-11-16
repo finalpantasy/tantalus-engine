@@ -2810,6 +2810,8 @@ fn run_battle_world_run(
     let mut world = FieldWorld::new();
     world.party = vec![0, 1, 2, 3];
     world.gil = 500;
+    // Resolve drawn drops into the inventory: the vanilla table's 256 ids.
+    world.item_id_map = Some(tantalus_game::field::world::default_item_id_map(0..=255));
     let entities: Vec<EntityId> = (0..4).map(|index| EntityId::new(101 + index)).collect();
     for character in world.party.clone() {
         world.character_stats.insert(
