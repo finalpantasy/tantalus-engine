@@ -52,6 +52,12 @@ pub struct DirectorStep {
     /// `new Quad`, `new Actor`, EventEngine.DoEventCode.cs:114-140).
     #[serde(default)]
     pub initialized: Vec<u8>,
+    /// `DRET` (ReturnEntryFunctions) targets this tick: every function the
+    /// object is running returns and it restarts its loop at the idle
+    /// level (`EventEngine.Return` with `sx = 0`, `state = stateInit`).
+    /// The caller drops the object's requested-function entries.
+    #[serde(default)]
+    pub returned: Vec<EntityId>,
 }
 
 #[derive(Debug)]
@@ -248,6 +254,17 @@ impl FieldDirector {
                 _ => None,
             })
             .collect();
+        let returned: Vec<EntityId> = steps
+            .iter()
+            .flat_map(|step| step.report.events.iter())
+            .filter_map(|event| match event {
+                HostEvent::ReturnEntryFunctions { object } => Some(*object),
+                _ => None,
+            })
+            .collect();
+        for object in &returned {
+            self.world.clear_requests(*object);
+        }
         let player = self.world.player();
         let talk_triggers = match (player, self.world.confirm_mask()) {
             (Some(player), Some(mask)) if self.world.input_mask() & mask != 0 => {
@@ -283,6 +300,7 @@ impl FieldDirector {
             region_occupancy,
             shared_scripts,
             initialized,
+            returned,
         })
     }
 

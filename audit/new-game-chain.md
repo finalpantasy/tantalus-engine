@@ -325,3 +325,34 @@ Open:
 - The battle party is still Zidane, Marcus and Blank. The script's party
   changes (Vivi and Steiner join for Plant Brain) do not reach the list the
   chain builds fighters from.
+
+## Twelfth run (out of the Evil Forest)
+
+Three fixes take the chain from the map 257 stall to the world map.
+
+1. **Requests follow the object's script level.** Memoria runs a request
+   only when its level is below the target's current level
+   (`requestAcceptable`: `lv < p.level`). The field world used to refuse any
+   request while the target had one running. It now keeps a stack of the
+   levels of each object's running requested functions. A request is
+   accepted when the stack is empty or its level is below the lowest entry.
+2. **`DRET` (0x97, ReturnEntryFunctions) returns every function.** Memoria
+   clears the object's call stack and restarts its loop at the idle level.
+   The director now reports these objects and drops their request stacks.
+   The chain drops their requested-function entries. On map 257, main
+   returns object 16's endless idle loop (tag 24) and then asks it for tag
+   26. Before this, that request waited for the whole tick budget.
+3. **The chain stops at `WORLD`.** `ChangeWorldMap` ends the run with
+   `world_map` set in the field record. The world map is not built yet.
+
+`652:90=11` answers the Mogster tutorial menu with its last line, which
+falls to the menu's default branch and closes it.
+
+The story now runs past 2300: Blank is petrified (2350, 2375), the Mogster
+tutorial plays on map 652, and at 2400 the spring field (map 262) sends the
+party to world map 9000.
+
+Open:
+
+- The battle party is still Zidane, Marcus and Blank (see the eleventh run).
+- No world map, so the chain ends at the forest exit.

@@ -1441,6 +1441,7 @@ fn chain(
         let mut ticks_run = 0u64;
         let mut error = None;
         let mut transition = None;
+        let mut world_map: Option<i32> = None;
         let mut spawned: Vec<(EntityId, u64)> = Vec::new();
         let mut unspawned = 0usize;
         let mut encounters = 0usize;
@@ -1607,6 +1608,16 @@ fn chain(
                             .map_err(|error| error.to_string())?;
                         shared_running.insert(key, *object);
                         shared_scripts_run += 1;
+                    }
+                    // DRET: the object's running functions all return.
+                    for object in &step.returned {
+                        spawned.retain(|(entity, base)| {
+                            let keep = *base != object.get();
+                            if !keep {
+                                director.remove_entry(*entity);
+                            }
+                            keep
+                        });
                     }
                     for request in &step.requests {
                         let target = request.target.get() as usize;
@@ -2001,6 +2012,12 @@ fn chain(
                     }
                 }
             }
+            // `WORLD` (ChangeWorldMap): the field hands off to the world
+            // map; the chain has no world map yet, so it ends here.
+            if let Some(destination) = director.world_mut().take_world_transitions().first() {
+                world_map = Some(i32::from(*destination));
+                break;
+            }
             let transitions = director.world_mut().take_field_transitions();
             if let Some(next) = transitions.first() {
                 transition = Some(i32::from(*next));
@@ -2048,6 +2065,7 @@ fn chain(
                 "not_completed": not_completed,
                 "error": error,
                 "next_map": transition,
+                "world_map": world_map,
                 "exits": exits,
                 "route_target": route_target,
                 "regions_defined": director.world().regions.keys().map(|region| region.get()).collect::<Vec<_>>(),

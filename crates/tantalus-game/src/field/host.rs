@@ -376,9 +376,9 @@ impl LegacyEventHost for FieldHost<'_> {
                 HostEvent::ChangeWorldMap { destination } => {
                     self.world.push_world_transition(*destination);
                 }
-                HostEvent::RequestScriptAsync { target, .. }
-                | HostEvent::RequestScriptSync { target, .. } => {
-                    self.world.pend_request(*target);
+                HostEvent::RequestScriptAsync { target, level, .. }
+                | HostEvent::RequestScriptSync { target, level, .. } => {
+                    self.world.pend_request(*target, *level);
                 }
                 HostEvent::RequestCallerAsync { level, .. }
                 | HostEvent::RequestCallerSync { level, .. } => {
@@ -735,9 +735,9 @@ impl LegacyEventHost for FieldHost<'_> {
     fn script_request_acceptable(
         &mut self,
         target: EntityId,
-        _level: i32,
+        level: i32,
     ) -> Result<bool, EngineError> {
-        Ok(!self.world.request_pending(target))
+        Ok(self.world.request_acceptable(target, level))
     }
 
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError> {
@@ -856,6 +856,24 @@ mod tests {
             current_mp: 0,
             max_mp: 20,
         }
+    }
+
+    #[test]
+    fn requests_follow_the_object_script_level() {
+        let mut world = FieldWorld::new();
+        let object = EntityId::new(16);
+        assert!(world.request_acceptable(object, 6));
+        world.pend_request(object, 2);
+        assert!(world.request_acceptable(object, 1));
+        assert!(!world.request_acceptable(object, 2));
+        world.pend_request(object, 1);
+        assert!(!world.request_acceptable(object, 1));
+        world.complete_request(object);
+        assert!(world.request_acceptable(object, 1));
+        assert!(world.request_pending(object));
+        world.clear_requests(object);
+        assert!(!world.request_pending(object));
+        assert!(world.request_acceptable(object, 6));
     }
 
     #[test]

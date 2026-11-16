@@ -175,7 +175,9 @@ pub struct FieldWorld {
     /// Signals raised by shown windows and not yet applied; the reference
     /// applies at most one per event tick (`DialogBoxSymbols.OnSignal`).
     pending_signals: std::collections::VecDeque<i32>,
-    pending_requests: BTreeSet<EntityId>,
+    /// Requested functions still running, per target object: the script
+    /// level of each call (`Obj.level` is the lowest, the running one).
+    pending_requests: BTreeMap<EntityId, Vec<i32>>,
     pending_callers: BTreeSet<i32>,
     shared_scripts: BTreeSet<EntityId>,
     party_menu_open: bool,
@@ -342,7 +344,7 @@ impl FieldWorld {
             window_texts: BTreeMap::new(),
             dialog_signals: BTreeMap::new(),
             pending_signals: std::collections::VecDeque::new(),
-            pending_requests: BTreeSet::new(),
+            pending_requests: BTreeMap::new(),
             pending_callers: BTreeSet::new(),
             shared_scripts: BTreeSet::new(),
             party_menu_open: false,
@@ -546,12 +548,42 @@ impl FieldWorld {
         self.pending_callers.contains(&level)
     }
 
-    pub fn pend_request(&mut self, entity: EntityId) {
-        self.pending_requests.insert(entity);
+    /// A function requested on `entity` at script `level` started.
+    pub fn pend_request(&mut self, entity: EntityId, level: i32) {
+        self.pending_requests.entry(entity).or_default().push(level);
     }
 
+    /// The running requested function of `entity` returned: its level (the
+    /// lowest, `Call` only preempts a higher one) comes off the stack.
     pub fn complete_request(&mut self, entity: EntityId) {
+        if let Some(levels) = self.pending_requests.get_mut(&entity) {
+            if let Some(index) = levels
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, level)| **level)
+                .map(|(index, _)| index)
+            {
+                levels.remove(index);
+            }
+            if levels.is_empty() {
+                self.pending_requests.remove(&entity);
+            }
+        }
+    }
+
+    /// `DRET`: every requested function of `entity` returned at once.
+    pub fn clear_requests(&mut self, entity: EntityId) {
         self.pending_requests.remove(&entity);
+    }
+
+    /// `EventEngine.requestAcceptable`: a request at `level` runs when it is
+    /// below the object's current script level. An object with no requested
+    /// function running accepts any level.
+    pub fn request_acceptable(&self, entity: EntityId, level: i32) -> bool {
+        self.pending_requests
+            .get(&entity)
+            .and_then(|levels| levels.iter().min())
+            .is_none_or(|current| level < *current)
     }
 
     pub fn pend_caller(&mut self, level: i32) {
@@ -591,7 +623,7 @@ impl FieldWorld {
     }
 
     pub fn request_pending(&self, entity: EntityId) -> bool {
-        self.pending_requests.contains(&entity)
+        self.pending_requests.contains_key(&entity)
     }
 
     /// Advance movement, turns, and animations by one tick.
