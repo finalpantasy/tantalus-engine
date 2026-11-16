@@ -72,6 +72,8 @@ pub struct StageFrame {
     pub phase: String,
     /// What happened during the tick.
     pub events: Vec<StageEvent>,
+    /// Each unit's `bi.row` (players: 0 back, 1 front), which Change flips.
+    pub rows: Vec<u8>,
 }
 
 /// A machine event a client animates.
@@ -93,6 +95,22 @@ pub enum StageEvent {
     },
     Died {
         unit: usize,
+    },
+    /// Jump: `unit` left the field.
+    Jumped {
+        unit: usize,
+    },
+    /// Spear landed: `unit` is back.
+    Landed {
+        unit: usize,
+    },
+    /// Eat or Cook on `target`: 0 cannot eat, 1 too strong, 2 tastes bad,
+    /// 3 learned `ability`.
+    Ate {
+        caster: usize,
+        target: usize,
+        result: u8,
+        ability: i32,
     },
     /// Steal on `target`: the item taken, or `None`.
     Stole {
@@ -149,6 +167,27 @@ pub fn stage_events(
                 });
             }
             BattleEvent::UnitDied { unit } => events.push(StageEvent::Died { unit }),
+            BattleEvent::Jumped { unit } => events.push(StageEvent::Jumped { unit }),
+            BattleEvent::Landed { unit } => events.push(StageEvent::Landed { unit }),
+            BattleEvent::Ate {
+                caster,
+                target,
+                result,
+            } => {
+                use tantalus_legacy::battle::calc::EatResult;
+                let (result, ability) = match result {
+                    EatResult::CannotEat => (0, 0),
+                    EatResult::Failed => (1, 0),
+                    EatResult::TasteBad => (2, 0),
+                    EatResult::Yummy(ability) => (3, ability),
+                };
+                events.push(StageEvent::Ate {
+                    caster,
+                    target,
+                    result,
+                    ability,
+                });
+            }
             BattleEvent::Stole {
                 caster,
                 target,
@@ -294,6 +333,7 @@ impl BattleStage {
             present: present.to_vec(),
             phase: phase.to_owned(),
             events: Vec::new(),
+            rows: units.iter().map(|unit| unit.row).collect(),
         });
     }
 

@@ -1407,7 +1407,7 @@ pub fn menu_overlay(
     }
 }
 
-/// The latest Steal message within two seconds of `seconds`
+/// The latest Steal or Eat message within two seconds of `seconds`
 /// (`BattleMesages.Stole` / `CouldNotStealAnything`).
 pub fn steal_message(
     stage: &BattleStage,
@@ -1424,16 +1424,26 @@ pub fn steal_message(
         .rev()
         .flat_map(|frame| frame.events.iter().rev())
         .find_map(|event| match event {
-            StageEvent::Stole { item, .. } => Some(*item),
+            StageEvent::Stole { item, .. } => Some(match item {
+                Some(item) => format!(
+                    "Stole {}!",
+                    item_name(*item as i32).unwrap_or_else(|| format!("item {item}"))
+                ),
+                None => "Couldn't steal anything.".to_owned(),
+            }),
+            StageEvent::Ate { result, .. } => Some(eat_message(*result).to_owned()),
             _ => None,
         })
-        .map(|item| match item {
-            Some(item) => format!(
-                "Stole {}!",
-                item_name(item as i32).unwrap_or_else(|| format!("item {item}"))
-            ),
-            None => "Couldn't steal anything.".to_owned(),
-        })
+}
+
+/// The banner for an Eat or Cook result ([`StageEvent::Ate`]'s `result`).
+pub fn eat_message(result: u8) -> &'static str {
+    match result {
+        0 => "Can't eat that.",
+        1 => "Too strong to eat!",
+        2 => "Tastes bad!",
+        _ => "Learned a new ability!",
+    }
 }
 
 /// The result screen's title and lines for `results`: EXP per member with

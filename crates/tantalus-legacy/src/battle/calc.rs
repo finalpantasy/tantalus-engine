@@ -129,6 +129,21 @@ pub struct CalcOutcome {
     pub dodged: bool,
     /// Steal (script 58) ran: the item taken, or `None` when nothing was.
     pub stolen: Option<Option<u32>>,
+    /// Eat (script 65) ran: `Context.EatResult`.
+    pub eaten: Option<EatResult>,
+}
+
+/// `EatResult`: what Eat or Cook did. `Yummy` carries the target's
+/// `BlueMagicId`; whether the eater already knows it (`TasteBad`) is the
+/// caller's to check, the machine has no ability list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EatResult {
+    CannotEat,
+    /// The target's HP is above `MaximumHp / Power`.
+    Failed,
+    /// The target was eaten; it had no blue magic.
+    TasteBad,
+    Yummy(i32),
 }
 
 pub struct Calculator<'a> {
@@ -160,6 +175,8 @@ pub struct Calculator<'a> {
     /// `Context.ItemSteal` after a Steal: the item, or `None` for a failed
     /// try (see [`CalcOutcome::stolen`]).
     pub stolen: Option<Option<u32>>,
+    /// See [`CalcOutcome::eaten`].
+    pub eaten: Option<EatResult>,
 }
 
 type Rng<'r> = &'r mut dyn BattleRandom;
@@ -203,6 +220,7 @@ impl<'a> Calculator<'a> {
             trouble: false,
             perform_calc_result: true,
             stolen: None,
+            eaten: None,
         };
         calc.initial_check_point = calc.check_point(rng);
         let draw = rng.random16();
@@ -1182,6 +1200,7 @@ pub fn calc_result(v: &mut Calculator<'_>, rng: Rng<'_>) -> CalcOutcome {
         trouble: v.trouble,
         dodged,
         stolen: v.stolen,
+        eaten: v.eaten,
     }
 }
 
@@ -1315,6 +1334,7 @@ pub fn calc_main(
             trouble: v.trouble,
             dodged: false,
             stolen: v.stolen,
+            eaten: v.eaten,
         })
     }
 }

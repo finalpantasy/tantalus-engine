@@ -25,6 +25,7 @@ pub mod cmd {
     pub const JUMP: u32 = 3;
     pub const DEFEND: u32 = 4;
     pub const JUMP_IN_TRANCE: u32 = 12;
+    pub const SPEAR: u32 = 10;
     pub const DOUBLE_WHITE_MAGIC: u32 = 21;
     pub const DOUBLE_BLACK_MAGIC: u32 = 23;
     pub const ENEMY_ATK: u32 = 47;

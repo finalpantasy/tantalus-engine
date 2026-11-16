@@ -121,6 +121,8 @@ pub fn pattern_machine_units(scene: &BattleScene, pattern: usize) -> Option<Vec<
         unit.status_current = monster.initial_status;
         unit.steal_items = monster.steal_items;
         unit.steal_rates = monster.steal_item_rates;
+        unit.enemy_category = set_byte(&monster.category);
+        unit.blue_magic = monster.blue_magic;
         let category = set_byte(&monster.category);
         unit.is_undead = category & 16 != 0;
         unit.is_flight = category & 128 != 0;

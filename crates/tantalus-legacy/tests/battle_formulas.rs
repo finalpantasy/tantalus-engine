@@ -19,6 +19,7 @@
 //!   critical: WIL 20 >> 2 = 5
 //!   magic hit rate = command rate + (MAG 30 >> 2 = 7) + 20 - 15 = rate + 12
 
+use tantalus_legacy::battle::calc::EatResult;
 use tantalus_legacy::battle::command::COMMAND_SUMMON_EIKO;
 use tantalus_legacy::battle::rng::Draw;
 use tantalus_legacy::battle::status as st;
@@ -2160,4 +2161,54 @@ fn mp_consumption() {
     let mut p = player();
     assert!(cost::try_consume_mp(&custom, &mut p, false, 100));
     assert_eq!(p.cur_mp, 100);
+}
+
+#[test]
+fn eat_needs_low_hp_and_teaches_blue_magic() {
+    // Above MaximumHp / Power (500 / 4 = 125): too strong.
+    let mut r = Rig::new(65);
+    r.cmd.power = 4;
+    r.t().blue_magic = 81;
+    assert_eq!(r.run(&[7]).eaten, Some(EatResult::Failed));
+    assert!(r.t().cur_hp > 0);
+    // At 125 HP it dies and teaches its blue magic.
+    let mut r = Rig::new(65);
+    r.cmd.power = 4;
+    r.t().blue_magic = 81;
+    r.t().cur_hp = 125;
+    assert_eq!(r.run(&[7]).eaten, Some(EatResult::Yummy(81)));
+    assert_eq!(r.t().cur_hp, 0);
+    // No blue magic: eaten, tastes bad.
+    let mut r = Rig::new(65);
+    r.cmd.power = 4;
+    r.t().cur_hp = 1;
+    assert_eq!(r.run(&[7]).eaten, Some(EatResult::TasteBad));
+    // A Humanoid cannot be eaten.
+    let mut r = Rig::new(65);
+    r.cmd.power = 4;
+    r.t().cur_hp = 1;
+    r.t().enemy_category = 1;
+    assert_eq!(r.run(&[7]).eaten, Some(EatResult::CannotEat));
+    assert_eq!(r.t().cur_hp, 1);
+}
+
+#[test]
+fn focus_raises_magic_by_a_power_fraction() {
+    let mut r = Rig::new(44);
+    r.cmd.power = 4;
+    r.t().magic = 30;
+    r.run(&[7]);
+    assert_eq!(r.t().magic, 37);
+    r.t().magic = 95;
+    r.run(&[7]);
+    assert_eq!(r.t().magic, 99);
+}
+
+#[test]
+fn spear_is_a_weapon_hit() {
+    // No hit or crit roll: the ctor draw and the weapon base only.
+    let mut r = Rig::new(48);
+    r.cmd.ability_category = 8;
+    let o = r.run(&[7, 9999]);
+    assert!(o.target.hp_damage > 0, "{o:?}");
 }

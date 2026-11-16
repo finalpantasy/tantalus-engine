@@ -91,6 +91,10 @@ pub struct FightReport {
     /// Items Steal took, kept whatever the outcome (live battles only).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub items_stolen: Vec<u32>,
+    /// `(character, ability)` Eat taught (`FF9Abil_SetMaster`), kept
+    /// whatever the outcome (live battles only).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub abilities_eaten: Vec<(i32, i32)>,
     /// AP per line that earns it: character, AP, and each equipped ability
     /// the character can learn with its AP goal `(ability, max AP)`, once
     /// per equipped item that carries it.
@@ -294,6 +298,8 @@ struct SceneAttacks {
     status_sets: BTreeMap<i32, u64>,
     actions: BTreeMap<i32, ActionRow>,
     item_effects: BTreeMap<i32, ItemRow>,
+    /// Item id -> weapon power, for Throw (`Weapon.Find(item).Power`).
+    weapon_power: BTreeMap<i32, i32>,
 }
 
 impl SceneAttacks {
@@ -326,6 +332,9 @@ impl BattleHooks for SceneAttacks {
         if caster.is_player && cmd_no != cmd::MAGIC_COUNTER {
             return match cmd_no {
                 _ if ABILITY_COMMANDS.contains(&cmd_no) => self.player_spec(cmd_no, sub_no),
+                // `aa_data[Throw]`; the machine's `throw_spec` adds the
+                // item's weapon power.
+                cmd::THROW => self.player_spec(cmd_no, ABILITY_THROW),
                 // The base the machine's `item_spec` fills in: the item's
                 // cursor and default side.
                 cmd::ITEM => self.item_effects.get(&sub_no).map(|item| {
@@ -378,6 +387,10 @@ impl BattleHooks for SceneAttacks {
     }
 
     /// `ff9item.GetItemEffect` (`ITEM_DATA`).
+    fn item_weapon_power(&mut self, item_id: i32) -> Option<i32> {
+        self.weapon_power.get(&item_id).copied()
+    }
+
     fn item(&mut self, item_id: i32) -> Option<tantalus_legacy::battle::command::ItemData> {
         let item = self.item_effects.get(&item_id)?;
         Some(tantalus_legacy::battle::command::ItemData {
@@ -928,6 +941,12 @@ impl FieldBattles {
                 status_sets: self.equipment.status_sets.clone(),
                 actions: self.equipment.actions.clone(),
                 item_effects: self.equipment.item_effects.clone(),
+                weapon_power: self
+                    .equipment
+                    .weapons
+                    .iter()
+                    .map(|(&id, weapon)| (id, weapon.power))
+                    .collect(),
             },
             driver,
             SceneOverlay {
@@ -1188,15 +1207,31 @@ const STEAL: u32 = 2;
 const CHANGE: u32 = 7;
 const ABILITY_DEFEND: i32 = 179;
 const ABILITY_CHANGE: i32 = 182;
-/// Effect scripts of direct commands the machine runs (58 Steal).
-const DIRECT_SCRIPTS: [i32; 1] = [58];
+/// Effect scripts of direct commands the machine runs (58 Steal, 65 Eat
+/// and Cook).
+const DIRECT_SCRIPTS: [i32; 2] = [58, 65];
+/// Direct commands the machine runs without an effect script: Jump (the
+/// machine's `start_jump`) and Focus (script 44, but on the caster).
+const DIRECT_COMMANDS: [u32; 2] = [JUMP, FOCUS];
+const JUMP: u32 = 3;
+const EAT: u32 = 8;
+const COOK: u32 = 9;
+const SPEAR: u32 = 10;
+const FOCUS: u32 = 13;
+/// `Actions.csv` row of the Throw command (script 42).
+const ABILITY_THROW: i32 = 190;
 
 /// The player commands whose `sub_no` is an `Actions.csv` row, read like
 /// the stand-in's Black Magic and Dyne: Steal, Change and the ability
 /// lists (`btl_util.cs:427`).
-const ABILITY_COMMANDS: [u32; 21] = [
+const ABILITY_COMMANDS: [u32; 26] = [
     STEAL,
+    JUMP,
     CHANGE,
+    EAT,
+    COOK,
+    SPEAR,
+    FOCUS,
     16,
     17,
     18,
@@ -1317,10 +1352,11 @@ fn player_menus(
                     let kind = match row.map(|row| row.kind) {
                         Some(0) => {
                             let main = row.map_or(0, |row| row.main);
-                            let ported = equipment
-                                .actions
-                                .get(&main)
-                                .is_some_and(|row| DIRECT_SCRIPTS.contains(&row.script_id));
+                            let ported = DIRECT_COMMANDS.contains(&cmd_no)
+                                || equipment
+                                    .actions
+                                    .get(&main)
+                                    .is_some_and(|row| DIRECT_SCRIPTS.contains(&row.script_id));
                             match action(cmd_no, main) {
                                 Some(entry) if ported => CommandKind::Direct(entry),
                                 _ => CommandKind::Unavailable,
@@ -1341,6 +1377,27 @@ fn player_menus(
                             entries.dedup_by_key(|entry| entry.sub_no);
                             CommandKind::List(entries)
                         }
+                        // Throw: the weapons in the bag
+                        // (`BattleHUD` `ItemPanel` in throw mode).
+                        Some(3) => CommandKind::List(
+                            items
+                                .iter()
+                                .filter(|&(item, &count)| {
+                                    count > 0 && equipment.weapons.contains_key(item)
+                                })
+                                .filter_map(|(&item, _)| {
+                                    let mut throw = action(cmd_no, ABILITY_THROW)?;
+                                    throw.label = item.to_string();
+                                    throw.sub_no = item;
+                                    throw.item = Some(item);
+                                    throw.action = ContentId::parse(&format!(
+                                        "tantalus:command/{cmd_no}/{item}"
+                                    ))
+                                    .ok()?;
+                                    Some(throw)
+                                })
+                                .collect(),
+                        ),
                         _ => CommandKind::Unavailable,
                     };
                     MenuCommand {
@@ -1432,6 +1489,19 @@ impl LiveFight {
         self.adapter
             .battle_mut()
             .set_btl_speed(u8::try_from(speed).unwrap_or(1));
+    }
+
+    /// Caps every party member's HP at `hp` (capture tooling: a quick way
+    /// to reach the game over screen).
+    pub fn cap_party_hp(&mut self, hp: u32) {
+        let party = self.party.len();
+        let battle = self.adapter.battle_mut();
+        for unit in battle.units.iter_mut().take(party) {
+            unit.cur_hp = unit.cur_hp.min(hp);
+        }
+        for value in self.hp.iter_mut().take(party) {
+            *value = (*value).min(hp);
+        }
     }
 
     /// Field entity of machine unit `unit`.
@@ -1751,6 +1821,19 @@ impl LiveFight {
                 _ => None,
             })
             .collect();
+        report.abilities_eaten = adapter
+            .battle()
+            .log
+            .iter()
+            .filter_map(|(_, event)| match event {
+                tantalus_legacy::battle::machine::BattleEvent::Ate {
+                    caster,
+                    result: tantalus_legacy::battle::calc::EatResult::Yummy(ability),
+                    ..
+                } => Some((party.get(*caster)?.character, *ability)),
+                _ => None,
+            })
+            .collect();
         stage.outcome = report.outcome.clone();
         report.stage = Some(stage);
         report.enemies_defeated = defeated.len();
@@ -1941,6 +2024,13 @@ pub fn pay_rewards(report: &FightReport, world: &mut FieldWorld) {
         if world.items.get(&item).is_some_and(|&count| count <= 0) {
             world.items.remove(&item);
         }
+    }
+    for &(character, ability) in &report.abilities_eaten {
+        world
+            .learned_abilities
+            .entry(character)
+            .or_default()
+            .insert(ability);
     }
     for &item in &report.items_stolen {
         if let Ok(item) = i32::try_from(item) {

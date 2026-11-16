@@ -4,11 +4,11 @@
 //! `BaseWeaponScript.cs`. Only `Perform` is ported; the `RateTarget`
 //! estimators (enemy AI scoring) are separate code paths.
 //!
-//! Ported ids: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 19 20 22 25 27 42 55
-//! 58 62 63 64 69 70 71 72 73 74 75 76 77 96 100 103 109. Every other id returns
+//! Ported ids: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 19 20 22 25 27 42 44
+//! 48 55 58 62 63 64 69 70 71 72 73 74 75 76 77 96 100 103 109. Every other id returns
 //! [`CalcError::UnportedScript`].
 
-use super::calc::{AttackBonus, CalcError, CalcFlags, Calculator, UnitFlags};
+use super::calc::{AttackBonus, CalcError, CalcFlags, Calculator, EatResult, UnitFlags};
 use super::rng::BattleRandom;
 use super::status;
 
@@ -41,12 +41,15 @@ pub fn perform(id: i32, v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Calc
         25 => precise_direct_hp_damage(v),
         27 => direct_hp_damage(v, rng),
         42 => throw(v, rng),
+        44 => focus(v),
+        48 => spear(v, rng),
         55 => change_row(v),
         58 => steal(v, rng),
         62 => item_soft(v),
         63 => magic_sword_attack(v, rng),
         // `SBattleCalculator.cs:108`: no script, only `CalcResult`.
         64 => Ok(()),
+        65 => eat(v),
         69 => item_potion(v, rng),
         70 => item_ether(v),
         71 => item_elixir(v),
@@ -62,6 +65,61 @@ pub fn perform(id: i32, v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Calc
         109 => mini(v, rng),
         other => Err(CalcError::UnportedScript(other)),
     }
+}
+
+/// Script 48 (`0048_SpearScript.cs`), the landing of a Jump.
+fn spear(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
+    v.weapon_physical_params_bonus(AttackBonus::Simple, rng)?;
+    v.modifier_up();
+    v.caster_penalty_mini();
+    v.target_physical_penalty_and_bonus_attack();
+    v.calc_physical_hp_damage();
+    Ok(())
+}
+
+/// Script 44 (`0044_FocusScript.cs`): Magic becomes
+/// `min(99, Magic + Magic / Power)`. The C# applies it through the
+/// `ChangeStat` status; here the stat is raised directly, which lasts the
+/// battle as that status does.
+fn focus(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    let power = v.command.power;
+    if power == 0 {
+        return Err(CalcError::DivideByZero("Target.Magic / Command.Power"));
+    }
+    let magic = i32::from(v.t().magic);
+    v.t_mut().magic = (magic + magic / power).min(99) as u8;
+    Ok(())
+}
+
+/// Script 65 (`0065_EatScript.cs`), Eat and Cook: a Humanoid, Easy Kill
+/// guarded or unattackable target cannot be eaten; one above
+/// `MaximumHp / Power` HP is too strong; otherwise it dies and its blue
+/// magic is the eater's to learn.
+fn eat(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    const HUMANOID: u8 = 1;
+    if !v.target_check_unsafety_or_miss()
+        || !v.target_can_be_attacked()
+        || (!v.t().is_player && v.t().enemy_category & HUMANOID != 0)
+    {
+        v.eaten = Some(EatResult::CannotEat);
+        return Ok(());
+    }
+    let power = v.command.power;
+    if power == 0 {
+        return Err(CalcError::DivideByZero("Target.MaximumHp / Command.Power"));
+    }
+    if i64::from(v.t().cur_hp) > i64::from(v.t().max_hp) / i64::from(power) {
+        v.eaten = Some(EatResult::Failed);
+        return Ok(());
+    }
+    let blue = v.t().blue_magic;
+    v.t_mut().kill();
+    v.eaten = Some(if blue == 0 {
+        EatResult::TasteBad
+    } else {
+        EatResult::Yummy(blue)
+    });
+    Ok(())
 }
 
 /// Script 55 (`0055_ChangeRowScript.cs`): `btl_para.SwitchPlayerRow`

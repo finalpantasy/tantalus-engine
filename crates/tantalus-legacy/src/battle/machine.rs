@@ -350,6 +350,20 @@ pub enum BattleEvent {
         target: usize,
         item: Option<u32>,
     },
+    /// Jump: `unit` left the field.
+    Jumped {
+        unit: usize,
+    },
+    /// Spear landed: `unit` is back.
+    Landed {
+        unit: usize,
+    },
+    /// Eat or Cook ran on `target`.
+    Ate {
+        caster: usize,
+        target: usize,
+        result: super::calc::EatResult,
+    },
     /// `ItemUse`: one copy of `item` was removed from the inventory.
     ItemUsed {
         unit: usize,
@@ -406,8 +420,20 @@ impl From<CalcError> for BattleError {
     }
 }
 
+/// A unit in the air after Jump ([`Battle::jumps`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Jump {
+    pub countdown: i32,
+    pub target: u16,
+    /// Spear is queued.
+    pub landing: bool,
+}
+
 pub struct Battle {
     pub units: Vec<BattleUnit>,
+    /// Units in the air after Jump (`JumpStatusScript`): the countdown to
+    /// the Spear (`SpearCountdown`), its target and whether it is queued.
+    pub jumps: std::collections::BTreeMap<usize, Jump>,
     pub sched: Vec<UnitSched>,
     pub cmds: CommandQueue,
     /// `cur_cmd_list`.
@@ -492,6 +518,7 @@ impl Battle {
             escape_count: 0,
             bonus_exp: 0,
             inventory: std::collections::BTreeMap::new(),
+            jumps: std::collections::BTreeMap::new(),
             magic_swords: Vec::new(),
             log: Vec::new(),
         }
@@ -1456,6 +1483,7 @@ impl Battle {
             }
             self.check_point_data(i, rng);
             self.check_status_loop(i, rng);
+            self.jump_countdown(i, hooks)?;
         }
         self.command_engine(hooks, rng)
     }
@@ -2116,6 +2144,12 @@ impl Battle {
                 s.regist,
             )
         };
+        if cmd_no == cmd::JUMP
+            && let Some(caster) = regist
+        {
+            self.start_jump(caster, tar);
+            return Ok(());
+        }
         if matches!(cmd_no, cmd::JUMP | cmd::JUMP_IN_TRANCE | cmd::SYS_TRANS) {
             return Ok(());
         }
@@ -2163,6 +2197,13 @@ impl Battle {
                     item,
                 });
             }
+            if let Some(result) = outcome.eaten {
+                self.emit(BattleEvent::Ate {
+                    caster,
+                    target: t,
+                    result,
+                });
+            }
             let target_hp = self.units[t].cur_hp;
             self.emit(BattleEvent::EffectApplied {
                 caster,
@@ -2182,6 +2223,67 @@ impl Battle {
         Ok(())
     }
 
+    /// Jump (`btl_cmd.cs:1025`, `JumpStatusScript.Apply` and
+    /// `OnFinishCommand`): the caster takes the Jump status, leaves the
+    /// field (`SetDisappear`, untargetable) and lands with Spear after
+    /// `ContiCnt (10) * 4 * (60 - Will)` ATB ticks. Jump in Trance (its
+    /// repeating Spear 2) is not ported.
+    fn start_jump(&mut self, caster: usize, tar_id: u16) {
+        let will = i32::from(self.units[caster].will);
+        self.units[caster].status_current |= st::JUMP;
+        self.sched[caster].targetable = false;
+        self.jumps.insert(
+            caster,
+            Jump {
+                countdown: 10 * 4 * (60 - will),
+                target: tar_id,
+                landing: false,
+            },
+        );
+        self.emit(BattleEvent::Jumped { unit: caster });
+    }
+
+    /// `ProcessJumpSpear`: the countdown runs on the ATB clock and queues
+    /// Spear (`cmd[1]`) once it passes zero.
+    fn jump_countdown(&mut self, i: usize, hooks: &mut dyn BattleHooks) -> Result<(), BattleError> {
+        let Some(jump) = self.jumps.get(&i).copied() else {
+            return Ok(());
+        };
+        if jump.landing || !self.atb_runs() {
+            return Ok(());
+        }
+        let countdown = jump.countdown - i32::from(self.sched[i].atb_coef);
+        self.jumps.insert(i, Jump { countdown, ..jump });
+        if countdown < 0 {
+            let id = self.cmds.slot_of(i, 1);
+            let cursor = u8::from(jump.target.count_ones() > 1);
+            if self.set_command(id, cmd::SPEAR, 185, jump.target, cursor, false, hooks)? {
+                self.jumps.insert(
+                    i,
+                    Jump {
+                        landing: true,
+                        ..jump
+                    },
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// Spear landed: Jump ends (`RemoveStatus(Jump)` -> `Remove`: back on
+    /// the field, gauge emptied).
+    fn end_jump(&mut self, unit: usize) {
+        if self.jumps.remove(&unit).is_some() {
+            self.units[unit].status_current &= !st::JUMP;
+            self.sched[unit].targetable = true;
+            self.sched[unit].sel_mode = 0;
+            if self.units[unit].is_player {
+                self.units[unit].cur_atb = 0;
+            }
+            self.emit(BattleEvent::Landed { unit });
+        }
+    }
+
     /// `btl_cmd.FinishCommand` (`btl_cmd.cs:1289-1408`): gauge reset for a
     /// finished main command, trance decay, `CheckPointData`, slot cleared.
     fn finish_command(&mut self, id: CmdId, rng: &mut dyn BattleRandom) -> Result<(), BattleError> {
@@ -2189,6 +2291,11 @@ impl Battle {
             let s = &self.cmds.slots[id];
             (s.cmd_no, s.regist, s.slot)
         };
+        if cmd_no == cmd::SPEAR
+            && let Some(r) = regist
+        {
+            self.end_jump(r);
+        }
         if let Some(r) = regist {
             if is_declarable(cmd_no) {
                 if slot == 0 && cmd_no != cmd::JUMP && cmd_no != cmd::JUMP_IN_TRANCE {

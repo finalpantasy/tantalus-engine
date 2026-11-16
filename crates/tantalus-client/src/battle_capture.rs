@@ -31,6 +31,7 @@ pub fn run(args: &[std::ffi::OsString]) -> ExitCode {
         "--camera",
         "--window-frame",
         "--live",
+        "--party-hp",
     ]);
     let Some(values) = super::flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
@@ -243,8 +244,26 @@ fn menu_steps(count: usize, ready: usize) -> Steps {
             (0.3, pad::CONFIRM, None),
             (0.6, pad::CONFIRM, Some("target")),
         ],
+        // The third: Change (the side column's lower row) on oneself.
+        2 => vec![
+            (0.5, pad::RIGHT, None),
+            (0.3, pad::DOWN, None),
+            (0.3, pad::CONFIRM, None),
+            (0.3, pad::CONFIRM, None),
+        ],
         _ => vec![(0.3, pad::CONFIRM, None), (0.3, pad::CONFIRM, None)],
     }
+}
+
+/// The presses for `--party-hp`: Defend (the side column) every turn,
+/// shooting the first menu.
+fn defend_steps(count: usize) -> Steps {
+    let first = if count == 0 { Some("menu") } else { None };
+    vec![
+        (0.8, 0, first),
+        (0.1, pad::RIGHT, None),
+        (0.3, pad::CONFIRM, None),
+    ]
 }
 
 /// Seconds from a party Attack's start to the swing and to its number
@@ -284,11 +303,21 @@ fn live_capture(
         "live battle {} scene {}: {} models, {} background triangles",
         view.battle, view.scene_name, view.scene.models, view.scene.background_triangles
     ));
+    // `--party-hp N`: the party starts at N HP or less and only defends,
+    // so the fight ends on the game over screen.
+    let party_hp: Option<u32> = values
+        .get("--party-hp")
+        .map(|value| value.parse().map_err(|_| "bad --party-hp"))
+        .transpose()?;
+    if let (Some(hp), Some(fight)) = (party_hp, game.battle_mut()) {
+        fight.cap_party_hp(hp);
+    }
     let delta = 1.0 / 30.0;
     let mut steps: Steps = Vec::new();
     let mut waited = 0.0;
     let mut menus = 0;
     let mut stole: Option<f64> = None;
+    let mut changed: Option<f64> = None;
     let mut saved: Vec<&str> = Vec::new();
     let mut attack: Option<f64> = None;
     let mut at_index = 0;
@@ -305,7 +334,11 @@ fn live_capture(
             let ready = game
                 .battle()
                 .map_or(0, |fight| fight.machine().ready_players.len());
-            steps = menu_steps(menus, ready);
+            steps = if party_hp.is_some() {
+                defend_steps(menus)
+            } else {
+                menu_steps(menus, ready)
+            };
             menus += 1;
             waited = 0.0;
         }
@@ -348,6 +381,45 @@ fn live_capture(
                     lines.push(save(&view, game, named(output, name))?);
                     saved.push(name);
                 }
+            }
+        }
+        // A party Change: the member a row step away, half a second after
+        // its row flips.
+        if changed.is_none()
+            && let Some(fight) = game.battle()
+        {
+            let frames = &fight.stage().frames;
+            let party = fight.party_len();
+            changed = frames.first().and_then(|first| {
+                frames
+                    .iter()
+                    .position(|frame| {
+                        frame
+                            .rows
+                            .iter()
+                            .take(party)
+                            .ne(first.rows.iter().take(party))
+                    })
+                    .map(|index| index as f64 / 15.0)
+            });
+        }
+        if let Some(at) = changed
+            && !saved.contains(&"change")
+            && game.battle().is_some()
+            && seconds >= at + 0.5
+        {
+            lines.push(save(&view, game, named(output, "change"))?);
+            saved.push("change");
+            if let Some(fight) = game.battle() {
+                let frames = &fight.stage().frames;
+                let rows = |frame: Option<&tantalus_tools::battle_stage::StageFrame>| {
+                    frame.map(|frame| frame.rows.clone()).unwrap_or_default()
+                };
+                lines.push(format!(
+                    "rows at the start {:?}, now {:?}",
+                    rows(frames.first()),
+                    rows(frames.last())
+                ));
             }
         }
         // Steal's message, half a second after it lands.

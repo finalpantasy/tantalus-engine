@@ -154,6 +154,10 @@ pub struct BattleUnit {
     pub steal_items: [u32; 4],
     /// `StealableItemRates`, out of 256.
     pub steal_rates: [u16; 4],
+    /// An enemy's `EnemyCategory` bits (Humanoid 1, ...).
+    pub enemy_category: u8,
+    /// An enemy's `BlueMagicId` (the ability Eat teaches), 0 for none.
+    pub blue_magic: i32,
     /// `bi.cover != 0`.
     pub covering: bool,
     /// `def_attr.invalid` (guard), `half`, `absorb`, `weak`, `p_up_attr`.
@@ -247,6 +251,8 @@ impl BattleUnit {
             row: if is_player { 1 } else { 2 },
             steal_items: [NO_ITEM; 4],
             steal_rates: [0; 4],
+            enemy_category: 0,
+            blue_magic: 0,
             covering: false,
             guard_elements: Elements::NONE,
             half_elements: Elements::NONE,

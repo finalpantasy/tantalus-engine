@@ -85,7 +85,8 @@ impl BattleHooks for NoEnemyAi {
 #[derive(Debug)]
 pub enum AnyRuleset {
     Synthetic(CombatRuleset),
-    Legacy(LegacyBattleAdapter),
+    /// Boxed: the machine is much larger than the synthetic ruleset.
+    Legacy(Box<LegacyBattleAdapter>),
 }
 
 impl AnyRuleset {
@@ -109,7 +110,7 @@ impl From<CombatRuleset> for AnyRuleset {
 
 impl From<LegacyBattleAdapter> for AnyRuleset {
     fn from(adapter: LegacyBattleAdapter) -> Self {
-        Self::Legacy(adapter)
+        Self::Legacy(Box::new(adapter))
     }
 }
 

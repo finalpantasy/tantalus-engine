@@ -234,7 +234,46 @@ fn strike_offset(from: [f32; 3], target: [f32; 3]) -> [f32; 3] {
 }
 
 /// Unit `unit` at `seconds`. `length` gives a clip's length in seconds.
+/// On top of the clip: a unit in the air after Jump is not drawn, and a
+/// party member who changed rows stands 400 units off its start
+/// (`btl_para.SwitchPlayerRow`: `base_pos.z += 400` going to the front).
 pub fn unit_motion(
+    stage: &BattleStage,
+    unit: usize,
+    seconds: f64,
+    motions: &Motions,
+    length: &dyn Fn(ClipKey) -> f32,
+) -> UnitMotion {
+    let mut motion = clip_motion(stage, unit, seconds, motions, length);
+    let jumped = last_event(
+        stage,
+        seconds,
+        |event| matches!(event, StageEvent::Jumped { unit: who } if *who == unit),
+    );
+    let landed = last_event(
+        stage,
+        seconds,
+        |event| matches!(event, StageEvent::Landed { unit: who } if *who == unit),
+    );
+    if let Some((up, _)) = jumped
+        && landed.is_none_or(|(down, _)| down < up)
+    {
+        motion.hidden = true;
+    }
+    let row = |frame: Option<&tantalus_tools::battle_stage::StageFrame>| {
+        frame.and_then(|frame| frame.rows.get(unit).copied())
+    };
+    if let (Some(start), Some(now)) = (row(stage.frames.first()), row(stage.frame_at(seconds))) {
+        motion.offset[2] += (f32::from(now) - f32::from(start)) * ROW_STEP;
+    }
+    motion
+}
+
+/// `SwitchPlayerRow`'s step between the rows.
+pub const ROW_STEP: f32 = 400.0;
+
+/// The clip part of [`unit_motion`].
+fn clip_motion(
     stage: &BattleStage,
     unit: usize,
     seconds: f64,
@@ -493,15 +532,27 @@ pub fn damage_numbers(stage: &BattleStage, seconds: f64) -> Vec<(usize, i64, f64
         if !(0.0..NUMBER_SECONDS).contains(&since) {
             continue;
         }
+        let previous = (first + index)
+            .checked_sub(1)
+            .and_then(|at| stage.frames.get(at));
         for event in &frame.events {
-            // Steal shows its message, not a number.
-            let stolen_from = |unit: usize| {
-                frame.events.iter().any(
-                    |event| matches!(event, StageEvent::Stole { target, .. } if *target == unit),
-                )
+            // Steal and Eat show their message, Change its row step and a
+            // command on oneself (Focus) nothing: no "Miss" for those.
+            let silent = |caster: usize, unit: usize| {
+                caster == unit
+                    || previous
+                        .is_some_and(|previous| previous.rows.get(unit) != frame.rows.get(unit))
+                    || frame.events.iter().any(|event| {
+                        matches!(event, StageEvent::Stole { target, .. }
+                            | StageEvent::Ate { target, .. } if *target == unit)
+                    })
             };
-            if let StageEvent::Effect { target, damage, .. } = event
-                && !(*damage == 0 && stolen_from(*target))
+            if let StageEvent::Effect {
+                caster,
+                target,
+                damage,
+            } = event
+                && !(*damage == 0 && silent(*caster, *target))
             {
                 out.push((*target, *damage, since));
             }

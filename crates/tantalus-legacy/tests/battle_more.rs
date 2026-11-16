@@ -189,6 +189,7 @@ fn item_effect(power: i32, hit_rate: i32, status: u64) -> ItemEffect {
 /// * `MagicSword` 51 and 52: script 25 power 9, category 16.
 /// * `Item` and `AutoPotion`: the `Void` row, script and effect from `items`.
 /// * `Throw`: script 42, category 8, single enemy.
+/// * `Jump` 178: no script; `Spear` 185: script 25 power 6.
 /// * `EnemyCounter` and `EnemyDying` sub 0: script 25 power 11, category 8.
 struct Hooks {
     items: Vec<(i32, ItemData)>,
@@ -224,6 +225,8 @@ impl BattleHooks for Hooks {
                 Some(s)
             }
             (cmd::THROW, _) => Some(spell(42, 0, 8, single)),
+            (cmd::JUMP, 178) => Some(spell(0, 0, 8, single)),
+            (cmd::SPEAR, 185) => Some(spell(25, 6, 8, single)),
             (cmd::ENEMY_COUNTER | cmd::ENEMY_DYING, 0) => {
                 Some(spell(25, 11, 8, target_type::SINGLE_ENEMY))
             }
@@ -1222,4 +1225,36 @@ fn ai_reaction_commands_are_queued_on_the_next_tick_and_run() {
     run_idle(&mut b, &mut h, &mut r);
     assert_eq!(queued(&b, cmd::ENEMY_DYING), vec![(1, P1)]);
     assert_eq!(b.units[0].cur_hp, 11);
+}
+
+/// Derivation (`btl_cmd.cs:1025`, `JumpStatusScript`, `ProcessJumpSpear`):
+/// Jump gives the caster the Jump status and makes it untargetable; the
+/// countdown `10 * 4 * (60 - Will 20)` = 1600 runs on the ATB clock, then
+/// Spear is queued on the Jump's target (script 25 power 6 sets E1's HP to
+/// 6), and its finish removes the status and empties the gauge, which the
+/// rest of that tick refills by one ATB step.
+#[test]
+fn jump_leaves_the_field_and_lands_with_spear() {
+    let mut b = battle(vec![unit(P1, true, 500), unit(E1, false, 500)]);
+    let mut h = Hooks::new();
+    let mut rng = Rng::default();
+    let slot = b.cmds.slot_of(0, 0);
+    b.set_command(slot, cmd::JUMP, 178, E1, 0, false, &mut h)
+        .unwrap();
+    run_idle(&mut b, &mut h, &mut rng);
+    assert!(events(&b).contains(&BattleEvent::Jumped { unit: 0 }));
+    assert!(b.units[0].status_current & st::JUMP != 0);
+    assert_eq!(b.jumps[&0].countdown, 1600);
+    let mut ticks = 0;
+    while !events(&b).contains(&BattleEvent::Landed { unit: 0 }) {
+        b.tick(&mut h, &mut rng).expect("tick");
+        ticks += 1;
+        assert!(ticks < 20_000, "never landed");
+    }
+    assert_eq!(b.units[1].cur_hp, 6);
+    assert_eq!(b.units[0].status_current & st::JUMP, 0);
+    // Emptied, then one ATB step of the same tick.
+    assert!(b.units[0].cur_atb > 0 && b.units[0].cur_atb < b.sched[0].max_atb / 4);
+    assert!(b.jumps.is_empty());
+    assert_eq!(queued(&b, cmd::SPEAR), vec![(0, E1)]);
 }
