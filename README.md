@@ -174,3 +174,7 @@ If you want to support development, you can do so on Ko-fi:
 Tantalus uses the original PC game and [Memoria](https://github.com/Albeoris/Memoria) as development references. It is an independent implementation, not a Unity wrapper or a Memoria fork.
 
 Final Fantasy IX and related marks belong to their respective owners. Tantalus is an unofficial project and is not affiliated with or endorsed by Square Enix. Users must provide their own legally owned game assets. Existing mod assets remain their creators' property.
+
+## License
+
+Tantalus's source code is licensed under the GNU General Public License, version 3 or (at your option) any later version. See [LICENSE](LICENSE). The license covers this repository's code only, not the game or its assets.

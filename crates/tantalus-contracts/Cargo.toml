@@ -3,6 +3,7 @@ name = "tantalus-contracts"
 description = "Stable public contracts for Tantalus Engine"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

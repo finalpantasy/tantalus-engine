@@ -3,6 +3,7 @@ name = "tantalus-client"
 description = "Private Bevy presentation backend for Tantalus Engine"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
