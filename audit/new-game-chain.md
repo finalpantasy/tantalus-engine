@@ -445,15 +445,22 @@ Run 90 fixes four gaps in field battles:
   runs (`sel_mode`), as in `HonoluluBattleMain.cs:445`. With 0 ticks the
   Prison Cage acted three times per party turn.
 
-| Battle | Scene | Run 89 | Run 90 |
+| Battle | Scene | Run 89 | Run 91 |
 | --- | --- | --- | --- |
 | 335 | TH_E004 | defeat | victory |
-| 302 | EF_E006 | no result after 20000 ticks | defeat: the Trance tutorial plays out, then the cage drains Garnet below 10000 HP with 421 of its 513 HP gone |
-| 303 | EF_E009 | victory | defeat: Plant Brain at 404 of 916 HP |
+| 302 | EF_E006 | no result after 20000 ticks | victory: the Trance tutorial plays out and Zidane's Free Energy breaks the cage |
+| 303 | EF_E009 | victory | defeat: the party wipes with the Plant Brain at 404 HP in its last phase |
 
-302 and 303 lose because the stand-in party policy only uses Attack. A
-player would use Zidane's Trance skills on the cage and Vivi's Fire on the
-Plant Brain. Player abilities are not in the field battle command list yet.
+The stand-in party policy now picks two abilities from `Actions.csv`. Vivi
+casts Fire (Black Magic, command 22) while he has 6 MP. Zidane uses Free
+Energy (Dyne, command 26) in Trance, which is open while its Skill twin
+Flee is equipped (`BattleHUD.cs:1368`, `AbilityTranceList`). Everyone else
+attacks. The machine builds both from `aa_data[sub_no]`.
+
+303 is still a defeat. The chain fights almost no random battles in the
+Evil Forest, so the party reaches the Plant Brain at level 1. Even at full
+HP that party takes off only 610 HP before it wipes. A player would arrive
+a few levels higher and would heal with Potions; the policy does neither.
 
 ## Playing it
 

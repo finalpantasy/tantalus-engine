@@ -167,6 +167,24 @@ pub struct Equipment {
     /// `FF9Battle.add_status` (`Battle/StatusSets.csv`): set id -> status
     /// mask. Empty when the file is missing; every set is then no status.
     status_sets: BTreeMap<i32, u64>,
+    /// `FF9Battle.aa_data` (`Battle/Actions.csv`): ability id -> row.
+    actions: BTreeMap<i32, ActionRow>,
+}
+
+/// The `AA_DATA` fields `CMD_DATA.SetAAData` copies (`Actions.csv`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct ActionRow {
+    target: u8,
+    default_ally: bool,
+    for_dead: bool,
+    script_id: i32,
+    power: i32,
+    elements: u8,
+    rate: i32,
+    category: u8,
+    add_status: i32,
+    mp: i32,
+    ability_type: u8,
 }
 
 /// `CharacterPresetId` names, which are the ability file names.
@@ -189,6 +207,22 @@ const COMMAND_TIMING: tantalus_legacy::battle::machine::Timing =
         loop_total_ticks: 75,
     };
 
+/// `BattleCommandId.BlackMagic`, `InsideTrick` (Dyne) and the ability ids
+/// the stand-in policy uses (`Actions.csv`).
+const BLACK_MAGIC: u32 = 22;
+const INSIDE_TRICK: u32 = 26;
+const ABILITY_FIRE: i32 = 25;
+const ABILITY_FLEE: i32 = 101;
+const ABILITY_FREE_ENERGY: i32 = 109;
+
+/// `ManyAny(3)` -> `3`, a bare number as is.
+fn paren_or_number(text: &str) -> String {
+    match (text.find('('), text.find(')')) {
+        (Some(open), Some(close)) if open < close => text[open + 1..close].trim().to_string(),
+        _ => text.trim().to_string(),
+    }
+}
+
 /// `Poison(16), Sleep(17)` -> bits 16 and 17.
 fn status_mask(list: &str) -> u64 {
     list.split(',')
@@ -208,12 +242,41 @@ fn status_mask(list: &str) -> u64 {
 struct SceneAttacks {
     attacks: Vec<tantalus_assets::pc::battle_scene::Attack>,
     status_sets: BTreeMap<i32, u64>,
+    actions: BTreeMap<i32, ActionRow>,
+}
+
+impl SceneAttacks {
+    /// A player ability command (`aa_data[sub_no]`, `btl_util.cs:427`).
+    fn player_spec(&self, cmd_no: u32, sub_no: i32) -> Option<CommandSpec> {
+        let row = self.actions.get(&sub_no)?;
+        let mut command = tantalus_legacy::battle::BattleCommand::new(row.script_id);
+        command.command_id = cmd_no;
+        command.power = row.power;
+        command.hit_rate = row.rate;
+        command.element = Elements(row.elements);
+        command.element_for_bonus = command.element;
+        command.ability_status = self.status_sets.get(&row.add_status).copied().unwrap_or(0);
+        command.ability_category = row.category;
+        command.ability_type = row.ability_type;
+        command.target_type = row.target;
+        command.is_many_target =
+            !(row.target <= target_type::MANY_ENEMY || row.target >= target_type::SELF);
+        command.mp_cost = row.mp;
+        Some(CommandSpec {
+            command,
+            default_ally: row.default_ally,
+            for_dead: row.for_dead,
+        })
+    }
 }
 
 impl BattleHooks for SceneAttacks {
     fn spec(&mut self, cmd_no: u32, sub_no: i32, caster: &BattleUnit) -> Option<CommandSpec> {
         if caster.is_player && cmd_no != cmd::MAGIC_COUNTER {
-            return tantalus_game::battle::legacy::basic_spec(cmd_no);
+            return match cmd_no {
+                BLACK_MAGIC | INSIDE_TRICK => self.player_spec(cmd_no, sub_no),
+                _ => tantalus_game::battle::legacy::basic_spec(cmd_no),
+            };
         }
         let attack = self.attacks.get(usize::try_from(sub_no).ok()?)?;
         let mut command = tantalus_legacy::battle::BattleCommand::new(attack.script_id);
@@ -363,6 +426,33 @@ impl Equipment {
                 let Some(id) = int(&row, 1) else { continue };
                 let mask = row.get(2).map(|list| status_mask(list)).unwrap_or(0);
                 equipment.status_sets.insert(id, mask);
+            }
+        }
+        // Comment;Id;Display;Targets;DefaultAlly;ForDead;DefaultDead;
+        // DefaultCamera;AnimationId;AnimationId2;ScriptId;Power;Elements;
+        // Rate;Category;AddStatus;MP;Type;...
+        if let Ok(text) = read(characters.join("../Battle/Actions.csv")) {
+            for row in csv_rows(&text) {
+                let Some(id) = int(&row, 1) else { continue };
+                let field = |index: usize| row.get(index).copied().unwrap_or("");
+                let flag = |index: usize| matches!(field(index).trim(), "1" | "True" | "true");
+                let byte = |index: usize| int(&row, index).unwrap_or(0).clamp(0, 255) as u8;
+                equipment.actions.insert(
+                    id,
+                    ActionRow {
+                        target: paren_or_number(field(3)).parse().unwrap_or(0),
+                        default_ally: flag(4),
+                        for_dead: flag(5),
+                        script_id: int(&row, 10).unwrap_or(0),
+                        power: int(&row, 11).unwrap_or(0),
+                        elements: status_mask(field(12)) as u8,
+                        rate: int(&row, 13).unwrap_or(0),
+                        category: byte(14),
+                        add_status: int(&row, 15).unwrap_or(0),
+                        mp: int(&row, 16).unwrap_or(0),
+                        ability_type: byte(17),
+                    },
+                );
             }
         }
         Ok(equipment)
@@ -612,9 +702,21 @@ impl FieldBattles {
         );
         let (unit_map, target_bits) = unit_mappings(&pairs);
         let attack = ContentId::parse("tantalus:action/attack").map_err(|e| e.to_string())?;
+        let fire = ContentId::parse("tantalus:action/fire").map_err(|e| e.to_string())?;
+        let free_energy =
+            ContentId::parse("tantalus:action/free-energy").map_err(|e| e.to_string())?;
+        // Abilities each member's default gear gives (`AA:X` ids under 192).
+        let gear: Vec<Vec<i32>> = party
+            .iter()
+            .map(|fighter| self.equipment.abilities(fighter.character).0)
+            .collect();
         let adapter = LegacyBattleAdapter::new(
             battle,
-            BTreeMap::from([(attack.clone(), (cmd::ATTACK, ABILITY_ATTACK))]),
+            BTreeMap::from([
+                (attack.clone(), (cmd::ATTACK, ABILITY_ATTACK)),
+                (fire.clone(), (BLACK_MAGIC, ABILITY_FIRE)),
+                (free_energy.clone(), (INSIDE_TRICK, ABILITY_FREE_ENERGY)),
+            ]),
             unit_map,
             target_bits,
         );
@@ -622,6 +724,7 @@ impl FieldBattles {
             SceneAttacks {
                 attacks: scene.attacks.clone(),
                 status_sets: self.equipment.status_sets.clone(),
+                actions: self.equipment.actions.clone(),
             },
             driver,
             SceneOverlay {
@@ -667,9 +770,24 @@ impl FieldBattles {
                 .find(|&i| i < party.len());
             if let (Some(actor), Some(target)) = (actor, target) {
                 sent += 1;
+                // Stand-in choices a player makes: Vivi casts Fire while he
+                // has the MP, and Zidane in Trance uses Free Energy, open
+                // while its Skill twin Flee is equipped (`BattleHUD.cs:1368`,
+                // `AbilityTranceList`). Everything else attacks.
+                let unit = &machine.units[actor];
+                let has = |id: i32| gear[actor].contains(&id);
+                let action = match party[actor].character {
+                    1 if has(ABILITY_FIRE) && unit.cur_mp >= 6 => fire.clone(),
+                    0 if has(ABILITY_FLEE)
+                        && unit.is_under_any_status(tantalus_legacy::battle::status::TRANCE) =>
+                    {
+                        free_energy.clone()
+                    }
+                    _ => attack.clone(),
+                };
                 input.command = Some(BattleCommand {
                     actor: entities[actor],
-                    action: attack.clone(),
+                    action,
                     targets: vec![entities[target]],
                 });
             }
