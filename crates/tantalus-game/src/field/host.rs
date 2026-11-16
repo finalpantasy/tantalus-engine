@@ -417,6 +417,12 @@ impl LegacyEventHost for FieldHost<'_> {
                 HostEvent::SetUserControl { enabled } => {
                     self.world.user_control = *enabled;
                 }
+                // `SetControlDirection` (0x67) calls `SetTwistAD(arrow,
+                // analog)`; key walking turns by `twist.y`, the second
+                // argument (FieldMapActorController.cs:712).
+                HostEvent::SetControlDirection { analog, .. } => {
+                    self.world.control_twist = (f32::from(*analog) + 1.0) / 256.0 * 360.0;
+                }
                 // Presentation-only or engine-owned effects this world does
                 // not observe back.
                 _ => {}

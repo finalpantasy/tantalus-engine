@@ -370,8 +370,8 @@ pub fn field_sprites<'a>(
     Ok(sprites)
 }
 
-/// Spawns the background sprites and a 2D camera at the field camera's
-/// center offset; returns every entity spawned.
+/// Spawns the background sprites and a 2D camera at the start of the field
+/// camera's scroll range; returns every entity spawned.
 pub fn spawn_field_scene(
     world: &mut World,
     scene: &FieldSceneDescription,
@@ -412,11 +412,10 @@ pub fn spawn_field_scene(
                 .id(),
         );
     }
-    let transform = Transform::from_xyz(
-        f32::from(scene.camera.center_offset[0]),
-        f32::from(scene.camera.center_offset[1]),
-        500.0,
-    );
+    // Start of the scroll range, as a field shows before the camera
+    // follows anyone.
+    let range = crate::projection::view_range(&scene.camera);
+    let transform = Transform::from_xyz(range[0], range[3], 500.0);
     let camera = match target {
         Some(target) => world.spawn((Camera2d, transform, target)).id(),
         None => world.spawn((Camera2d, transform)).id(),

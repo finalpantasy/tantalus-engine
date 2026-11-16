@@ -520,6 +520,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                 &frame,
                 &placed,
             );
+            tantalus_client::live::follow_player(world, &field.scene.camera, &frame);
         },
     )
     .map_err(|error| error.to_string())?;

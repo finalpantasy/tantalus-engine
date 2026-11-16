@@ -320,12 +320,13 @@ fn walk_input_moves_the_player_by_the_configured_direction_bits() {
         director.world().actors[&EntityId::new(1)].position,
         [16.0, 0.0, 0.0]
     );
-    // Up moves negative Z; diagonals normalize.
+    // Up moves positive Z (FieldMapActorController.UpdateMovement);
+    // diagonals normalize.
     director.set_input_mask(0x01);
     director.step().unwrap();
     assert_eq!(
         director.world().actors[&EntityId::new(1)].position,
-        [16.0, 0.0, -16.0]
+        [16.0, 0.0, 16.0]
     );
     director.set_input_mask(0x08 | 0x02);
     let before = director.world().actors[&EntityId::new(1)].position;
@@ -333,5 +334,13 @@ fn walk_input_moves_the_player_by_the_configured_direction_bits() {
     let after = director.world().actors[&EntityId::new(1)].position;
     let expected = 16.0f32 * std::f32::consts::FRAC_1_SQRT_2;
     assert!((after[0] - before[0] - expected).abs() < 1e-4);
-    assert!((after[2] - before[2] - expected).abs() < 1e-4);
+    assert!((after[2] - before[2] + expected).abs() < 1e-4);
+    // A control twist of 90 degrees turns up (+z) into +x.
+    director.world_mut().control_twist = 90.0;
+    director.set_input_mask(0x01);
+    let before = director.world().actors[&EntityId::new(1)].position;
+    director.step().unwrap();
+    let after = director.world().actors[&EntityId::new(1)].position;
+    assert!((after[0] - before[0] - 16.0).abs() < 1e-3);
+    assert!((after[2] - before[2]).abs() < 1e-3);
 }

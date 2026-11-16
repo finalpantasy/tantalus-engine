@@ -91,6 +91,24 @@ pub fn world_frame(world: &FieldWorld, tick: u64) -> (TrackFrame, BTreeSet<u64>)
     (frame, placed)
 }
 
+/// Moves the 2D camera to follow the player (the frame's controlled
+/// actor), kept inside the field camera's scroll range.
+pub fn follow_player(world: &mut World, camera: &LegacyFieldCamera, frame: &TrackFrame) {
+    let target = frame
+        .player
+        .and_then(|player| frame.actors.iter().find(|(id, _)| *id == player))
+        .and_then(|(_, position)| crate::projection::project_field_point(camera, *position));
+    let Some(target) = target else {
+        return;
+    };
+    let [x, y] = crate::projection::follow(camera, target);
+    let mut cameras = world.query_filtered::<&mut Transform, With<Camera2d>>();
+    for mut transform in cameras.iter_mut(world) {
+        transform.translation.x = x;
+        transform.translation.y = y;
+    }
+}
+
 /// Prints one event the way the console shows it.
 pub fn describe(event: &PlayEvent) -> String {
     match event {
@@ -234,6 +252,7 @@ fn live_tick(world: &mut World) {
     if let Some(camera) = &live.camera {
         let (frame, placed) = world_frame(game.world(), game.ticks);
         spawn_frame_markers(world, camera, &frame, &placed);
+        follow_player(world, camera, &frame);
     }
     let mut title = format!(
         "Tantalus Engine: {} ({})",

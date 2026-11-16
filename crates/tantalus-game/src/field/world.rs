@@ -162,6 +162,9 @@ pub struct FieldWorld {
     /// Reference user control flag (`SetUserControl`); region and talk checks
     /// only run while it is on.
     pub user_control: bool,
+    /// Key-walk turn in degrees about +y (`FieldState.twist.y`), set by
+    /// `SetControlDirection` and zeroed on field load.
+    pub control_twist: f32,
     /// `ETb.gMesSignal`, read as system variable 8 (`GetDialogProgression`).
     /// Set by `SETSIGNAL` (0xE3) and by `[SIGL=n]` tags in displayed text.
     pub mes_signal: i32,
@@ -303,6 +306,7 @@ impl PartialEq for FieldWorld {
             && self.rng == other.rng
             && self.input_mask == other.input_mask
             && self.walk_speed == other.walk_speed
+            && self.control_twist == other.control_twist
             && self.animation_default_ticks == other.animation_default_ticks
             && self.exit_arrivals == other.exit_arrivals
             && self.applied_resolutions == other.applied_resolutions
@@ -346,6 +350,7 @@ impl FieldWorld {
             regions: BTreeMap::new(),
             control_actor: None,
             user_control: false,
+            control_twist: 0.0,
             mes_signal: 0,
             dialog_choice: 0,
             window_texts: BTreeMap::new(),
@@ -421,6 +426,7 @@ impl FieldWorld {
         self.actors.clear();
         self.control_actor = None;
         self.exit_arrivals.clear();
+        self.control_twist = 0.0;
     }
 
     /// `NEW` of a deleted object makes it run again.
@@ -456,8 +462,10 @@ impl FieldWorld {
         self.walk_bits = bits;
     }
 
-    /// Move the player actor by the configured direction bits (straight XZ
-    /// at walk speed; walkmesh clamping is future work).
+    /// Move the player actor by the configured direction bits the way
+    /// `FieldMapActorController.UpdateMovement` does: up +z, down -z, left
+    /// -x, right +x, normalized, turned by the control twist about +y, at
+    /// walk speed (walkmesh clamping is the host's job).
     pub(crate) fn apply_walk_input(&mut self) {
         // Input only moves the character while the engine has granted user
         // control (scenes disable it while they drive the actor).
@@ -468,28 +476,29 @@ impl FieldWorld {
             return;
         };
         let mask = self.input_mask;
-        let mut dx = 0.0f32;
-        let mut dz = 0.0f32;
+        let mut x = 0.0f32;
+        let mut z = 0.0f32;
         if mask & up != 0 {
-            dz -= self.walk_speed;
+            z += 1.0;
         }
         if mask & down != 0 {
-            dz += self.walk_speed;
+            z -= 1.0;
         }
         if mask & left != 0 {
-            dx -= self.walk_speed;
+            x -= 1.0;
         }
         if mask & right != 0 {
-            dx += self.walk_speed;
+            x += 1.0;
         }
-        if dx == 0.0 && dz == 0.0 {
+        let length = x.hypot(z);
+        if length == 0.0 {
             return;
         }
+        // Unity's `Quaternion.Euler(0, y, 0) * v`.
+        let (sin, cos) = self.control_twist.to_radians().sin_cos();
+        let dx = (x * cos + z * sin) / length * self.walk_speed;
+        let dz = (z * cos - x * sin) / length * self.walk_speed;
         if let Some(state) = self.actors.get_mut(&player) {
-            if dx != 0.0 && dz != 0.0 {
-                dx *= std::f32::consts::FRAC_1_SQRT_2;
-                dz *= std::f32::consts::FRAC_1_SQRT_2;
-            }
             state.position[0] += dx;
             state.position[2] += dz;
             state.movement = None;

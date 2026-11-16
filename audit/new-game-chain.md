@@ -464,9 +464,18 @@ What the play loop does that the chain's scripted player did not:
   `Request(quad, 1, 2)`). Field 50's candle needs this: region 7 sets map
   variable 38 each tick, and the main loop shows the "Light the candle"
   choice when confirm is pressed while it is set.
+- Keys walk the way `FieldMapActorController.UpdateMovement` does: up is
+  +z, down -z, left -x, right +x, turned about +y by the field's control
+  twist (`SetControlDirection`, opcode 0x67, second argument, zeroed on
+  field load). In field 50, up walks toward the candle.
+- The view follows Memoria's `FieldMap.offset` and the camera's viewport
+  (`vrpMinX/MaxX/MinY/MaxY`): actors project with that offset, and the
+  window scrolls to keep the player in frame, clamped to the viewport.
+  Before this the background sat off by the offset and left a dark strip
+  on the right and bottom.
 
 Two headless checks cover the same loop without a window:
 `tantalus-play` prints each event as JSON, and `tantalus-client capture-play`
-renders the field the run ends on. With Down held for ticks 300-356 and one
-confirm at 380, both reach field 50, the candle choice, battle 336
+renders the field the run ends on. With Up held for ticks 300-356
+(`--hold 300-356:10`) and confirm presses (`--auto-confirm 30`), both reach field 50, the candle choice, battle 336
 (victory) and the meeting in field 52.
