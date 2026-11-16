@@ -775,6 +775,43 @@ fn world_battle_distinguishes_early_failure_from_no_outcome() {
 }
 
 #[test]
+fn no_run_away_flag_blocks_the_flee_roll() {
+    use tantalus_tools::battle_run::{run_scene_battle, run_world_battle_report};
+
+    // `SB2_FLG_NO_RUN_AWAY` (0x20): `Info.Runaway = (flags & 32) == 0`
+    // (BTL_SCENE.cs:322). With the flag set the flee roll must not happen:
+    // a flee-first party (which never attacks) can stall to the tick
+    // budget, but it must NEVER escape. Regression lock for the runaway
+    // fix (bosses were escapable before it).
+    let mut scene = scene();
+    scene.header.flags = 0x20;
+    for monster in &mut scene.monster_types {
+        monster.max_hp = 60;
+        monster.stats.spirit = 10;
+    }
+    let mut script = b"EV ".to_vec();
+    script.resize(128, 0);
+
+    for seed in [0x5EEDu64, 9] {
+        let report = run_scene_battle("EVT_BATTLE_TEST", &scene, 0, &script, seed, false, true);
+        let world =
+            run_world_battle_report("EVT_BATTLE_TEST", &scene, 0, &script, seed, false, true);
+        assert_eq!(report.error, None, "seed {seed}: report path clean");
+        assert_eq!(world.error, None, "seed {seed}: world path clean");
+        assert_ne!(
+            report.outcome,
+            Some(tantalus_game::battle::BattleOutcome::Escape),
+            "seed {seed}: no_run_away must block the report path's escape"
+        );
+        assert_ne!(
+            world.outcome,
+            Some(tantalus_game::battle::BattleOutcome::Escape),
+            "seed {seed}: no_run_away must block the world path's escape"
+        );
+    }
+}
+
+#[test]
 fn flee_first_paths_agree_on_the_escape_outcome() {
     use tantalus_tools::battle_run::{run_scene_battle, run_world_battle_report};
 
