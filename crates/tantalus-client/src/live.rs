@@ -425,16 +425,12 @@ fn live_tick(world: &mut World) {
             game.ticks,
         );
         place_camera(world, at);
-<<<<<<< Updated upstream
         if let Some(motion) = &live.motion
             && !motion.is_idle()
         {
             motion.place_sprites(world, scene);
         }
-        crate::dialog_view::sync_dialogs(world, &game);
-=======
         crate::dialog_view::sync_dialogs(world, &game, &scene.camera, &frame);
->>>>>>> Stashed changes
     }
     let mut title = format!(
         "Tantalus Engine: {} ({})",
