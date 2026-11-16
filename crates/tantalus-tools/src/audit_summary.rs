@@ -436,17 +436,53 @@ mod tests {
     fn counts_come_from_the_named_report_fields() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
-            dir.path().join("battle-run.json"),
-            r#"{"scenes":10,"victories":6,"defeats":2,"escapes":0,"errors":1,"unfinished":1}"#,
+            dir.path().join("battle-run-all-patterns.json"),
+            r#"{"battles":10,"victories":6,"defeats":2,"escapes":0,"errors":1}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("battle-world-run-all-patterns.json"),
+            r#"{"battles":10,"victories":6,"defeats":2,"escapes":0,"errors":1}"#,
         )
         .unwrap();
         let rows = summarize(dir.path());
-        let sweep = rows
+        let armed = rows
             .iter()
-            .find(|row| row.class.starts_with("Battle scene sweep"))
+            .find(|row| row.class == "Battle runs, all patterns (report path)")
             .unwrap();
-        assert_eq!(sweep.counts, Some((8, 2)));
+        assert_eq!(armed.counts, Some((9, 1)));
+        // The twins are identical, so the armed cross-path row passes.
+        let identity = rows
+            .iter()
+            .find(|row| row.class == "Cross-path identity, armed pair")
+            .unwrap();
+        assert_eq!(identity.counts, Some((1, 0)));
         let json = to_json(&rows);
         assert_eq!(json["rows"].as_array().unwrap().len(), rows.len());
+    }
+
+    #[test]
+    fn cross_path_identity_row_fails_on_divergence() {
+        let dir = tempfile::tempdir().unwrap();
+        for (file, gil) in [
+            ("battle-run-all-patterns.json", 100),
+            ("battle-world-run-all-patterns.json", 200),
+        ] {
+            std::fs::write(
+                dir.path().join(file),
+                format!(
+                    r#"{{"results":[{{"scene":"S","patterns":[{{"outcome":"victory","bonus_gil":{gil},"bonus_exp":5,"error":null}}]}}]}}"#
+                ),
+            )
+            .unwrap();
+        }
+        let rows = summarize(dir.path());
+        let identity = rows
+            .iter()
+            .find(|row| row.class == "Cross-path identity, armed pair")
+            .unwrap();
+        assert_eq!(identity.counts, Some((0, 1)));
+        let (failing, _) = failure_counts(&rows);
+        assert!(failing > 0);
     }
 }
