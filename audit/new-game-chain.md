@@ -607,13 +607,34 @@ How a fresh worker gets from the arrival to field 565 and what to read.
    `KeyState(Held)` and the climb loop waits on `WaitAnimation` between
    steps); `--choices 563:99=3` picks the air cab destination. All are
    opt-in, so the chain runs are unchanged.
-5. Open: at 3118 field 565 (the festival hall) talks to entity 11 and then
-   loops over the island fields; the next gate is not found yet. Look at
-   565 entry 0 function 1 (scenario 3118 branch, Global236 |= 8 at pc 946),
-   the hunt registration, and field 850. The festival points minigame is
-   not reached. Burmecia, Gizamaluke's Grotto, South Gate, Cleyra and
-   Alexandria remain; disc 1 ends at `EVT_ALEX3_AC_OHAKA` (field 1800),
-   whose `DISCCHANGE` goes to disc 2, field 1812.
+5. Scenario 3118 (what moves the story). Entering 565 at 3115 plays its
+   cutscene, which sets 3118 and `Global236 |= 8`: ATE bit 3 (choice 3 of
+   the ATE menu, text 116 in 565, destination 850) is now on offer. Pressing
+   Select and picking choice 3 (`--ate 565:3,566:3,... --choices '*:116=3'`)
+   reaches 850 (the Tantalus Evil Forest ATE, about 2100 ticks); it toggles
+   bit 8 off (850 pc 554) and returns to the previous field. It does not
+   change the scenario. The scenario moves to 3120 only inside field 611:
+   with scenario 3118 its init (`JumpSwitchEx` case 3118, Map var 50 = 2)
+   creates objects 17 and 20 and regions 8 and 9, and function 37 of entry
+   0 (text 337 to 345) sets 3120 and clears `Global236` bit 8. 565 has no
+   exit to 611 at 3118 (the `ChangeField(611)` in 565 is only the 3115
+   cutscene), so 611 must be entered from 612, the castle.
+6. Route to the castle at 3118: from 563 the air cab text 99, choice 2,
+   flies to 610 (`--choices 563:99=2`), then 610 -> 614 -> 613. Field 613
+   at 3118 (Map31 = 3) has the guard region 16 (z -1846 to -1631, x -388 to
+   362): standing in it requests entry 0 tag 18 every frame, which walks
+   guard 7 to the player (tag 19), shows text 371, and walks the guard away
+   (tag 20). The explorer arrives at (-26, -1747), inside that band, and
+   repeats the 204 tick cycle until the tick limit (about 30 times in 6000
+   ticks); exit 14 (to 612) is region 14 at x 2543 to 3460, z -365 to 312,
+   and the explorer never reaches it. The next worker should find why the
+   walk to exit 14 goes through the region 16 band (navigation mesh or the
+   explorer's target choice), then enter 611 (route `613>612,612>611` at
+   3118) to get 3120, then 3125 (613 text 348/349 and 3130 with the lift).
+   The festival points minigame is not reached. Burmecia, Gizamaluke's
+   Grotto, South Gate, Cleyra and Alexandria remain; disc 1 ends at
+   `EVT_ALEX3_AC_OHAKA` (field 1800), whose `DISCCHANGE` goes to disc 2,
+   field 1812.
 
 `audit/story-route.sh` now ends at field 565, scenario 3118 (97 fields,
 `MAX_FIELDS`); probe with
