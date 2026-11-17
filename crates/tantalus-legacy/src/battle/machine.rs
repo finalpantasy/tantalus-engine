@@ -2509,7 +2509,6 @@ impl Battle {
         Ok(())
     }
 
-<<<<<<< Updated upstream
     /// `TroubleStatusScript.OnFigurePoint` (`Scripts/DefaultStatus/
     /// TroubleStatusScript.cs:21-37`): a damaging hit on a Troubled target
     /// (`RaiseTrouble` set the flag before the blow) hurts every other
@@ -2555,7 +2554,8 @@ impl Battle {
                 damage,
             });
         }
-=======
+    }
+
     /// `BattleUnit.Remove` (`BattleUnit.cs:592`): the unit's commands go,
     /// it leaves the list (no longer counts for either side) and the battle
     /// phase is rechecked so a side with no one left ends the fight.
@@ -2566,7 +2566,6 @@ impl Battle {
         self.sched[i].die_seq = 6;
         self.emit(BattleEvent::UnitRemoved { unit: i });
         self.check_battle_phase(i);
->>>>>>> Stashed changes
     }
 
     /// Jump (`btl_cmd.cs:1025`, `JumpStatusScript.Apply` and
