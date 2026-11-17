@@ -286,3 +286,42 @@ fn the_world_script_stands_the_chocobo_at_its_story_point_spot() {
         assert!(start.zidane.is_some());
     }
 }
+
+#[test]
+fn the_world_script_follows_the_walker_and_reads_the_world() {
+    let Some(dir) = streaming() else { return };
+    let bundle = dir.join("p0data7.bin");
+    let assets = Arc::new(WorldAssets::load(&dir, 1).expect("world assets"));
+    let events = event_places(&bundle, "EVT_WORLD_WORLD00").expect("place events");
+    let world = tantalus_game::FieldWorld::new();
+    let mut script =
+        tantalus_tools::world_script::WorldScript::start(&bundle, "EVT_WORLD_WORLD00", 9000, world)
+            .unwrap();
+    for _ in 0..tantalus_tools::world_script::START_FRAMES {
+        script.tick(0).unwrap();
+    }
+    let mut play = WorldPlay::new(assets, events, 1218.0, -747.0, 1).unwrap();
+    play.set_script(script);
+    let mut battles = 0;
+    for frame in 0..400 {
+        let held = if frame > 100 { UP } else { 0 };
+        let tick = play.tick(held, 0, CONFIRM, false);
+        battles += usize::from(tick.script_battle.is_some());
+        assert_eq!(tick.field, None);
+    }
+    let script = play.script().unwrap();
+    let globals = &script.world().global_memory;
+    // The script's saved position (globals 64, 67, 69) is the walker's.
+    let x = globals
+        .get(64, tantalus_legacy::VariableType::Int24)
+        .unwrap();
+    let z = globals
+        .get(69, tantalus_legacy::VariableType::Int24)
+        .unwrap();
+    eprintln!(
+        "walker {:?}; saved ({x}, {z}); effects {:?}; script battles {battles}",
+        play.walker.pos, script.effects
+    );
+    assert!((x as f32 / 256.0 - play.walker.pos.x).abs() < 2.0);
+    assert!((z as f32 / 256.0 - play.walker.pos.z).abs() < 2.0);
+}

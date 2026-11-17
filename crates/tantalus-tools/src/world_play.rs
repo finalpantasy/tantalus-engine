@@ -52,6 +52,10 @@ pub struct WorldTick {
     pub battle: Option<i32>,
     /// The player confirmed on a place: its number.
     pub enter: Option<i32>,
+    /// The world script started this battle itself (`StartBattle`).
+    pub script_battle: Option<i32>,
+    /// The world script changed to this field itself.
+    pub field: Option<i32>,
 }
 
 /// Where the camera is.
@@ -581,7 +585,9 @@ impl WorldPlay {
         let hit_code = report
             .world_event
             .map(|hit| event_code(hit.cell_x, hit.cell_z, hit.event));
-        let scripted = self.script_place(hit_code);
+        let (scripted, events) = self.script_place(hit_code);
+        tick.script_battle = events.0;
+        tick.field = events.1;
         self.place = scripted.or_else(|| hit_code.and_then(|code| self.events.get(&code)).copied());
         if pressed & confirm != 0
             && let Some(place) = self.place
@@ -620,9 +626,29 @@ impl WorldPlay {
     /// One frame of the world script: when the actor stands on a place cell
     /// its handler runs and the place it chose (map variable 39) is
     /// returned; `None` without a script, off a place, or when the handler
-    /// declines (a story or Chocograph condition is not met).
-    fn script_place(&mut self, code: Option<u16>) -> Option<i32> {
-        let script = self.script.as_mut()?;
+    /// declines (a story or Chocograph condition is not met). The second
+    /// value is what the script itself started: a battle and a field change.
+    fn script_place(&mut self, code: Option<u16>) -> (Option<i32>, (Option<i32>, Option<i32>)) {
+        self.feed_script();
+        let Some(script) = self.script.as_mut() else {
+            return (None, (None, None));
+        };
+        let mut started = (None, None);
+        let collect = |script: &mut crate::world_script::WorldScript,
+                       started: &mut (Option<i32>, Option<i32>)| {
+            match script.tick_events(0) {
+                Ok(tick) => {
+                    if started.0.is_none() {
+                        started.0 = tick.encounters.first().map(|request| request.battle);
+                    }
+                    if started.1.is_none() {
+                        started.1 = tick.next_field;
+                    }
+                    true
+                }
+                Err(_) => false,
+            }
+        };
         if let Some(code) = code {
             let _ = script
                 .world_mut()
@@ -631,16 +657,69 @@ impl WorldPlay {
             if script.request_event(code).unwrap_or(false) {
                 // The handler is short and has no waits before it picks.
                 for _ in 0..2 {
-                    if script.tick(0).is_err() {
+                    if !collect(script, &mut started) {
                         break;
                     }
                 }
                 let place = script.place();
-                return (place != 0).then_some(place);
+                return ((place != 0).then_some(place), started);
             }
         }
-        let _ = script.tick(0);
-        None
+        collect(script, &mut started);
+        (None, started)
+    }
+
+    /// What `ff9.w_frameGetParameter` answers the script this frame
+    /// (system variables 192 to 211) and where the script's objects stand:
+    /// the area and topograph under the actor, the camera yaw, the actor's
+    /// world position, the script's own parameter registers and the phase
+    /// (209: the world is running). The player's saved position
+    /// (globals 64 to 72) follows the walker through its object.
+    fn feed_script(&mut self) {
+        let Some(script) = self.script.as_mut() else {
+            return;
+        };
+        let id = self.walker.status.id;
+        let pos = self.walker.pos;
+        let area = tantalus_legacy::world::id_area(id);
+        let zone = tantalus_legacy::world::area_to_zone(area).unwrap_or(0) as i32;
+        let (params, camera) = (script.effects.params, self.walker.camera.rotation);
+        let fixed = |value: f32| (value * 256.0) as i32;
+        script.feed(&[
+            (192, area),
+            (193, tantalus_legacy::world::id_topograph(id)),
+            // 194: the height of the ground under the actor (negated).
+            (
+                194,
+                -fixed(self.walker.status.ground_height + self.walker.status.slice_height),
+            ),
+            (195, params[0]),
+            (196, -params[1]),
+            (197, params[2]),
+            // 199: the camera yaw as a 12-bit angle shifted by 4.
+            (199, (camera / 360.0 * 256.0) as i32 & 0xFF),
+            (200, 0),
+            (201, fixed(pos.x)),
+            (202, fixed(pos.y)),
+            (203, fixed(pos.z)),
+            (204, 0),
+            // 205 (the script's own encounter roll) stays off: the random
+            // battles are rolled by `tick` itself.
+            (205, 0),
+            (207, zone),
+            (208, fixed(self.walker.status.slice_height)),
+            (209, 1),
+            (211, -1),
+        ]);
+        let yaw = self.walker.rot_y;
+        let at = [pos.x, pos.y, pos.z];
+        // The controlled character; mounted, the carrier moves with him.
+        script.place_object(crate::world_script::ZIDANE_ENTRY, at, yaw);
+        match self.ride {
+            1..=6 => script.place_object(crate::world_script::CHOCOBO_ENTRY, at, yaw),
+            7 => script.place_object(crate::world_script::NARCISS_ENTRY, at, yaw),
+            _ => {}
+        }
     }
 
     /// `w_cameraSetEyeAim` for the default camera.

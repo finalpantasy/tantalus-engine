@@ -1805,7 +1805,9 @@ impl FieldWorld {
         self.system_variables.get(&variable).copied()
     }
 
-    pub(crate) fn set_system_variable(&mut self, variable: u8, value: i32) {
+    /// Sets an engine system variable the scripts read (`GetSysvar`); the
+    /// world map feeds its own (`ff9.w_frameGetParameter`, 192 and up).
+    pub fn set_system_variable(&mut self, variable: u8, value: i32) {
         self.system_variables.insert(variable, value);
     }
 

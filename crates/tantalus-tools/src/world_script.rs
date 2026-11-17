@@ -80,6 +80,8 @@ impl WorldEffects {
 
 /// Script entry of the controlled character (Zidane, model 310).
 pub const ZIDANE_ENTRY: u32 = 11;
+/// Script entry of the Blue Narciss object (model 311).
+pub const NARCISS_ENTRY: u32 = 8;
 /// Script entry of the chocobo object (model 308).
 pub const CHOCOBO_ENTRY: u32 = 5;
 /// `WMActor.Initialize` (`WMActor.cs`): where the Blue Narciss stands when
@@ -125,11 +127,44 @@ impl WorldScript {
 
     /// One frame of the script. Returns the field the script changed to.
     pub fn tick(&mut self, input: i32) -> Result<Option<i32>, String> {
+        Ok(self.tick_events(input)?.next_field)
+    }
+
+    /// One frame of the script with everything it started: battles
+    /// (`StartBattle`) and the field it changed to.
+    pub fn tick_events(&mut self, input: i32) -> Result<crate::field_session::SessionTick, String> {
         let tick = self.session.tick(input)?;
         for (code, value) in self.session.director.world_mut().take_world_codes() {
             self.effects.apply(code, value);
         }
-        Ok(tick.next_field)
+        Ok(tick)
+    }
+
+    /// Sets what `ff9.w_frameGetParameter` returns (system variables 192
+    /// and up) for the script's next frame.
+    pub fn feed(&mut self, variables: &[(u8, i32)]) {
+        let world = self.world_mut();
+        for &(variable, value) in variables {
+            world.set_system_variable(variable, value);
+        }
+    }
+
+    /// Moves script object `entry` to where the walking world has it (world
+    /// units `[x, height, z]` and yaw in degrees), as the engine's
+    /// `WMActor` keeps the object and the script reads it back
+    /// (`getvobj` members 0 to 3): the saved position in globals 64 to 72
+    /// follows the player.
+    pub fn place_object(&mut self, entry: u32, pos: [f32; 3], yaw: f32) {
+        use tantalus_contracts::EntityId;
+        let id = EntityId::new(u64::from(entry));
+        let world = self.world_mut();
+        if !world.actors.contains_key(&id) {
+            world.add_actor(id, [0.0; 3]);
+        }
+        if let Some(actor) = world.actors.get_mut(&id) {
+            actor.position = pos.map(|v| (v * 256.0).round());
+            actor.facing = ((yaw / 360.0 * 256.0).round() as i32 & 0xFF) as i16;
+        }
     }
 
     /// `ff9.WorldEvent`: asks the first object to run place handler `code`

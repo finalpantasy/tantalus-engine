@@ -1836,7 +1836,15 @@ impl PlayGame {
             }
         }
         let tick = play.tick(held, pressed, CONFIRM, false);
-        if let Some(scene) = tick.battle {
+        if let Some(field) = tick.field {
+            // The world script changed field by itself (its own prompt).
+            let session = self.session.take().expect("session");
+            self.world = session.director.world().clone();
+            self.world_play = None;
+            self.enter(field, events)?;
+            return Ok(());
+        }
+        if let Some(scene) = tick.battle.or(tick.script_battle) {
             let request = tantalus_game::field::EncounterRequest {
                 rush: 0,
                 group: None,
