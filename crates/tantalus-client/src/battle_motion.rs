@@ -56,6 +56,9 @@ const RUN_SECONDS: f32 = 0.5;
 const FADE_SECONDS: f32 = 0.4;
 /// Seconds a damage number stays up.
 pub const NUMBER_SECONDS: f64 = 1.2;
+/// The longest wait for a `Figure` point looked back for (Cure on many
+/// waits 42 frames).
+const MAX_FIGURE_DELAY: f64 = 4.0;
 
 /// The clips a unit can play.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -522,14 +525,18 @@ fn command_segments(
 }
 
 /// Damage numbers up at `seconds`: target, amount (negative heals, 0 a
-/// miss) and seconds since it landed.
+/// miss) and seconds since it landed. A spell's numbers show at its
+/// effect's `Figure` point ([`crate::battle_effects::figure_delay`]).
 pub fn damage_numbers(stage: &BattleStage, seconds: f64) -> Vec<(usize, i64, f64)> {
+    let effects = crate::battle_effects::stage_effects(stage);
     let last = ((seconds.max(0.0) * BATTLE_TICKS_PER_SECOND) as usize + 1).min(stage.frames.len());
-    let first = last.saturating_sub((NUMBER_SECONDS * BATTLE_TICKS_PER_SECOND) as usize + 1);
+    let first = last.saturating_sub(
+        ((NUMBER_SECONDS + MAX_FIGURE_DELAY) * BATTLE_TICKS_PER_SECOND) as usize + 1,
+    );
     let mut out = Vec::new();
     for (index, frame) in stage.frames[first..last].iter().enumerate() {
-        let since = seconds - seconds_of(first + index);
-        if !(0.0..NUMBER_SECONDS).contains(&since) {
+        let landed = seconds - seconds_of(first + index);
+        if !(0.0..NUMBER_SECONDS + MAX_FIGURE_DELAY).contains(&landed) {
             continue;
         }
         let previous = (first + index)
@@ -554,7 +561,11 @@ pub fn damage_numbers(stage: &BattleStage, seconds: f64) -> Vec<(usize, i64, f64
             } = event
                 && !(*damage == 0 && silent(*caster, *target))
             {
-                out.push((*target, *damage, since));
+                let since =
+                    landed - crate::battle_effects::figure_delay(&effects, *caster, first + index);
+                if (0.0..NUMBER_SECONDS).contains(&since) {
+                    out.push((*target, *damage, since));
+                }
             }
         }
     }

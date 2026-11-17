@@ -96,6 +96,11 @@ pub enum StageEvent {
     Died {
         unit: usize,
     },
+    /// `unit`'s command ended (`CommandFinished`).
+    Finished {
+        unit: usize,
+        cmd_no: u32,
+    },
     /// Jump: `unit` left the field.
     Jumped {
         unit: usize,
@@ -167,6 +172,9 @@ pub fn stage_events(
                 });
             }
             BattleEvent::UnitDied { unit } => events.push(StageEvent::Died { unit }),
+            BattleEvent::CommandFinished { unit, cmd_no } => {
+                events.push(StageEvent::Finished { unit, cmd_no });
+            }
             BattleEvent::Jumped { unit } => events.push(StageEvent::Jumped { unit }),
             BattleEvent::Landed { unit } => events.push(StageEvent::Landed { unit }),
             BattleEvent::Ate {
@@ -262,6 +270,56 @@ pub struct BattleStage {
     pub attack_anims: Vec<(Vec<u16>, bool)>,
     /// The sounds of each enemy attack ([`crate::battle_sound::sequence_sounds`]).
     pub sfx: Vec<Vec<crate::battle_sound::SequenceSfx>>,
+    /// The scene's camera block (`camOffset` of the `.raw17`).
+    pub camera_block: Option<tantalus_assets::pc::battle_camera::CameraBlock>,
+    /// [`attack_cameras`] of the scene's sequence file.
+    pub attack_cameras: Vec<Option<AttackCamera>>,
+    /// `PatAddr[pattern].Monster[0]` x and z (camera anchor 11).
+    pub put: [i16; 2],
+    /// `SFX_INIT_PARAM.geo_radius` of an enemy: the first enemy's
+    /// `radius_effect` (`FF9DBModelParameters` Radius), added to camera
+    /// orbit distances. 0 when unknown.
+    pub enemy_radius: i32,
+    /// Spell and item effect ids and timing ([`crate::battle_effects`]).
+    pub effects: std::sync::Arc<crate::battle_effects::EffectTable>,
+}
+
+/// A camera op in an enemy attack sequence: the frame it runs at, whether
+/// it starts the enemy's camera (`RunCamera`, code 0x20) or only sets the
+/// number, and `CameraNo`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AttackCamera {
+    pub frame: u32,
+    pub run: bool,
+    pub camera_no: u8,
+}
+
+/// The first camera op of each attack sequence of a scene's `.raw17`.
+pub fn attack_cameras(bytes: &[u8]) -> Vec<Option<AttackCamera>> {
+    use tantalus_assets::pc::battle_sequence::{CameraOp, InterpretOptions, MarkerKind, interpret};
+    let Ok(file) = SequenceFile::parse(bytes, "raw17") else {
+        return Vec::new();
+    };
+    (0..file.slots.len())
+        .map(|index| {
+            let sequence = file.sequence(index)?;
+            let options = InterpretOptions {
+                base_anim: file.slots[index].base_anim,
+                ..InterpretOptions::default()
+            };
+            interpret(sequence, &options)
+                .markers
+                .iter()
+                .find_map(|marker| match marker.kind {
+                    MarkerKind::Camera { op, id } => Some(AttackCamera {
+                        frame: marker.frame,
+                        run: op == CameraOp::Run,
+                        camera_no: id,
+                    }),
+                    _ => None,
+                })
+        })
+        .collect()
 }
 
 impl BattleStage {
@@ -309,6 +367,14 @@ impl BattleStage {
             outcome: None,
             attack_anims: Vec::new(),
             sfx: Vec::new(),
+            camera_block: None,
+            attack_cameras: Vec::new(),
+            put: scene
+                .patterns
+                .get(pattern)
+                .map_or([0; 2], |row| [row.monsters[0].x, row.monsters[0].z]),
+            enemy_radius: 0,
+            effects: Default::default(),
         }
     }
 

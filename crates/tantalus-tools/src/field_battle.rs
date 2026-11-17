@@ -175,6 +175,11 @@ pub struct Equipment {
     /// Item id -> ability ids (`Items.csv` `AbilityIds`: `AA:X` is X,
     /// `SA:X` is 192 + X, `ff9abil.cs:24-25`).
     item_abilities: BTreeMap<i32, Vec<i32>>,
+    /// Model id -> `FF9DBModelParameters` Radius (Memoria
+    /// `FF9DBModelParameters.cs`); empty when the file is missing.
+    model_radius: BTreeMap<i32, i32>,
+    /// Spell and item effect ids and their timing (for drawing).
+    effects: std::sync::Arc<crate::battle_effects::EffectTable>,
     /// Character id -> preset id (`CharacterParameters.csv`
     /// `DefaultCommandSet`, which equals the `CharacterPresetId`).
     presets: BTreeMap<i32, i32>,
@@ -195,6 +200,29 @@ pub struct Equipment {
     command_sets: BTreeMap<i32, [u32; 2]>,
     /// `BattleCommandId` -> its `Characters/Commands.csv` row.
     commands: BTreeMap<u32, CommandRow>,
+}
+
+/// `{ 12, new FF9DBModelParameters(height, radius, ...) }` entries: model
+/// id -> radius.
+fn parse_model_radius(source: &str) -> BTreeMap<i32, i32> {
+    let mut radius = BTreeMap::new();
+    for line in source.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix('{') else {
+            continue;
+        };
+        let Some((id, args)) = rest.split_once(", new FF9DBModelParameters(") else {
+            continue;
+        };
+        let mut numbers = args.split(',').map(|field| field.trim().parse::<i32>());
+        let (Ok(id), Some(Ok(_height)), Some(Ok(value))) =
+            (id.trim().parse::<i32>(), numbers.next(), numbers.next())
+        else {
+            continue;
+        };
+        radius.insert(id, value);
+    }
+    radius
 }
 
 /// A `Commands.csv` row (`CharacterCommand`): type 0 runs `main` directly,
@@ -429,6 +457,8 @@ impl Equipment {
         };
         let items_dir = characters.join("../Items");
         let mut equipment = Self::default();
+        let mut effect_table = crate::battle_effects::EffectTable::default();
+        effect_table.load_timing(&characters.join("../SpecialEffects"));
         for row in csv_rows(&read(characters.join("CharacterParameters.csv"))?) {
             if let (Some(id), Some(set)) = (int(&row, 0), int(&row, 5)) {
                 equipment.sets.insert(id, set);
@@ -545,11 +575,17 @@ impl Equipment {
                     },
                 );
             }
+            let animations: BTreeMap<i32, i32> = csv_rows(&effects)
+                .filter_map(|row| Some((int(&row, 0)?, int(&row, 4)?)))
+                .collect();
             for row in csv_rows(&items) {
                 if let (Some(id), Some(effect)) = (int(&row, 0), int(&row, 3))
                     && let Some(item) = rows.get(&effect)
                 {
                     equipment.item_effects.insert(id, *item);
+                    if let Some(animation) = animations.get(&effect) {
+                        effect_table.items.insert(id, *animation);
+                    }
                 }
             }
         }
@@ -595,6 +631,10 @@ impl Equipment {
                 equipment
                     .action_names
                     .insert(id, field(0).trim().to_owned());
+                if let (Some(many), Some(single)) = (int(&row, 8), int(&row, 9)) {
+                    let many_any = paren_or_number(field(3)) == "3";
+                    effect_table.abilities.insert(id, (many, single, many_any));
+                }
                 equipment.actions.insert(
                     id,
                     ActionRow {
@@ -612,6 +652,13 @@ impl Equipment {
                     },
                 );
             }
+        }
+        equipment.effects = std::sync::Arc::new(effect_table);
+        // `Memoria.Patcher/StreamingAssets/Data/Characters` -> the root.
+        if let Ok(source) =
+            read(characters.join("../../../../Assembly-CSharp/Global/ff9/FF9DBModelParameters.cs"))
+        {
+            equipment.model_radius = parse_model_radius(&source);
         }
         Ok(equipment)
     }
@@ -980,6 +1027,21 @@ impl FieldBattles {
             .unwrap_or_default();
         stage.sfx = sequence
             .map(crate::battle_sound::sequence_sounds)
+            .unwrap_or_default();
+        stage.enemy_radius = stage
+            .units
+            .iter()
+            .find_map(|unit| match unit.model {
+                crate::battle_stage::StageModel::Enemy { geo, .. } => Some(geo),
+                _ => None,
+            })
+            .and_then(|geo| self.equipment.model_radius.get(&i32::from(geo)).copied())
+            .unwrap_or(0);
+        stage.effects = self.equipment.effects.clone();
+        stage.camera_block =
+            sequence.and_then(tantalus_assets::pc::battle_camera::CameraBlock::from_raw17);
+        stage.attack_cameras = sequence
+            .map(crate::battle_stage::attack_cameras)
             .unwrap_or_default();
         // `btl_sys.SetBonus` on each enemy death; `Info.AfterEvent` scenes
         // pay nothing (`battle.cs:72`).

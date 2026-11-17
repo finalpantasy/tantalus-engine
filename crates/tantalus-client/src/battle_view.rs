@@ -40,8 +40,9 @@ use tantalus_assets::pc::model_assembly::{
 use tantalus_assets::pc::serialized::SerializedFile;
 use tantalus_assets::pc::unity_object::animation::AnimationClip;
 use tantalus_assets::pc::unity_raw::UnityRawBundle;
-use tantalus_tools::battle_stage::{BattleStage, StageFrame, StageModel};
+use tantalus_tools::battle_stage::{BATTLE_TICKS_PER_SECOND, BattleStage, StageFrame, StageModel};
 
+use crate::battle_camera_play::CameraDirector;
 use crate::battle_hud::{BattleHud, HudDraw, MenuDraw, PartyRow};
 use crate::battle_motion::{ClipKey, Motions, UnitMotion, damage_numbers, unit_motion};
 use crate::battle_raster::{BattleCamera, Blend, DrawState, Frame, Texture, ViewVertex};
@@ -525,11 +526,15 @@ fn unit_name(model: &StageModel, enemy: usize) -> String {
     }
 }
 
-/// The background drawn once (it and the camera do not move yet): color
-/// and depth after the opaque pass.
+/// The background drawn once for the fixed camera (color and depth after
+/// the opaque pass), and the scene's scripted cameras when it has them.
 pub struct BattleScene {
     pub camera: BattleCamera,
     base: Frame,
+    /// The scripted cameras ([`CameraDirector`]); `None` keeps `camera`.
+    director: std::sync::Mutex<Option<CameraDirector>>,
+    /// Model height of each unit (camera anchor heights).
+    heights: Vec<f32>,
     looks: Vec<Option<UnitLook>>,
     /// How many units have a model drawn.
     pub models: usize,
@@ -568,13 +573,97 @@ impl BattleScene {
             .flatten()
             .filter(|look| matches!(assets.models.get(&look.geo), Some(Some(_))))
             .count();
+        // Each model's height at the start of its idle, for the camera's
+        // anchor points.
+        let length = |clip: ClipKey| {
+            assets
+                .clips
+                .get(&clip)
+                .and_then(Option::as_ref)
+                .map_or(0.0, clip_length)
+        };
+        let heights: Vec<f32> = stage
+            .units
+            .iter()
+            .enumerate()
+            .map(|(index, unit)| {
+                let Some(Some(look)) = looks.get(index) else {
+                    return 0.0;
+                };
+                let motion = unit_motion(stage, index, 0.0, &look.motions, &length);
+                let mut probe = Frame::new(1, 1, CLEAR);
+                draw_unit(
+                    &mut probe,
+                    &camera,
+                    assets,
+                    look.geo,
+                    &motion,
+                    unit.position,
+                    unit.turn,
+                )
+                .unwrap_or(0.0)
+            })
+            .collect();
+        let director = CameraDirector::new(stage, &heights);
         Self {
             camera,
             base,
+            director: std::sync::Mutex::new(director),
+            heights,
             looks,
             models,
             background_triangles,
         }
+    }
+
+    /// Shows the battle through the fixed camera only.
+    pub fn fix_camera(&mut self) {
+        self.director = std::sync::Mutex::new(None);
+    }
+
+    /// The camera at `seconds` into `stage`.
+    pub fn camera_at(
+        &self,
+        assets: &BattleAssets,
+        stage: &BattleStage,
+        seconds: f64,
+    ) -> BattleCamera {
+        let tick = (seconds.max(0.0) * BATTLE_TICKS_PER_SECOND) as usize;
+        let mut director = self
+            .director
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Some(running) = director.as_mut() else {
+            return self.camera;
+        };
+        if tick + 1 < running.ticks() {
+            *running = match CameraDirector::new(stage, &self.heights) {
+                Some(fresh) => fresh,
+                None => return self.camera,
+            };
+        }
+        let length = |clip: ClipKey| {
+            assets
+                .clips
+                .get(&clip)
+                .and_then(Option::as_ref)
+                .map_or(0.0, clip_length)
+        };
+        // Where each unit stands at a tick (steps forward, runs, jumps).
+        let offsets = |tick: usize| -> Vec<[f32; 3]> {
+            let seconds = tick as f64 / BATTLE_TICKS_PER_SECOND;
+            self.looks
+                .iter()
+                .enumerate()
+                .map(|(index, look)| match look {
+                    Some(look) => unit_motion(stage, index, seconds, &look.motions, &length).offset,
+                    None => [0.0; 3],
+                })
+                .collect()
+        };
+        running
+            .camera_at(stage, tick, &offsets)
+            .unwrap_or(self.camera)
     }
 
     /// The frame `seconds` into the replay, with the plain readout.
@@ -592,7 +681,16 @@ impl BattleScene {
         hud: Option<&BattleHud>,
         overlay: &Overlay,
     ) -> Frame {
-        let mut frame = self.base.clone();
+        let camera = self.camera_at(assets, stage, seconds);
+        let mut frame = if camera == self.camera {
+            self.base.clone()
+        } else {
+            let mut frame = Frame::new(self.base.width, self.base.height, CLEAR);
+            if let Some(background) = assets.background(stage) {
+                draw_background(&mut frame, &camera, background, false);
+            }
+            frame
+        };
         let record = stage.frame_at(seconds);
         let length = |clip: ClipKey| {
             assets
@@ -601,8 +699,14 @@ impl BattleScene {
                 .and_then(Option::as_ref)
                 .map_or(0.0, clip_length)
         };
-        // Where each unit's head is on screen.
+        let effects = crate::battle_effects::stage_effects(stage);
+        crate::battle_effects::dim(
+            &mut frame,
+            crate::battle_effects::scene_intensity(&effects, seconds),
+        );
+        // Where each unit's head is on screen, and where it stands.
         let mut heads: Vec<Option<[f32; 2]>> = vec![None; stage.units.len()];
+        let mut spots: Vec<Option<crate::battle_effects::UnitSpot>> = vec![None; stage.units.len()];
         for (index, unit) in stage.units.iter().enumerate() {
             let present =
                 record.is_none_or(|record| record.present.get(index).copied().unwrap_or(true));
@@ -618,22 +722,26 @@ impl BattleScene {
             }
             if let Some(top) = draw_unit(
                 &mut frame,
-                &self.camera,
+                &camera,
                 assets,
                 look.geo,
                 &motion,
                 unit.position,
                 unit.turn,
             ) {
-                let at = Vec3::from_array(unit.position)
-                    + Vec3::from_array(motion.offset)
-                    + Vec3::Y * top;
-                heads[index] = frame.project(&self.camera, self.camera.to_view(at.to_array()));
+                let feet = Vec3::from_array(unit.position) + Vec3::from_array(motion.offset);
+                let at = feet + Vec3::Y * top;
+                heads[index] = frame.project(&camera, camera.to_view(at.to_array()));
+                spots[index] = Some(crate::battle_effects::UnitSpot {
+                    feet: feet.to_array(),
+                    height: top,
+                });
             }
         }
         if let Some(background) = assets.background(stage) {
-            draw_background(&mut frame, &self.camera, background, true);
+            draw_background(&mut frame, &camera, background, true);
         }
+        crate::battle_effects::draw_effects(&mut frame, &camera, &effects, &spots, seconds);
         match hud {
             Some(hud) => {
                 let draw = hud_draw(stage, seconds, overlay, &heads);
@@ -1127,6 +1235,7 @@ impl FightView {
             let mut stage = fight.stage().clone();
             stage.camera = camera;
             self.scene = BattleScene::new(assets, &stage, LIVE_SIZE.0, LIVE_SIZE.1);
+            self.scene.fix_camera();
         }
     }
 
@@ -1414,7 +1523,7 @@ pub fn steal_message(
     seconds: f64,
     item_name: &dyn Fn(i32) -> Option<String>,
 ) -> Option<String> {
-    use tantalus_tools::battle_stage::{BATTLE_TICKS_PER_SECOND, StageEvent};
+    use tantalus_tools::battle_stage::StageEvent;
     let now = (seconds.max(0.0) * BATTLE_TICKS_PER_SECOND) as usize;
     let first = now.saturating_sub((2.0 * BATTLE_TICKS_PER_SECOND) as usize);
     stage

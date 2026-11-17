@@ -2,6 +2,7 @@ pub mod ability_menu;
 pub mod actor_placement;
 pub mod audit_summary;
 pub mod battle_ai_demo;
+pub mod battle_effects;
 pub mod battle_models_cli;
 pub mod battle_run;
 pub mod battle_scene_rewards;

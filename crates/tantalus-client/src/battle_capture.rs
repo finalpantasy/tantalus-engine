@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use tantalus_client::battle_view::{BattleAssets, BattlePlayback, LiveBattle, save_png};
+use tantalus_tools::battle_stage::BATTLE_TICKS_PER_SECOND;
 use tantalus_tools::play::{PlayEvent, pad};
 
 pub fn run(args: &[std::ffi::OsString]) -> ExitCode {
@@ -32,6 +33,7 @@ pub fn run(args: &[std::ffi::OsString]) -> ExitCode {
         "--window-frame",
         "--live",
         "--party-hp",
+        "--recast",
     ]);
     let Some(values) = super::flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
@@ -144,6 +146,55 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
             game.ticks
         )
     })?;
+    // `--recast N:ABILITY` or `N:iITEM`: draws the stage's Nth party
+    // command (from 0) as Black Magic ABILITY or as using ITEM, a preview
+    // of effects the stand-in policy never casts. The HP change and the
+    // numbers stay the original command's.
+    let party = stage
+        .units
+        .iter()
+        .take_while(|unit| {
+            matches!(
+                unit.model,
+                tantalus_tools::battle_stage::StageModel::Player { .. }
+            )
+        })
+        .count();
+    let mut recasts = std::collections::BTreeMap::new();
+    for pair in values.get("--recast").map_or("", String::as_str).split(',') {
+        if pair.is_empty() {
+            continue;
+        }
+        let parsed = pair.split_once(':').and_then(|(index, to)| {
+            let index = index.parse::<usize>().ok()?;
+            Some(match to.strip_prefix('i') {
+                Some(item) => (index, (14u32, item.parse::<i32>().ok()?)),
+                None => (index, (22u32, to.parse::<i32>().ok()?)),
+            })
+        });
+        let (index, to) = parsed
+            .ok_or_else(|| format!("bad --recast entry `{pair}`, want N:ABILITY or N:iITEM"))?;
+        recasts.insert(index, to);
+    }
+    let mut seen_commands = 0usize;
+    for frame in &mut stage.frames {
+        for event in &mut frame.events {
+            if let tantalus_tools::battle_stage::StageEvent::Command {
+                unit,
+                cmd_no,
+                sub_no,
+                ..
+            } = event
+                && *unit < party
+            {
+                if let Some((to_cmd, to_sub)) = recasts.get(&seen_commands) {
+                    *cmd_no = *to_cmd;
+                    *sub_no = *to_sub;
+                }
+                seen_commands += 1;
+            }
+        }
+    }
     // `--camera N` shows another default camera than the pattern's.
     if let Some(camera) = values.get("--camera") {
         stage.camera = camera.parse().map_err(|_| "bad --camera")?;
@@ -167,6 +218,17 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
         playback.stage.frames.len(),
         playback.stage.outcome.as_deref().unwrap_or("-"),
     ));
+    for effect in tantalus_client::battle_effects::stage_effects(&playback.stage) {
+        lines.push(format!(
+            "effect {} by unit {} on {:?}: starts at {:.2}s, hits at {:.2}s, numbers at {:.2}s",
+            effect.id,
+            effect.caster,
+            effect.targets,
+            effect.start / BATTLE_TICKS_PER_SECOND,
+            (effect.start + f64::from(effect.timing.hit)) / BATTLE_TICKS_PER_SECOND,
+            (effect.start + f64::from(effect.timing.figure)) / BATTLE_TICKS_PER_SECOND,
+        ));
+    }
     for (index, at) in times.iter().enumerate() {
         playback.seconds = *at;
         let path = numbered(&output, index);

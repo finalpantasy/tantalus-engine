@@ -2,6 +2,7 @@ pub mod akb2;
 pub mod asset_bundle;
 pub mod audio_decode;
 pub mod battle_background;
+pub mod battle_camera;
 pub mod battle_models;
 pub mod battle_scene;
 pub mod battle_sequence;
