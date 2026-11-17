@@ -125,7 +125,7 @@ impl CameraDirector {
             for effect in crate::battle_effects::stage_effects(stage) {
                 // Enemy attacks keep the scene's attack cameras, and an
                 // effect the plugin does not play keeps the stand-in.
-                if effect.caster >= party || !crate::battle_effects::is_drawn(effect.id) {
+                if effect.caster >= party {
                     continue;
                 }
                 // An effect without cameras (a short one with

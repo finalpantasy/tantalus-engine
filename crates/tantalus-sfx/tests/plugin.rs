@@ -69,12 +69,17 @@ pub fn run_dll(id: i32, limit: usize) -> Run {
 }
 
 pub fn run_port(id: i32, limit: usize, module_base: u64) -> Run {
+    run_port_filled(id, limit, module_base, 0)
+}
+
+pub fn run_port_filled(id: i32, limit: usize, module_base: u64, fill: u8) -> Run {
     let bytes = effect_bytes(id);
     let image =
         tantalus_sfx::image::PluginImage::parse(std::fs::read(dll()).expect("dll")).expect("pe");
     let host = Arc::new(Mutex::new(DebugHost::default()));
     let mut plugin = Plugin::load(&image, Box::new(Shared(host.clone()))).expect("image");
     plugin.module_base = module_base;
+    plugin.stack_fill = fill;
     plugin.init_system();
     plugin.init_battle(&init_param());
     plugin.play(id, &bytes, &request());
@@ -948,7 +953,11 @@ fn probe_state_diff() {
     plugin.init_battle(&init_param());
     plugin.play(id, &bytes, &request());
     let (from, len) = (0x66000usize, 0x1AD000usize);
-    for frame in 1..=8 {
+    let frames: i32 = std::env::var("TANTALUS_SFX_FRAMES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(8);
+    for frame in 1..=frames {
         host.lock().unwrap().frame += 1;
         oracle.frame().expect("frame");
         plugin.frame();
@@ -1082,5 +1091,162 @@ fn probe_port_hash() {
         "port effect {id}: {} frames, {prims} prims, hash {:x}",
         run.frames.len(),
         hasher.finish()
+    );
+}
+
+/// Runs the DLL twice on each of `TANTALUS_SFX_FROM`..`TANTALUS_SFX_TO` and prints the first
+/// difference between the two runs (none: the DLL repeats itself).
+#[test]
+#[ignore = "probe"]
+fn probe_dll_repeats() {
+    let var = |name: &str, default: i32| {
+        std::env::var(name)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    };
+    for id in var("TANTALUS_SFX_FROM", 212)..var("TANTALUS_SFX_TO", 225) {
+        let a = run_dll(id, 900);
+        let b = run_dll(id, 900);
+        if let Some(dir) = std::env::var_os("TANTALUS_SFX_DUMP") {
+            use std::fmt::Write as _;
+            let mut text = String::new();
+            for (frame, prims) in a.frames.iter().enumerate() {
+                for (index, (depth, words)) in prims.iter().enumerate() {
+                    let _ = writeln!(text, "{frame} {index} {depth:x} {words:x?}");
+                }
+            }
+            let _ = std::fs::write(
+                std::path::Path::new(&dir).join(format!("dll{id}.txt")),
+                text,
+            );
+        }
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        a.frames.hash(&mut hasher);
+        println!(
+            "{id}: {} frames, hash {:x}, base {:x}; {}",
+            a.frames.len(),
+            hasher.finish(),
+            a.base,
+            first_difference(&a, &b).unwrap_or_else(|| "same".into())
+        );
+    }
+}
+
+/// Prints the DLL's LCG state (`dword_1803231DC`) after `SFX_Play` next to the wall clock.
+#[test]
+#[ignore = "probe"]
+fn probe_dll_seed() {
+    let bytes = effect_bytes(212);
+    let mut oracle = Oracle::load(&dll()).expect("load");
+    oracle.init_battle(&init_param()).expect("init");
+    let at = |oracle: &Oracle| {
+        let b = oracle.module_bytes(0x3231dc, 4);
+        u32::from_le_bytes([b[0], b[1], b[2], b[3]])
+    };
+    let now = || {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+    };
+    println!("before play: lcg {:#x} time {}", at(&oracle), now());
+    oracle.play(212, &bytes, &request()).expect("play");
+    println!("after play: lcg {:#x} time {}", at(&oracle), now());
+    oracle.frame().ok();
+    println!("after frame: lcg {:#x}", at(&oracle));
+}
+
+/// Runs the port on `TANTALUS_SFX_EFFECT` with clean and with 0xAA-filled stack frames and prints
+/// the first difference (none: the effect does not read uninitialized frames).
+#[test]
+#[ignore = "probe"]
+fn probe_stack_fill() {
+    let id: i32 = std::env::var("TANTALUS_SFX_EFFECT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(212);
+    let a = run_port_filled(id, 900, 0x1_8000_0000, 0);
+    for fill in [0xAAu8, 0x01, 0xFF] {
+        let b = run_port_filled(id, 900, 0x1_8000_0000, fill);
+        println!(
+            "{id} fill {fill:#x}: {}",
+            first_difference(&a, &b)
+                .unwrap_or_else(|| "same".into())
+                .chars()
+                .take(160)
+                .collect::<String>()
+        );
+    }
+}
+
+/// For `TANTALUS_SFX_FROM`..`TANTALUS_SFX_TO`: whether the port draws the same primitive kinds as
+/// the DLL in every frame (the DLL's coordinates and depths vary from process to process).
+#[test]
+#[ignore = "probe"]
+fn probe_structure() {
+    let var = |name: &str, default: i32| {
+        std::env::var(name)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    };
+    for id in var("TANTALUS_SFX_FROM", 212)..var("TANTALUS_SFX_TO", 225) {
+        let theirs = run_dll(id, 900);
+        let ours = run_port(id, 900, theirs.base);
+        let kinds = |run: &Run| -> Vec<Vec<u32>> {
+            run.frames
+                .iter()
+                .map(|f| {
+                    f.iter()
+                        .map(|(_, w)| w.get(1).copied().unwrap_or(0) >> 24)
+                        .collect()
+                })
+                .collect()
+        };
+        let (a, b) = (kinds(&theirs), kinds(&ours));
+        let first = (0..a.len().max(b.len())).find(|&i| a.get(i) != b.get(i));
+        let totals = |k: &Vec<Vec<u32>>| k.iter().map(Vec::len).sum::<usize>();
+        println!(
+            "{id}: frames {}/{} prims {}/{} first kind difference {:?}",
+            a.len(),
+            b.len(),
+            totals(&a),
+            totals(&b),
+            first
+        );
+    }
+}
+
+/// Frames of `TANTALUS_SFX_EFFECT` that hold a textured packet with CLUT `TANTALUS_SFX_CLUT`.
+#[test]
+#[ignore = "probe"]
+fn probe_clut_frames() {
+    let id: i32 = std::env::var("TANTALUS_SFX_EFFECT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(250);
+    let clut: u32 = std::env::var("TANTALUS_SFX_CLUT")
+        .ok()
+        .and_then(|v| u32::from_str_radix(&v, 16).ok())
+        .unwrap_or(0x3DC0);
+    let run = run_port(id, 900, 0x1_8000_0000);
+    let frames: Vec<usize> = run
+        .frames
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| {
+            f.iter()
+                .any(|(_, w)| w.len() > 5 && w[3] >> 16 == clut && (w[5] >> 16) & 0x9F == 0x9A)
+        })
+        .map(|(i, _)| i)
+        .collect();
+    println!(
+        "effect {id} clut {clut:#x}: {} frames, first {:?} last {:?} of {}",
+        frames.len(),
+        frames.first(),
+        frames.last(),
+        run.frames.len()
     );
 }

@@ -83,13 +83,6 @@ pub fn parse_effect_sequence(text: &str) -> Option<EffectTiming> {
     })
 }
 
-/// The effects the plugin plays: those that match the player's DLL
-/// (`tantalus-sfx` `--test plugin sweep`). Not 212 to 224, where the DLL
-/// does not repeat itself.
-pub fn is_drawn(id: i32) -> bool {
-    !(212..=224).contains(&id)
-}
-
 /// Frames an effect may play before it is cut off.
 pub const MAX_FRAMES: u32 = 3000;
 
@@ -213,9 +206,6 @@ impl PluginTiming {
     }
 
     fn played(&self, id: i32, item: bool) -> Played {
-        if !is_drawn(id) {
-            return None;
-        }
         let mut done = self.done.lock().unwrap_or_else(|e| e.into_inner());
         done.entry((id, item))
             .or_insert_with(|| {
@@ -269,7 +259,7 @@ impl EffectTable {
     /// host callback 23, `btl_cmd.ExecVfxCommand`), its Figure point
     /// (damage numbers, callback 24) and its end, as Steam does. The
     /// `Sequence.seq` timing stays for effects the plugin cannot play or
-    /// does not play like the DLL ([`is_drawn`]).
+    /// does not play like the DLL.
     pub fn load_plugin_timing(&mut self, game_data: &Path) {
         use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
         let Some(runtime) = std::fs::read(game_data.join("Plugins/FF9SpecialEffectPlugin.dll"))

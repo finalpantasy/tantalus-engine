@@ -46,6 +46,12 @@ const SLOW: i32 = 126;
 const SILENT_VOICE: i32 = 395;
 const DEVOUR: i32 = 274;
 const STOP: i32 = 149;
+/// `SpecialEffect.Detect`, whose eye mesh `SFXMesh.DetectEyeKey` (0x003ABDC0: page x 10, y 1,
+/// 8-bit, CLUT (0, 247)) opens `DetectEyeOpenFrame` (20) frames after it first shows.
+const DETECT: i32 = 250;
+const DETECT_EYE_TPAGE: u16 = 0x9A;
+const DETECT_EYE_CLUT: u16 = 0x3DC0;
+const DETECT_EYE_OPEN_FRAME: u32 = 20;
 
 /// Where a textured mesh's texels come from (`SFXMesh.GetTexture`).
 enum Source {
@@ -659,6 +665,27 @@ impl Builder<'_> {
                 }
                 repeat = 2;
             }
+            // `SFXMesh.Render`: "Make Detect's eye open; hacky fix". The eye texture's
+            // texels move through the sheet's four frames, three frames apart.
+            let mut eye_shift = [0.0f32; 2];
+            if self.effect == DETECT
+                && mesh.texture.is_some_and(|(tpage, clut)| {
+                    tpage & 0x9F == DETECT_EYE_TPAGE && clut == DETECT_EYE_CLUT
+                })
+            {
+                let start = *self
+                    .vram
+                    .detect_eye_start
+                    .get_or_insert(self.vram.render_frame);
+                let eye = self.vram.render_frame - start;
+                eye_shift = match eye.checked_sub(DETECT_EYE_OPEN_FRAME) {
+                    Some(late) if late >= 9 => [-128.0, 0.0],
+                    Some(late) if late >= 6 => [0.0, -64.0],
+                    Some(late) if late >= 3 => [-128.0, -64.0],
+                    Some(_) => [0.0, -128.0],
+                    None => [0.0, 0.0],
+                };
+            }
             let mut screen = false;
             let mut generated = false;
             let mut background = false;
@@ -707,6 +734,10 @@ impl Builder<'_> {
                         corner.uv[0] += shift;
                     }
                 }
+            }
+            for corner in triangles.iter_mut().flatten() {
+                corner.uv[0] += eye_shift[0];
+                corner.uv[1] += eye_shift[1];
             }
             let page = mesh
                 .texture
@@ -843,6 +874,7 @@ pub fn render_list(effect: i32, prims: &[Prim], vram: &mut Vram) -> RenderList {
         builder.packet(words);
     }
     builder.flush();
+    builder.vram.render_frame += 1;
     builder.vram.generated_created = builder.generated_created;
     builder.out
 }
@@ -1034,5 +1066,32 @@ mod tests {
                 .iter()
                 .all(|batch| batch.blend == Blend::Subtract)
         );
+    }
+
+    #[test]
+    fn detects_eye_opens_twenty_frames_after_it_first_shows() {
+        let corners = [
+            [0, 0, 200, 200],
+            [8, 0, 208, 200],
+            [0, 8, 200, 208],
+            [8, 8, 208, 208],
+        ];
+        let mut eye = quad(0x2C, 0x9A, corners);
+        eye.1[3] |= 0x3DC0 << 16;
+        let mut vram = Vram::default();
+        let mut shifts = Vec::new();
+        for _ in 0..32 {
+            let list = render_list(250, std::slice::from_ref(&eye), &mut vram);
+            shifts.push(list.batches[0].triangles[0][0].uv);
+        }
+        assert_eq!(shifts[0], [200.0, 200.0]);
+        assert_eq!(shifts[19], [200.0, 200.0]);
+        assert_eq!(shifts[20], [200.0, 72.0]);
+        assert_eq!(shifts[23], [72.0, 136.0]);
+        assert_eq!(shifts[26], [200.0, 136.0]);
+        assert_eq!(shifts[29], [72.0, 200.0]);
+        // Another effect keeps the texels.
+        let other = render_list(0, std::slice::from_ref(&eye), &mut Vram::default());
+        assert_eq!(other.batches[0].triangles[0][0].uv, [200.0, 200.0]);
     }
 }

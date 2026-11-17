@@ -102,10 +102,13 @@ pub struct Plugin {
     /// The first quadword of `SfxUpdateParticles`' stack frame (`Pos`, the particle position
     /// scratch). The original never clears that frame and the attractor kinds 3 and 4 read it
     /// before any particle writes it, so the DLL reads stack garbage there. A fresh frame reads
-    /// 0, which matches the DLL for the effects that read it early (212 to 224) but not Photon
+    /// 0, which is what effects 212 to 224 read (their DLL output is address dependent, see
+    /// `sfx-effects-212-224-address-noise`) but not Photon
     /// (299): from frame 80 its output matches the DLL for any value of 2 to 8
     /// ([`Plugin::play`] pins 4 for it; see `sfx-photon-particle-pos`).
     pub particle_pos: i64,
+    /// Debugging: the byte a new stack frame is filled with (0 like a clean stack).
+    pub stack_fill: u8,
 }
 
 impl std::fmt::Debug for Plugin {
@@ -131,6 +134,7 @@ impl Plugin {
             tracing: false,
             calls: Default::default(),
             particle_pos: 0,
+            stack_fill: 0,
         }
     }
 
@@ -181,7 +185,7 @@ impl Plugin {
         let at = (self.sp - size.max(1) as u64) & !15;
         assert!(at >= STACK_BASE, "native stack overflow");
         self.sp = at;
-        self.m.fill(at, 0, size);
+        self.m.fill(at, self.stack_fill, size);
         at
     }
 

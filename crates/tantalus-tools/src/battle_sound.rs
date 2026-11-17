@@ -113,13 +113,15 @@ pub struct EffectSounds {
     resident: Vec<String>,
     /// The translated plugin, whose sound commands give the exact frames.
     plugin: Option<std::sync::Arc<crate::battle_effects::PluginTiming>>,
+    /// Each party model's own cast lead by serial number, as the battle machine uses it.
+    cast_leads: std::sync::Arc<BTreeMap<u8, tantalus_legacy::battle::machine::CastLead>>,
 }
 
 /// A sound the plugin asked for.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PluginSound {
-    /// A sound resource.
-    Resource(String),
+    /// A sound resource and its pitch (1 is the sound's own).
+    Resource(String, f32),
     /// The Reflect chime (`SFX.REFLECT_SOUND_ID`).
     Reflect,
 }
@@ -131,7 +133,7 @@ const RESIDENT_SOUNDS: i32 = 12;
 
 /// `SFX.AdjustSoundIndex`: the sound number `SoundPlay(dno, _, sce)` plays on effect `effect`
 /// after `calls` earlier plays, or `None` when the call is skipped.
-fn adjust_sound_index(effect: i32, dno: i32, sce: i32, calls: u32) -> Option<i32> {
+fn adjust_sound_index(effect: i32, dno: i32, sce: i32, calls: u32, fps: &mut i32) -> Option<i32> {
     const PHOENIX_REBIRTH_FLAME: i32 = 225;
     const MADEEN_FULL: i32 = 251;
     const ARK_FULL: i32 = 381;
@@ -142,6 +144,7 @@ fn adjust_sound_index(effect: i32, dno: i32, sce: i32, calls: u32) -> Option<i32
     const LEVIATHAN_FULL: i32 = 179;
     const EXPLOSION: i32 = 31;
     const VENOM_POWDER: i32 = 10;
+    const ODIN_FULL: i32 = 261;
     let dno = dno + 12;
     if sce != 0 {
         match effect {
@@ -164,13 +167,47 @@ fn adjust_sound_index(effect: i32, dno: i32, sce: i32, calls: u32) -> Option<i32
         ARK_SHORT if calls >= 8 => Some(dno + 8),
         ARK_FULL if calls >= 28 => Some(dno + 28),
         ARK_FULL if calls >= 12 => Some(dno + 12),
+        // The first sound of Ark and Odin and the fifth of Bahamut change the pitch
+        // (`soundFPS` -1, -3 and -2).
+        ARK_FULL if calls == 0 => {
+            *fps = -1;
+            Some(dno)
+        }
+        ODIN_FULL if calls == 0 => {
+            *fps = -3;
+            Some(dno)
+        }
         LUCKY_SEVEN => Some(dno - 7),
         ROULETTE if dno != 12 => Some(dno - 3),
-        BAHAMUT_FULL => Some(dno - 2),
+        BAHAMUT_FULL => {
+            if calls == 4 {
+                *fps = -2;
+            }
+            Some(dno - 2)
+        }
         LEVIATHAN_FULL => (dno != 15).then_some(dno),
         EXPLOSION => (dno == 12).then_some(dno),
         VENOM_POWDER => Some(dno - 3),
         _ => Some(dno),
+    }
+}
+
+/// `SFX.soundFPS` the pitch starts at (`SFX.Play`): a pitch of 1.
+const DEFAULT_SOUND_FPS: i32 = 4;
+/// `SpecialEffect.Odin__Short`: every sound plays at 1.25.
+const ODIN_SHORT: i32 = 424;
+
+/// The pitch `SFX.SoundPlay` gives a sound for `soundFPS` `fps` on effect `effect`.
+fn sound_pitch(effect: i32, fps: i32) -> f32 {
+    if effect == ODIN_SHORT {
+        return 1.25;
+    }
+    match fps + 3 {
+        0 => 0.725,
+        1 => 0.85,
+        2 => 0.76,
+        6 => 0.75,
+        _ => 1.0,
     }
 }
 
@@ -185,23 +222,25 @@ pub fn plugin_sounds(
     let mut out = Vec::new();
     let mut played = 0_u32;
     let mut chant = 0_i32;
-    let by_number = |num: i32| -> Option<PluginSound> {
+    let mut fps = DEFAULT_SOUND_FPS;
+    let by_number = |num: i32, pitch: f32| -> Option<PluginSound> {
         let (names, index) = if num < RESIDENT_SOUNDS {
             (resident, num)
         } else {
             (list, num - RESIDENT_SOUNDS)
         };
         let index = usize::try_from(index).ok()?;
-        Some(PluginSound::Resource(names.get(index)?.clone()))
+        Some(PluginSound::Resource(names.get(index)?.clone(), pitch))
     };
     for &(frame, [mode, dno, _, sce]) in calls {
         match mode {
             0 => {
-                let Some(num) = adjust_sound_index(effect, dno, sce, played) else {
+                let Some(num) = adjust_sound_index(effect, dno, sce, played, &mut fps) else {
                     continue;
                 };
                 played += 1;
-                out.extend(by_number(num).map(|sound| (frame, sound)));
+                let pitch = sound_pitch(effect, fps);
+                out.extend(by_number(num, pitch).map(|sound| (frame, sound)));
             }
             1 => {
                 let kind = dno & 0xFF_FFFF;
@@ -210,10 +249,12 @@ pub fn plugin_sounds(
                         out.push((frame, PluginSound::Reflect));
                     }
                 } else {
-                    out.extend(by_number(kind * 3 + chant).map(|sound| (frame, sound)));
+                    out.extend(by_number(kind * 3 + chant, 1.0).map(|sound| (frame, sound)));
                 }
                 chant += 1;
             }
+            // `soundFPS` (callback 125).
+            125 => fps = dno,
             _ => {}
         }
     }
@@ -276,6 +317,7 @@ impl EffectSounds {
             lists,
             resident,
             plugin: None,
+            cast_leads: Default::default(),
         })
     }
 
@@ -286,6 +328,25 @@ impl EffectSounds {
     ) -> Self {
         self.plugin = plugin;
         self
+    }
+
+    /// Each party model's cast motions (`BattleConfig::cast_leads`), which move the effect, and
+    /// so its sounds, later than the default lead.
+    pub fn with_cast_leads(
+        mut self,
+        leads: std::sync::Arc<BTreeMap<u8, tantalus_legacy::battle::machine::CastLead>>,
+    ) -> Self {
+        self.cast_leads = leads;
+        self
+    }
+
+    /// Battle frames from the command's start to `PlaySFX` for the party member with serial
+    /// number `serial`, as the machine times it (`CastLead::ticks`); the default lead without
+    /// that model's motions.
+    fn cast_lead(&self, serial: u8, item: bool, many: bool, step: bool) -> u32 {
+        self.cast_leads
+            .get(&serial)
+            .map_or(CAST_LEAD, |lead| lead.ticks(item, many, step))
     }
 
     /// The plugin's sounds for ability `id` (or Item command item `id`), as `(plugin frame,
@@ -502,7 +563,7 @@ enum Due {
     /// A battle sound effect id (`SetBattleSfx`).
     Effect(u16, u8),
     /// A sound resource an effect file names.
-    Resource(String),
+    Resource(String, f32),
 }
 
 /// Follows a battle's stage frames and hands out the sounds that fall due.
@@ -528,7 +589,7 @@ impl BattleSounds {
         }
         for frame in &stage.frames[self.seen..] {
             for event in &frame.events {
-                self.schedule(event, stage, party_len, effects);
+                self.schedule(event, stage, party_len, effects, &frame.rows);
             }
         }
         self.seen = stage.frames.len();
@@ -543,8 +604,9 @@ impl BattleSounds {
                         id: i32::from(*id),
                         volume: i32::from(*volume),
                     },
-                    Due::Resource(resource) => AudioCue::EffectSound {
+                    Due::Resource(resource, pitch) => AudioCue::EffectSound {
                         resource: resource.clone(),
+                        pitch: *pitch,
                     },
                 });
             }
@@ -559,18 +621,27 @@ impl BattleSounds {
 
     /// Queues the plugin's own sound commands for a spell, item or ability. They fall due their
     /// plugin frame after the effect starts. Returns whether the plugin played the effect.
-    fn schedule_plugin(&mut self, effects: Option<&EffectSounds>, id: i32, item: bool) -> bool {
+    fn schedule_plugin(
+        &mut self,
+        effects: Option<&EffectSounds>,
+        id: i32,
+        item: bool,
+        lead: u32,
+    ) -> bool {
         let Some((sounds, hit)) = effects.and_then(|effects| effects.plugin_play(id, item)) else {
             return false;
         };
         // The view starts the effect `hit` frames before the HP change, which the machine puts
         // at `CAST_LEAD` + `hit` ticks (and no sooner than `MIN_EFFECT_TICKS`).
+        // The caster's own lead (`lead`) moves both by its difference from the default lead,
+        // as `BattleMachine` moves the HP change.
         let start = CAST_LEAD.max(MIN_EFFECT_TICKS.saturating_sub(hit));
+        let start = (i64::from(start) + i64::from(lead) - i64::from(CAST_LEAD)).max(0) as u32;
         for (frame, sound) in sounds {
             self.add(
                 start + frame,
                 match sound {
-                    PluginSound::Resource(resource) => Due::Resource(resource),
+                    PluginSound::Resource(resource, pitch) => Due::Resource(resource, pitch),
                     PluginSound::Reflect => Due::Effect(REFLECT_SOUND_ID, FULL_VOLUME),
                 },
             );
@@ -584,7 +655,22 @@ impl BattleSounds {
         stage: &BattleStage,
         party_len: usize,
         effects: Option<&EffectSounds>,
+        rows: &[u8],
     ) {
+        // The party caster's lead before `PlaySFX` (`BattleMachine::command_ticks`): the step
+        // forward from the back row at enemies, the chant (twice for many targets) and the cast.
+        let lead_of = |unit: usize, item: bool, targets: &[usize]| -> u32 {
+            let Some(StageModel::Player { serial, .. }) =
+                stage.units.get(unit).map(|unit| &unit.model)
+            else {
+                return CAST_LEAD;
+            };
+            let at_enemies = !targets.is_empty() && targets.iter().all(|&t| t >= party_len);
+            let step = rows.get(unit) == Some(&0) && at_enemies;
+            effects.map_or(CAST_LEAD, |effects| {
+                effects.cast_lead(*serial, item, targets.len() > 1, step)
+            })
+        };
         match *event {
             StageEvent::Command { unit, sub_no, .. } if unit >= party_len => {
                 let sounds = usize::try_from(sub_no)
@@ -594,14 +680,20 @@ impl BattleSounds {
                     self.add(frame, Due::Effect(id, volume));
                 }
             }
-            StageEvent::Command { cmd_no, sub_no, .. } if cmd_no == ITEM_COMMAND => {
-                if self.schedule_plugin(effects, sub_no, true) {
+            StageEvent::Command {
+                unit,
+                cmd_no,
+                sub_no,
+                ref targets,
+                ..
+            } if cmd_no == ITEM_COMMAND => {
+                if self.schedule_plugin(effects, sub_no, true, lead_of(unit, true, targets)) {
                     return;
                 }
                 for (before, resource) in effects.into_iter().flat_map(|e| e.for_item(sub_no)) {
                     self.add(
                         EFFECT_TICKS.saturating_sub(*before),
-                        Due::Resource(resource.clone()),
+                        Due::Resource(resource.clone(), 1.0),
                     );
                 }
             }
@@ -611,15 +703,20 @@ impl BattleSounds {
                     self.add(SWING_TICKS, Due::Effect(swing, FULL_VOLUME));
                 }
             }
-            StageEvent::Command { unit, sub_no, .. } => {
+            StageEvent::Command {
+                unit,
+                sub_no,
+                ref targets,
+                ..
+            } => {
                 self.attacking.retain(|&attacker| attacker != unit);
-                if self.schedule_plugin(effects, sub_no, false) {
+                if self.schedule_plugin(effects, sub_no, false, lead_of(unit, false, targets)) {
                     return;
                 }
                 for (before, resource) in effects.into_iter().flat_map(|e| e.for_ability(sub_no)) {
                     self.add(
                         EFFECT_TICKS.saturating_sub(*before),
-                        Due::Resource(resource.clone()),
+                        Due::Resource(resource.clone(), 1.0),
                     );
                 }
             }
@@ -668,7 +765,7 @@ mod tests {
     fn plugin_sound_numbers_follow_adjust_sound_index() {
         let list: Vec<String> = ["a", "b", "c"].map(str::to_owned).to_vec();
         let resident: Vec<String> = (0..12).map(|n| format!("r{n}")).collect();
-        let res = |name: &str| PluginSound::Resource(name.to_owned());
+        let res = |name: &str| PluginSound::Resource(name.to_owned(), 1.0);
         // A plain effect: sound number n plays the effect's list entry n.
         let calls = [(3, [0, 1, 0, 0]), (9, [0, 0, 0, 0]), (12, [1, 1, 0, 0])];
         assert_eq!(
@@ -685,7 +782,26 @@ mod tests {
             ),
             [(1, res("a"))]
         );
-        assert_eq!(adjust_sound_index(312, 7, 0, 0), Some(12));
+        assert_eq!(adjust_sound_index(312, 7, 0, 0, &mut 4), Some(12));
+        // Odin and Bahamut change the pitch (`soundFPS`) on their first and fifth sounds.
+        let mut fps = 4;
+        assert_eq!(adjust_sound_index(261, 0, 0, 0, &mut fps), Some(12));
+        assert_eq!(fps, -3);
+        assert_eq!(sound_pitch(261, fps), 0.725);
+        assert_eq!(sound_pitch(424, 4), 1.25);
+        assert_eq!(sound_pitch(1, 4), 1.0);
+        // A pitch command (125) applies to the sounds after it.
+        let pitched = [(0, [0, 0, 0, 0]), (1, [125, -3, 0, 0]), (2, [0, 0, 0, 0])];
+        assert_eq!(
+            plugin_sounds(1, &pitched, &list, &resident)
+                .into_iter()
+                .map(|(frame, sound)| (
+                    frame,
+                    matches!(sound, PluginSound::Resource(_, p) if p == 1.0)
+                ))
+                .collect::<Vec<_>>(),
+            [(0, true), (2, false)]
+        );
         // Reflect's chant sound plays on every third chant call.
         let chant = [(0, [1, 3, 0, 0]), (1, [1, 3, 0, 0]), (2, [1, 3, 0, 0])];
         assert_eq!(
@@ -745,7 +861,7 @@ mod tests {
             assert!(!played.is_empty(), "ability {ability} plays sounds");
             assert!(played.iter().all(|(_, sound)| matches!(
                 sound,
-                PluginSound::Resource(_) | PluginSound::Reflect
+                PluginSound::Resource(..) | PluginSound::Reflect
             )));
         }
     }

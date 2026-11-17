@@ -270,8 +270,8 @@ Checks (`cargo test -p tantalus-sfx --features dll-oracle --test plugin -- --ign
 - Fire (ef000): 126 frames, 28,858 primitives and 208 host calls, all identical.
 - Cure (ef008, also Potion): 121 frames, 24,185 primitives and 191 host calls, all identical.
 - `sweep` over effects 0-511: 461 of 480 match (the run counts each effect id the DLL has; 19 differ: 212-224 and 341-346). 212-224 differ from frame 60 on, and the DLL
-  does not repeat itself there (two runs of 212 give different primitives), so they need a
-  deterministic reference first. Photon (299) matched after pinning one stack word (see Known oracle differences).
+  does not repeat itself there (two runs of 212 give different primitives), the port draws its clean result
+  (`sfx-effects-212-224-address-noise`). Photon (299) matched after pinning one stack word (see Known oracle differences).
   The sword skills Darkside, Minus Strike, Iai Strike, Thunder Slash (188-191, 409-412) and
   Lancer (401) now match: Memoria's `SfxOpCtx16MoveNearObj` init had the flag test inverted (the
   DLL keeps the task running; the rewrite ended it in its first frame), found with
@@ -319,8 +319,8 @@ Harness notes:
 ## In the battle view (tantalus-client)
 
 `battle_effects` plays every party spell and item effect through the translated plugin
-(`tantalus_sfx::SfxRuntime::play`, a fresh plugin per effect), except the ones that do not
-match the DLL (`battle_effects::is_drawn`: 212-224):
+(`tantalus_sfx::SfxRuntime::play`, a fresh plugin per effect); effects 212-224 are drawn too
+(the DLL's own output varies per process, see Known oracle differences):
 
 - Background capture (host command 120): `BattleHost` keeps the seven capture words, the player
   sets the capture page (`Vram::background`), and the view renders the first ground mesh into
@@ -382,9 +382,14 @@ Checks:
   (0, 1, -1 and 9 or more do not), so `Plugin::play` pins 4 for effect 299 only; effects 212 to
   224 read the same word and match the DLL longest with 0. The real stack content is not
   reproducible. Logged as `sfx-photon-particle-pos`.
-- Effects 212-224: the port is stable under every stack fill, but the DLL's
-  primitive count varies between runs (212: 28,858 or 30,146), so the DLL reads
-  memory that differs per run (uninitialized or address dependent). The port's
-  value equals the larger DLL count; no port change is needed.
+- Effects 212-224: the port is stable under every stack fill, but the DLL differs from process to
+  process (212: 28,858 or 30,146 primitives; from the first particle spawn, frame 59 in 212,
+  the particle coordinates and the depth of every primitive vary). Frames 0 to 58 repeat, the LCG
+  (`dword_1803231DC`) is 0 in every process (`SFX_Play`'s `srand(time)` does not touch it), and
+  filling the port's frames changes nothing, so the cause is not time or stack garbage. The data
+  that differs after the first spawn are PSX-mapped pointers (24-bit windows whose base follows
+  the native, ASLR-placed stack address), so the effects read data through windows that move
+  with the address space. There is no single DLL result to pin; the port draws its clean one
+  (frame and primitive counts equal the DLL's). Logged as `sfx-effects-212-224-address-noise`.
 - Effects 341-346 differ by one pixel at frame 5; not sensitive to stack fill,
   cause not found.

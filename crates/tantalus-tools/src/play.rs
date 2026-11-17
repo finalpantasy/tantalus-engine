@@ -1829,7 +1829,11 @@ impl PlayGame {
         let more = fight.step(FightControl::Player(command));
         let effects = self.data.effect_sounds.get_or_init(|| {
             crate::battle_sound::EffectSounds::load(&self.data.game_data, &self.data.actions_csv)
-                .map(|sounds| sounds.with_plugin(self.data.plugin.clone()))
+                .map(|sounds| {
+                    sounds
+                        .with_plugin(self.data.plugin.clone())
+                        .with_cast_leads(std::sync::Arc::new(crate::battle_effects::cast_leads()))
+                })
                 .map_err(|error| eprintln!("battle sounds: no spell sounds: {error}"))
                 .ok()
         });

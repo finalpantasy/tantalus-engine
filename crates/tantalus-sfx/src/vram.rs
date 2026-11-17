@@ -27,6 +27,10 @@ pub struct Vram {
     /// bit 4) after the effect asked for a background capture (host command
     /// 120, `CaptureBG`); 15-bit pages with that place read the capture.
     pub background: Option<u16>,
+    /// Frames [`render::render_list`] has drawn in this effect (`SFX.frameIndex`).
+    pub render_frame: u32,
+    /// The frame Detect's eye mesh first appeared in (`SFXMesh.DetectEyeFrameStart`).
+    pub detect_eye_start: Option<u32>,
 }
 
 impl Default for Vram {
@@ -35,6 +39,8 @@ impl Default for Vram {
             pixels: vec![0; VRAM_WIDTH * VRAM_HEIGHT],
             generated_created: false,
             background: None,
+            render_frame: 0,
+            detect_eye_start: None,
         }
     }
 }

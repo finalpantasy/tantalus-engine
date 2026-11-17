@@ -87,7 +87,7 @@ pub enum AudioCue {
     /// `btl_util.SetBattleSfx`: a battle sound effect by id at `volume` (0 to 127).
     BattleEffect { id: i32, volume: i32 },
     /// A sound effect by resource name (a spell effect's own sounds, `SFX.SoundPlay`).
-    EffectSound { resource: String },
+    EffectSound { resource: String, pitch: f32 },
     /// The Config screen's music and sound volumes, 0 to 100 (`Configuration.Audio`).
     Volumes { music: i32, sound: i32 },
     /// A movie's sound starts (`Some`: the sound resource) or stops (`None`).
@@ -164,7 +164,7 @@ pub fn describe_cue(cue: &AudioCue, bank: &SoundBank) -> String {
         AudioCue::CardStarted => format!("card game: play {}", music(CARD_SONG)),
         AudioCue::CardEnded => "card game over: the field song returns".to_owned(),
         AudioCue::Effect { id } => format!("play {}", effect(*id)),
-        AudioCue::EffectSound { resource } => format!("effect sound {resource}"),
+        AudioCue::EffectSound { resource, .. } => format!("effect sound {resource}"),
         AudioCue::Volumes { music, sound } => format!("music volume {music}, sound volume {sound}"),
         AudioCue::BattleEffect { id, volume } => {
             format!("battle {} at volume {volume}", effect(*id))
@@ -288,7 +288,7 @@ impl AudioDirector {
                 self.system.update_playing_music_volume();
                 self.system.update_playing_sound_effect_volume();
             }
-            AudioCue::EffectSound { resource } => {
+            AudioCue::EffectSound { resource, pitch } => {
                 let known = self
                     .effect_sounds
                     .iter()
@@ -310,6 +310,10 @@ impl AudioDirector {
                     0,
                     i32::from(FULL_EFFECT_VOLUME),
                 );
+                // `PlaySfxSound(.., pitch)`: the sound plays at `pitch` times its own speed.
+                if (*pitch - 1.0).abs() > f32::EPSILON {
+                    self.system.set_last_effect_pitch(*pitch);
+                }
             }
             AudioCue::BattleEffect { id, volume } => {
                 // `ff9btlsnd_sndeffect_play(id, 0, volume, S_SeGetPos)`: no attribute bits; the
@@ -577,6 +581,7 @@ mod tests {
             .insert("spell".into(), clip(9000, 400, false));
         let cue = AudioCue::EffectSound {
             resource: "spell".to_owned(),
+            pitch: 0.75,
         };
         d.apply(&cue);
         assert!(d.render(1).iter().any(|sample| sample.abs() > 0.0));
@@ -598,6 +603,7 @@ mod tests {
         let mut d = AudioDirector::new(bank, 48_000).unwrap();
         d.apply(&AudioCue::EffectSound {
             resource: "Sounds02/SE02/se020036".to_owned(),
+            pitch: 1.0,
         });
         let peak = d
             .render(30)

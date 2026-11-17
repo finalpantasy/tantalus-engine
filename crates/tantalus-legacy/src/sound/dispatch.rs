@@ -1013,6 +1013,15 @@ impl SoundSystem {
         }
     }
 
+    /// Sets the relative play speed of the sound effect started last (`PlaySfxSound`'s pitch,
+    /// which `SFX.SoundPlay` gives 0.725 to 1.25 for a spell's sounds).
+    pub fn set_last_effect_pitch(&mut self, pitch: f32) {
+        if let Some(channel) = self.sfx_channels.last_mut() {
+            channel.pitch = pitch;
+            self.backend.set_pitch(channel.sound_id, pitch, 0);
+        }
+    }
+
     /// `FF9SOUND_SNDEFFECT_PITCH`, `ASDP.cs:662`.
     pub fn sndeffect_pitch(&mut self, obj_no: i32, _attr: i32, pitch: i32) {
         let factor = self.settings.fast_forward_factor;

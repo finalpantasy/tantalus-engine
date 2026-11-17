@@ -120,7 +120,8 @@ pub struct Events {
     /// Callback 24 (`btl2d.Btl2dReq`: the damage numbers) per unit.
     pub figure_points: Vec<(u32, u16)>,
     /// Callback 32: sound commands by frame (`arg0` mode, `arg1` sound number, `arg2`
-    /// channel tag, `arg3` the `sce` flag `SFX.AdjustSoundIndex` reads).
+    /// channel tag, `arg3` the `sce` flag `SFX.AdjustSoundIndex` reads). Callback 125
+    /// (`SFX.soundFPS`, the sound pitch) is kept here as mode 125 with the value in `arg1`.
     pub sounds: Vec<(u32, [i32; 4])>,
 }
 
@@ -253,6 +254,12 @@ impl BattleHost {
             }
             32 => {
                 self.events.sounds.push((self.frame, [a0, a1, a2, a3]));
+                return 0;
+            }
+            // `SFX.soundFPS` (callback 125): kept with the sound commands as mode 125, the
+            // value in `arg1`.
+            125 => {
+                self.events.sounds.push((self.frame, [125, a0, 0, 0]));
                 return 0;
             }
             // `PSXTextureMgr.isBgCapture` and `bgParam`.
@@ -405,9 +412,12 @@ impl BattleHost {
             25 => {
                 let entry = self.changes.entry(unit.btl_id).or_default();
                 match a0 {
-                    // `HideMesh(65535)`; Vanish's own mesh mask (1) is not
-                    // modeled.
+                    // `HideMesh(65535)`.
                     0 => entry.meshes_hidden = true,
+                    // `HideMesh(mesh_banish, isVanish)`: a party member's mask is 65535
+                    // (`btl_init.cs:415`) and an enemy used as a character hides all too; an
+                    // enemy's own `Mesh[1]` mask is not modeled, so it hides all as well.
+                    1 => entry.meshes_hidden = true,
                     2 => entry.meshes_hidden = false,
                     3 => entry.fade = Some((a1, false)),
                     4 => {

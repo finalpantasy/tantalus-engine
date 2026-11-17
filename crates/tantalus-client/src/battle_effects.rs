@@ -21,9 +21,9 @@
 //! (`SeqExecVfx` / `SeqExecSVfx`, `tantalus_tools::battle_stage::attack_vfx`)
 //! and a party member's Attack its `AttackSequence` effect.
 //!
-//! Effects that do not match the player's DLL are not drawn ([`is_drawn`]):
-//! 212 to 224, which the DLL itself does not play the same way twice, and
-//! Photon (299), one vertex off.
+//! Effects 212 to 224 are drawn although the player's DLL does not play them the same way
+//! twice (its native stack addresses feed their particle maths; see the
+//! `sfx-effects-212-224-address-noise` approved difference).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -444,7 +444,7 @@ pub struct UnitSpot {
     pub bones: std::sync::Arc<Vec<Option<tantalus_sfx::player::Bone>>>,
 }
 
-pub use tantalus_tools::battle_effects::{MAX_FRAMES, is_drawn};
+pub use tantalus_tools::battle_effects::MAX_FRAMES;
 
 /// PSX battle space (y down) from the view's world (y up).
 fn psx(point: [f32; 3]) -> [i16; 3] {
@@ -525,9 +525,7 @@ pub fn psx_camera(camera: &BattleCamera) -> PsxCamera {
 
 /// Whether any effect of `effects` is on stage at `seconds` and drawn.
 pub fn any_playing(effects: &[StageEffect], seconds: f64) -> bool {
-    effects
-        .iter()
-        .any(|effect| effect.age(seconds) >= 0.0 && is_drawn(effect.id))
+    effects.iter().any(|effect| effect.age(seconds) >= 0.0)
 }
 
 /// Steps the effects running at `seconds` up to its frame (each effect's
@@ -557,7 +555,7 @@ pub fn advance_effects(
     for effect in effects {
         let age = effect.age(seconds);
         let key = (effect.id, effect.caster, effect.start.to_bits());
-        if age < 0.0 || !is_drawn(effect.id) {
+        if age < 0.0 {
             playing.remove(&key);
             continue;
         }
@@ -647,7 +645,7 @@ pub fn show_effects(
         .unwrap_or_else(PoisonError::into_inner);
     for effect in effects {
         let key = (effect.id, effect.caster, effect.start.to_bits());
-        if effect.age(seconds) < 0.0 || !is_drawn(effect.id) {
+        if effect.age(seconds) < 0.0 {
             continue;
         }
         if let Some(play) = playing.get(&key)

@@ -600,12 +600,15 @@ struct Staging<'a> {
     /// drawing it.
     draw: bool,
     change: Option<&'a tantalus_sfx::player::UnitChange>,
+    /// The background's character color (`BBGINFO.chr_r/g/b`), which a fade adds to.
+    chr: [u8; 3],
 }
 
 impl Staging<'_> {
     const PLAIN: Staging<'static> = Staging {
         draw: true,
         change: None,
+        chr: [128; 3],
     };
 }
 
@@ -714,11 +717,19 @@ fn draw_unit(
     }
     // `Show/Hide mesh` (25): the semi-transparent fade darkens the model
     // (`GeoAddColor2DrawPacket`) and, low enough, adds it to the scene.
+    // `btl_stat.GeoAddColor2DrawPacket(go, fade - 128, ..)`: the background's character color
+    // plus the fade above 128 (each channel at least 0, at most 255); with every channel 0 the
+    // renderers are disabled, so the unit is not drawn.
     let fade = staging.change.and_then(|change| change.fade);
     let glow = match fade {
-        Some((value, _)) => Some([value.clamp(0, 255) as u8; 3]),
+        Some((value, _)) => Some(
+            staging
+                .chr
+                .map(|chr| (i32::from(chr) + (value - 128).max(0)).clamp(0, 255) as u8),
+        ),
         None => glow,
     };
+    let faded_out = fade.is_some() && glow == Some([0; 3]);
     let mut top = 0.0f32;
     let players = assets.tex_anims.lock().ok();
     let player = players.as_ref().and_then(|players| players.get(&geo));
@@ -766,7 +777,7 @@ fn draw_unit(
                 camera.to_view(world.to_array())
             })
             .collect();
-        if !staging.draw {
+        if !staging.draw || faded_out {
             continue;
         }
         for (submesh_index, submesh) in part.submeshes.iter().enumerate() {
@@ -1109,6 +1120,7 @@ impl BattleScene {
                         Staging {
                             draw: draw && !hidden,
                             change,
+                            chr: assets.chr(stage),
                         },
                     )
                 }) {
