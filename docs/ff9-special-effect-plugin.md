@@ -276,6 +276,13 @@ Checks (`cargo test -p tantalus-sfx --features dll-oracle --test plugin -- --ign
   Lancer (401) now match: Memoria's `SfxOpCtx16MoveNearObj` init had the flag test inverted (the
   DLL keeps the task running; the rewrite ended it in its first frame), found with
   `probe_functions` (the functions the DLL and the port call in one frame, from INT3 hits).
+- The short effects (Player_Attack 100-118, SFX_Attack 313-376 and 461-485,
+  `SFXData.IsShortSpecialEffect`) have no `ef<id>` package: `SFX.PlaySFX` calls `SFX_Play` with a
+  null buffer and size 0, and the plugin plays the effect's own script from its module data.
+  The harness and the battle view do the same (an empty package), which is why the Player
+  Attack effects had no timing (the lookup found no asset) and drew nothing. All 19 Player
+  Attack effects and 25 of 25 in 461-485 match the DLL; in 313-376, 341-346 differ by one pixel in one vertex
+  (frame 5), 58 of 64 match.
 - Until the 32-byte `BTL_DATA_INIT` fix (the harness wrote 36-byte records), no effect found
   its target and every one played on the caster; the earlier 359 of 372 was for that case.
 

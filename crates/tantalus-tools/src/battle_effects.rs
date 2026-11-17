@@ -192,7 +192,11 @@ impl PluginTiming {
         let mut done = self.done.lock().unwrap_or_else(|e| e.into_inner());
         *done.entry((id, item)).or_insert_with(|| {
             let name = format!("ef{id:03}");
-            let (_, object) = self.assets.iter().find(|(asset, _)| *asset == name)?;
+            // No package (Player_Attack 100-118, SFX_Attack 313 and on): the
+            // game plays the plugin's built-in script from a null buffer.
+            let Some((_, object)) = self.assets.iter().find(|(asset, _)| *asset == name) else {
+                return plugin_timing(&self.runtime, id, &[], item);
+            };
             let text = self
                 .file
                 .lock()

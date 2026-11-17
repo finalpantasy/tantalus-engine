@@ -16,12 +16,16 @@ pub fn effect_bytes(id: i32) -> Vec<u8> {
     let mut file = StandaloneSerialized::open(&install().join("x64/FF9_Data/resources.assets"))
         .expect("assets");
     let name = format!("ef{id:03}");
-    let (_, object) = file
+    // The short effects (Player_Attack 100-118, SFX_Attack 313 and on) have
+    // no package: the game passes a null buffer (`SFX.PlaySFX`).
+    let Some((_, object)) = file
         .text_assets()
         .expect("text assets")
         .into_iter()
         .find(|(asset, _)| *asset == name)
-        .expect("effect");
+    else {
+        return Vec::new();
+    };
     file.read_text_asset(&object).expect("read").script
 }
 

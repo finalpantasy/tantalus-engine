@@ -211,7 +211,10 @@ fn sweep() {
         .collect();
     let (mut same, mut total) = (0, 0);
     for id in range("TANTALUS_SFX_FROM", 0)..range("TANTALUS_SFX_TO", 512) {
-        if !names.contains(&format!("ef{id:03}")) {
+        // The short effects have no package (`SFXData.IsShortSpecialEffect`).
+        let short =
+            (100..=118).contains(&id) || (313..=376).contains(&id) || (461..=485).contains(&id);
+        if !short && !names.contains(&format!("ef{id:03}")) {
             continue;
         }
         total += 1;
@@ -597,5 +600,46 @@ fn probe_functions() {
             }
         }
         println!("port order: {line:?}");
+    }
+}
+
+/// Host callback commands an effect makes (`TANTALUS_SFX_EFFECT`).
+#[test]
+#[ignore = "probe"]
+fn probe_commands() {
+    let id: i32 = std::env::var("TANTALUS_SFX_EFFECT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(100);
+    {
+        use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
+        let mut file =
+            StandaloneSerialized::open(&common::install().join("x64/FF9_Data/resources.assets"))
+                .expect("assets");
+        let names: Vec<String> = file
+            .text_assets()
+            .expect("text")
+            .into_iter()
+            .map(|(name, _)| name.to_string())
+            .filter(|name| name.starts_with("ef") && name.len() == 5)
+            .filter(|name| {
+                name[2..]
+                    .parse::<i32>()
+                    .is_ok_and(|n| (95..125).contains(&n) || (311..330).contains(&n))
+            })
+            .collect();
+        println!("names {names:?}");
+    }
+    let run = run_port(id, 400, 0x1_8000_0000);
+    let mut seen: std::collections::BTreeMap<u32, (usize, u32, [i32; 4])> = Default::default();
+    for call in &run.calls {
+        let entry = seen
+            .entry(call.command as u32)
+            .or_insert((0, call.frame as u32, call.args));
+        entry.0 += 1;
+    }
+    println!("effect {id}: {} frames", run.frames.len());
+    for (command, (count, first, args)) in seen {
+        println!("cmd {command}: {count} calls, first frame {first}, args {args:?}");
     }
 }

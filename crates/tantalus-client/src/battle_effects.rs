@@ -173,11 +173,17 @@ impl EffectLibrary {
                 use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
                 let name = format!("ef{id:03}");
                 let mut file = StandaloneSerialized::open(&self.resources).ok()?;
-                let (_, object) = file
+                // The short effects (Player_Attack 100-118, SFX_Attack 313 and
+                // on) have no package: `SFX.PlaySFX` hands the plugin a null
+                // buffer and it plays the effect's built-in script.
+                let Some((_, object)) = file
                     .text_assets()
                     .ok()?
                     .into_iter()
-                    .find(|(asset, _)| *asset == name)?;
+                    .find(|(asset, _)| *asset == name)
+                else {
+                    return Some(Arc::new(Vec::new()));
+                };
                 Some(Arc::new(file.read_text_asset(&object).ok()?.script))
             })
             .clone()
