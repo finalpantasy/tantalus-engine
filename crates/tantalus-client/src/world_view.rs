@@ -165,33 +165,33 @@ impl WorldRenderer {
             .map_or(4, usize::from)
             .min(8);
         let chunk = missing.len().div_ceil(threads);
-        let loaded: Vec<((usize, usize), Result<Option<BattleBackground>, String>)> =
-            std::thread::scope(|scope| {
-                let handles: Vec<_> = missing
-                    .chunks(chunk)
-                    .map(|keys| {
-                        scope.spawn(move || {
-                            keys.iter()
-                                .map(|&(x, y)| {
-                                    let block = if play.assets.has_block(x, y) {
-                                        play.assets
-                                            .render_block(x, y)
-                                            .map(Some)
-                                            .map_err(|error| format!("block [{x}][{y}]: {error}"))
-                                    } else {
-                                        Ok(None)
-                                    };
-                                    ((x, y), block)
-                                })
-                                .collect::<Vec<_>>()
-                        })
+        type Loaded = ((usize, usize), Result<Option<BattleBackground>, String>);
+        let loaded: Vec<Loaded> = std::thread::scope(|scope| {
+            let handles: Vec<_> = missing
+                .chunks(chunk)
+                .map(|keys| {
+                    scope.spawn(move || {
+                        keys.iter()
+                            .map(|&(x, y)| {
+                                let block = if play.assets.has_block(x, y) {
+                                    play.assets
+                                        .render_block(x, y)
+                                        .map(Some)
+                                        .map_err(|error| format!("block [{x}][{y}]: {error}"))
+                                } else {
+                                    Ok(None)
+                                };
+                                ((x, y), block)
+                            })
+                            .collect::<Vec<_>>()
                     })
-                    .collect();
-                handles
-                    .into_iter()
-                    .flat_map(|handle| handle.join().unwrap_or_default())
-                    .collect()
-            });
+                })
+                .collect();
+            handles
+                .into_iter()
+                .flat_map(|handle| handle.join().unwrap_or_default())
+                .collect()
+        });
         for (key, block) in loaded {
             match block {
                 Ok(block) => {
