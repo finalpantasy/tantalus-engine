@@ -803,6 +803,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     for problem in models.prepare(frame.poses.values()) {
         println!("!! actor models: {problem}");
     }
+    models.advance_tex_anims(game.ticks);
     if std::env::var_os("TANTALUS_PERF").is_some() {
         play_perf(&game, &models, &field.scene.camera);
     }

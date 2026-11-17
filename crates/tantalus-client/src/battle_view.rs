@@ -150,9 +150,33 @@ pub struct BattleAssets {
     models: HashMap<u32, Option<AssembledModel>>,
     clips: HashMap<ClipKey, Option<AnimationClip>>,
     effects: crate::battle_effects::EffectLibrary,
+    /// The blinking eyes and other texture animations of each loaded model (`GeoTexAnim`).
+    tex_anims: std::sync::Mutex<HashMap<u32, tantalus_assets::pc::geo_tex_anim::TexAnimPlayer>>,
 }
 
 impl BattleAssets {
+    /// Runs the models' texture animations to `seconds` into the replay (`GeoTexAnim.HonoUpdate`:
+    /// `geoTexAnimService` every second update of a 60 a second battle).
+    pub fn advance_tex_anims(&self, seconds: f64) {
+        use tantalus_assets::pc::geo_tex_anim::{TexAnimPlayer, material_textures};
+        let Ok(mut players) = self.tex_anims.lock() else {
+            return;
+        };
+        let tick = (seconds.max(0.0) * 30.0) as u64;
+        for (geo, model) in &self.models {
+            let Some(Some(table)) = model.as_ref().map(|model| model.tex_anim.as_ref()) else {
+                continue;
+            };
+            let Some(model) = model else {
+                continue;
+            };
+            players
+                .entry(*geo)
+                .or_insert_with(|| TexAnimPlayer::new(table.clone()))
+                .advance_to(tick, &material_textures(model));
+        }
+    }
+
     /// The special effects' data and the effects playing.
     pub fn effects(&self) -> &crate::battle_effects::EffectLibrary {
         &self.effects
@@ -169,6 +193,7 @@ impl BattleAssets {
             chr: HashMap::new(),
             models: HashMap::new(),
             clips: HashMap::new(),
+            tex_anims: std::sync::Mutex::new(HashMap::new()),
             effects: crate::battle_effects::EffectLibrary::new(
                 streaming_assets
                     .parent()
@@ -278,8 +303,9 @@ impl BattleAssets {
                             Ok(want_models
                                 .iter()
                                 .map(|geo| {
-                                    let model =
-                                        model_dirs(*geo, &catalog).into_iter().find_map(|dir| {
+                                    let model = model_dirs(*geo, &catalog)
+                                        .into_iter()
+                                        .find_map(|dir| {
                                             assemble_model(
                                                 store,
                                                 &dir.label,
@@ -289,6 +315,13 @@ impl BattleAssets {
                                                 },
                                             )
                                             .ok()
+                                        })
+                                        .map(|mut model| {
+                                            model.tex_anim =
+                                                tantalus_assets::pc::geo_tex_anim::load(
+                                                    store, &entries, *geo,
+                                                );
+                                            model
                                         });
                                     (*geo, model)
                                 })
@@ -557,6 +590,8 @@ fn draw_unit(
         ]));
     }
     let mut top = 0.0f32;
+    let players = assets.tex_anims.lock().ok();
+    let player = players.as_ref().and_then(|players| players.get(&geo));
     // The glowing model's textures, tinted once per texture.
     let mut tinted: HashMap<usize, Vec<u8>> = HashMap::new();
     if let Some(color) = glow {
@@ -580,7 +615,12 @@ fn draw_unit(
         depth_write: true,
         cull_back: true,
     };
-    for (part, vertices) in model.parts.iter().zip(skin_model(model, &poses)) {
+    for (part_index, (part, vertices)) in model
+        .parts
+        .iter()
+        .zip(skin_model(model, &poses))
+        .enumerate()
+    {
         if under_field_model(model, part.node) {
             continue;
         }
@@ -592,11 +632,11 @@ fn draw_unit(
                 camera.to_view(world.to_array())
             })
             .collect();
-        for submesh in &part.submeshes {
+        for (submesh_index, submesh) in part.submeshes.iter().enumerate() {
             if submesh.topology != TOPOLOGY_TRIANGLES {
                 continue;
             }
-            let texture = submesh.material.as_ref().and_then(|material| {
+            let mut texture = submesh.material.as_ref().and_then(|material| {
                 material.textures.iter().find_map(|texture| {
                     let rgba = texture.rgba.as_deref()?;
                     let width = usize::try_from(texture.width).ok()?;
@@ -615,6 +655,16 @@ fn draw_unit(
                     )
                 })
             });
+            // `GeoTexAnim`: the renderer's own material (its first) shows the redrawn texture.
+            if let (0, Some(texture), Some(canvas)) = (
+                submesh_index,
+                texture.as_mut(),
+                player.and_then(|player| player.canvas(part_index)),
+            ) && glow.is_none()
+                && canvas.len() >= texture.width * texture.height * 4
+            {
+                texture.rgba = canvas;
+            }
             let first = submesh.first_index as usize;
             let end = first + submesh.index_count as usize;
             let Some(indices) = part.indices.get(first..end) else {
@@ -832,6 +882,7 @@ impl BattleScene {
         overlay: &Overlay,
     ) -> Frame {
         use crate::live::bench::time;
+        assets.advance_tex_anims(seconds);
         let camera = self.camera_at(assets, stage, seconds);
         let mut frame = time("b_base", || {
             if camera == self.camera {

@@ -323,6 +323,8 @@ pub struct ActorModels {
     /// The current field's map config.
     config: Option<MapConfig>,
     shadow_plate: Option<crate::field_light::ShadowPlate>,
+    /// The texture animations (blinking eyes) of each loaded model, one state per model.
+    tex_anims: HashMap<u16, tantalus_assets::pc::geo_tex_anim::TexAnimPlayer>,
 }
 
 impl ActorModels {
@@ -338,6 +340,67 @@ impl ActorModels {
             configs: None,
             config: None,
             shadow_plate: None,
+            tex_anims: HashMap::new(),
+        }
+    }
+
+    /// Runs the loaded models' texture animations up to field tick `tick`
+    /// (`GeoTexAnim.HonoUpdate`: `geoTexAnimService` once a tick, 30 a second).
+    pub fn advance_tex_anims(&mut self, tick: u64) {
+        use tantalus_assets::pc::geo_tex_anim::{TexAnimPlayer, material_textures};
+        for (id, model) in &self.models {
+            let Some(model) = model else {
+                continue;
+            };
+            let Some(table) = &model.tex_anim else {
+                continue;
+            };
+            if !self.tex_anims.contains_key(id)
+                && std::env::var_os("TANTALUS_TEXANIM_LOG").is_some()
+            {
+                eprintln!(
+                    "texanim model {id}: {} anims main {:?} sub {:?} textures {:?} headers {:?}",
+                    table.anims.len(),
+                    table.main_index,
+                    table.sub_index,
+                    tantalus_assets::pc::geo_tex_anim::material_textures(model)
+                        .iter()
+                        .map(|t| t.map(|t| (t.width, t.height)))
+                        .collect::<Vec<_>>(),
+                    table
+                        .anims
+                        .iter()
+                        .map(|a| (
+                            a.flags,
+                            a.num_frames,
+                            a.rate,
+                            a.rand_min,
+                            a.rand_range,
+                            a.target
+                        ))
+                        .collect::<Vec<_>>(),
+                );
+            }
+            let player = self.tex_anims.entry(*id).or_insert_with(|| {
+                let mut player = TexAnimPlayer::new(table.clone());
+                player.field_blink = true;
+                player
+            });
+            player.advance_to(tick, &material_textures(model));
+            if std::env::var_os("TANTALUS_TEXANIM_LOG").is_some() {
+                eprintln!(
+                    "texanim model {id} tick {tick}: frames {:?} canvases {:?}",
+                    player
+                        .anim
+                        .anims
+                        .iter()
+                        .map(|a| (a.flags, a.frame >> 12))
+                        .collect::<Vec<_>>(),
+                    (0..4)
+                        .map(|i| player.canvas(i).is_some())
+                        .collect::<Vec<_>>()
+                );
+            }
         }
     }
 
@@ -482,21 +545,28 @@ impl ActorModels {
                 Ok(want_models
                     .iter()
                     .map(|id| {
-                        let model =
-                            model_dirs(u32::from(*id), &catalog)
-                                .into_iter()
-                                .find_map(|dir| {
-                                    let root = *dir.roots.first()?;
-                                    assemble_model(
-                                        store,
-                                        &dir.label,
-                                        root,
-                                        AssembleOptions {
-                                            decode_textures: true,
-                                        },
-                                    )
-                                    .ok()
-                                });
+                        let model = model_dirs(u32::from(*id), &catalog)
+                            .into_iter()
+                            .find_map(|dir| {
+                                let root = *dir.roots.first()?;
+                                assemble_model(
+                                    store,
+                                    &dir.label,
+                                    root,
+                                    AssembleOptions {
+                                        decode_textures: true,
+                                    },
+                                )
+                                .ok()
+                            })
+                            .map(|mut model| {
+                                model.tex_anim = tantalus_assets::pc::geo_tex_anim::load(
+                                    store,
+                                    &entries,
+                                    u32::from(*id),
+                                );
+                                model
+                            });
                         (*id, model)
                     })
                     .collect::<Vec<_>>())
@@ -627,7 +697,7 @@ impl ActorModels {
         triangles: &mut Vec<([ScreenVertex; 3], Option<Texels<'a>>)>,
     ) {
         let tint = self.light(pose).tint;
-        for (part, vertices) in model.parts.iter().zip(skinned) {
+        for (part_index, (part, vertices)) in model.parts.iter().zip(skinned).enumerate() {
             if under_battle_model(model, part.node)
                 || mesh_index(model, part.node)
                     .is_some_and(|mesh| mesh < 32 && pose.hidden_meshes & (1 << mesh) != 0)
@@ -658,11 +728,11 @@ impl ActorModels {
                     })
                 })
                 .collect();
-            for submesh in &part.submeshes {
+            for (submesh_index, submesh) in part.submeshes.iter().enumerate() {
                 if submesh.topology != TOPOLOGY_TRIANGLES {
                     continue;
                 }
-                let texels = submesh.material.as_ref().and_then(|material| {
+                let mut texels = submesh.material.as_ref().and_then(|material| {
                     material.textures.iter().find_map(|texture| {
                         let rgba = texture.rgba.as_deref()?;
                         let width = usize::try_from(texture.width).ok()?;
@@ -676,6 +746,15 @@ impl ActorModels {
                         )
                     })
                 });
+                // `GeoTexAnim`: the renderer's own material (its first) shows the redrawn texture.
+                if let (0, Some(texels)) = (submesh_index, texels.as_mut())
+                    && let Some(canvas) = pose
+                        .model
+                        .and_then(|id| self.tex_anims.get(&id)?.canvas(part_index))
+                    && canvas.len() >= texels.width * texels.height * 4
+                {
+                    texels.rgba = canvas;
+                }
                 let first = submesh.first_index as usize;
                 let end = first + submesh.index_count as usize;
                 let Some(indices) = part.indices.get(first..end) else {

@@ -182,6 +182,9 @@ pub struct AssembledModel {
     pub issues: ModelIssues,
     /// Path ids of every object the assembly read.
     pub reached: BTreeSet<i64>,
+    /// The model's texture animations (`Models/GeoTexAnim/<geo name>.tab`), set by
+    /// [`geo_tex_anim::load`] after assembly.
+    pub tex_anim: Option<crate::pc::geo_tex_anim::GeoTexAnim>,
 }
 
 /// Unresolved or inconsistent references found while assembling.
@@ -864,6 +867,7 @@ impl Assembler<'_> {
             rest_skin_error: 0.0,
             issues: self.issues,
             reached: self.reached,
+            tex_anim: None,
         };
         let poses = rest_pose(&model);
         let world = world_matrices(&model.nodes, &poses);

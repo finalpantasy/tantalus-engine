@@ -726,6 +726,7 @@ fn live_tick_inner(world: &mut World) {
             for problem in live.models.prepare(frame.poses.values()) {
                 println!("!! actor models: {problem}");
             }
+            live.models.advance_tex_anims(game.ticks);
             bench::time("markers", || {
                 spawn_frame_markers(world, &scene.camera, &frame, &placed, Some(&live.models))
             });
