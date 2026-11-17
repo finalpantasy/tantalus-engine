@@ -627,6 +627,14 @@ pub fn world_exit(
     location: i32,
     world: &mut tantalus_game::field::FieldWorld,
 ) -> Result<Option<i32>, String> {
+    // The real enter path first: the world script's own place prompt, run by
+    // the VM. The stand-in below only serves places whose handler declines on
+    // the current story state (the three chocobo grounds), which it forces.
+    let mut script = crate::world_script::WorldScript::start(bundle, name, 9000, world.clone())?;
+    if let Some(field) = script.enter_place(location, 600)? {
+        *world = script.world().clone();
+        return Ok(Some(field));
+    }
     WorldExit::load(bundle, name)?.run(location, world)
 }
 

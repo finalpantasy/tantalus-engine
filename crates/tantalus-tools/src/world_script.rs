@@ -97,6 +97,9 @@ impl WorldScript {
         let binary = load_event(bundle, &format!("{name}.eb"))?;
         let (pool, _) = decode_pool(&binary)?;
         prepare_field_world(&mut world, map);
+        // The player walks the world: `IsMovementEnabled` (system variable
+        // 2) is on, which the place prompt requires before it takes confirm.
+        world.user_control = true;
         Ok(Self {
             session: FieldSession::start(map, world, pool)?,
             effects: WorldEffects::default(),
@@ -118,6 +121,64 @@ impl WorldScript {
         rerun(&mut self.session.director, &self.session.pool, 0, code)
     }
 
+    /// The real enter path: the place prompt, entry 1's function 1 from its
+    /// first instruction. A place handler (entry 0) writes the place to map
+    /// variable 39 and entry 1's function 11 turns it into map variable 24,
+    /// the place plus 100; the prompt function then (with movement enabled
+    /// and confirm held) copies the place to variable 29, fades out and
+    /// switches to the field. Runs that function on a copy of this script's
+    /// world (kept when it changes field) with variable 24 set as function 11 leaves it, and returns the
+    /// field it changes to (`None` when it never does within `ticks`).
+    pub fn enter_place(&mut self, place: i32, ticks: u64) -> Result<Option<i32>, String> {
+        let program = self
+            .session
+            .pool
+            .get(1)
+            .and_then(|functions| functions.iter().find(|(tag, _)| *tag == 1))
+            .map(|(_, program)| program.clone())
+            .ok_or("the world script has no place prompt (entry 1, function 1)")?;
+        let mut world = self.world().clone();
+        world.user_control = true;
+        world.set_input(0x10000);
+        world
+            .map_memory
+            .set(24, VariableType::Byte, place + 100)
+            .ok_or("map variable 24 out of range")?;
+        world
+            .map_memory
+            .set(39, VariableType::Byte, place)
+            .ok_or("map variable 39 out of range")?;
+        let mut vm = tantalus_legacy::EventVm::resume(
+            program,
+            tantalus_contracts::EntityId::new(1),
+            0,
+            tantalus_legacy::VmStatus::Running,
+            None,
+        )
+        .map_err(|error| error.to_string())?;
+        let mut changed = None;
+        {
+            let mut host = tantalus_game::field::FieldHost::new(&mut world);
+            'run: for tick in 0..ticks {
+                let report = vm
+                    .step(tantalus_contracts::Tick::new(tick), &mut host)
+                    .map_err(|error| error.to_string())?;
+                for event in &report.events {
+                    if let tantalus_legacy::HostEvent::ChangeField { field } = event {
+                        changed = Some(i32::from(*field));
+                        break 'run;
+                    }
+                }
+            }
+        }
+        // The prompt's side effects (the visited-place bits, the story
+        // variables it sets) stay with the script's world.
+        if changed.is_some() {
+            *self.world_mut() = world;
+        }
+        Ok(changed)
+    }
+
     /// The place the last handler chose (map variable 39).
     pub fn place(&self) -> i32 {
         self.session
@@ -126,6 +187,24 @@ impl WorldScript {
             .map_memory
             .get(39, VariableType::Byte)
             .unwrap_or(0)
+    }
+
+    /// Requests function `tag` of object `entry` (a probe and the enter
+    /// path's building block).
+    pub fn request_function(&mut self, entry: usize, tag: u16) -> Result<bool, String> {
+        rerun(&mut self.session.director, &self.session.pool, entry, tag)
+    }
+
+    /// The scheduled functions and their state (for probes).
+    pub fn running(
+        &self,
+    ) -> Vec<(
+        tantalus_contracts::EntityId,
+        u32,
+        tantalus_legacy::VmStatus,
+        Option<tantalus_legacy::WaitState>,
+    )> {
+        self.session.director.entry_states()
     }
 
     pub fn world(&self) -> &FieldWorld {

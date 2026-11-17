@@ -70,3 +70,33 @@ fn every_place_handler_run_by_the_vm_picks_the_place_the_static_scan_found() {
         "{differing:?}"
     );
 }
+
+#[test]
+fn the_real_enter_path_leaves_for_the_same_fields_as_the_stand_in() {
+    use tantalus_tools::field_session::WorldExit;
+    let Some(bundle) = bundle() else { return };
+    let exit = WorldExit::load(&bundle, "EVT_WORLD_WORLD00").unwrap();
+    let mut differing = Vec::new();
+    let mut same = 0;
+    for place in 1..=100 {
+        let mut old_world = tantalus_game::FieldWorld::new();
+        let old = exit.run(place, &mut old_world).ok().flatten();
+        let mut script = start(&bundle);
+        for _ in 0..5 {
+            script.tick(0).unwrap();
+        }
+        let new = script.enter_place(place, 600).unwrap_or(None);
+        if old == new {
+            same += 1;
+        } else {
+            differing.push((place, old, new));
+        }
+    }
+    eprintln!("same {same}; differing {differing:?}");
+    // The three chocobo grounds (places 20, 38, 50) decline on a fresh world:
+    // their prompt needs the chocobo ability, which the stand-in forced.
+    let places: Vec<i32> = differing.iter().map(|(place, _, _)| *place).collect();
+    assert_eq!(places, [20, 38, 50]);
+    assert!(differing.iter().all(|(_, _, new)| new.is_none()));
+    assert_eq!(same, 97);
+}
