@@ -1525,6 +1525,17 @@ impl LegacyEventHost for FieldHost<'_> {
         if reference.member == 3 && self.world.player() == Some(reference.object) {
             self.world.player_facing_polls += 1;
         }
+        // `GetObjByUID`: the operand is a uid. An object created with another uid than its
+        // entry id (`InitObject` source 9 uid 133, Madain Sari 1601's kitchen 1607) answers to
+        // that uid, and its `obj.uid` (member 5) is the uid asked for.
+        let asked = reference.object;
+        let mapped = i32::try_from(asked.get())
+            .ok()
+            .filter(|uid| !(251..=254).contains(uid))
+            .and_then(|uid| self.world.resolve_uid(uid).map(|entity| (uid, entity)));
+        if let Some((_, entity)) = mapped {
+            reference.object = entity;
+        }
         // Referenced objects always exist in the reference's object table;
         // implicitly register a zero-state actor for uids no event declared
         // yet (dynamic NEW3 objects observed before their init runs).
@@ -1553,10 +1564,13 @@ impl LegacyEventHost for FieldHost<'_> {
         match reference.member {
             3 => Ok(i32::from(state.facing)),
             4 => Ok(state.flags),
-            5 => self
-                .world
-                .uid_of(reference.object)
-                .ok_or_else(|| Self::unknown("object member uid without a UID mapping")),
+            5 => match mapped {
+                Some((uid, _)) => Ok(uid),
+                None => self
+                    .world
+                    .uid_of(reference.object)
+                    .ok_or_else(|| Self::unknown("object member uid without a UID mapping")),
+            },
             6 => Ok(self.world.object_level(reference.object)),
             7 => Ok(i32::from(state.animation_frame)),
             // Members 8 and above fall through to the reference's

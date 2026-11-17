@@ -257,6 +257,27 @@ fn talk_triggers_fire_when_player_confirms_within_talk_radius() {
 }
 
 #[test]
+fn an_object_no_init_object_created_cannot_be_talked_to() {
+    // `EventCollision.Collision` walks live objects only: an entry's actor stub that
+    // `InitObject` has not created yet (Madain Sari 1601 entry 9 at scenario 6610) is not talkable.
+    let mut director = FieldDirector::new(FieldWorld::new());
+    director.world_mut().add_actor(EntityId::new(1), [0.0; 3]);
+    director
+        .world_mut()
+        .add_actor(EntityId::new(2), [30.0, 0.0, 40.0]);
+    director.world_mut().mark_uncreated(EntityId::new(2));
+    director.set_player(EntityId::new(1));
+    director.set_confirm_mask(Some(0x20));
+    director.set_input_mask(0x20);
+    let step = director.step().unwrap();
+    assert!(step.talk_triggers.is_empty());
+
+    director.world_mut().init_object(2, 0);
+    let step = director.step().unwrap();
+    assert_eq!(step.talk_triggers, [EntityId::new(2)]);
+}
+
+#[test]
 fn region_occupancy_reports_containing_regions_for_the_player() {
     use tantalus_game::field::region::Region;
 

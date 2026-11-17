@@ -326,6 +326,29 @@ fn object_member_reads_use_reference_member_semantics() {
 }
 
 #[test]
+fn object_member_reads_answer_to_the_uid_an_object_was_created_with() {
+    use tantalus_legacy::ObjectMemberRef;
+
+    // `InitObject` source 9 with uid 133 (Madain Sari kitchen 1607): `GetObjByUID(133)` is entry 9's
+    // object, and its `obj.uid` is 133.
+    let mut world = FieldWorld::new();
+    world.add_actor(actor(9), [40.0, 0.0, 12.0]);
+    world.map_uid(9, actor(9));
+    world.map_uid(133, actor(9));
+    let mut host = FieldHost::new(&mut world);
+    let read = |host: &mut FieldHost, object: u64, member: u8| {
+        host.read_object_member(ObjectMemberRef {
+            object: actor(object),
+            member,
+        })
+        .unwrap()
+    };
+    assert_eq!(read(&mut host, 133, 5), 133);
+    assert_eq!(read(&mut host, 133, 0), 40);
+    assert_eq!(read(&mut host, 9, 5), 9);
+}
+
+#[test]
 fn define_player_control_designates_the_interactive_player() {
     use tantalus_legacy::decode_program;
 

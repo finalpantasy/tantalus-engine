@@ -726,6 +726,12 @@ pub struct FieldWorld {
     /// Entries `InitObject` created an object for this field (runtime-only).
     #[serde(skip)]
     object_inits: BTreeSet<u8>,
+    /// Entry objects the host registered before any `InitObject` created them (the tools'
+    /// one-actor-per-entry stubs). The reference has no `Obj` for them, so `EventCollision`
+    /// cannot talk to them (Madain Sari 1601 at scenario 6610: entry 9's actor stub at the
+    /// origin took the player's talk before Mocha's `InitObject`). Runtime-only.
+    #[serde(skip)]
+    uncreated: BTreeSet<EntityId>,
     /// Extra objects of an entry (`InitObject` again with another uid): the
     /// reference makes one `Obj` per call, all running the same code.
     /// Runtime-only: object entity to its entry.
@@ -1120,6 +1126,7 @@ impl FieldWorld {
             pending_signals: std::collections::VecDeque::new(),
             pending_requests: BTreeMap::new(),
             object_inits: BTreeSet::new(),
+            uncreated: BTreeSet::new(),
             instance_sources: BTreeMap::new(),
             new_instances: Vec::new(),
             pending_callers: BTreeSet::new(),
@@ -1205,6 +1212,12 @@ impl FieldWorld {
         }
     }
 
+    /// Mark `entity`'s actor as a stub no `InitObject` has created yet: it cannot be talked
+    /// to until the object is initialized (`EventCollision.Collision` walks live objects).
+    pub fn mark_uncreated(&mut self, entity: EntityId) {
+        self.uncreated.insert(entity);
+    }
+
     pub fn add_actor(&mut self, actor: EntityId, position: [f32; 3]) {
         self.actors.insert(actor, ActorState::new(position));
     }
@@ -1215,6 +1228,7 @@ impl FieldWorld {
     pub fn init_object(&mut self, source: u8, uid: u8) -> EntityId {
         let base = EntityId::new(u64::from(source));
         let first = self.object_inits.insert(source);
+        self.uncreated.remove(&base);
         let already = self.uid_map.get(&i32::from(uid)).copied();
         if first || already == Some(base) || self.is_object_deleted(base) {
             self.map_uid(i32::from(uid), base);
@@ -1289,6 +1303,7 @@ impl FieldWorld {
         self.pending_requests.clear();
         self.choice_mask = -1;
         self.object_inits.clear();
+        self.uncreated.clear();
         self.uid_map.clear();
         self.instance_sources.clear();
         self.new_instances.clear();
@@ -1458,7 +1473,7 @@ impl FieldWorld {
         self.actors
             .iter()
             .filter(|(entity, state)| {
-                **entity != player && {
+                **entity != player && !self.uncreated.contains(entity) && {
                     let reach =
                         4 * (i32::from(player_state.talk_radius) + i32::from(state.talk_radius));
                     let dx = f64::from(state.position[0] - position[0]);

@@ -39,7 +39,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--level N] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--wall-regions MAP,...] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--wall-regions MAP,...] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -84,6 +84,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut settle_ticks: u64 = CONTROL_SETTLE;
     let mut talk_grace: u64 = 0;
     let mut heal_after_battle = false;
+    let mut live_objects = false;
     let mut win_battles: BTreeSet<i32> = BTreeSet::new();
     let mut fight_battle: Option<i32> = None;
     let mut fight_party: Vec<i32> = vec![0];
@@ -308,6 +309,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 }
             }
             "--heal-after-battle" => heal_after_battle = true,
+            "--live-objects" => live_objects = true,
             "--talk-grace" => talk_grace = parse_number(&value()?, "--talk-grace")?,
             "--waypoint-objects" => {
                 for part in value()?.split(',') {
@@ -618,6 +620,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     settle_ticks,
                     talk_grace,
                     heal_after_battle,
+                    live_objects,
                     win_battles,
                     backgrounds,
                     waypoints,
@@ -1193,6 +1196,7 @@ struct ChainOptions {
     /// Restore the party's HP and MP after each fight (`--heal-after-battle`): a probe
     /// stand-in for the potions and tents a played game uses between fights.
     heal_after_battle: bool,
+    live_objects: bool,
     /// Battle numbers the probe counts as won without fighting (`--win-battles`), for fights
     /// the stand-in battle engine cannot win yet.
     win_battles: BTreeSet<i32>,
@@ -1309,6 +1313,7 @@ fn chain(
         settle_ticks,
         talk_grace,
         heal_after_battle,
+        live_objects,
         win_battles,
         backgrounds,
         waypoints,
@@ -1624,6 +1629,15 @@ fn chain(
             None => "not loaded".to_owned(),
         };
         let mut director = tantalus_tools::field_session::new_director(world.clone(), &pool, held);
+        if live_objects {
+            // The host makes an actor stub for every entry; the reference has an object only
+            // after `InitObject`, so a stub cannot take a talk (Madain Sari 1601 entry 9).
+            for entry in 0..pool.len() {
+                director
+                    .world_mut()
+                    .mark_uncreated(tantalus_contracts::EntityId::new(entry as u64));
+            }
+        }
         let mut scheduler = EntryScheduler::start(&mut director, &pool)?;
         scheduler.loops_run_during_talks = !suspend_loops;
         // Scripted player: with --confirm-after N, a window open for N ticks
