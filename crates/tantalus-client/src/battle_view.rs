@@ -1852,6 +1852,32 @@ impl FightView {
             .render_with(assets, stage, seconds, hud, &overlay)
     }
 
+    /// Rebuilds the scene and the window at the window's new aspect when it
+    /// changed since the battle began (`FieldMap.OnWidescreenSupportChanged`
+    /// follows the screen size live).
+    pub fn resize_if_stale(
+        &mut self,
+        world: &mut bevy::ecs::world::World,
+        assets: &BattleAssets,
+        hud: Option<&BattleHud>,
+        game: &tantalus_tools::play::PlayGame,
+    ) {
+        if !crate::widescreen::live_size_stale() {
+            return;
+        }
+        let Some(fight) = game.battle() else {
+            return;
+        };
+        crate::widescreen::latch_live_size();
+        let size = crate::widescreen::live_size();
+        self.scene = BattleScene::new(assets, fight.stage(), size.0, size.1);
+        if let Some(old) = self.window.take() {
+            old.close(world);
+            let frame = self.render(assets, hud, game);
+            self.window = Some(BattleWindow::open(world, &frame));
+        }
+    }
+
     /// Draws the frame into the window.
     pub fn show(
         &self,

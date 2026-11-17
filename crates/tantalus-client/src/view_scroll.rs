@@ -121,6 +121,7 @@ impl ViewScroll {
         // (`FieldMap.EBG_scene2DScroll` clamps `destX` to `vrpMinX..vrpMaxX`).
         if crate::widescreen::field_width() > crate::widescreen::CLASSIC_WIDTH
             && !self.unlocked
+            && !(matches!(self.mode, Mode::Follow) && crate::widescreen::follow_is_fixed())
             && let Some(at) = self.at.as_mut()
         {
             at[0] = at[0].clamp(range[0], range[1].max(range[0]));
@@ -149,7 +150,14 @@ impl ViewScroll {
     ) -> Option<[f32; 2]> {
         let [x, y, z] = player?;
         let [tx, ty] = project_field_point(camera, [x, y + self.aim, z])?;
-        Some([tx.clamp(range[0], range[1]), ty.clamp(range[2], range[3])])
+        let x = tx.clamp(range[0], range[1]);
+        // Memoria's hand-tuned widescreen follow cases (`CenterCameraOnPlayer`).
+        let x = if self.unlocked {
+            x
+        } else {
+            crate::widescreen::follow_center(x, f32::from(camera.size[0]))
+        };
+        Some([x, ty.clamp(range[2], range[3])])
     }
 
     fn advance(&mut self, now: u64, target: Option<[f32; 2]>) {

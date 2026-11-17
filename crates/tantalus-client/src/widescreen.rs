@@ -17,7 +17,7 @@
 //! view is `240 * aspect` art pixels wide; `4:3` gives the classic 320.
 
 use crate::widescreen_data::{CAMERA_MARGINS, MAP_WIDTHS, RESTRICTED_CAMS, RESTRICTED_SCENES};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicU32, AtomicU64, Ordering};
 
 /// Rows of the field frame (`window::FIELD_FRAME`).
 pub const FRAME_HEIGHT: f32 = 240.0;
@@ -27,8 +27,6 @@ pub const CLASSIC_WIDTH: f32 = 320.0;
 const MIN_WIDE: f32 = 1.34;
 /// Memoria's `PsxScreenHeightNative`.
 const PSX_SCREEN_HEIGHT: f32 = 220.0;
-/// Memoria's `PsxFieldHeightNative`.
-const PSX_FIELD_HEIGHT: f32 = 224.0;
 /// The widest view drawn (32:9); wider windows are pillarboxed.
 const MAX_ASPECT: f32 = 32.0 / 9.0;
 
@@ -73,6 +71,10 @@ static SETTING: AtomicU32 = AtomicU32::new(0);
 static TARGET: AtomicU64 = AtomicU64::new(0);
 /// The current field view's width in art pixels (bits of an `f32`).
 static FIELD_WIDTH: AtomicU32 = AtomicU32::new(0);
+/// The field being drawn and its effective art width (`NarrowMapList.MapWidth`).
+static FIELD_MAP: AtomicI32 = AtomicI32::new(-1);
+static FIELD_CAMERA: AtomicI32 = AtomicI32::new(0);
+static FIELD_MAP_WIDTH: AtomicI32 = AtomicI32::new(500);
 
 /// The config file's name, read from the working directory.
 pub const CONFIG_FILE: &str = "tantalus.toml";
@@ -211,6 +213,13 @@ pub fn latch_live_size() {
     LIVE.store(u64::from(w) << 32 | u64::from(h), Ordering::Relaxed);
 }
 
+/// Whether the window's aspect has moved on from the one [`latch_live_size`]
+/// fixed, so a live battle or world view should redraw at the new one.
+pub fn live_size_stale() -> bool {
+    let packed = LIVE.load(Ordering::Relaxed);
+    packed != 0 && live_size() != computed_live_size()
+}
+
 /// The width of the battle and world picture in PSX pixels for a frame of
 /// `width` x `height`: 320 at 4:3 (`PsxScreenWidthNative`), growing with the
 /// aspect while the 220 rows stay (`PsxScreenWidth = 220 * aspect`, kept
@@ -286,7 +295,7 @@ pub fn field_view_width(map: i32, camera: i32, state: SceneState, aspect: f32) -
         wide
     };
     // `PSXCameraAspect.LateUpdate`: these cameras are narrower than a 16:9 screen.
-    if PSX_FIELD_HEIGHT * aspect < 401.0 {
+    if screen_width < 401.0 {
         for &(field, cam, restricted) in RESTRICTED_CAMS {
             if field == map && cam == camera {
                 width = width.min(restricted as f32);
@@ -299,8 +308,25 @@ pub fn field_view_width(map: i32, camera: i32, state: SceneState, aspect: f32) -
 /// Notes the field being drawn, so the scroll range and the camera agree.
 /// Call before [`crate::view_scroll::ViewScroll::view`] each frame.
 pub fn set_field(map: i32, camera: i32, state: SceneState) {
-    let width = field_view_width(map, camera, state, view_aspect());
+    let aspect = view_aspect();
+    let width = field_view_width(map, camera, state, aspect);
     FIELD_WIDTH.store(width.to_bits(), Ordering::Relaxed);
+    FIELD_MAP.store(map, Ordering::Relaxed);
+    FIELD_CAMERA.store(camera, Ordering::Relaxed);
+    FIELD_MAP_WIDTH.store(
+        effective_map_width(map, state, PSX_SCREEN_HEIGHT * aspect),
+        Ordering::Relaxed,
+    );
+}
+
+/// `NarrowMapList.MapWidth`: 320 for a scene forced narrow (and the ending
+/// fields), else the listed width.
+fn effective_map_width(map: i32, state: SceneState, screen_width: f32) -> i32 {
+    if forced_narrow(map, state, screen_width) || (3000..=3012).contains(&map) {
+        320
+    } else {
+        listed_width(map)
+    }
 }
 
 /// The width of the current field view (320 until a field is set).
@@ -323,6 +349,85 @@ pub fn camera_margin(map: i32) -> f32 {
         .iter()
         .find(|(field, _)| *field == map)
         .map_or(0.0, |(_, margin)| *margin as f32)
+}
+
+/// Whether a field's follow position is set outright rather than clamped
+/// to the scroll range (`FieldMap.CenterCameraOnPlayer`'s final `switch`).
+pub fn follow_is_fixed() -> bool {
+    matches!(FIELD_MAP.load(Ordering::Relaxed), 456 | 505 | 1153) && view_aspect() >= MIN_WIDE
+}
+
+/// `FieldMap.CenterCameraOnPlayer`'s widescreen block for the field drawn
+/// ([`set_field`]): the view's center x `center` (adapter space, 0 at the
+/// middle of a classic 320 frame) of a camera whose art is `art` wide, in
+/// the position Memoria's hand-tuned cases give it. Memoria's number is the
+/// view's left edge in art pixels, `center + 160 - view / 2` here.
+pub fn follow_center(center: f32, art: f32) -> f32 {
+    let field = (
+        FIELD_MAP.load(Ordering::Relaxed),
+        FIELD_CAMERA.load(Ordering::Relaxed),
+        FIELD_MAP_WIDTH.load(Ordering::Relaxed) as f32,
+    );
+    follow_center_in(field, (view_aspect(), field_width()), center, art)
+}
+
+/// [`follow_center`] for `(map, camera, map width)` at `(aspect, view width)`.
+fn follow_center_in(
+    (map, camera, map_width): (i32, i32, f32),
+    (aspect, view): (f32, f32),
+    center: f32,
+    art: f32,
+) -> f32 {
+    if aspect < MIN_WIDE {
+        return center;
+    }
+    let to_left = view / 2.0 - CLASSIC_WIDTH / 2.0;
+    let mut left = center - to_left;
+    if map == 931 {
+        return center;
+    }
+    let ten = (aspect - 1.6).abs() < 0.01;
+    let mut thresh = (art - view).min(0.0);
+    match map {
+        507 => left += 1.0, // Cargo Ship/Deck
+        1205 | 1652 | 2552 | 154 | 1215 | 1807 | 1055 => {
+            // Alexandria Castle/Chapel, Iifa Tree/Roots, Earth Shrine, grand hall.
+            if map == 1652 && camera == 0 {
+                thresh += 16.0; // Iifa Tree/Roots
+            }
+            if map == 1055 {
+                thresh += 1.0;
+            }
+            let right = art - view - thresh;
+            left = left.max(thresh).min(right);
+        }
+        _ if map_width > view => {
+            if CAMERA_MARGINS.iter().any(|(field, _)| *field == map) {
+                thresh = camera_margin(map);
+            }
+            let mut right = art - view - thresh;
+            match map {
+                103 | 1853 | 2053 | 2606 => thresh += 16.0, // Alexandria center, Brahne's fleet
+                2903 => right -= 32.0,                      // Memoria castle
+                2923 => thresh += 20.0,                     // Crystal World
+                _ => {}
+            }
+            left = left.max(thresh).min(right);
+        }
+        _ if map_width <= view && map_width > CLASSIC_WIDTH => {
+            left = ((art - map_width) / 2.0).floor();
+        }
+        _ => {}
+    }
+    match map {
+        312 => left += 1.0, // Ice Cavern exit (white line left)
+        456 => left = if ten { 195.0 } else { 160.0 }, // Dali Mountain/Summit
+        505 => left = if ten { 70.0 } else { 105.0 }, // Cargo Ship
+        1153 => left = if ten { 140.0 } else { 175.0 }, // Rose Rouge cockpit
+        2903 if PSX_SCREEN_HEIGHT * aspect > 510.0 => left = 0.0, // Memoria castle
+        _ => {}
+    }
+    left + to_left
 }
 
 #[cfg(test)]
@@ -364,6 +469,22 @@ aspect = \"21:9\" # ultrawide
         };
         assert!((ratio - 21.0 / 9.0).abs() < 1e-6);
         assert!(config_aspect("other = 1").is_none());
+    }
+
+    #[test]
+    fn follow_cases_place_the_view() {
+        let a169 = 16.0 / 9.0;
+        let view = 240.0 * a169;
+        // Field 456 (Dali Mountain/Summit): the view's left edge is fixed at art x 160.
+        let at = follow_center_in((456, 0, 398.0), (a169, view), 0.0, 700.0);
+        assert!((at - view / 2.0).abs() < 0.01, "{at} {view}");
+        // Field 507 gets one pixel to the right; 4:3 changes nothing.
+        let moved = follow_center_in((507, 0, 500.0), (a169, view), 0.0, 700.0);
+        assert!((moved - 1.0).abs() < 0.01, "{moved}");
+        assert_eq!(
+            follow_center_in((456, 0, 398.0), (4.0 / 3.0, 320.0), 7.0, 700.0),
+            7.0
+        );
     }
 
     #[test]

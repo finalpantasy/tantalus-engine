@@ -717,14 +717,32 @@ impl LiveWorld {
         play: &WorldPlay,
         streaming: &std::path::Path,
     ) -> Self {
-        use bevy::camera::visibility::RenderLayers;
-        use bevy::camera::{RenderTarget, ScalingMode};
-        use bevy::prelude::*;
         let mut renderer = crate::live::bench::time("lw_new", || WorldRenderer::new(streaming));
         crate::widescreen::latch_live_size();
         let size = crate::widescreen::live_size();
         let frame =
             crate::live::bench::time("lw_first_render", || renderer.render(play, size.0, size.1));
+        let (image, camera, sprite) = Self::open_window(world, frame);
+        Self {
+            renderer,
+            image,
+            camera,
+            sprite,
+        }
+    }
+
+    /// The image, camera and sprite that show `frame` in the window.
+    fn open_window(
+        world: &mut bevy::ecs::world::World,
+        frame: Frame,
+    ) -> (
+        bevy::asset::Handle<bevy::image::Image>,
+        bevy::ecs::entity::Entity,
+        bevy::ecs::entity::Entity,
+    ) {
+        use bevy::camera::visibility::RenderLayers;
+        use bevy::camera::{RenderTarget, ScalingMode};
+        use bevy::prelude::*;
         let frame_size = (frame.width, frame.height);
         let image = world
             .resource_mut::<Assets<Image>>()
@@ -771,16 +789,26 @@ impl LiveWorld {
                 RenderLayers::layer(WORLD_LAYER),
             ))
             .id();
-        Self {
-            renderer,
-            image,
-            camera,
-            sprite,
-        }
+        (image, camera, sprite)
     }
 
     pub fn update(&mut self, world: &mut bevy::ecs::world::World, play: &WorldPlay) {
         use bevy::prelude::*;
+        if crate::widescreen::live_size_stale() {
+            // The window changed shape: draw at the new aspect from now on.
+            crate::widescreen::latch_live_size();
+            let size = crate::widescreen::live_size();
+            let frame = self.renderer.render(play, size.0, size.1);
+            for entity in [self.sprite, self.camera] {
+                if let Ok(entity) = world.get_entity_mut(entity) {
+                    entity.despawn();
+                }
+            }
+            world
+                .resource_mut::<bevy::asset::Assets<bevy::image::Image>>()
+                .remove(&self.image);
+            (self.image, self.camera, self.sprite) = Self::open_window(world, frame);
+        }
         let size = crate::widescreen::live_size();
         let frame = self.renderer.render(play, size.0, size.1);
         crate::window::fit_frame_camera(world, self.camera, (frame.width, frame.height));

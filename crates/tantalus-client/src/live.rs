@@ -544,6 +544,15 @@ fn live_tick_inner(world: &mut World) {
     }
     if let Some(mut view) = live.fight.take() {
         let mut game = live.game.lock().expect("game lock");
+        {
+            let hud = live.battle_hud.lock().expect("hud lock");
+            view.resize_if_stale(
+                world,
+                &live.battle_assets,
+                hud.as_ref().and_then(Option::as_ref),
+                &game,
+            );
+        }
         let (events, done) = bench::time("battle_update", || view.update(&mut game, delta, held));
         for event in &events {
             println!("{}", describe(event));
