@@ -905,12 +905,12 @@ impl<'a> Calculator<'a> {
     }
 
     /// `CalcDamageCommon` (`BattleCalculator.cs:513`).
-    pub fn calc_damage_common(&mut self) {
+    pub fn calc_damage_common(&mut self, rng: Rng<'_>) {
         self.target_calc.flags.0 |= UnitFlags::HP_ALTERATION;
         if self.is_absorb() {
             self.target_calc.flags.0 |= UnitFlags::HP_RECOVERY;
         }
-        self.trigger_calc_damage_features();
+        self.trigger_calc_damage_features(rng);
     }
 
     /// The `"CalcDamage"` phase of `TriggerOnAbility` for the caster's
@@ -924,8 +924,9 @@ impl<'a> Calculator<'a> {
     /// * 33 Concentrate: script 10 or 13, `DamageModifierCount + 1`.
     ///
     /// Not modeled: 26 Gamble Defence (target side, needs a draw).
-    fn trigger_calc_damage_features(&mut self) {
+    fn trigger_calc_damage_features(&mut self, rng: Rng<'_>) {
         let script = self.command.script_id;
+        self.trigger_attack_support_features(rng);
         if self.c().has_support_ability(27) && (script == 69 || script == 70) {
             self.attack = self.attack.wrapping_mul(2);
         }
@@ -937,16 +938,93 @@ impl<'a> Calculator<'a> {
         }
     }
 
+    /// SA 12, 13-20, 24 and 25 of `AbilityFeatures.txt:632-705`, all
+    /// `WhenCalcDamage EvenImmobilized` on the caster and conditioned on
+    /// `AbilityId == Attack`; they run in ascending SA id order, before 27/28/33.
+    ///
+    /// * 12 MP Attack: caster MP > 0 and opposite sides: one modifier up and
+    ///   the MpAttack flag (the MP is spent by `consume_mp_attack`).
+    /// * 13-20 Bird/Bug/Stone/Undead/Dragon/Devil/Beast Killer and Man Eater:
+    ///   the target's category has the bit (a player counts as Humanoid) and
+    ///   opposite sides: one modifier up, then `DisableSA 13..20` so only the
+    ///   first one fires.
+    /// * 24 Healer: target not undead and not under a zombie-effect status:
+    ///   the target's HP change becomes a recovery.
+    /// * 25 Add Status: `GetRandom(0, 100) < weapon rate` (drawn only after the
+    ///   ability check) and opposite sides: sets AddStat, which `calc_result`
+    ///   applies as the weapon's status.
+    fn trigger_attack_support_features(&mut self, rng: Rng<'_>) {
+        const ABILITY_ATTACK: i32 = 176;
+        if self.command.ability_id != ABILITY_ATTACK {
+            return;
+        }
+        let opposite = self.c().is_player != self.t().is_player;
+        let enabled =
+            |s: &Self, sa: u8| s.c().has_support_ability(sa) && s.disabled_sa & (1 << sa) == 0;
+        if enabled(self, 12) && self.c().cur_mp > 0 && opposite {
+            self.modifier_up();
+            self.flags.0 |= CalcFlags::MP_ATTACK;
+        }
+        // (SA, EnemyCategory bit): Bird = Flight, Bug = Soul, Stone, Undead,
+        // Dragon, Devil, Beast, Man Eater = Humanoid.
+        const KILLERS: [(u8, u8); 8] = [
+            (13, 128),
+            (14, 64),
+            (15, 32),
+            (16, 16),
+            (17, 8),
+            (18, 4),
+            (19, 2),
+            (20, 1),
+        ];
+        for (sa, bit) in KILLERS {
+            if enabled(self, sa) && opposite && self.target_category() & bit != 0 {
+                self.modifier_up();
+                for off in 13..=20u8 {
+                    self.disabled_sa |= 1 << off;
+                }
+            }
+        }
+        if enabled(self, 24) && !self.t().is_zombie() {
+            self.target_calc.flags.0 |= UnitFlags::HP_RECOVERY;
+        }
+        if enabled(self, 25) {
+            let rate = self.c().weapon.map_or(0, |w| w.rate);
+            if rng.random_range(0, 100) < rate && opposite {
+                self.flags.0 |= CalcFlags::ADD_STAT;
+            }
+        }
+    }
+
+    /// `BattleUnit.Category` as `EnemyCategory` bits: Humanoid for a player.
+    fn target_category(&self) -> u8 {
+        let t = self.t();
+        if t.is_player {
+            return 1;
+        }
+        let mut c = t.enemy_category;
+        if t.is_undead {
+            c |= 16;
+        }
+        if t.is_flight {
+            c |= 128;
+        }
+        if t.is_stone {
+            c |= 32;
+        }
+        c
+    }
+
     /// `CalcPhysicalHpDamage` (`BattleCalculator.cs:525`).
-    pub fn calc_physical_hp_damage(&mut self) {
-        self.calc_damage_common();
+    pub fn calc_physical_hp_damage(&mut self, rng: Rng<'_>) {
+        self.calc_damage_common(rng);
         let attack = self.ensure_attack();
         self.target_calc.hp_damage = attack.wrapping_mul(self.ensure_power_difference());
     }
 
     /// `CalcHpDamage` (`BattleCalculator.cs:534`).
-    pub fn calc_hp_damage(&mut self) {
-        self.calc_damage_common();
+    pub fn calc_hp_damage(&mut self, rng: Rng<'_>) {
+        self.calc_damage_common(rng);
         let attack = self.ensure_attack();
         let mut damage = attack.wrapping_mul(self.ensure_power_difference());
         if self.command.is_short_summon {
@@ -956,20 +1034,20 @@ impl<'a> Calculator<'a> {
     }
 
     /// `CalcMpDamage` (`BattleCalculator.cs:545`).
-    pub fn calc_mp_damage(&mut self) {
+    pub fn calc_mp_damage(&mut self, rng: Rng<'_>) {
         self.target_calc.flags.0 |= UnitFlags::MP_ALTERATION;
         if self.is_absorb() {
             self.target_calc.flags.0 |= UnitFlags::MP_RECOVERY;
             self.defense_power = 0;
         }
-        self.trigger_calc_damage_features();
+        self.trigger_calc_damage_features(rng);
         let attack = self.ensure_attack();
         self.target_calc.mp_damage = self.power_difference().max(0).wrapping_mul(attack) >> 2;
     }
 
     /// `CalcProportionDamage` (`BattleCalculator.cs:561`).
-    pub fn calc_proportion_damage(&mut self) {
-        self.calc_damage_common();
+    pub fn calc_proportion_damage(&mut self, rng: Rng<'_>) {
+        self.calc_damage_common(rng);
         if self.attack > 100 {
             self.attack = 100;
         }
@@ -982,8 +1060,8 @@ impl<'a> Calculator<'a> {
 
     /// `CalcCannonProportionDamage` (`BattleCalculator.cs:575`): a share of
     /// the target's current HP.
-    pub fn calc_cannon_proportion_damage(&mut self) {
-        self.calc_damage_common();
+    pub fn calc_cannon_proportion_damage(&mut self, rng: Rng<'_>) {
+        self.calc_damage_common(rng);
         if self.attack > 100 {
             self.attack = 100;
         }
@@ -991,21 +1069,21 @@ impl<'a> Calculator<'a> {
     }
 
     /// `CalcHpMagicRecovery` (`BattleCalculator.cs:584`).
-    pub fn calc_hp_magic_recovery(&mut self) {
+    pub fn calc_hp_magic_recovery(&mut self, rng: Rng<'_>) {
         if !self.t().is_zombie() {
             self.target_calc.flags.0 |= UnitFlags::HP_RECOVERY;
         }
-        self.calc_damage_common();
+        self.calc_damage_common(rng);
         self.target_calc.hp_damage = self.attack_power.wrapping_mul(self.attack);
     }
 
     /// `CalcMpMagicRecovery` (`BattleCalculator.cs:594`).
-    pub fn calc_mp_magic_recovery(&mut self) {
+    pub fn calc_mp_magic_recovery(&mut self, rng: Rng<'_>) {
         self.target_calc.flags.0 |= UnitFlags::MP_ALTERATION;
         if !self.t().is_zombie() {
             self.target_calc.flags.0 |= UnitFlags::MP_RECOVERY;
         }
-        self.trigger_calc_damage_features();
+        self.trigger_calc_damage_features(rng);
         self.target_calc.mp_damage = self.attack_power.wrapping_mul(self.attack);
     }
 

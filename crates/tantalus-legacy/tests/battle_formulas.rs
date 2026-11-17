@@ -2371,4 +2371,147 @@ fn comet_misses_on_a_high_roll_and_meteor_never_misses_by_itself() {
     ]);
     assert!(!miss(&o), "{o:?}");
     assert!(o.target.hp_damage > 0, "{o:?}");
+// ---------------------------------------------------------------------------
+// Attack support abilities (`AbilityFeatures.txt` SA 12, 13-20, 24, 25)
+// ---------------------------------------------------------------------------
+
+/// A plain Attack (ability 176, script 1) by the player on the enemy with the
+/// given support abilities and enemy category; `extra` are draws taken inside
+/// the damage step (after the crit pair), `weapon_rate` the weapon's status rate.
+fn sa_attack(
+    sas: &[u8],
+    category: u8,
+    weapon_rate: i32,
+    extra: &[(Draw, i32)],
+) -> (CalcOutcome, Rig) {
+    let mut r = Rig::new(1);
+    r.cmd.ability_category = 8;
+    r.cmd.ability_id = 176;
+    for sa in sas {
+        r.c().support_abilities.insert(*sa);
+    }
+    r.t().enemy_category = category;
+    r.t().is_undead = category & 16 != 0;
+    r.c().weapon.as_mut().unwrap().rate = weapon_rate;
+    let mut draws = vec![
+        (Draw::Random16, 7),
+        (Draw::Random16, 1234),
+        (Draw::Random16, 5678),
+        (Draw::Random16, 9999),
+        (Draw::Random16, 7),
+        (Draw::Random16, 50),
+    ];
+    draws.extend_from_slice(extra);
+    let o = r.run_kinds(&draws);
+    (o, r)
+}
+
+/// Each Killer (and Man Eater) adds one damage modifier against its category:
+/// attack 33 * 3 >> 1 = 49, power difference 15, damage 735 instead of 495.
+#[test]
+fn sa_killers_raise_damage_against_their_category() {
+    for (sa, bit) in [
+        (13u8, 128u8),
+        (14, 64),
+        (15, 32),
+        (16, 16),
+        (17, 8),
+        (18, 4),
+        (19, 2),
+        (20, 1),
+    ] {
+        let (o, _) = sa_attack(&[sa], bit, 0, &[]);
+        assert_eq!(o.target.hp_damage, 735, "SA {sa}");
+        // A different category leaves the damage alone.
+        let (o, _) = sa_attack(&[sa], if bit == 1 { 2 } else { 1 }, 0, &[]);
+        assert_eq!(o.target.hp_damage, 495, "SA {sa} wrong category");
+    }
+}
+
+/// `DisableSA 13..20`: two Killers matching one target still add only one
+/// modifier.
+#[test]
+fn sa_killers_do_not_stack() {
+    let (o, _) = sa_attack(&[13, 14], 128 | 64, 0, &[]);
+    assert_eq!(o.target.hp_damage, 735);
+}
+
+/// A Killer only works on Attack, not on another ability.
+#[test]
+fn sa_killer_needs_the_attack_ability() {
+    let mut r = Rig::new(1);
+    r.cmd.ability_category = 8;
+    r.cmd.ability_id = 5;
+    r.c().support_abilities.insert(16);
+    r.t().enemy_category = 16;
+    let o = r.run(&weapon_draws(9999));
+    assert_eq!(o.target.hp_damage, 495);
+}
+
+/// SA 12 MP Attack: one modifier up, the MpAttack flag, and 1/8 of max MP is
+/// spent (100 -> 88). With no MP it does nothing.
+#[test]
+fn sa_mp_attack_boosts_and_spends_mp() {
+    let (o, r) = sa_attack(&[12], 0, 0, &[]);
+    assert_eq!(o.target.hp_damage, 735);
+    assert!(o.flags.has(CalcFlags::MP_ATTACK));
+    assert_eq!(r.units[0].cur_mp, 88);
+
+    let mut r = Rig::new(1);
+    r.cmd.ability_category = 8;
+    r.cmd.ability_id = 176;
+    r.c().support_abilities.insert(12);
+    r.c().cur_mp = 0;
+    let o = r.run(&weapon_draws(9999));
+    assert_eq!(o.target.hp_damage, 495);
+    assert!(!o.flags.has(CalcFlags::MP_ATTACK));
+}
+
+/// SA 24 Healer: the Attack heals a living, non-undead target; an undead one
+/// is hurt as usual.
+#[test]
+fn sa_healer_turns_attack_into_recovery() {
+    let (o, _) = sa_attack(&[24], 0, 0, &[]);
+    assert!(o.target.flags.has(UnitFlags::HP_RECOVERY));
+    let (o, _) = sa_attack(&[24], 16, 0, &[]);
+    assert!(!o.target.flags.has(UnitFlags::HP_RECOVERY));
+}
+
+/// SA 25 Add Status: `GetRandom(0, 100) < weapon rate` sets AddStat. The draw
+/// is taken only for Attack; rate 40 with a draw of 39 procs and applies the
+/// weapon's Poison, a draw of 40 does not.
+#[test]
+fn sa_add_status_procs_the_weapon_status() {
+    let proc = |roll: i32| {
+        let mut r = Rig::new(1);
+        r.cmd.ability_category = 8;
+        r.cmd.ability_id = 176;
+        r.c().support_abilities.insert(25);
+        let w = r.c().weapon.as_mut().unwrap();
+        w.rate = 40;
+        w.status = st::POISON;
+        let draws = vec![
+            (Draw::Random16, 7),
+            (Draw::Random16, 1234),
+            (Draw::Random16, 5678),
+            (Draw::Random16, 9999),
+            (Draw::Random16, 7),
+            (Draw::Random16, 50),
+            (Draw::Range, roll),
+        ];
+        let o = r.run_kinds(&draws);
+        (
+            o.flags.has(CalcFlags::ADD_STAT),
+            o.added_statuses & st::POISON != 0,
+        )
+    };
+    assert_eq!(proc(39), (true, true));
+    assert_eq!(proc(40), (false, false));
+}
+
+/// Without the ability no draw is taken and nothing procs.
+#[test]
+fn sa_add_status_needs_the_ability() {
+    let (o, _) = sa_attack(&[], 0, 100, &[]);
+    assert!(!o.flags.has(CalcFlags::ADD_STAT));
 }

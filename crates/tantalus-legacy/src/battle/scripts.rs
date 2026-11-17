@@ -58,7 +58,7 @@ pub fn perform(id: i32, v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Calc
         64 => Ok(()),
         65 => eat(v),
         69 => item_potion(v, rng),
-        70 => item_ether(v),
+        70 => item_ether(v, rng),
         71 => item_elixir(v),
         72 => item_phoenix(v, rng),
         73 => item_cure_status(v),
@@ -89,7 +89,7 @@ fn spear(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
     v.modifier_up();
     v.caster_penalty_mini();
     v.target_physical_penalty_and_bonus_attack();
-    v.calc_physical_hp_damage();
+    v.calc_physical_hp_damage(rng);
     Ok(())
 }
 
@@ -329,7 +329,7 @@ fn base_weapon(v: &mut Calculator<'_>, bonus: AttackBonus, rng: Rng<'_>) -> Resu
     if v.can_attack_weapon_elemental_command() {
         v.try_critical_hit(rng);
         v.penalty_reverse_attack();
-        v.calc_physical_hp_damage();
+        v.calc_physical_hp_damage(rng);
         v.raise_trouble();
     }
     Ok(())
@@ -351,7 +351,7 @@ fn blood_sword(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
     v.try_critical_hit(rng);
     v.penalty_reverse_attack();
     v.prepare_hp_draining();
-    v.calc_physical_hp_damage();
+    v.calc_physical_hp_damage(rng);
     v.caster_calc.hp_damage = v.target_calc.hp_damage;
     Ok(())
 }
@@ -375,7 +375,7 @@ fn enemy_physical_attack(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Cal
         return Ok(());
     }
     v.try_critical_hit(rng);
-    v.calc_physical_hp_damage();
+    v.calc_physical_hp_damage(rng);
     v.raise_trouble();
     v.try_alter_magic_statuses(rng);
     Ok(())
@@ -395,7 +395,7 @@ fn precise_enemy_physical_attack(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result
     if !v.can_attack_elemental_command() {
         return Ok(());
     }
-    v.calc_hp_damage();
+    v.calc_hp_damage(rng);
     v.try_alter_magic_statuses(rng);
     Ok(())
 }
@@ -409,7 +409,7 @@ fn magic_attack(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
     v.penalty_command_divided_attack();
     v.bonus_element();
     if v.can_attack_magic() {
-        v.calc_hp_damage();
+        v.calc_hp_damage(rng);
         v.try_alter_magic_statuses(rng);
     }
     Ok(())
@@ -421,7 +421,7 @@ fn magic_recovery(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError>
     v.caster_enemy_trance_bonus_attack();
     v.caster_penalty_mini();
     v.penalty_command_divided_attack();
-    v.calc_hp_magic_recovery();
+    v.calc_hp_magic_recovery(rng);
     Ok(())
 }
 
@@ -501,7 +501,7 @@ fn drain_mp(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
     v.target_calc.flags.0 |= UnitFlags::MP_ALTERATION;
     v.caster_calc.flags.0 |= UnitFlags::MP_ALTERATION;
     v.is_drain = true;
-    v.calc_mp_damage();
+    v.calc_mp_damage(rng);
     let mut damage = v.target_calc.mp_damage;
     if v.t().is_zombie() {
         v.target_calc.flags.0 |= UnitFlags::MP_RECOVERY;
@@ -532,7 +532,7 @@ fn drain_hp(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
     if v.power_difference() < 1 {
         return Ok(());
     }
-    v.calc_hp_damage();
+    v.calc_hp_damage(rng);
     v.caster_calc.hp_damage = v.target_calc.hp_damage;
     Ok(())
 }
@@ -551,7 +551,7 @@ fn magic_gravity_damage(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Calc
     v.set_command_attack();
     v.bonus_element();
     if v.can_attack_magic() {
-        v.calc_proportion_damage();
+        v.calc_proportion_damage(rng);
     }
     Ok(())
 }
@@ -564,7 +564,7 @@ fn physical_attack(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError
     v.target_physical_penalty_and_bonus_attack();
     v.bonus_element();
     if v.can_attack_weapon_elemental_command() {
-        v.calc_hp_damage();
+        v.calc_hp_damage(rng);
         v.try_alter_magic_statuses(rng);
     }
     Ok(())
@@ -578,7 +578,7 @@ fn original_magic_attack(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Cal
     v.target_penalty_shell_attack();
     v.bonus_element();
     if v.can_attack_magic() {
-        v.calc_hp_damage();
+        v.calc_hp_damage(rng);
         v.try_alter_magic_statuses(rng);
     }
     Ok(())
@@ -620,7 +620,7 @@ fn magic_sword_attack(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcEr
     v.target_set_physical_defense();
     v.bonus_element();
     if v.can_attack_magic() {
-        v.calc_hp_damage();
+        v.calc_hp_damage(rng);
     }
     Ok(())
 }
@@ -634,7 +634,7 @@ fn item_potion(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
     v.attack_power = item.map_or(v.command.power, |i| i.power);
     v.defense_power = 0;
     if v.attack_power > 0 {
-        v.calc_hp_magic_recovery();
+        v.calc_hp_magic_recovery(rng);
     }
     if status != 0 {
         let status_effect_only = v.attack_power == 0;
@@ -672,7 +672,7 @@ fn throw(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
     if v.t().has_flight_category() {
         v.modifier_up();
     }
-    v.calc_physical_hp_damage();
+    v.calc_physical_hp_damage(rng);
     Ok(())
 }
 
@@ -690,11 +690,11 @@ fn item_soft(v: &mut Calculator<'_>) -> Result<(), CalcError> {
 }
 
 /// Script 70, Ether (`0070_ItemEtherScript.cs:20`).
-fn item_ether(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+fn item_ether(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
     v.attack = 15;
     v.attack_power = v.command.item.map_or(v.command.power, |i| i.power);
     v.defense_power = 0;
-    v.calc_mp_magic_recovery();
+    v.calc_mp_magic_recovery(rng);
     Ok(())
 }
 
@@ -838,7 +838,7 @@ fn goblin_punch(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
     }
     v.caster_penalty_mini();
     v.target_penalty_shell_attack();
-    v.calc_hp_damage();
+    v.calc_hp_damage(rng);
     Ok(())
 }
 
@@ -851,7 +851,7 @@ fn lv_holy(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
         v.target_penalty_shell_attack();
         v.bonus_element();
         if v.can_attack_elemental_command() {
-            v.calc_hp_damage();
+            v.calc_hp_damage(rng);
         }
     }
     Ok(())
@@ -899,7 +899,7 @@ fn cannon(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
     v.set_command_attack();
     v.bonus_element();
     if v.can_attack_magic() {
-        v.calc_cannon_proportion_damage();
+        v.calc_cannon_proportion_damage(rng);
     }
     Ok(())
 }

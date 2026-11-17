@@ -118,7 +118,7 @@ struct Hooks {
 impl BattleHooks for Hooks {
     fn spec(&mut self, cmd_no: u32, _sub: i32, _c: &BattleUnit) -> Option<CommandSpec> {
         match cmd_no {
-            cmd::ATTACK | cmd::ENEMY_ATK => {
+            cmd::ATTACK | cmd::ENEMY_ATK | cmd::ENEMY_DYING => {
                 let mut c = BattleCommand::new(1);
                 c.ability_category = 8;
                 c.target_type = target_type::SINGLE_ENEMY;
@@ -1155,4 +1155,48 @@ fn enemy_alternate_camera_draws_like_should_play_alternate_camera() {
     assert_eq!(fight(false, true, &hit), Some(false));
     assert_eq!(fight(false, false, &with(127)), Some(true));
     assert_eq!(fight(false, false, &with(128)), Some(false));
+}
+
+/// Runs a battle where the only enemy is killed outright and then uses its
+/// dying move (`ENEMY_DYING`) on the only player, whose HP is `player_hp`.
+fn dying_move_battle(player_hp: u32) -> Battle {
+    let mut p = unit(1, true, 0);
+    p.cur_hp = player_hp;
+    p.max_hp = 5000;
+    p.physical_defence = 0;
+    let mut b = battle(vec![p, unit(16, false, 0)]);
+    let (mut h, mut r) = (hooks(), no_draws());
+    run(&mut b, &mut h, &mut r, 5);
+    b.set_enemy_command(
+        1,
+        EnemyAction {
+            cmd_no: cmd::ENEMY_DYING,
+            sub_no: 0,
+            tar_id: 1,
+        },
+        &mut h,
+    )
+    .unwrap();
+    b.units[1].cur_hp = 0;
+    let mut none = no_draws();
+    b.alter_status_on(1, 8, &mut none);
+    let mut r = SequenceRandom::r16(&HIT);
+    run(&mut b, &mut h, &mut r, 400);
+    b
+}
+
+/// G27 (Memoria CL 2024.12.04, `btl_mot.EndCommandMotion`): the dying
+/// enemy's last move that kills the whole party ends in Defeat, never Victory.
+#[test]
+fn g27_dying_move_that_kills_the_party_is_a_defeat() {
+    let b = dying_move_battle(5);
+    assert_eq!(b.result, Some(result::DEFEAT));
+}
+
+/// G27: when the dying move leaves the party alive, finishing that command
+/// re-checks the battle phase and the battle is won.
+#[test]
+fn g27_dying_move_that_spares_the_party_is_a_victory() {
+    let b = dying_move_battle(5000);
+    assert_eq!(b.result, Some(result::VICTORY));
 }
