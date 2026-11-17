@@ -13,8 +13,11 @@ tantalus-contracts = { path = "../tantalus-contracts" }
 tantalus-game = { path = "../tantalus-game" }
 tantalus-legacy = { path = "../tantalus-legacy" }
 tantalus-sfx = { path = "../tantalus-sfx" }
+tantalus-psxaudio = { path = "../tantalus-psxaudio" }
 serde.workspace = true
 serde_json.workspace = true
+lewton = "0.10.2"
+vorbis_rs = "0.5"
 sha2.workspace = true
 tantalus-core = { path = "../tantalus-core" }
 

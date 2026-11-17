@@ -39,8 +39,6 @@ pub fn run(args: &[std::ffi::OsString]) -> ExitCode {
         "--trance",
         "--enter-trance",
         "--party",
-        "--bench-hz",
-        "--bench-interp",
     ]);
     let Some(values) = super::flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
@@ -433,30 +431,6 @@ fn live_capture(
         if let Some(fight) = game.battle_mut() {
             fight.preset_trance(trance);
         }
-    }
-    // `TANTALUS_BENCH_FRAMES=N --bench-hz H`: N display frames at H Hz of
-    // the live battle (idle menu), main-thread milliseconds, no window.
-    if let Some(frames) = tantalus_client::live::bench::frames() {
-        use tantalus_client::live::bench;
-        let hz: f64 = values
-            .get("--bench-hz")
-            .and_then(|value| value.parse().ok())
-            .unwrap_or(60.0);
-        for frame_number in 0..frames + 60 {
-            if frame_number == 60 {
-                bench::reset();
-            }
-            let start = std::time::Instant::now();
-            view.update(game, 1.0 / hz, 0);
-            if game.battle().is_none() {
-                break;
-            }
-            std::hint::black_box(view.render(&assets, hud.as_ref(), game));
-            bench::record("frame_cpu", start.elapsed().as_secs_f64() * 1000.0);
-        }
-        println!("bench battle {hz} Hz (battle time is continuous, drawn every frame)");
-        bench::report();
-        return Ok(lines);
     }
     let delta = 1.0 / 30.0;
     let mut steps: Steps = Vec::new();

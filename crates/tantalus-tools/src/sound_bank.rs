@@ -42,6 +42,8 @@ pub struct SoundBank {
     pub world_battle_songs: BattleSongTable,
     streaming_assets: PathBuf,
     index: Option<BTreeMap<String, AssetSlot>>,
+    /// PS1-quality renders from the owner's discs, preferred over the Steam clips when present.
+    psx: Option<crate::psx_audio::PsxClips>,
 }
 
 /// `{ "data": [ { "name", "soundIndex" } ] }` as `SoundMetaData.IndexingSoundData` reads it.
@@ -173,6 +175,7 @@ impl SoundBank {
             world_battle_songs: parse_battle_songs(need("WldBtlEncountBgmMetaData.txt")?)?,
             streaming_assets: streaming_assets.to_owned(),
             index: None,
+            psx: None,
         })
     }
 
@@ -254,8 +257,23 @@ impl SoundBank {
         Ok(asset.script)
     }
 
+    /// Prefers the PS1 renders in `dir` (written by `tantalus-tools psx-audio`) over the Steam
+    /// clips they replace. Returns how many clips it found; 0 leaves the Steam audio alone.
+    pub fn use_psx_audio(&mut self, dir: &Path) -> usize {
+        self.psx = crate::psx_audio::PsxClips::open(dir);
+        self.psx.as_ref().map_or(0, |p| p.len())
+    }
+
     /// Decodes one resource to PCM with its AKB2 loop fields kept as the file has them.
     pub fn load_clip(&mut self, resource_id: &str) -> Result<PcmClip, String> {
+        if let Some(psx) = &self.psx {
+            match psx.load(resource_id) {
+                Ok(Some(clip)) => return Ok(clip),
+                Ok(None) => {}
+                // A damaged render falls back to the Steam clip instead of silence.
+                Err(error) => eprintln!("audio: PS1 render unusable, using Steam audio: {error}"),
+            }
+        }
         let script = self.akb_bytes(resource_id)?;
         decode_clip(&script)
     }

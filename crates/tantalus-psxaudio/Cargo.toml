@@ -1,0 +1,10 @@
+[package]
+name = "tantalus-psxaudio"
+description = "PS1 audio from the owner's own FF9 discs: disc reader, AKAO sequencer and SPU renderer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]

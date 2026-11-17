@@ -41,9 +41,6 @@ pub struct ActorPose {
     pub actor: u64,
     /// 0..=255, 0 south, 64 west.
     pub facing: u8,
-    /// Part of a facing step (0 up to 1) added to `facing`: the interpolated
-    /// turn between two logic ticks (`smooth.rs`); 0 for the logic's own pose.
-    pub facing_frac: f32,
     pub model: Option<u16>,
     pub animation: Option<u16>,
     /// Seconds into the animation.
@@ -305,13 +302,8 @@ fn edge(a: [f32; 2], b: [f32; 2], c: [f32; 2]) -> f32 {
 /// Model space to field space: root scale `(-1, -1, 1)`, then the facing
 /// turn about Unity's up axis, then the actor position.
 pub fn place_vertex(vertex: [f32; 3], facing: u8, position: [f32; 3]) -> [f32; 3] {
-    place_vertex_exact(vertex, f32::from(facing), position)
-}
-
-/// [`place_vertex`] with a fractional facing (256 steps a turn).
-pub fn place_vertex_exact(vertex: [f32; 3], facing: f32, position: [f32; 3]) -> [f32; 3] {
     let scaled = [-vertex[0], -vertex[1], vertex[2]];
-    let angle = (facing * 360.0 / 256.0).to_radians();
+    let angle = (f32::from(facing) * 360.0 / 256.0).to_radians();
     let (sin, cos) = angle.sin_cos();
     [
         position[0] + scaled[0] * cos + scaled[2] * sin,
@@ -897,9 +889,7 @@ impl ActorModels {
         let skinned = skin_model(model, &poses);
         crate::live::bench::record("a_skin", t0.elapsed().as_secs_f64() * 1000.0);
         let t0 = std::time::Instant::now();
-        let own = |vertex: [f32; 3]| {
-            place_vertex_exact(vertex, f32::from(pose.facing) + pose.facing_frac, position)
-        };
+        let own = |vertex: [f32; 3]| place_vertex(vertex, pose.facing, position);
         let mut triangles = Vec::new();
         self.collect_triangles(camera, model, pose, &skinned, &own, &mut triangles);
         if !carried.is_empty() {

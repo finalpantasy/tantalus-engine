@@ -517,22 +517,9 @@ fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
     let (mute, args) = take_switch(args, "--mute");
     let args = &args[..];
     let mut allowed = PLAY_FLAGS.to_vec();
-    allowed.extend(["--scale", "--fps-cap", "--fps-interp", "--config"]);
+    allowed.push("--scale");
     let Some(values) = flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
-    };
-    // `--fps-cap N` (0: no limit, default: the display's rate), `--fps-interp
-    // on|off` and `--config FILE` (`fps_cap = N`, `interpolation = on|off`).
-    let fps = match tantalus_client::smooth::FpsSettings::resolve(
-        values.get("--config").map(std::path::Path::new),
-        values.get("--fps-cap").map(String::as_str),
-        values.get("--fps-interp").map(String::as_str),
-    ) {
-        Ok(fps) => fps,
-        Err(error) => {
-            eprintln!("play failed: {error}");
-            return ExitCode::FAILURE;
-        }
     };
     let scale = values
         .get("--scale")
@@ -561,8 +548,7 @@ fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
             }
         }
         let assets = PathBuf::from(&values["--assets"]);
-        tantalus_client::live::play(game, assets, scale, mute, fps)
-            .map_err(|error| error.to_string())
+        tantalus_client::live::play(game, assets, scale, mute).map_err(|error| error.to_string())
     });
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -623,8 +609,6 @@ fn run_play_capture(args: &[std::ffi::OsString]) -> ExitCode {
         "--gil",
         "--audio-wav",
         "--presentation",
-        "--bench-hz",
-        "--bench-interp",
     ]);
     let Some(mut values) = flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
@@ -945,21 +929,6 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
             if let Some((_, state, _)) = &motion {
                 state.place_sprites(world, &field.scene);
             }
-            // `TANTALUS_BENCH_FRAMES=N --bench-hz H`: N display frames at H Hz
-            // of the field's loop (logic at 30 Hz, the markers drawn between
-            // ticks), main-thread milliseconds, no window.
-            if let Some(frames) = tantalus_client::live::bench::frames() {
-                let hz = bench_hz(values);
-                field_bench(
-                    world,
-                    &mut game,
-                    &mut models,
-                    &field.scene.camera,
-                    frames,
-                    hz,
-                    bench_interp(values, hz),
-                );
-            }
             tantalus_client::dialog_view::seed_opened(world, &dialog_opened);
             tantalus_client::dialog_view::sync_dialogs(world, &game, &field.scene.camera, &frame);
             tantalus_client::presentation_view::sync_presentation(
@@ -1167,8 +1136,6 @@ fn run_world_capture(args: &[std::ffi::OsString]) -> ExitCode {
         "--ride",
         "--chocobo",
         "--world-script",
-        "--bench-hz",
-        "--bench-interp",
     ]);
     let Some(values) = flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
@@ -1287,47 +1254,6 @@ fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<
             )?;
         }
     }
-    if let Some(frames) = tantalus_client::live::bench::frames() {
-        use tantalus_client::{live::bench, smooth};
-        let hz = bench_hz(values);
-        let interpolate = bench_interp(values, hz);
-        let mut pair = smooth::Pair::default();
-        let Some(play) = game.world_play.as_ref() else {
-            return Err("not on the world map".to_owned());
-        };
-        pair.push(tantalus_client::world_view::pose_of(play), true);
-        let mut elapsed = 0.0;
-        for frame_number in 0..frames + BENCH_WARMUP {
-            if frame_number == BENCH_WARMUP {
-                bench::reset();
-            }
-            let start = std::time::Instant::now();
-            elapsed += 1.0 / hz;
-            while elapsed >= smooth::LOGIC_STEP {
-                elapsed -= smooth::LOGIC_STEP;
-                game.tick(0)?;
-                if let Some(play) = game.world_play.as_ref() {
-                    pair.push(tantalus_client::world_view::pose_of(play), false);
-                }
-            }
-            let Some(play) = game.world_play.as_ref() else {
-                break;
-            };
-            let pose = pair.world(smooth::alpha(elapsed, interpolate));
-            std::hint::black_box(renderer.render_blended(
-                play,
-                tantalus_client::world_view::LIVE_SIZE.0,
-                tantalus_client::world_view::LIVE_SIZE.1,
-                pose.as_ref(),
-            ));
-            bench::record("frame_cpu", start.elapsed().as_secs_f64() * 1000.0);
-        }
-        println!(
-            "bench world {hz} Hz, interpolation {}, logic 30 Hz",
-            if interpolate { "on" } else { "off" }
-        );
-        bench::report();
-    }
     let Some(play) = game.world_play.as_ref() else {
         return Ok(format!(
             "left the world map for field {:?} ({})",
@@ -1352,95 +1278,6 @@ fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<
         renderer.problems.len(),
         output.display()
     ))
-}
-
-/// Frames a headless bench runs, untimed, before it measures.
-const BENCH_WARMUP: usize = 60;
-
-/// `--bench-hz H`: the simulated display rate of a headless frame bench.
-fn bench_hz(values: &std::collections::BTreeMap<String, String>) -> f64 {
-    values
-        .get("--bench-hz")
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(60.0)
-}
-
-/// `--bench-interp on|off`: blend the drawn state (default on above 30 Hz).
-fn bench_interp(values: &std::collections::BTreeMap<String, String>, hz: f64) -> bool {
-    match values.get("--bench-interp").map(String::as_str) {
-        Some("off") => false,
-        Some(_) => true,
-        None => hz > 30.0,
-    }
-}
-
-/// The field's display loop without a window: `frames` frames of `1 / hz`
-/// seconds, the game ticking at its 30 Hz, the actors drawn between the last
-/// two logic frames as `live.rs` does. Prints per-frame main-thread time.
-fn field_bench(
-    world: &mut bevy::ecs::world::World,
-    game: &mut tantalus_tools::play::PlayGame,
-    models: &mut tantalus_client::actor_models::ActorModels,
-    camera: &tantalus_contracts::LegacyFieldCamera,
-    frames: usize,
-    hz: f64,
-    interpolate: bool,
-) {
-    use tantalus_client::{live::bench, smooth};
-    let (first, mut placed) = tantalus_client::live::world_frame(game.world(), game.ticks);
-    let mut pair = smooth::Pair::default();
-    pair.push(first, true);
-    let mut elapsed = 0.0;
-    let mut drawn_alpha = -1.0f32;
-    let mut new_tick = true;
-    // The first frames load models and clips; they are not timed.
-    for frame_number in 0..frames + BENCH_WARMUP {
-        if frame_number == BENCH_WARMUP {
-            bench::reset();
-        }
-        let start = std::time::Instant::now();
-        elapsed += 1.0 / hz;
-        while elapsed >= smooth::LOGIC_STEP {
-            elapsed -= smooth::LOGIC_STEP;
-            let tick_start = std::time::Instant::now();
-            if game.tick(0).is_err() {
-                break;
-            }
-            bench::record("logic_tick", tick_start.elapsed().as_secs_f64() * 1000.0);
-            let (frame, now_placed) = tantalus_client::live::world_frame(game.world(), game.ticks);
-            models.prepare(frame.poses.values());
-            models.advance_actor_tex_anims(
-                game.ticks,
-                &frame.poses,
-                &game.world().tex_anims,
-                game.world().tex_anim_clock,
-            );
-            pair.push(frame, false);
-            placed = now_placed;
-            new_tick = true;
-        }
-        let t = smooth::alpha(elapsed, interpolate);
-        if new_tick || (interpolate && t != drawn_alpha) {
-            let draw_start = std::time::Instant::now();
-            let blended = pair.frame(t).expect("a frame was pushed");
-            tantalus_client::track::spawn_frame_markers(
-                world,
-                camera,
-                &blended,
-                &placed,
-                Some(models),
-            );
-            drawn_alpha = t;
-            new_tick = false;
-            bench::record("draw", draw_start.elapsed().as_secs_f64() * 1000.0);
-        }
-        bench::record("frame_cpu", start.elapsed().as_secs_f64() * 1000.0);
-    }
-    println!(
-        "bench field {hz} Hz, interpolation {}, logic 30 Hz",
-        if interpolate { "on" } else { "off" }
-    );
-    bench::report();
 }
 
 /// A decimal or `0x` hexadecimal number.

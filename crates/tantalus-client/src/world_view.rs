@@ -136,22 +136,8 @@ impl WorldRenderer {
     }
 }
 
-/// Where the player and the camera are now, for the smooth frame rate
-/// (`smooth::blend_world`).
-pub fn pose_of(play: &WorldPlay) -> crate::smooth::WorldPose {
+fn camera_for(play: &WorldPlay) -> BattleCamera {
     let view = play.camera();
-    let pos = play.walker.pos;
-    crate::smooth::WorldPose {
-        position: [pos.x, pos.y, pos.z],
-        yaw: play.walker.rot_y,
-        eye: view.eye,
-        aim: view.aim,
-        fov: view.fov,
-        ride: play.ride,
-    }
-}
-
-fn camera_for(view: &tantalus_tools::world_play::WorldCamera) -> BattleCamera {
     let eye = Vec3::from_array(view.eye);
     let forward = (Vec3::from_array(view.aim) - eye).normalize_or_zero();
     let yaw = forward.x.atan2(forward.z).to_degrees();
@@ -245,32 +231,12 @@ impl WorldRenderer {
 
     /// Draws the world around `play`.
     pub fn render(&mut self, play: &WorldPlay, width: u32, height: u32) -> Frame {
-        self.render_blended(play, width, height, None)
-    }
-
-    /// [`Self::render`] with the player and the camera drawn at `pose`, a
-    /// state between two logic ticks; `play` stays the logic state (which
-    /// blocks load, where the weather is).
-    pub fn render_blended(
-        &mut self,
-        play: &WorldPlay,
-        width: u32,
-        height: u32,
-        pose: Option<&crate::smooth::WorldPose>,
-    ) -> Frame {
         if self.disc != play.assets.disc() {
             self.disc = play.assets.disc();
             self.blocks.clear();
             self.meshes.clear();
         }
-        let camera = match pose {
-            Some(pose) => camera_for(&tantalus_tools::world_play::WorldCamera {
-                eye: pose.eye,
-                aim: pose.aim,
-                fov: pose.fov,
-            }),
-            None => camera_for(&play.camera()),
-        };
+        let camera = camera_for(play);
         let weather = Weather::at(play.walker.pos.x, play.walker.pos.z);
         let mut frame = Frame::for_view(
             width,
@@ -324,11 +290,10 @@ impl WorldRenderer {
         // The world characters blink too (`GeoTexAnim` runs on every model).
         self.models.advance_tex_anims(play.frames);
         let time = play.frames as f32 / 30.0;
-        let at = pose.map_or([pos.x, pos.y, pos.z], |pose| pose.position);
-        let yaw = pose.map_or(play.walker.rot_y, |pose| pose.yaw);
+        let at = [pos.x, pos.y, pos.z];
         let place = |scale: [f32; 3], tint: (f32, f32)| Placement {
             at,
-            yaw,
+            yaw: play.walker.rot_y,
             scale,
             tint,
         };
@@ -806,16 +771,9 @@ impl LiveWorld {
         }
     }
 
-    pub fn update(
-        &mut self,
-        world: &mut bevy::ecs::world::World,
-        play: &WorldPlay,
-        pose: Option<&crate::smooth::WorldPose>,
-    ) {
+    pub fn update(&mut self, world: &mut bevy::ecs::world::World, play: &WorldPlay) {
         use bevy::prelude::*;
-        let frame = self
-            .renderer
-            .render_blended(play, LIVE_SIZE.0, LIVE_SIZE.1, pose);
+        let frame = self.renderer.render(play, LIVE_SIZE.0, LIVE_SIZE.1);
         crate::battle_view::show_frame(world, &self.image, frame);
         let at = world
             .get::<Transform>(self.camera)

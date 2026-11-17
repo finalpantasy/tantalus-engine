@@ -7,6 +7,7 @@ members = [
     "crates/tantalus-game",
     "crates/tantalus-legacy",
     "crates/tantalus-mods",
+    "crates/tantalus-psxaudio",
     "crates/tantalus-sfx",
     "crates/tantalus-tools",
     "sdk/rust/tantalus-sdk",

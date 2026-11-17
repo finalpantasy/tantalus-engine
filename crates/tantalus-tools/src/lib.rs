@@ -23,6 +23,7 @@ pub mod party_select;
 pub mod play;
 pub mod play_audio;
 pub mod play_save;
+pub mod psx_audio;
 pub mod scenario;
 pub mod shop_menu;
 pub mod sound_bank;
