@@ -17,6 +17,13 @@ pub struct FieldHost<'a> {
     world: &'a mut FieldWorld,
 }
 
+/// The Tetra Master card id of an item id in the generic item space
+/// (`ff9item.IsItemCard`, `GetCardIdFromItemId`: `pool * 100 + id - 512`), if it is a card.
+fn card_of_item(item: i32) -> Option<u32> {
+    let id = item % 1000;
+    ((512..612).contains(&id)).then(|| (item / 1000 * 100 + id - 512) as u32)
+}
+
 impl<'a> FieldHost<'a> {
     pub fn new(world: &'a mut FieldWorld) -> Self {
         Self { world }
@@ -1138,6 +1145,14 @@ impl LegacyEventHost for FieldHost<'_> {
                     }
                 }
                 HostEvent::AddItem { item, count } => {
+                    // `ff9item.FF9Item_Add_Generic`: a card id goes to the collection
+                    // (`QuadMistDatabase.MiniGame_SetCard`, kept below 100 cards).
+                    if let Some(card) = card_of_item(*item) {
+                        for _ in 0..*count {
+                            self.world.add_card(card);
+                        }
+                        continue;
+                    }
                     let entry = self.world.items.entry(*item).or_insert(0);
                     *entry = entry.saturating_add(*count).min(99);
                 }
@@ -1482,10 +1497,12 @@ impl LegacyEventHost for FieldHost<'_> {
             21 => return Ok(i32::from(self.world.timer.displayed)),
             14 => return Ok(self.world.fmv.frame),
             15 => return Ok(self.world.fmv.sync()),
-            // 18 GetTetraMasterResult, 19 GetCardAmount (`GetSysvar.cs`: scripts read at most
-            // 95 so a full collection still reads as one that can take a card).
+            // 18 GetTetraMasterResult, 19 GetCardAmount (`EventEngine.GetSysvar` case 19:
+            // `MiniGameState.GetNumberOfCards`, unclamped while `MaxCardCount` is 100; the
+            // `Min(95, ...)` there only applies to another `MaxCardCount`). Scripts compare it
+            // with 100 to refuse a card pickup, so a full collection must read 100.
             18 => return Ok(self.world.last_card_result),
-            19 => return Ok(self.world.cards.len().min(95) as i32),
+            19 => return Ok(self.world.cards.len() as i32),
             _ => {}
         }
         // Engine state is zero-initialized in the reference, so unset
@@ -1547,6 +1564,11 @@ impl LegacyEventHost for FieldHost<'_> {
     }
 
     fn read_item_count(&mut self, item: i32) -> Result<i32, EngineError> {
+        // `ff9item.FF9Item_GetCount_Generic`: ids 512 to 611 (within a 1000 pool) are Tetra
+        // Master cards, counted in the collection.
+        if let Some(card) = card_of_item(item) {
+            return Ok(self.world.cards.iter().filter(|c| **c == card).count() as i32);
+        }
         Ok(self.world.items.get(&item).copied().unwrap_or(0))
     }
 

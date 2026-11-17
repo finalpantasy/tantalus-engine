@@ -123,6 +123,15 @@ pub fn preload(game_data: &std::path::Path) {
     }
 }
 
+/// Seeds the tick each open window first appeared on, for a capture that only syncs once
+/// at its end: `sync_dialogs` otherwise takes "now" as the opening tick and the typing
+/// effect (`Dialog.DialogTextAnimationTick`) shows no glyph yet.
+pub fn seed_opened(world: &mut World, opened: &HashMap<(u8, u16), u64>) {
+    let mut view = world.remove_non_send::<DialogView>().unwrap_or_default();
+    view.opened.extend(opened.iter().map(|(k, v)| (*k, *v)));
+    world.insert_non_send(view);
+}
+
 pub fn sync_dialogs(
     world: &mut World,
     game: &PlayGame,

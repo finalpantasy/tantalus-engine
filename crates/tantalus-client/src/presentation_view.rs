@@ -17,7 +17,10 @@
 //! `counter_colon` sprites of `General Atlas` (`TimerUI.SetDisplayTime`), the leading minute
 //! digit hidden while it is 0, over a window-colored panel. The digits show while the clock
 //! runs and blink twice a second while it is stopped (`TimerUI.UpdateBlinkState`). Where the
-//! `Timer Container` prefab puts it is not in the data we read; the upper right stands in.
+//! `Timer Container` prefab (`resources.assets`, EmbeddedAsset/UI/Prefabs) puts it in the upper
+//! left: the Background sprite is 198x110 UI units centered on (-576, 471), the digit sprites
+//! are 30x58 with their top left at (-653, 498), (-620, 498), (-560, 498), (-527, 498) and the
+//! colon at (-590, 503), all in UI units from the screen center (`Digit Panel` is at (-57, -2)).
 //!
 //! Not matched: the bubble's pop-in animation and idle/act sprite swap, the exact on-screen
 //! place of the ATE prompt (its prefab is not in the data we read; the lower left stands in),
@@ -334,24 +337,11 @@ fn draw_timer(
         return;
     };
     let (digits, leading) = timer_digits(time);
-    let size = |name: &str| {
-        counters.get(name).map_or(Vec2::ZERO, |art| {
-            Vec2::new(
-                art.width as f32 / RESOURCE_X_MULTIPLIER,
-                art.height as f32 / RESOURCE_Y_MULTIPLIER,
-            )
-        })
-    };
-    let digit = size("counter_0");
-    let colon = size("counter_colon");
-    let pad = Vec2::new(8.0, 5.0);
-    let width = digit.x * 4.0 + colon.x;
-    let panel = Vec2::new(width, digit.y) + pad * 2.0;
-    let center = Vec3::new(
-        FRAME.x / 2.0 - panel.x / 2.0 - 6.0,
-        FRAME.y / 2.0 - panel.y / 2.0 - 6.0,
-        0.15,
-    );
+    // Prefab layout in UI units (y up, from the screen center), converted to frame pixels.
+    let ui = |x: f32, y: f32| Vec2::new(x / RESOURCE_X_MULTIPLIER, y / RESOURCE_Y_MULTIPLIER);
+    let digit = ui(30.0, 58.0);
+    let panel = ui(198.0, 110.0);
+    let center = ui(-576.0, 471.0).extend(0.15);
     world.spawn((
         Sprite {
             color: Color::srgba(0.07, 0.1, 0.4, 0.9),
@@ -364,8 +354,14 @@ fn draw_timer(
     if !visible {
         return;
     }
-    // Left edge of the digits, then minutes tens, ones, the colon, seconds tens, ones.
-    let mut x = center.x - width / 2.0;
+    // Minutes tens, ones, the colon, seconds tens, ones (`TimerUI` Digit3, 2, Collon, 1, 0).
+    let at = [
+        (-653.0, 498.0),
+        (-620.0, 498.0),
+        (-590.0, 503.0),
+        (-560.0, 498.0),
+        (-527.0, 498.0),
+    ];
     let slots = [
         Some(digits[0]).filter(|_| leading),
         Some(digits[1]),
@@ -377,12 +373,10 @@ fn draw_timer(
         let name = match (index, slot) {
             (2, _) => "counter_colon".to_owned(),
             (_, Some(value)) => format!("counter_{value}"),
-            (_, None) => {
-                x += digit.x;
-                continue;
-            }
+            (_, None) => continue,
         };
-        let step = if index == 2 { colon.x } else { digit.x };
+        let top_left = ui(at[index].0, at[index].1);
+        let step = if index == 2 { ui(30.0, 48.0) } else { digit };
         let Some(art) = counters.get(&name) else {
             continue;
         };
@@ -390,13 +384,16 @@ fn draw_timer(
         world.spawn((
             Sprite {
                 image: handle,
-                custom_size: Some(size(&name)),
+                custom_size: Some(step),
                 ..default()
             },
-            Transform::from_xyz(x + step / 2.0, center.y, center.z + 0.05),
+            Transform::from_xyz(
+                top_left.x + step.x / 2.0,
+                top_left.y - step.y / 2.0,
+                center.z + 0.05,
+            ),
             ChildOf(root),
         ));
-        x += step;
     }
 }
 

@@ -504,6 +504,9 @@ pub struct EncounterRequest {
 pub struct TimerState {
     /// The value `SetTime` stored (seconds).
     pub seconds: i32,
+    /// `TimerUI.Play`. Stays true after the clock reaches 0: `TimerUI.Update` only clamps
+    /// `time` at 0 and never clears `Play`; only `SetPlay(false)` (the script's
+    /// `SetTimerRunning`) or `SetEnable` does.
     pub running: bool,
     pub displayed: bool,
     /// Field ticks counted down since `SetTime` while `running`.

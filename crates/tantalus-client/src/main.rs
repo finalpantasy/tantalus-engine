@@ -655,6 +655,9 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         tantalus_client::overlay_motion::OverlayMotionState,
         tantalus_contracts::FieldSceneDescription,
     )> = None;
+    // The tick each open window first showed, so the capture's text has typed in as it
+    // would have on screen (see `dialog_view::seed_opened`).
+    let mut dialog_opened: std::collections::HashMap<(u8, u16), u64> = Default::default();
     for tick in 0..ticks {
         let mut held = holds
             .iter()
@@ -684,6 +687,15 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
             println!("{}", tantalus_client::live::describe(&event));
         }
         audio.tick(&mut game)?;
+        let now_open: Vec<(u8, u16)> = game
+            .open_dialogs()
+            .iter()
+            .map(|d| (d.window, d.text))
+            .collect();
+        dialog_opened.retain(|key, _| now_open.contains(key));
+        for key in now_open {
+            dialog_opened.entry(key).or_insert(game.ticks);
+        }
         tantalus_client::live::observe_view(&mut view, &game);
         let background = game.background().map(str::to_owned);
         if motion.as_ref().map(|(name, ..)| name) != background.as_ref() {
@@ -851,6 +863,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
             if let Some((_, state, _)) = &motion {
                 state.place_sprites(world, &field.scene);
             }
+            tantalus_client::dialog_view::seed_opened(world, &dialog_opened);
             tantalus_client::dialog_view::sync_dialogs(world, &game, &field.scene.camera, &frame);
             tantalus_client::presentation_view::sync_presentation(
                 world,
