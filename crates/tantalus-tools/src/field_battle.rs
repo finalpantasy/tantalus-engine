@@ -221,6 +221,10 @@ pub struct Equipment {
     /// `BonusId` -> element sets bonus, guard, absorb, half, weak
     /// (`Stats.csv` `BonusElement` .. `WeakElement`).
     bonus_elements: BTreeMap<i32, [u8; 5]>,
+    /// `Items.csv` equipment rows: item id, price, `TypeMask` (weapon 1,
+    /// armlet 2, helmet 4, armor 8, accessory 16) and `CharacterMask` bit
+    /// per character; for [`Equipment::gear_for_level`].
+    gear_rows: Vec<(i32, i64, u8, u16)>,
     /// Weapon id -> `StatusIndex` into `status_sets` (`Weapons.csv`).
     weapon_status_index: BTreeMap<i32, i32>,
     /// Item id -> ability ids (`Items.csv` `AbilityIds`: `AA:X` is X,
@@ -314,6 +318,8 @@ struct ActionRow {
     add_status: i32,
     mp: i32,
     ability_type: u8,
+    /// `AnimationId` (`info.VfxIndex`, 56 is Comet).
+    vfx: i32,
 }
 
 /// `CharacterPresetId` names, which are the ability file names.
@@ -395,6 +401,7 @@ impl SceneAttacks {
         command.ability_status = self.status_sets.get(&row.add_status).copied().unwrap_or(0);
         command.ability_category = row.category;
         command.ability_type = row.ability_type;
+        command.special_effect = row.vfx;
         command.target_type = row.target;
         command.is_many_target =
             !(row.target <= target_type::MANY_ENEMY || row.target >= target_type::SELF);
@@ -448,6 +455,7 @@ impl BattleHooks for SceneAttacks {
             .unwrap_or(0);
         command.ability_category = attack.category;
         command.ability_type = attack.attack_type;
+        command.special_effect = i32::from(attack.vfx_index);
         command.target_type = attack.target;
         command.is_many_target =
             !(attack.target <= target_type::MANY_ENEMY || attack.target >= target_type::SELF);
@@ -587,6 +595,19 @@ impl Equipment {
             if let (Some(id), Some(bonus)) = (int(&row, 0), int(&row, 9)) {
                 equipment.bonus_ids.insert(id, bonus);
             }
+            if let (Some(id), Some(price)) = (int(&row, 0), int(&row, 4)) {
+                let bits = |range: std::ops::Range<usize>| {
+                    range.enumerate().fold(0_u16, |mask, (bit, column)| {
+                        mask | u16::from(row.get(column).is_some_and(|v| v.trim() == "1")) << bit
+                    })
+                };
+                let kind = bits(11..16) as u8;
+                if kind != 0 {
+                    equipment
+                        .gear_rows
+                        .push((id, i64::from(price), kind, bits(21..33)));
+                }
+            }
             if let (Some(id), Some(shape)) = (int(&row, 0), int(&row, 6)) {
                 equipment.shapes.insert(id, shape.clamp(0, 255) as u8);
             }
@@ -724,6 +745,7 @@ impl Equipment {
                         add_status: int(&row, 15).unwrap_or(0),
                         mp: int(&row, 16).unwrap_or(0),
                         ability_type: byte(17),
+                        vfx: int(&row, 8).unwrap_or(0),
                     },
                 );
             }
@@ -736,6 +758,26 @@ impl Equipment {
             equipment.model_radius = parse_model_radius(&source);
         }
         Ok(equipment)
+    }
+
+    /// A level-appropriate set for `character` (a corpus and tuning aid,
+    /// not game data): per slot the dearest item the character can equip
+    /// whose price fits `level^3 / 10`. Weapon, head, wrist, armor,
+    /// accessory; -1 for a slot nothing fits.
+    pub fn gear_for_level(&self, character: i32, level: u8) -> [i32; 5] {
+        let budget = i64::from(level).pow(3) / 10;
+        // Slot -> `TypeMask` bit: weapon 1, head (helmet) 4, wrist
+        // (armlet) 2, armor 8, accessory 16.
+        let kinds = [1_u8, 4, 2, 8, 16];
+        kinds.map(|kind| {
+            self.gear_rows
+                .iter()
+                .filter(|(_, price, mask, who)| {
+                    mask & kind != 0 && *price <= budget && who >> character & 1 != 0
+                })
+                .max_by_key(|(id, price, _, _)| (*price, *id))
+                .map_or(-1, |row| row.0)
+        })
     }
 
     /// The five items a member fights with: what the field world carries
@@ -865,6 +907,16 @@ fn int(row: &[&str], index: usize) -> Option<i32> {
 }
 
 impl FieldBattles {
+    /// The equipment tables.
+    pub fn equipment(&self) -> &Equipment {
+        &self.equipment
+    }
+
+    /// Every battle id the scene table names, ascending.
+    pub fn battle_ids(&self) -> Vec<u16> {
+        self.scene_ids.keys().copied().collect()
+    }
+
     /// `streaming_assets` holds `p0data2.bin` (scenes); `event_bundle` holds
     /// the `EVT_BATTLE_*` AI scripts; `scene_ids` is the id table.
     pub fn load(
@@ -1263,6 +1315,8 @@ impl FieldBattles {
             events_seen: 0,
             sent: 0,
             countered: false,
+            healers: Vec::new(),
+            max_hit: 0,
             stage,
             tick: 0,
             log_seen: 0,
@@ -1753,6 +1807,10 @@ pub struct LiveFight {
     sent: u32,
     /// An enemy counter command aimed at the party has run: the stand-in Vivi stops casting.
     countered: bool,
+    /// Enemies seen healing another enemy: a player attacks them first.
+    healers: Vec<usize>,
+    /// The largest single hit a party member has taken this fight.
+    max_hit: u32,
     stage: crate::battle_stage::BattleStage,
     tick: u64,
     /// Read position into the machine's event log, for the stage record.
@@ -1921,8 +1979,11 @@ impl LiveFight {
                 && !machine.units[*i].is_under_any_status(DEATH)
         };
         let mut enemies = (party.len()..machine.units.len()).filter(standing);
+        let healers = &self.healers;
         let target = if self.report.ticks > STALEMATE_TICKS {
             enemies.min_by_key(|&i| machine.units[i].cur_hp)
+        } else if let Some(healer) = enemies.clone().find(|i| healers.contains(i)) {
+            Some(healer)
         } else {
             enemies.next()
         };
@@ -1947,6 +2008,13 @@ impl LiveFight {
         // left gets a Potion, or a Hi-Potion once those run out.
         // An ally already named by a queued or running Item command
         // is skipped, so two members do not spend turns on one heal.
+        // A lone fighter has no one to cover a bad round: he heals while he
+        // can still be killed in three hits like the biggest so far.
+        let max_hit = if self.party.len() == 1 {
+            self.max_hit
+        } else {
+            0
+        };
         let healing = |i: usize| {
             let id = machine.units[i].id;
             machine.cmds.queue.iter().chain(&machine.running).any(|&c| {
@@ -1962,7 +2030,8 @@ impl LiveFight {
                 let u = &machine.units[i];
                 machine.sched[i].in_list
                     && u.cur_hp > 0
-                    && u.cur_hp * 5 < u.max_hp * 3
+                    && (u.cur_hp * 5 < u.max_hp * 3
+                        || (max_hit > 0 && u.cur_hp < u.max_hp && u.cur_hp <= max_hit * 3))
                     && !healing(i)
             })
             .min_by_key(|&i| machine.units[i].cur_hp * 1000 / machine.units[i].max_hp.max(1));
@@ -2092,6 +2161,33 @@ impl LiveFight {
                             u.status_current
                         );
                     }
+                }
+            }
+            // An enemy whose effect raised another enemy's HP is a healer.
+            for (_, event) in &machine.log[self.log_seen.min(machine.log.len())..] {
+                if let tantalus_legacy::battle::machine::BattleEvent::EffectApplied {
+                    caster,
+                    target,
+                    target_hp,
+                } = event
+                    && *caster >= self.party.len()
+                    && *target >= self.party.len()
+                    && caster != target
+                    && self.hp.get(*target).is_some_and(|hp| target_hp > hp)
+                    && !self.healers.contains(caster)
+                {
+                    self.healers.push(*caster);
+                }
+                if let tantalus_legacy::battle::machine::BattleEvent::EffectApplied {
+                    target,
+                    target_hp,
+                    ..
+                } = event
+                    && *target < self.party.len()
+                    && let Some(&before) = self.hp.get(*target)
+                    && *target_hp < before
+                {
+                    self.max_hit = self.max_hit.max(before - target_hp);
                 }
             }
             let events = crate::battle_stage::stage_events(
@@ -2822,6 +2918,27 @@ mod tests {
             unit.status_resist & tantalus_legacy::battle::status::POISON,
             0
         );
+    }
+
+    #[test]
+    fn gear_for_level_picks_the_dearest_fitting_item_the_character_can_use() {
+        // (id, price, type mask, character mask): weapons for Zidane (bit
+        // 0) and Vivi (bit 1), a helmet for everyone.
+        let equipment = Equipment {
+            gear_rows: vec![
+                (1, 300, 1, 0b01),
+                (2, 900, 1, 0b01),
+                (3, 20_000, 1, 0b01),
+                (4, 500, 1, 0b10),
+                (5, 400, 4, 0b11),
+            ],
+            ..Equipment::default()
+        };
+        // Level 20: budget 800.
+        assert_eq!(equipment.gear_for_level(0, 20), [1, 5, -1, -1, -1]);
+        assert_eq!(equipment.gear_for_level(1, 20), [4, 5, -1, -1, -1]);
+        // Level 30: budget 2700.
+        assert_eq!(equipment.gear_for_level(0, 30)[0], 2);
     }
 
     #[test]

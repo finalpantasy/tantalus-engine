@@ -1781,8 +1781,8 @@ fn ctor_zero_will_is_an_error() {
 
 #[test]
 fn unported_script_is_an_error() {
-    let mut r = Rig::new(59);
-    assert_eq!(r.try_run(&[7]).unwrap_err(), CalcError::UnportedScript(59));
+    let mut r = Rig::new(200);
+    assert_eq!(r.try_run(&[7]).unwrap_err(), CalcError::UnportedScript(200));
 }
 
 /// Script 26 (`0026_ThousandNeedlesScript.cs`): Power * 100 + HitRate.
@@ -2282,5 +2282,93 @@ fn spear_is_a_weapon_hit() {
     let mut r = Rig::new(48);
     r.cmd.ability_category = 8;
     let o = r.run(&[7, 9999]);
+    assert!(o.target.hp_damage > 0, "{o:?}");
+}
+
+#[test]
+fn might_raises_strength_and_misses_when_nothing_changes() {
+    let mut r = Rig::new(43);
+    r.cmd.power = 4;
+    r.t().strength = 40;
+    let o = r.run(&[7]);
+    assert_eq!(r.t().strength, 50);
+    assert!(!miss(&o));
+    r.t().strength = 0;
+    let o = r.run(&[7]);
+    assert!(miss(&o), "an unchanged stat is Invalid, so Miss");
+    r.t().strength = 98;
+    r.run(&[7]);
+    assert_eq!(r.t().strength, 99);
+    r.cmd.power = 0;
+    assert!(r.try_run(&[7]).is_err());
+}
+
+#[test]
+fn absorb_magic_and_strength_halve_the_target_and_double_the_caster() {
+    let mut r = Rig::new(94);
+    r.t().magic = 41;
+    r.c().magic = 30;
+    let o = r.run(&[7]);
+    assert!(!miss(&o));
+    assert_eq!((r.t().magic, r.c().magic), (20, 60));
+    let mut r = Rig::new(95);
+    r.t().strength = 60;
+    r.c().strength = 200;
+    r.run(&[7]);
+    assert_eq!((r.t().strength, r.c().strength), (30, 255));
+    // A target that resists the status guards and the caster gains nothing.
+    let mut r = Rig::new(95);
+    r.t().strength = 60;
+    r.c().strength = 20;
+    r.t().status_resist |= tantalus_legacy::battle::status::CHANGE_STAT;
+    let o = r.run(&[7]);
+    assert!(o.flags.has(CalcFlags::GUARD));
+    assert_eq!((r.t().strength, r.c().strength), (60, 20));
+}
+
+#[test]
+fn scan_shows_libra_unless_the_target_is_easy_kill_protected() {
+    let mut r = Rig::new(59);
+    assert!(r.run(&[7]).libra);
+    let mut r = Rig::new(59);
+    r.t().status_current |= tantalus_legacy::battle::status::EASY_KILL;
+    let o = r.run(&[7]);
+    assert!(!o.libra && miss(&o));
+}
+
+#[test]
+fn melt_deals_the_casters_hp_and_kills_the_caster() {
+    let mut r = Rig::new(88);
+    r.c().cur_hp = 321;
+    let o = r.run(&[7]);
+    assert_eq!(o.target.hp_damage, 321);
+    assert!(o.caster_dies);
+    let mut r = Rig::new(88);
+    r.c().cur_hp = 0;
+    assert!(!r.run(&[7]).caster_dies);
+}
+
+#[test]
+fn swallow_removes_the_target() {
+    let mut r = Rig::new(106);
+    assert!(r.run(&[7]).target_removed);
+}
+
+#[test]
+fn comet_misses_on_a_high_roll_and_meteor_never_misses_by_itself() {
+    let mut r = Rig::new(18);
+    r.cmd.special_effect = 56;
+    let o = r.run_kinds(&[(Draw::Random16, 7), (Draw::Random8, 200)]);
+    assert!(miss(&o));
+    // Not a Comet: no roll, then `Next16() % (Magic + Level)` is the attack.
+    let mut r = Rig::new(18);
+    r.cmd.power = 56;
+    r.cmd.ability_category = 16;
+    let o = r.run_kinds(&[
+        (Draw::Random16, 7),
+        (Draw::Random16, 100),
+        (Draw::Random16, 5),
+    ]);
+    assert!(!miss(&o), "{o:?}");
     assert!(o.target.hp_damage > 0, "{o:?}");
 }

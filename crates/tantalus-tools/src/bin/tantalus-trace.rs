@@ -89,6 +89,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut fight_battle: Option<i32> = None;
     let mut fight_party: Vec<i32> = vec![0];
     let mut fight_level: usize = 1;
+    let mut fight_corpus = false;
+    let mut fight_gear = false;
     let mut fight_globals = tantalus_tools::field_battle::PartyGlobals::default();
     let mut fight_items: std::collections::BTreeMap<i32, i32> = Default::default();
     let mut fight_hp: std::collections::BTreeMap<i32, u32> = Default::default();
@@ -387,6 +389,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
             }
             "--confirm-after" => confirm_after = parse_number(&value()?, "--confirm-after")?,
             "--battle" => fight_battle = Some(parse_number(&value()?, "--battle")?),
+            "--corpus" => fight_corpus = true,
+            "--gear" => fight_gear = true,
             "--level" => fight_level = parse_number(&value()?, "--level")?,
             "--party" => {
                 fight_party = value()?
@@ -455,7 +459,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
             let bundle = bundle.ok_or("--bundle is required")?;
             let ids = battle_ids.ok_or("--battles is required")?;
             let dir = character_data.ok_or("--character-data is required")?;
-            let battle = fight_battle.ok_or("--battle is required")?;
+            let battle = fight_battle.unwrap_or(0);
             let read = |name: &str| {
                 let path = dir.join(name);
                 std::fs::read_to_string(&path)
@@ -499,11 +503,39 @@ fn run(args: Vec<String>) -> Result<(), String> {
                         globals: fight_globals,
                         row: 1,
                         trance: 0,
-                        equip: None,
+                        equip: fight_gear.then(|| {
+                            battles
+                                .equipment()
+                                .gear_for_level(*character, fight_level.clamp(1, 99) as u8)
+                        }),
                         support: 0,
                     })
                 })
                 .collect();
+            if fight_corpus {
+                // One line per battle id: id, outcome, ticks, error.
+                for id in battles.battle_ids() {
+                    let request = tantalus_game::field::world::EncounterRequest {
+                        rush: 0,
+                        group: None,
+                        battle: i32::from(id),
+                        steiner_state: false,
+                        timer: None,
+                    };
+                    let report = battles.fight_with_items(&request, &party, &fight_items);
+                    println!(
+                        "{id}	{}	{}	{}",
+                        report.outcome.as_deref().unwrap_or("none"),
+                        report.ticks,
+                        report
+                            .ai_error
+                            .as_deref()
+                            .or(report.error.as_deref())
+                            .unwrap_or("")
+                    );
+                }
+                return Ok(());
+            }
             let request = tantalus_game::field::world::EncounterRequest {
                 rush: 0,
                 group: None,

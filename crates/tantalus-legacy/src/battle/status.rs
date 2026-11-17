@@ -43,6 +43,7 @@ pub const MINI: u64 = 1 << 28;
 pub const REFLECT: u64 = 1 << 29;
 pub const JUMP: u64 = 1 << 30;
 pub const GRADUAL_PETRIFY: u64 = 1 << 31;
+pub const CHANGE_STAT: u64 = 1 << 32;
 
 // `BattleStatusConst` (`BattleStatus.cs:117-172`), values spelled out from
 // the C# initializers.

@@ -451,6 +451,11 @@ pub enum BattleEvent {
     UnitRemoved {
         unit: usize,
     },
+    /// Scan showed the target's information (`BattleUnit.Libra`).
+    Libra {
+        caster: usize,
+        target: usize,
+    },
     /// `CheckReflec` redirected a command: `mode` 1 aims it at `targets`,
     /// mode 2 keeps the non-reflecting targets and replays on `targets`.
     Reflected {
@@ -2476,6 +2481,15 @@ impl Battle {
                     result,
                 });
             }
+            if outcome.libra {
+                self.emit(BattleEvent::Libra { caster, target: t });
+            }
+            if outcome.caster_dies && self.units[caster].cur_hp != 0 {
+                self.units[caster].kill();
+            }
+            if outcome.target_removed {
+                self.remove_unit(t);
+            }
             let target_hp = self.units[t].cur_hp;
             self.emit(BattleEvent::EffectApplied {
                 caster,
@@ -2495,6 +2509,7 @@ impl Battle {
         Ok(())
     }
 
+<<<<<<< Updated upstream
     /// `TroubleStatusScript.OnFigurePoint` (`Scripts/DefaultStatus/
     /// TroubleStatusScript.cs:21-37`): a damaging hit on a Troubled target
     /// (`RaiseTrouble` set the flag before the blow) hurts every other
@@ -2540,6 +2555,18 @@ impl Battle {
                 damage,
             });
         }
+=======
+    /// `BattleUnit.Remove` (`BattleUnit.cs:592`): the unit's commands go,
+    /// it leaves the list (no longer counts for either side) and the battle
+    /// phase is rechecked so a side with no one left ends the fight.
+    fn remove_unit(&mut self, i: usize) {
+        self.cmds.kill_standard_commands(i);
+        self.sched[i].targetable = false;
+        self.sched[i].in_list = false;
+        self.sched[i].die_seq = 6;
+        self.emit(BattleEvent::UnitRemoved { unit: i });
+        self.check_battle_phase(i);
+>>>>>>> Stashed changes
     }
 
     /// Jump (`btl_cmd.cs:1025`, `JumpStatusScript.Apply` and

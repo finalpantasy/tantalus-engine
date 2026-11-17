@@ -81,6 +81,11 @@ pub struct BattleCommand {
     /// `Weapon.Find(ItemId).Power` (`Command.Weapon.Power`, script 42); `None`
     /// when no weapon row is known for the command's item.
     pub item_weapon_power: Option<i32>,
+    /// `info.meteor_miss` (`BattleCommand.IsMeteorMiss`); the game never
+    /// sets it (`btl_cmd.DecideMeteor` is dummied).
+    pub is_meteor_miss: bool,
+    /// `aa.Info.VfxIndex` (`BattleCommand.SpecialEffect`); 56 is Comet.
+    pub special_effect: i32,
 }
 
 impl BattleCommand {
@@ -108,6 +113,8 @@ impl BattleCommand {
             item: None,
             item_count: 0,
             item_weapon_power: None,
+            is_meteor_miss: false,
+            special_effect: 0,
         }
     }
 

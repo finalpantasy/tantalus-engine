@@ -4,9 +4,9 @@
 //! `BaseWeaponScript.cs`. Only `Perform` is ported; the `RateTarget`
 //! estimators (enemy AI scoring) are separate code paths.
 //!
-//! Ported ids: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 19 20 21 22 23 25 26
-//! 27 30 42 44 48 55 58 62 63 64 69 70 71 72 73 74 75 76 77 91 93 96 97 99 100
-//! 103 109. Every other id returns
+//! Ported ids: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 25
+//! 26 27 30 42 43 44 48 55 58 59 62 63 64 69 70 71 72 73 74 75 76 77 88 91 93
+//! 94 95 96 97 99 100 103 106 109. Every other id returns
 //! [`CalcError::UnportedScript`].
 
 use super::calc::{AttackBonus, CalcError, CalcFlags, Calculator, EatResult, UnitFlags};
@@ -36,6 +36,7 @@ pub fn perform(id: i32, v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Calc
         15 => drain_mp(v, rng),
         16 => drain_hp(v, rng),
         17 => magic_gravity_damage(v, rng),
+        18 => meteorite(v, rng),
         19 => physical_attack(v, rng),
         20 => original_magic_attack(v, rng),
         21 => goblin_punch(v, rng),
@@ -46,6 +47,7 @@ pub fn perform(id: i32, v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Calc
         27 => direct_hp_damage(v, rng),
         30 => white_wind(v),
         42 => throw(v, rng),
+        43 => might(v),
         44 => focus(v),
         48 => spear(v, rng),
         55 => change_row(v),
@@ -64,12 +66,17 @@ pub fn perform(id: i32, v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Calc
         75 => dead_pepper(v),
         76 => tent(v, rng),
         77 => dark_matter(v),
+        59 => scan(v),
+        88 => melt(v),
         91 => cannon(v, rng),
+        94 => absorb_stat(v, Stat::Magic),
+        95 => absorb_stat(v, Stat::Strength),
         93 => maelstrom(v, rng),
         96 => trance_full(v, rng),
         97 => entice(v, rng),
         99 => flare_star(v, rng),
         100 => precise_enemy_physical_attack(v, rng),
+        106 => swallow(v),
         103 => magic_apply_positive_status(v, rng),
         109 => mini(v, rng),
         other => Err(CalcError::UnportedScript(other)),
@@ -97,6 +104,130 @@ fn focus(v: &mut Calculator<'_>) -> Result<(), CalcError> {
     }
     let magic = i32::from(v.t().magic);
     v.t_mut().magic = (magic + magic / power).min(99) as u8;
+    Ok(())
+}
+
+/// `SpecialEffect.Comet` (`SpecialEffect.cs:41`).
+const SPECIAL_EFFECT_COMET: i32 = 56;
+
+/// Script 18, Meteor and Comet (`0018_MeteoriteScript.cs`).
+fn meteorite(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
+    if v.command.is_meteor_miss
+        || (v.command.special_effect == SPECIAL_EFFECT_COMET && rng.random8() > 170)
+    {
+        v.flags.0 |= CalcFlags::MISS;
+        return Ok(());
+    }
+    let span = i32::from(v.c().magic) + i32::from(v.c().level);
+    if span == 0 {
+        return Err(CalcError::DivideByZero(
+            "Next16() % (Caster.Magic + Caster.Level)",
+        ));
+    }
+    v.attack = rng.random16() % span;
+    v.set_command_power();
+    v.defense_power = 0;
+    v.caster_enemy_trance_bonus_attack();
+    v.caster_penalty_mini();
+    v.target_penalty_shell_attack();
+    v.penalty_command_divided_attack();
+    v.bonus_element();
+    if v.can_attack_magic() {
+        v.calc_hp_damage();
+        v.try_alter_magic_statuses(rng);
+    }
+    Ok(())
+}
+
+/// A stat the `ChangeStat` status script sets (`ChangeStatStatusScript.cs`).
+#[derive(Clone, Copy)]
+enum Stat {
+    Strength,
+    Magic,
+}
+
+/// `ChangeStatStatusScript.Apply` for one stat: the unit takes `amount`
+/// (clamped to a byte); false when it already has that value (the status
+/// reports `Invalid`). The status lasts the battle, so no undo is kept.
+fn set_stat(unit: &mut super::unit::BattleUnit, stat: Stat, amount: i32) -> bool {
+    let amount = amount.clamp(0, 255) as u8;
+    let slot = match stat {
+        Stat::Strength => &mut unit.strength,
+        Stat::Magic => &mut unit.magic,
+    };
+    if *slot == amount {
+        return false;
+    }
+    *slot = amount;
+    true
+}
+
+/// `Target.TryAlterSingleStatus(ChangeStat, true, ...)`: a resisting target
+/// guards, an unchanged stat misses.
+fn target_change_stat(v: &mut Calculator<'_>, stat: Stat, amount: i32) {
+    if v.t().status_resist & status::CHANGE_STAT != 0 {
+        v.flags.0 |= CalcFlags::GUARD;
+    } else if !set_stat(v.t_mut(), stat, amount) {
+        v.flags.0 |= CalcFlags::MISS;
+    }
+}
+
+/// Script 43, Might (`0043_MightScript.cs`): Strength becomes
+/// `min(99, Strength + Strength / Power)`.
+fn might(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    let power = v.command.power;
+    if power == 0 {
+        return Err(CalcError::DivideByZero("Target.Strength / Command.Power"));
+    }
+    let strength = i32::from(v.t().strength);
+    target_change_stat(v, Stat::Strength, (strength + strength / power).min(99));
+    Ok(())
+}
+
+/// Scripts 94 and 95, Absorb Magic and Absorb Strength: the target's stat
+/// halves; when that landed (no Miss or Guard) the caster's doubles
+/// (`0094_AbsorbMagicScript.cs`, `0095_AbsorbStrengthScript.cs`).
+fn absorb_stat(v: &mut Calculator<'_>, stat: Stat) -> Result<(), CalcError> {
+    let read = |unit: &super::unit::BattleUnit| match stat {
+        Stat::Strength => i32::from(unit.strength),
+        Stat::Magic => i32::from(unit.magic),
+    };
+    let target = read(v.t());
+    target_change_stat(v, stat, target / 2);
+    if v.flags.0 & (CalcFlags::MISS | CalcFlags::GUARD) == 0 {
+        let caster = read(v.c());
+        if v.c().status_resist & status::CHANGE_STAT == 0 {
+            set_stat(v.c_mut(), stat, (caster * 2).min(255));
+        }
+    }
+    Ok(())
+}
+
+/// Script 59, Scan (`0059_ScanScript.cs`): `Libra` on a target that is not
+/// Easy Kill protected (the display itself is the client's).
+fn scan(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    if v.target_check_unsafety_or_miss() {
+        v.libra = true;
+    }
+    Ok(())
+}
+
+/// Script 88, Melt (`0088_MeltScript.cs`): the target takes the caster's
+/// current HP and the caster dies once the effect has landed (the delayed
+/// modifier).
+fn melt(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    v.target_calc.flags.0 |= UnitFlags::HP_ALTERATION;
+    v.target_calc.hp_damage = v.c().cur_hp as i32;
+    if v.c().cur_hp != 0 {
+        v.caster_dies = true;
+    }
+    Ok(())
+}
+
+/// Script 106, Swallow (`0106_SwallowScript.cs`): `Target.Remove()` takes
+/// the unit out of the battle.
+fn swallow(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    v.target_removed = true;
     Ok(())
 }
 

@@ -131,6 +131,12 @@ pub struct CalcOutcome {
     pub stolen: Option<Option<u32>>,
     /// Eat (script 65) ran: `Context.EatResult`.
     pub eaten: Option<EatResult>,
+    /// Scan (script 59) ran: the target's `Libra` display.
+    pub libra: bool,
+    /// Swallow (script 106) ran: `BattleUnit.Remove` on the target.
+    pub target_removed: bool,
+    /// Melt (script 88) ran: the caster's delayed `Kill`.
+    pub caster_dies: bool,
 }
 
 /// `EatResult`: what Eat or Cook did. `Yummy` carries the target's
@@ -180,6 +186,12 @@ pub struct Calculator<'a> {
     pub stolen: Option<Option<u32>>,
     /// See [`CalcOutcome::eaten`].
     pub eaten: Option<EatResult>,
+    /// See [`CalcOutcome::libra`].
+    pub libra: bool,
+    /// See [`CalcOutcome::target_removed`].
+    pub target_removed: bool,
+    /// See [`CalcOutcome::caster_dies`].
+    pub caster_dies: bool,
 }
 
 type Rng<'r> = &'r mut dyn BattleRandom;
@@ -225,6 +237,9 @@ impl<'a> Calculator<'a> {
             perform_calc_result: true,
             stolen: None,
             eaten: None,
+            libra: false,
+            target_removed: false,
+            caster_dies: false,
         };
         calc.initial_check_point = calc.check_point(rng);
         let draw = rng.random16();
@@ -1248,6 +1263,9 @@ pub fn calc_result(v: &mut Calculator<'_>, rng: Rng<'_>) -> CalcOutcome {
         dodged,
         stolen: v.stolen,
         eaten: v.eaten,
+        libra: v.libra,
+        target_removed: v.target_removed,
+        caster_dies: v.caster_dies,
     }
 }
 
@@ -1382,6 +1400,9 @@ pub fn calc_main(
             dodged: false,
             stolen: v.stolen,
             eaten: v.eaten,
+            libra: v.libra,
+            target_removed: v.target_removed,
+            caster_dies: v.caster_dies,
         })
     }
 }
