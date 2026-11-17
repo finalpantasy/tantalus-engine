@@ -1,3 +1,4 @@
+pub mod actor_gpu;
 pub mod actor_models;
 pub mod animation_adapter;
 pub mod audio;

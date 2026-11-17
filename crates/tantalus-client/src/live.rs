@@ -310,6 +310,7 @@ pub fn play(
                 }),
         )
         .add_plugins(crate::psx_blend::PsxBlendPlugin)
+        .add_plugins(crate::actor_gpu::ActorGpuPlugin)
         .insert_resource(Live {
             game: std::sync::Mutex::new(game),
             streaming_assets,

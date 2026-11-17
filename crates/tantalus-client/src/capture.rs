@@ -120,7 +120,8 @@ fn capture_with(
             1.0 / 60.0,
         )))
         .add_plugins(ImageCopyPlugin)
-        .add_plugins(crate::psx_blend::PsxBlendPlugin);
+        .add_plugins(crate::psx_blend::PsxBlendPlugin)
+        .add_plugins(crate::actor_gpu::ActorGpuPlugin);
 
     let mut adapter = ClientSceneAdapter::with_app(app);
     let target = adapter

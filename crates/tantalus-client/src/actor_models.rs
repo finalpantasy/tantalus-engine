@@ -96,6 +96,9 @@ impl Texels<'_> {
     }
 }
 
+/// One projected triangle with its texture, if any.
+pub type Triangle<'a> = ([ScreenVertex; 3], Option<Texels<'a>>);
+
 /// A rasterized actor. `origin` is the field-space top-left corner
 /// (x right, y up); each raster pixel is `1 / RASTER_SCALE` field pixels.
 #[derive(Debug, Clone, PartialEq)]
@@ -671,6 +674,23 @@ impl ActorModels {
         pose: &ActorPose,
         carried: &[CarriedPose],
     ) -> Option<Raster> {
+        let triangles = self.carrying_triangles(camera, position, pose, carried)?;
+        let t0 = std::time::Instant::now();
+        let out = rasterize(&triangles);
+        crate::live::bench::record("a_raster", t0.elapsed().as_secs_f64() * 1000.0);
+        crate::live::bench::record("a_tris", triangles.len() as f64);
+        out
+    }
+
+    /// The screen triangles of [`Self::render_carrying`], before they are
+    /// drawn (by [`rasterize`] or the GPU path).
+    pub fn carrying_triangles(
+        &self,
+        camera: &LegacyFieldCamera,
+        position: [f32; 3],
+        pose: &ActorPose,
+        carried: &[CarriedPose],
+    ) -> Option<Vec<Triangle<'_>>> {
         let model = self.models.get(&pose.model?)?.as_ref()?;
         let t0 = std::time::Instant::now();
         let poses = self.node_poses(model, pose);
@@ -718,11 +738,7 @@ impl ActorModels {
             }
         }
         crate::live::bench::record("a_collect", t0.elapsed().as_secs_f64() * 1000.0);
-        let t0 = std::time::Instant::now();
-        let out = rasterize(&triangles);
-        crate::live::bench::record("a_raster", t0.elapsed().as_secs_f64() * 1000.0);
-        crate::live::bench::record("a_tris", triangles.len() as f64);
-        out
+        Some(triangles)
     }
 }
 
