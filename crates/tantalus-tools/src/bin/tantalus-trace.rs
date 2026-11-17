@@ -39,7 +39,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--wall-regions MAP,...] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--wall-regions MAP,...] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -83,6 +83,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut waypoint_objects: BTreeSet<(i32, i32)> = BTreeSet::new();
     let mut settle_ticks: u64 = CONTROL_SETTLE;
     let mut talk_grace: u64 = 0;
+    let mut heal_after_battle = false;
+    let mut win_battles: BTreeSet<i32> = BTreeSet::new();
     let mut fight_battle: Option<i32> = None;
     let mut fight_party: Vec<i32> = vec![0];
     let mut fight_globals = tantalus_tools::field_battle::PartyGlobals::default();
@@ -291,6 +293,12 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 }
             }
             "--settle" => settle_ticks = parse_number(&value()?, "--settle")?,
+            "--win-battles" => {
+                for part in value()?.split(',') {
+                    win_battles.insert(parse_number(part, "--win-battles")?);
+                }
+            }
+            "--heal-after-battle" => heal_after_battle = true,
             "--talk-grace" => talk_grace = parse_number(&value()?, "--talk-grace")?,
             "--waypoint-objects" => {
                 for part in value()?.split(',') {
@@ -591,6 +599,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     waypoint_objects,
                     settle_ticks,
                     talk_grace,
+                    heal_after_battle,
+                    win_battles,
                     backgrounds,
                     waypoints,
                     save_at,
@@ -1160,6 +1170,12 @@ struct ChainOptions {
     /// (`--talk-grace`): a talk that starts a scene (Fossil Roo's gargant
     /// ride) takes control a tick or two later. 0 keeps the old behavior.
     talk_grace: u64,
+    /// Restore the party's HP and MP after each fight (`--heal-after-battle`): a probe
+    /// stand-in for the potions and tents a played game uses between fights.
+    heal_after_battle: bool,
+    /// Battle numbers the probe counts as won without fighting (`--win-battles`), for fights
+    /// the stand-in battle engine cannot win yet.
+    win_battles: BTreeSet<i32>,
     /// `EventEngineUtils.eventIDToFBGID`: field map number to background
     /// name, whose `<name>.bgi` walkmesh backs `BGI` triangle queries.
     backgrounds: BTreeMap<i32, String>,
@@ -1268,6 +1284,8 @@ fn chain(
         waypoint_objects,
         settle_ticks,
         talk_grace,
+        heal_after_battle,
+        win_battles,
         backgrounds,
         waypoints,
         save_at,
@@ -1392,7 +1410,8 @@ fn chain(
     world.cards = (0..start_cards).collect();
     if start_exp > 0 {
         // A fresh-world probe of a late scene: the party has the level a played game has.
-        for character in world.party.clone() {
+        // Characters who join later start from the same experience (the playable cast is 0..=11).
+        for character in 0..12 {
             world.apply_experience(character, start_exp);
         }
     }
@@ -1740,6 +1759,9 @@ fn chain(
                             })
                             .collect();
                         for request in &step.encounters {
+                            if win_battles.contains(&request.battle) {
+                                continue;
+                            }
                             let items = director.world().items.clone();
                             let report = field_battles.fight_with_items(request, &party, &items);
                             tantalus_tools::field_battle::save_party(&report, director.world_mut());
@@ -1748,6 +1770,12 @@ fn chain(
                                 director.world_mut(),
                             );
                             fights.push(report);
+                            if heal_after_battle {
+                                for stats in director.world_mut().character_stats.values_mut() {
+                                    stats.current_hp = stats.max_hp;
+                                    stats.current_mp = stats.max_mp;
+                                }
+                            }
                         }
                         // A lost fight that allows a game over ends the game
                         // (`btl_sys.ManageBattleEnd`, `GameOverUI`).
