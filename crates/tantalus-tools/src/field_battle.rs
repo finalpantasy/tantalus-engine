@@ -2729,6 +2729,21 @@ fn apply_support_abilities(unit: &mut BattleUnit, support: u64) {
             _ => {}
         }
     }
+    // HP+10%/20% and MP+10%/20% (SA 5-8, `AbilityFeatures.txt` `Permanent` `MaxHP + MaxHP / 10`,
+    // `/ 5`): `CharacterAbilityGems.TriggerOnEnable` rewrites `play.max.hp` / `max.mp`; the
+    // dearer ability replaces the cheaper one (`ff9abil.GetHierarchyFromAnySA` banishes it).
+    // The limits are the default `maxHpLimit` 9999 and `maxMpLimit` 999.
+    let has = |bit: u8| support & (1 << bit) != 0;
+    if has(6) {
+        unit.max_hp = (unit.max_hp + unit.max_hp / 5).min(9999);
+    } else if has(5) {
+        unit.max_hp = (unit.max_hp + unit.max_hp / 10).min(9999);
+    }
+    if has(8) {
+        unit.max_mp = (unit.max_mp + unit.max_mp / 5).min(999);
+    } else if has(7) {
+        unit.max_mp = (unit.max_mp + unit.max_mp / 10).min(999);
+    }
 }
 
 #[cfg(test)]
@@ -2918,6 +2933,25 @@ mod tests {
             unit.status_resist & tantalus_legacy::battle::status::POISON,
             0
         );
+    }
+
+    #[test]
+    fn hp_and_mp_percent_abilities_raise_the_maximums() {
+        let mut unit = BattleUnit::new(1, true);
+        unit.max_hp = 1000;
+        unit.max_mp = 100;
+        apply_support_abilities(&mut unit, 1 << 5 | 1 << 7);
+        assert_eq!((unit.max_hp, unit.max_mp), (1100, 110));
+        let mut unit = BattleUnit::new(1, true);
+        unit.max_hp = 1000;
+        unit.max_mp = 100;
+        // HP+20% replaces HP+10%; the caps are 9999 and 999.
+        apply_support_abilities(&mut unit, 1 << 5 | 1 << 6 | 1 << 8);
+        assert_eq!((unit.max_hp, unit.max_mp), (1200, 120));
+        unit.max_hp = 9000;
+        unit.max_mp = 990;
+        apply_support_abilities(&mut unit, 1 << 6 | 1 << 8);
+        assert_eq!((unit.max_hp, unit.max_mp), (9999, 999));
     }
 
     #[test]

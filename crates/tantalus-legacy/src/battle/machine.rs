@@ -305,7 +305,12 @@ impl UnitSched {
             die_seq: 0,
             die_fade_rate: 32,
             die_wait: 0,
-            mp_cost_factor: 100,
+            // Half MP (SA 34): `Permanent MPCostFactor / 2` on the default 100.
+            mp_cost_factor: if unit.has_support_ability(34) {
+                50
+            } else {
+                100
+            },
             bonus_exp: 0,
         }
     }
@@ -638,7 +643,7 @@ impl Battle {
         let sched: Vec<UnitSched> = units.iter().map(|u| UnitSched::new(u, base)).collect();
         let escape_owner = units.iter().position(|u| u.is_player);
         let cmds = CommandQueue::new(units.len(), escape_owner);
-        Self {
+        let mut battle = Self {
             units,
             sched,
             cmds,
@@ -664,7 +669,60 @@ impl Battle {
             jumps: std::collections::BTreeMap::new(),
             magic_swords: Vec::new(),
             log: Vec::new(),
+        };
+        battle.init_permanent_statuses();
+        battle
+    }
+
+    /// The permanent-status half of `btl_init.InitBattleData` / `InitEnemyData`
+    /// (`btl_init.cs:448-462`, `:530-536`): the permanent set (Auto-Haste,
+    /// Auto-Regen, Auto-Reflect, Auto-Float, an enemy's `AutoStatus`) is put
+    /// aside, the resist set is cleared, and `MakeStatusesPermanent` alters
+    /// each status in properly (`btl_stat.cs:176-185`) so it is a current
+    /// status with its script side effects (Haste's gauge coefficient) and its
+    /// tick counters (Regen's `OnOpr`), then marked permanent. Without this a
+    /// permanent status sat in `status_permanent` only: `alter_status` refused
+    /// it and nothing ticked or sped the gauge up.
+    fn init_permanent_statuses(&mut self) {
+        struct NoDraw;
+        impl BattleRandom for NoDraw {
+            fn random16(&mut self) -> i32 {
+                0
+            }
+            fn random8(&mut self) -> i32 {
+                0
+            }
+            fn random_range(&mut self, min: i32, _max_exclusive: i32) -> i32 {
+                min
+            }
+            fn random_unit(&mut self) -> f32 {
+                0.0
+            }
         }
+        let prev = self.snapshot();
+        let env = self.status_env();
+        for i in 0..self.units.len() {
+            let permanent = self.units[i].status_permanent & !self.units[i].status_current;
+            if permanent == 0 {
+                continue;
+            }
+            let resist = self.units[i].status_resist;
+            self.units[i].status_permanent &= !permanent;
+            self.units[i].status_resist = 0;
+            let ctx = StatusCtx {
+                table: &self.table,
+                env: &env,
+            };
+            for id in ids_of(permanent) {
+                alter_status(&mut self.units[i], id, false, &ctx, &mut NoDraw);
+            }
+            // `permanent_on_hold` (`btl_stat.cs:184`): a status that could not be applied
+            // yet stays permanent and is applied when its blocker goes.
+            let unit = &mut self.units[i];
+            unit.status_permanent |= permanent;
+            unit.status_resist = resist;
+        }
+        self.sync(&prev);
     }
 
     pub(super) fn emit(&mut self, e: BattleEvent) {

@@ -21,6 +21,10 @@
 #   --ate MAP:N           press Select at the Active Time Event icon (up to N times) in those fields
 #   --region-talks 557    press Confirm inside script-listed tag-3 regions
 #   --hold 557:16,565:16  the temple climb (hold Up)
+#   --win-battles 296     the Black Waltz No. 3 fight on the cargo ship (EVT_BATTLE_CA_E013, 11128 HP): the
+#                         scene ends by an event once his HP is low enough (result 5, no victory), which a
+#                         level 22 party with gear reaches in 1400 ticks; the route's party fights real
+#                         levels and has skipped the random battles, so it is lost there (HP 233).
 # The run goes on to Lindblum (554 -> 553 -> 555 ATE cutscene -> 563 air cab -> 566 -> 567 -> 565
 # at scenario 3115 -> 611 -> 565 at 3118) and is capped at MAX_FIELDS=97 fields, because the explorer
 # then circles the island fields 565/567/568/566/564/563; the expected last state is
@@ -52,7 +56,7 @@ fi
   --ticks 12000 --max-fields "${MAX_FIELDS:-97}" --route "301>302,563>566" \
   --skip-talk 103:8,455:1,455:2,455:4 --hold 115:16,207:16,307:16,404:96,504:16,557:16,565:16 \
   --ate 550:3,551:3,552:3,553:3,554:3,555:3,559:3,561:3,563:3 --region-talks 557 \
-  --choices "$CHOICES2" --world-exits 9011:14,9001:-1 > "$OUT/part2.jsonl"
+  --choices "$CHOICES2" --world-exits 9011:14,9001:-1 --win-battles 296 > "$OUT/part2.jsonl"
 python -I -X utf8 - "$OUT/part2.jsonl" audit/story-route-expected.json <<'PY'
 import json, os, sys
 rows = [json.loads(l) for l in open(sys.argv[1], encoding="utf-8") if l.startswith("{") and '"map"' in l and '"ticks"' in l]

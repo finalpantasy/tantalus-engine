@@ -224,6 +224,9 @@ impl BattleHooks for Hooks {
             }
             (cmd::ENEMY_ATK, 2) => Some(spell(10, 10, 16, single)),
             (cmd::ENEMY_ATK, 3) => Some(spell(8, 20, 8, single)),
+            // Melt (script 88) and Swallow (script 106).
+            (cmd::ENEMY_ATK, 4) => Some(spell(88, 0, 16, single)),
+            (cmd::ENEMY_ATK, 5) => Some(spell(106, 0, 16, single)),
             (cmd::ATTACK, 176) => Some(spell(25, 5, 8, single)),
             (cmd::ATTACK, 177) => Some(spell(25, 0, 8, single)),
             (cmd::ATTACK, 200) => Some(spell(10, 10, 16, target_type::SINGLE_ALLY)),
@@ -1356,4 +1359,98 @@ fn jump_leaves_the_field_and_lands_with_spear() {
     assert!(b.units[0].cur_atb > 0 && b.units[0].cur_atb < b.sched[0].max_atb / 4);
     assert!(b.jumps.is_empty());
     assert_eq!(queued(&b, cmd::SPEAR), vec![(0, E1)]);
+}
+
+/// Melt (`0088_MeltScript.cs`) through the machine: the target takes the caster's current HP and
+/// the caster dies once the effect has landed.
+#[test]
+fn melt_hits_for_the_casters_hp_and_the_caster_dies() {
+    let mut b = battle(vec![
+        unit(P1, true, 500),
+        unit(P2, true, 500),
+        unit(E1, false, 321),
+    ]);
+    let mut h = Hooks::new();
+    let mut r = Rng::default();
+    enemy_cast(&mut b, &mut h, 2, 4, P1);
+    run_idle(&mut b, &mut h, &mut r);
+    assert_eq!(b.units[0].cur_hp, 500 - 321);
+    assert_eq!(b.units[2].cur_hp, 0);
+}
+
+/// Swallow (`0106_SwallowScript.cs`, `BattleUnit.Remove`): the target leaves the battle (not
+/// targetable, out of the unit list) and the phase is rechecked, so swallowing the last
+/// player ends the fight.
+#[test]
+fn swallow_removes_the_target_and_can_end_the_battle() {
+    let mut b = battle(vec![unit(P1, true, 500), unit(E1, false, 100)]);
+    let mut h = Hooks::new();
+    let mut r = Rng::default();
+    enemy_cast(&mut b, &mut h, 1, 5, P1);
+    run_idle(&mut b, &mut h, &mut r);
+    assert!(events(&b).contains(&BattleEvent::UnitRemoved { unit: 0 }));
+    assert!(!b.sched[0].in_list && !b.sched[0].targetable);
+    assert!(b.over || b.phase != tantalus_legacy::battle::machine::Phase::Normal);
+
+    let mut b = battle(vec![
+        unit(P1, true, 500),
+        unit(P2, true, 500),
+        unit(E1, false, 100),
+    ]);
+    enemy_cast(&mut b, &mut h, 2, 5, P1);
+    run_idle(&mut b, &mut h, &mut r);
+    assert!(!b.sched[0].in_list);
+    assert_eq!(b.phase, tantalus_legacy::battle::machine::Phase::Normal);
+}
+
+/// Auto-Haste (SA 2, `StatusInit AutoStatus Haste`): `InitBattleData` alters the permanent
+/// status in, so the unit is Hasted (current and permanent) and its gauge runs at the hasted
+/// coefficient from the first tick; Auto-Regen (SA 3) is a current status with its tick
+/// counter, so it heals on `OnOpr`.
+#[test]
+fn auto_haste_and_auto_regen_start_with_the_battle() {
+    let mut hasted = unit(P1, true, 500);
+    hasted.status_permanent = st::HASTE;
+    let mut regen = unit(P2, true, 500);
+    regen.status_permanent = st::REGEN;
+    let mut b = battle(vec![hasted, regen, unit(E1, false, 500)]);
+    let base =
+        tantalus_legacy::battle::atb::base_atb_coef(BattleConfig::default().btl_speed_config);
+    assert_eq!(
+        b.sched[0].atb_coef,
+        tantalus_legacy::battle::atb::hasted_coef(base)
+    );
+    assert_ne!(
+        b.sched[1].atb_coef,
+        tantalus_legacy::battle::atb::hasted_coef(base)
+    );
+    assert_ne!(b.units[0].status_current & st::HASTE, 0);
+    assert_ne!(b.units[0].status_permanent & st::HASTE, 0);
+    assert_ne!(b.units[1].status_current & st::REGEN, 0);
+    // The regen tick: the unit starts hurt and gains `max_hp / 16` per `OnOpr`.
+    b.units[1].cur_hp = 100;
+    let mut h = Hooks::new();
+    let mut r = Rng::default();
+    for _ in 0..600 {
+        b.tick(&mut h, &mut r).expect("tick");
+    }
+    assert!(
+        b.units[1].cur_hp > 100,
+        "regen healed {}",
+        b.units[1].cur_hp
+    );
+    // The hasted unit also fills its gauge faster than the plain one.
+    assert_eq!(b.units[2].cur_hp, 500);
+}
+
+/// Half MP (SA 34, `Permanent MPCostFactor / 2`): the unit's MP cost factor starts at 50.
+#[test]
+fn half_mp_halves_the_mp_cost_factor() {
+    let b = battle(vec![
+        with_sa(unit(P1, true, 500), 34),
+        unit(P2, true, 500),
+        unit(E1, false, 500),
+    ]);
+    assert_eq!(b.sched[0].mp_cost_factor, 50);
+    assert_eq!(b.sched[1].mp_cost_factor, 100);
 }
