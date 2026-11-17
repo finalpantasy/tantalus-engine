@@ -492,6 +492,90 @@ fn draw_background(
     }
 }
 
+/// `PSXTextureMgr.CaptureBG`: the battle ground (the first ground mesh)
+/// seen from the camera `params` (host command 120, `bgParam`) describe,
+/// into a 256 x 256 picture (`bgTexture`). The camera is `worldToCamera =
+/// TRS((-p4, p5, -(10496 + p6)), Euler(-90, 0, 0))`, so a point at depth `y +
+/// 10496 + p6` lands at `512 * (x - p4, z + p5) / depth`, in a window with
+/// its left edge at `-(p2 / 2) - p0 % 64` and its top at `p3 / 2 + p1 % 256`
+/// (`PerspectiveOffCenter(l, l + 256, t - 256, t, 512, 65536)`). Rows run
+/// top down; pixels the ground does not cover stay clear (alpha 0).
+pub fn capture_ground(background: &BattleBackground, params: [i32; 7]) -> Frame {
+    // The window, in 320 x 240 projection pixels (`PSXTextureMgr.CaptureBG`).
+    let left = -((params[2] >> 1) as f32) - (params[0] % 64) as f32;
+    let top = (params[3] >> 1) as f32 + (params[1] % 256) as f32;
+    let depth = 10496.0 + params[6] as f32;
+    let mut frame = Frame::new(256, 256, [7, 7, 7, 0]);
+    let Some(mesh) = background
+        .meshes
+        .iter()
+        .find(|mesh| mesh.group == BbgGroup::Ground)
+    else {
+        return Frame::new(256, 256, [0, 0, 0, 0]);
+    };
+    // `Frame::project` puts a view point at `160 + near * x / d` and `120 -
+    // near * y / d` of 320 x 220, then scales to the frame: shear the view
+    // so that it lands where the capture's window says instead.
+    let (kx, ky) = (256.0 / 320.0, 256.0 / 220.0);
+    let camera = BattleCamera {
+        view: bevy::math::Mat4::IDENTITY,
+        near: 512.0,
+    };
+    let state = DrawState {
+        blend: Blend::Opaque,
+        depth_test: true,
+        depth_write: true,
+        cull_back: false,
+    };
+    let view: Vec<Vec3> = mesh
+        .positions
+        .iter()
+        .map(|position| {
+            let world = transform_point(&mesh.world, *position);
+            let d = world[1] + depth;
+            let (x, y) = (world[0] - params[4] as f32, world[2] + params[5] as f32);
+            Vec3::new(
+                x / kx - ((left / kx + 160.0) / 512.0) * d,
+                (120.0 - top / ky) * d / 512.0 + y / ky,
+                -d,
+            )
+        })
+        .collect();
+    for submesh in &mesh.submeshes {
+        if submesh.topology != TOPOLOGY_TRIANGLES {
+            continue;
+        }
+        let texture = submesh
+            .texture
+            .and_then(|index| background.textures.get(index))
+            .map(|texture| Texture {
+                width: texture.width,
+                height: texture.height,
+                rgba: &texture.rgba,
+                clamp: true,
+            });
+        let first = submesh.first_index as usize;
+        let end = first + submesh.index_count as usize;
+        let Some(indices) = mesh.indices.get(first..end) else {
+            continue;
+        };
+        for corner in indices.chunks_exact(3) {
+            let vertex = |at: u32| {
+                Some(ViewVertex {
+                    position: *view.get(at as usize)?,
+                    uv: mesh.uvs.get(at as usize).copied().unwrap_or_default(),
+                })
+            };
+            if let (Some(a), Some(b), Some(c)) =
+                (vertex(corner[0]), vertex(corner[1]), vertex(corner[2]))
+            {
+                frame.draw(&camera, [a, b, c], texture, state);
+            }
+        }
+    }
+    frame
+}
+
 /// `ModelFactory.CreateModel(isBattle)` turns off every renderer under the
 /// `field_model` child.
 fn under_field_model(model: &AssembledModel, node: usize) -> bool {
@@ -508,8 +592,26 @@ fn under_field_model(model: &AssembledModel, node: usize) -> bool {
     false
 }
 
+/// How an effect changes the way a unit is drawn (the plugin's host
+/// commands, `tantalus_sfx::player::UnitChange`).
+#[derive(Clone, Copy)]
+struct Staging<'a> {
+    /// False to pose the unit (its height, bones and place) without
+    /// drawing it.
+    draw: bool,
+    change: Option<&'a tantalus_sfx::player::UnitChange>,
+}
+
+impl Staging<'_> {
+    const PLAIN: Staging<'static> = Staging {
+        draw: true,
+        change: None,
+    };
+}
+
 /// Draws one unit's model posed as `motion` says. Returns the height of
 /// its highest vertex above `position` (for the cursor and numbers).
+#[allow(clippy::too_many_arguments)]
 fn draw_unit(
     frame: &mut Frame,
     camera: &BattleCamera,
@@ -518,6 +620,7 @@ fn draw_unit(
     motion: &UnitMotion,
     (position, turn): ([f32; 3], f32),
     glow: Option<[u8; 3]>,
+    staging: Staging<'_>,
 ) -> Option<(f32, Option<Vec3>, Vec<Option<Bone>>)> {
     let Some(Some(model)) = assets.models.get(&geo) else {
         return None;
@@ -546,10 +649,30 @@ fn draw_unit(
         None => rest_pose(model),
     };
     // `Euler(0, turn, 180)`: the model's y-down space turned upright, then
-    // about the up axis.
-    let rotation =
-        Quat::from_rotation_y(turn.to_radians()) * Quat::from_rotation_z(std::f32::consts::PI);
-    let origin = Vec3::from_array(position) + Vec3::from_array(motion.offset);
+    // about the up axis. An effect that set the angles (`Set Angles`) gives
+    // its own Euler angles.
+    let rotation = match staging.change.and_then(|change| change.euler) {
+        Some([x, y, z]) => Quat::from_euler(
+            bevy::math::EulerRot::YXZ,
+            y.to_radians(),
+            x.to_radians(),
+            z.to_radians(),
+        ),
+        None => {
+            Quat::from_rotation_y(turn.to_radians()) * Quat::from_rotation_z(std::f32::consts::PI)
+        }
+    };
+    // An effect that set the position (`Set Position`, PSX space y down)
+    // puts the model there, the unit's own motion aside.
+    let origin = match staging.change.and_then(|change| change.position) {
+        Some([x, y, z]) => Vec3::new(f32::from(x), -f32::from(y), f32::from(z)),
+        None => Vec3::from_array(position) + Vec3::from_array(motion.offset),
+    };
+    // `localScale` (`Set Size`).
+    let scale = staging
+        .change
+        .and_then(|change| change.scale)
+        .map_or(Vec3::ONE, Vec3::from_array);
     let world = tantalus_assets::pc::model_assembly::pose::world_matrices(&model.nodes, &poses);
     // `GetChildByName("bone" + tar_bone)`: that bone's place in the pose.
     let bone_at = bone.and_then(|bone| {
@@ -558,7 +681,7 @@ fn draw_unit(
         // Row-major: the translation is the last column.
         let m = world.get(index)?;
         let local = Vec3::new(m[3], m[7], m[11]);
-        Some(origin + rotation * local)
+        Some(origin + rotation * (scale * local))
     });
     // Every `bone<NNN>` object's world matrix, for the effects' bone queries
     // (`SFXData.BattleCallback` case 14: `localToWorldMatrix`).
@@ -576,7 +699,7 @@ fn draw_unit(
             m[0], m[4], m[8], m[1], m[5], m[9], m[2], m[6], m[10],
         ]);
         let turned = turn_matrix * local;
-        let place = origin + rotation * Vec3::new(m[3], m[7], m[11]);
+        let place = origin + rotation * (scale * Vec3::new(m[3], m[7], m[11]));
         let column = |c: usize| turned.col(c).to_array();
         let (c0, c1, c2) = (column(0), column(1), column(2));
         if bones.len() <= number {
@@ -589,6 +712,13 @@ fn draw_unit(
             [0.0, 0.0, 0.0, 1.0],
         ]));
     }
+    // `Show/Hide mesh` (25): the semi-transparent fade darkens the model
+    // (`GeoAddColor2DrawPacket`) and, low enough, adds it to the scene.
+    let fade = staging.change.and_then(|change| change.fade);
+    let glow = match fade {
+        Some((value, _)) => Some([value.clamp(0, 255) as u8; 3]),
+        None => glow,
+    };
     let mut top = 0.0f32;
     let players = assets.tex_anims.lock().ok();
     let player = players.as_ref().and_then(|players| players.get(&geo));
@@ -610,7 +740,11 @@ fn draw_unit(
         }
     }
     let state = DrawState {
-        blend: Blend::Opaque,
+        blend: if fade.is_some_and(|(_, translucent)| translucent) {
+            Blend::Add
+        } else {
+            Blend::Opaque
+        },
         depth_test: true,
         depth_write: true,
         cull_back: true,
@@ -627,11 +761,14 @@ fn draw_unit(
         let view: Vec<Vec3> = vertices
             .iter()
             .map(|vertex| {
-                let world = origin + rotation * Vec3::from_array(*vertex);
+                let world = origin + rotation * (scale * Vec3::from_array(*vertex));
                 top = top.max(world.y - origin.y);
                 camera.to_view(world.to_array())
             })
             .collect();
+        if !staging.draw {
+            continue;
+        }
         for (submesh_index, submesh) in part.submeshes.iter().enumerate() {
             if submesh.topology != TOPOLOGY_TRIANGLES {
                 continue;
@@ -796,6 +933,7 @@ impl BattleScene {
                     &motion,
                     (unit.position, unit.turn),
                     None,
+                    Staging::PLAIN,
                 )
                 .map_or(0.0, |(top, _, _)| top)
             })
@@ -910,82 +1048,113 @@ impl BattleScene {
                 crate::battle_effects::scene_intensity(&effects, seconds),
             )
         });
-        // Where each unit's head is on screen, and where it stands.
-        let mut heads: Vec<Option<[f32; 2]>> = vec![None; stage.units.len()];
-        let mut spots: Vec<Option<crate::battle_effects::UnitSpot>> = vec![None; stage.units.len()];
-        for (index, unit) in stage.units.iter().enumerate() {
-            let present =
-                record.is_none_or(|record| record.present.get(index).copied().unwrap_or(true));
-            let Some(Some(look)) = self.looks.get(index) else {
-                continue;
-            };
-            if !present {
-                continue;
-            }
-            let motion = unit_motion(stage, index, seconds, &look.motions, &length);
-            if motion.hidden {
-                continue;
-            }
-            // `btl_stat.SetStatusVfx`: a living member in Trance pulses.
-            let glow = match (&unit.model, record) {
-                (StageModel::Player { serial, .. }, Some(record))
-                    if std::env::var_os("TANTALUS_NO_GLOW").is_none()
-                        && matches!(record.trance.get(index), Some(Some((_, true))))
-                        && record.hp.get(index).is_some_and(|hp| *hp > 0) =>
-                {
-                    tantalus_assets::pc::battle_models::player_trance_glow(u32::from(*serial)).map(
-                        |glow| {
-                            crate::trance_glow::glow_color(
-                                assets.chr(stage),
-                                glow,
-                                crate::trance_glow::battle_counter(seconds),
-                            )
+        // Where each unit's head is on screen, and where it stands. The
+        // closure poses every unit (and draws it when asked), as the
+        // effects playing have staged it.
+        let place_units = |frame: &mut Frame,
+                           draw: bool,
+                           staged: &std::collections::BTreeMap<
+            usize,
+            tantalus_sfx::player::UnitChange,
+        >| {
+            let mut heads: Vec<Option<[f32; 2]>> = vec![None; stage.units.len()];
+            let mut spots: Vec<Option<crate::battle_effects::UnitSpot>> =
+                vec![None; stage.units.len()];
+            for (index, unit) in stage.units.iter().enumerate() {
+                let present =
+                    record.is_none_or(|record| record.present.get(index).copied().unwrap_or(true));
+                let Some(Some(look)) = self.looks.get(index) else {
+                    continue;
+                };
+                if !present {
+                    continue;
+                }
+                let motion = unit_motion(stage, index, seconds, &look.motions, &length);
+                if motion.hidden {
+                    continue;
+                }
+                // `btl_stat.SetStatusVfx`: a living member in Trance pulses.
+                let glow = match (&unit.model, record) {
+                    (StageModel::Player { serial, .. }, Some(record))
+                        if std::env::var_os("TANTALUS_NO_GLOW").is_none()
+                            && matches!(record.trance.get(index), Some(Some((_, true))))
+                            && record.hp.get(index).is_some_and(|hp| *hp > 0) =>
+                    {
+                        tantalus_assets::pc::battle_models::player_trance_glow(u32::from(*serial))
+                            .map(|glow| {
+                                crate::trance_glow::glow_color(
+                                    assets.chr(stage),
+                                    glow,
+                                    crate::trance_glow::battle_counter(seconds),
+                                )
+                            })
+                    }
+                    _ => None,
+                };
+                let change = staged.get(&index);
+                let hidden =
+                    change.is_some_and(|change| change.disappear != 0 || change.meshes_hidden);
+                if let Some((top, bone, bones)) = time("b_unit", || {
+                    draw_unit(
+                        frame,
+                        &camera,
+                        assets,
+                        (
+                            look.geo_at(stage, assets, index, seconds),
+                            stage.tar_bones.get(index).copied().flatten(),
+                        ),
+                        &motion,
+                        (unit.position, motion.facing.unwrap_or(unit.turn)),
+                        glow,
+                        Staging {
+                            draw: draw && !hidden,
+                            change,
                         },
                     )
+                }) {
+                    let feet = match change.and_then(|change| change.position) {
+                        Some([x, y, z]) => Vec3::new(f32::from(x), -f32::from(y), f32::from(z)),
+                        None => Vec3::from_array(unit.position) + Vec3::from_array(motion.offset),
+                    };
+                    // An enemy's numbers and cursor sit on its `tar_bone`.
+                    let at = bone.unwrap_or(feet + Vec3::Y * top);
+                    heads[index] = frame.project(&camera, camera.to_view(at.to_array()));
+                    spots[index] = Some(crate::battle_effects::UnitSpot {
+                        feet: feet.to_array(),
+                        height: top,
+                        turn: motion.facing.unwrap_or(unit.turn),
+                        bones: std::sync::Arc::new(bones),
+                    });
                 }
-                _ => None,
-            };
-            if let Some((top, bone, bones)) = time("b_unit", || {
-                draw_unit(
-                    &mut frame,
-                    &camera,
-                    assets,
-                    (
-                        look.geo_at(stage, assets, index, seconds),
-                        stage.tar_bones.get(index).copied().flatten(),
-                    ),
-                    &motion,
-                    (unit.position, motion.facing.unwrap_or(unit.turn)),
-                    glow,
-                )
-            }) {
-                let feet = Vec3::from_array(unit.position) + Vec3::from_array(motion.offset);
-                // An enemy's numbers and cursor sit on its `tar_bone`.
-                let at = bone.unwrap_or(feet + Vec3::Y * top);
-                heads[index] = frame.project(&camera, camera.to_view(at.to_array()));
-                spots[index] = Some(crate::battle_effects::UnitSpot {
-                    feet: feet.to_array(),
-                    height: top,
-                    turn: motion.facing.unwrap_or(unit.turn),
-                    bones: std::sync::Arc::new(bones),
-                });
             }
-        }
+            (heads, spots)
+        };
+        // Effects see the units where they stand, then change how they are
+        // drawn (summons hide the party, Mini shrinks, Jump moves).
+        let staged = if crate::battle_effects::any_playing(&effects, seconds) {
+            let (_, spots) = place_units(&mut frame, false, &Default::default());
+            time("b_effects", || {
+                crate::battle_effects::advance_effects(
+                    &camera,
+                    &assets.effects,
+                    stage,
+                    &effects,
+                    &spots,
+                    assets.background(stage),
+                    seconds,
+                )
+            })
+        } else {
+            Default::default()
+        };
+        let (heads, _spots) = place_units(&mut frame, true, &staged);
         time("b_front", || {
             if let Some(background) = assets.background(stage) {
                 draw_background(&mut frame, &camera, background, true);
             }
         });
         time("b_effects", || {
-            crate::battle_effects::draw_effects(
-                &mut frame,
-                &camera,
-                &assets.effects,
-                stage,
-                &effects,
-                &spots,
-                seconds,
-            )
+            crate::battle_effects::show_effects(&mut frame, &assets.effects, &effects, seconds)
         });
         match hud {
             Some(hud) => {

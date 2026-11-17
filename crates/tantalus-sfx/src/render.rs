@@ -54,6 +54,8 @@ enum Source {
     Devour,
     /// The last screen shot, read this many texels further right.
     Shot(f32),
+    /// The background capture (`PSXTextureMgr.bgTexture`, host command 120).
+    Background,
     /// The generated texture, its page this far right of its left edge.
     Generated(f32),
 }
@@ -63,6 +65,13 @@ enum Source {
 /// `C3`, 0 for the default x2), bit 28 additive before opaque (`A1`), bit
 /// 29 the color threshold (`O1`).
 pub const PLAY_PARAM: &[i32] = &include!("play_param.in");
+
+/// `SFXScreenShot.slowClockUV`: the texel of each vertex of Slow's clock
+/// sprite (48 quads), which Memoria puts back over the port's purple glow.
+const SLOW_CLOCK_UV: &[[f32; 2]] = &include!("slow_clock_uv.in");
+/// The clock's texture: `PSXTextureMgr.GetTexture(1, 1, 8, 247, 0)`, an
+/// 8-bit page at (512, 256) with its CLUT at (0, 247).
+const SLOW_CLOCK_TEXTURE: (u16, u16) = (0x98, 247 << 6);
 
 /// How a batch writes its pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -113,6 +122,10 @@ pub struct Batch {
     /// the page's shifted by its place (`tx * 64 - 384`) in a 512 x 256
     /// texture.
     pub generated: bool,
+    /// The texture is the background capture (`SFXMesh.GetTexture`, `bgKey`):
+    /// a 256 x 256 picture of the battle ground, `page` is `None` and the
+    /// texels are the page's own.
+    pub background: bool,
     pub triangles: Vec<[Corner; 3]>,
 }
 
@@ -126,6 +139,7 @@ impl Batch {
             generated_begin,
             generated_target: false,
             generated: false,
+            background: false,
             triangles: Vec::new(),
         }
     }
@@ -141,6 +155,10 @@ pub struct Page {
 pub struct RenderList {
     pub batches: Vec<Batch>,
     pub pages: Vec<Page>,
+    /// The seven integers of a background capture the plugin asked for this
+    /// frame (host command 120, `PSXTextureMgr.bgParam`): texture place,
+    /// screen size and the camera shift. Set by the player.
+    pub background_capture: Option<[i32; 7]>,
 }
 
 impl RenderList {
@@ -185,6 +203,9 @@ struct Mesh {
     filter: u8,
     /// Drawn between a `DR_AREA` begin and end.
     offscreen: bool,
+    /// Slow's clock mesh (`SFXScreenShot.IsSpecialSlowTexture`): the
+    /// subtractive flat mesh of key 0x01000000, drawn as a textured one.
+    clock: bool,
     triangles: Vec<[Corner; 3]>,
 }
 
@@ -199,12 +220,16 @@ struct Builder<'a> {
     effect: i32,
     /// `PSXTextureMgr.isCreateGenTexture`.
     generated_created: bool,
+    /// `PSXTextureMgr.bgKey` (see [`Vram::background`]).
+    background: Option<u16>,
     /// Where the last screen shot (`DR_MOVE`) starts on the PSX screen.
     shot: Option<[i32; 2]>,
     /// Color intensity (`ColorData`).
     intensity: f32,
     sub_order: i32,
     add_first: bool,
+    /// Vertices the clock mesh has so far (its `VbOffset`).
+    clock_vertices: usize,
     meshes: Vec<Mesh>,
     /// The filter of the packet being added.
     filter: u8,
@@ -283,6 +308,15 @@ impl Builder<'_> {
         } else {
             list
         };
+        // Mesh key 0x01000000: subtractive, untextured, page 0.
+        let clock = self.effect == SLOW
+            && list == List::Sub
+            && texture.is_none()
+            && self.tpage & 0x19F == 0;
+        let mut triangles = triangles.to_vec();
+        if clock {
+            self.clock_uv(&mut triangles);
+        }
         let offscreen = self.offscreen;
         if let Some(mesh) = self.meshes.iter_mut().find(|mesh| {
             mesh.list == list
@@ -290,7 +324,7 @@ impl Builder<'_> {
                 && mesh.filter == filter
                 && mesh.offscreen == offscreen
         }) {
-            mesh.triangles.extend_from_slice(triangles);
+            mesh.triangles.extend_from_slice(&triangles);
             return;
         }
         self.meshes.push(Mesh {
@@ -298,8 +332,35 @@ impl Builder<'_> {
             texture,
             filter,
             offscreen,
-            triangles: triangles.to_vec(),
+            clock,
+            triangles,
         });
+    }
+
+    /// `SFXMesh.End` for Slow's clock mesh: the vertices, in the order the
+    /// packets added them, take the clock's texels (a quad's are corners 0,
+    /// 1, 2, 3 and its triangles (0, 1, 2) and (2, 1, 3)).
+    fn clock_uv(&mut self, triangles: &mut [[Corner; 3]]) {
+        let texel = |at: usize| SLOW_CLOCK_UV.get(at).copied().unwrap_or([0.0; 2]);
+        let first = self.clock_vertices;
+        match triangles {
+            [a] => {
+                for (i, corner) in a.iter_mut().enumerate() {
+                    corner.uv = texel(first + i);
+                }
+                self.clock_vertices += 3;
+            }
+            [a, b] => {
+                for (i, corner) in a.iter_mut().enumerate() {
+                    corner.uv = texel(first + i);
+                }
+                b[0] = a[2];
+                b[1] = a[1];
+                b[2].uv = texel(first + 3);
+                self.clock_vertices += 4;
+            }
+            _ => {}
+        }
     }
 
     fn quad(&mut self, list: List, texture: Option<(u16, u16)>, c: [Corner; 4]) {
@@ -574,9 +635,33 @@ impl Builder<'_> {
             (slot, list)
         };
         meshes.sort_by_key(|mesh| order(mesh.list));
-        for mesh in meshes {
+        for mut mesh in meshes {
+            let mut repeat = 1;
+            // `SFXMesh.End`: the clock mesh becomes `SFX_ADD_GT` over the
+            // clock texture, with white vertex colors.
+            if mesh.clock {
+                mesh.list = List::TexAdd;
+                mesh.texture = Some(SLOW_CLOCK_TEXTURE);
+                for corner in mesh.triangles.iter_mut().flatten() {
+                    corner.color = [self.intensity; 3];
+                }
+            }
+            // `SFXMesh.Setup` and `Render`: Stop's black sprite (key
+            // 0xD78000: additive, 15-bit page 7 of row 1) is `SFX_SUB_GT`,
+            // drawn twice.
+            if self.effect == STOP
+                && mesh
+                    .texture
+                    .is_some_and(|(tpage, clut)| tpage == 0x117 && clut & 0x7FFF == 0)
+            {
+                if mesh.list == List::TexAdd && mesh.filter == 0 {
+                    mesh.list = List::TexSub;
+                }
+                repeat = 2;
+            }
             let mut screen = false;
             let mut generated = false;
+            let mut background = false;
             let mut triangles = mesh.triangles;
             // `SFXMesh.GetTexture`: what a 15-bit page (mode 2) really is.
             let source = mesh
@@ -584,6 +669,9 @@ impl Builder<'_> {
                 .map_or(Source::Vram, |(tpage, clut)| self.source(tpage, clut));
             match source {
                 Source::Vram => {}
+                // The background capture, a 256 x 256 texture read by the
+                // page's own texels.
+                Source::Background => background = true,
                 // Left of page 6: the screen the scene left
                 // (`SFXKey.IsBlurTexture`); the packets' texels address the
                 // captured screen, not VRAM.
@@ -622,19 +710,23 @@ impl Builder<'_> {
             }
             let page = mesh
                 .texture
-                .filter(|_| !screen && !generated)
+                .filter(|_| !screen && !generated && !background)
                 .map(|key| self.page(key));
-            self.out.batches.push(Batch {
-                blend: mesh.list.blend(),
-                page,
-                screen,
-                capture: false,
-                generated_begin: false,
-                generated_target: mesh.offscreen,
-                generated,
-                triangles,
-            });
+            for _ in 0..repeat {
+                self.out.batches.push(Batch {
+                    blend: mesh.list.blend(),
+                    page,
+                    screen,
+                    capture: false,
+                    generated_begin: false,
+                    generated_target: mesh.offscreen,
+                    generated,
+                    background,
+                    triangles: triangles.clone(),
+                });
+            }
         }
+        self.clock_vertices = 0;
     }
 
     /// `SFXMesh.GetTexture`, in its order, for a textured mesh.
@@ -645,6 +737,10 @@ impl Builder<'_> {
         let (tx, ty) = (tpage & 0xF, (tpage >> 4) & 1);
         if tx < 6 {
             return Source::Screen;
+        }
+        // `(_key & 0x1F0000) == bgKey`, after the blur test.
+        if self.background == Some(tx | (ty << 4)) {
+            return Source::Background;
         }
         // The texture key without the HAS_TEXTURE bit.
         let low = clut & 0x7FFF;
@@ -724,6 +820,7 @@ pub fn render_list(effect: i32, prims: &[Prim], vram: &mut Vram) -> RenderList {
         _ => 2.0,
     };
     let generated_created = vram.generated_created;
+    let background = vram.background;
     let mut builder = Builder {
         vram,
         tpage: 0,
@@ -731,10 +828,12 @@ pub fn render_list(effect: i32, prims: &[Prim], vram: &mut Vram) -> RenderList {
         offscreen: false,
         effect,
         generated_created,
+        background,
         shot: None,
         intensity,
         sub_order,
         add_first: (param >> 28) & 1 != 0,
+        clock_vertices: 0,
         meshes: Vec::new(),
         filter: 0,
         out: RenderList::default(),
@@ -877,5 +976,63 @@ mod tests {
         assert!(vram.generated_created);
         let next = render_list(0, &[quad(0x2C, 0x117, corners)], &mut vram);
         assert!(next.batches[0].generated);
+    }
+
+    /// A POLY_G4 packet (code 0x3A, semi-transparent) at the given corners.
+    fn gouraud_quad(corners: [[u16; 2]; 4]) -> (i32, Vec<u32>) {
+        let mut words = vec![0];
+        for (i, [x, y]) in corners.into_iter().enumerate() {
+            words.push(if i == 0 { 0x3A00_0000 } else { 0 } | 0x80_8080);
+            words.push(u32::from(y) << 16 | u32::from(x));
+        }
+        (0, words)
+    }
+
+    #[test]
+    fn a_background_capture_is_read_by_its_page() {
+        let corners = [[0, 0, 0, 0], [8, 0, 8, 0], [0, 8, 0, 8], [8, 8, 8, 8]];
+        let mut vram = Vram::default();
+        // Page 7 of row 1 (448, 256) is VRAM until the effect captures.
+        let before = render_list(0, &[quad(0x2C, 0x117, corners)], &mut vram);
+        assert!(!before.batches[0].background && before.batches[0].page.is_some());
+        vram.background = Some(7 | 1 << 4);
+        let after = render_list(0, &[quad(0x2C, 0x117, corners)], &mut vram);
+        assert!(after.batches[0].background && after.batches[0].page.is_none());
+        // Another page, and the blur pages, are unchanged.
+        let other = render_list(0, &[quad(0x2C, 0x118, corners)], &mut vram);
+        assert!(!other.batches[0].background);
+        vram.background = Some(2);
+        let blur = render_list(0, &[quad(0x2C, 0x102, corners)], &mut vram);
+        assert!(blur.batches[0].screen && !blur.batches[0].background);
+    }
+
+    #[test]
+    fn slows_subtractive_glow_is_the_clock_and_stops_black_sprite_is_subtractive() {
+        let mut vram = Vram::default();
+        // Slow: a subtractive untextured quad (tpage 0x240) becomes an
+        // additive textured one with the clock's texels.
+        let packets = [
+            (0, vec![0, 0xE100_0240]),
+            gouraud_quad([[0, 0], [8, 0], [0, 8], [8, 8]]),
+        ];
+        let slow = render_list(126, &packets, &mut vram);
+        assert_eq!(slow.batches.len(), 1);
+        let batch = &slow.batches[0];
+        assert!(batch.blend == Blend::Add && batch.page.is_some());
+        assert_eq!(batch.triangles[0][0].uv, SLOW_CLOCK_UV[0]);
+        assert_eq!(batch.triangles[0][2].uv, SLOW_CLOCK_UV[2]);
+        assert_eq!(batch.triangles[1][2].uv, SLOW_CLOCK_UV[3]);
+        let other = render_list(0, &packets, &mut vram);
+        assert!(other.batches[0].blend == Blend::Subtract && other.batches[0].page.is_none());
+        // Stop: key 0xD78000 (additive, page 7 of row 1, 15 bits) is
+        // subtractive and drawn twice.
+        let corners = [[0, 0, 0, 0], [8, 0, 8, 0], [0, 8, 0, 8], [8, 8, 8, 8]];
+        let stop = render_list(149, &[quad(0x2E, 0x117, corners)], &mut vram);
+        assert_eq!(stop.batches.len(), 2);
+        assert!(
+            stop.batches
+                .iter()
+                .all(|batch| batch.blend == Blend::Subtract)
+        );
     }
 }

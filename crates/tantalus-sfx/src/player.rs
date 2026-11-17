@@ -123,11 +123,46 @@ pub struct Events {
     pub sounds: Vec<(u32, i32, i32)>,
 }
 
+/// What the effect has done to a unit's model since it began: the
+/// plugin's `Set Position` (2), `Set Angles` (4), `Set Size` (6), `Set
+/// Hidden` (18) and `Show/Hide mesh` (25) commands. The view draws the unit
+/// by it while the effect plays.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct UnitChange {
+    /// `BTL_DATA.pos` as the plugin set it (PSX space: y down).
+    pub position: Option<[i16; 3]>,
+    /// `BTL_DATA.rot.eulerAngles` as the plugin set it, in degrees (the model
+    /// stands at x 0, z 180).
+    pub euler: Option<[f32; 3]>,
+    /// `localScale`, 1 unchanged.
+    pub scale: Option<[f32; 3]>,
+    /// `bi.disappear`: not drawn when non-zero.
+    pub disappear: u8,
+    /// Every mesh hidden (`HideMesh(65535)`).
+    pub meshes_hidden: bool,
+    /// The "semi-transparent fade" color (`SFX.fade`) and whether it also
+    /// makes the model translucent (`GEO_POLYFLAGS_TRANS_100_PLUS_25`).
+    pub fade: Option<(i32, bool)>,
+}
+
+impl UnitChange {
+    /// Nothing the view would draw differently.
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
 /// `SFX.BattleCallback` over [`Setup::units`].
 #[derive(Debug, Default)]
 pub struct BattleHost {
     pub vram: Vram,
     pub units: Vec<Unit>,
+    /// The effect (`SFX.currentEffectID`).
+    pub effect: i32,
+    /// What the effect did to each unit, by `btl_id`.
+    pub changes: std::collections::BTreeMap<u16, UnitChange>,
+    /// The background capture asked for this frame (command 120).
+    pub background: Option<[i32; 7]>,
     pub frame: u32,
     pub events: Events,
     /// `battlebg.nf_SetBbgIntensity` (128 is full brightness).
@@ -219,6 +254,16 @@ impl BattleHost {
                 self.events.sounds.push((self.frame, a0, a1));
                 return 0;
             }
+            // `PSXTextureMgr.isBgCapture` and `bgParam`.
+            120 if p != 0 => {
+                let bytes = memory.read(p, 28).unwrap_or_default();
+                let mut params = [0i32; 7];
+                for (param, word) in params.iter_mut().zip(bytes.chunks_exact(4)) {
+                    *param = i32::from_le_bytes([word[0], word[1], word[2], word[3]]);
+                }
+                self.background = Some(params);
+                return 0;
+            }
             // Camera setting (Auto), cursor shown, start type, camera number.
             111 | 115 | 122 | 124 => return 0,
             117 => return i32::from(self.intensity),
@@ -242,18 +287,12 @@ impl BattleHost {
             // `BattleCallbackWithBtl`: no such unit.
             return i32::from(command == 9);
         };
-        let middle = [
-            unit.position[0],
-            unit.position[1].saturating_sub(unit.height / 2),
-            unit.position[2],
-        ];
+        let change = self.changes.get(&unit.btl_id).cloned().unwrap_or_default();
+        let moved = change.position.unwrap_or(unit.position);
+        let middle = [moved[0], moved[1].saturating_sub(unit.height / 2), moved[2]];
         match command {
             1 if p != 0 => {
-                let at = if a0 & 1 == 0 {
-                    unit.position
-                } else {
-                    unit.base
-                };
+                let at = if a0 & 1 == 0 { moved } else { unit.base };
                 if a0 >= 2 {
                     write_i16(memory, p, &[at[0]]);
                     write_i16(memory, p + 4, &[at[2]]);
@@ -262,9 +301,27 @@ impl BattleHost {
                 }
                 0
             }
+            2 if p != 0 => {
+                // `Set Position`: `pos = (x, -(y + attachOffset), z)`.
+                if let Some(at) = words(memory, p, 3).get(0..3) {
+                    self.changes.entry(unit.btl_id).or_default().position =
+                        Some([at[0] as i16, at[1] as i16, at[2] as i16]);
+                }
+                0
+            }
             3 if p != 0 => {
-                let angles = match a0 {
-                    0 => [0, 0, 0],
+                // Degrees to 4096ths of a turn, as the cast the reference does.
+                let ticks = |degrees: f32| (degrees.rem_euclid(360.0) * 11.377_778) as i16;
+                let base_yaw = f32::from(unit.yaw) * 360.0 / 4096.0;
+                let angles = match (a0, change.euler) {
+                    (0, None) => [0, 0, 0],
+                    // The base angle less the current one.
+                    (0, Some(e)) => [
+                        ticks(0.0) - ticks(e[0]),
+                        ticks(base_yaw) - ticks(e[1]),
+                        ticks(180.0) - ticks(e[2]),
+                    ],
+                    (1, Some(e)) => [ticks(e[0]), ticks(e[1]), ticks(e[2] - 180.0)],
                     _ => [0, unit.yaw, 0],
                 };
                 if a0 == 3 {
@@ -275,9 +332,96 @@ impl BattleHost {
                 }
                 0
             }
+            4 => {
+                // `Set Angles`: to the base angle, the base angle turned half
+                // way round, or a value (`* 360 / 4096`, the turn a half
+                // turn off, the roll a half turn on).
+                let base_yaw = f32::from(unit.yaw) * 360.0 / 4096.0;
+                let entry = self.changes.entry(unit.btl_id).or_default();
+                match a0 {
+                    0 => entry.euler = None,
+                    1 => entry.euler = Some([0.0, base_yaw + 180.0, 180.0]),
+                    2 if p != 0 => {
+                        if let Some(v) = words(memory, p, 3).get(0..3) {
+                            let degrees = |value: u16| f32::from(value as i16) * 0.087_890_625;
+                            entry.euler =
+                                Some([degrees(v[0]), degrees(v[1]) - 180.0, degrees(v[2]) + 180.0]);
+                        }
+                    }
+                    _ => {}
+                }
+                0
+            }
             5 if p != 0 => {
-                let bytes: Vec<u8> = [4096i32; 3].iter().flat_map(|v| v.to_le_bytes()).collect();
+                let size = change
+                    .scale
+                    .map_or([4096; 3], |scale| scale.map(|v| (v * 4096.0) as i32));
+                let bytes: Vec<u8> = size.iter().flat_map(|v| v.to_le_bytes()).collect();
                 memory.write(p, &bytes);
+                0
+            }
+            6 => {
+                // `Set Size`: bit 128 keeps the geo scale flag (else the
+                // scale goes back to 1), bit 1 sets the size. Atomos'
+                // late frames only reset (`SFX.FixScaleReset`).
+                let late = (self.effect == 184 && self.frame > 350)
+                    || (self.effect == 446 && self.frame > 150);
+                let entry = self.changes.entry(unit.btl_id).or_default();
+                if late {
+                    entry.scale = None;
+                } else {
+                    if a0 & 128 == 0 {
+                        entry.scale = None;
+                    }
+                    if a0 & 1 == 1 {
+                        entry.scale = Some([a1, a2, a3].map(|v| v as f32 / 4096.0));
+                    }
+                }
+                0
+            }
+            // `Is Hidden`.
+            17 => i32::from(change.disappear != 0),
+            18 => {
+                // Antlion's Sinkhole freezes the caster instead.
+                if self.effect != 301 {
+                    // `BTL_DATA.SetDisappear(arg0 != 0, priority)`.
+                    let priority = match self.effect {
+                        393 | 388 | 389 => 2,
+                        460 => 3,
+                        _ => 1,
+                    };
+                    let entry = self.changes.entry(unit.btl_id).or_default();
+                    entry.disappear = if a0 != 0 {
+                        entry.disappear.max(priority)
+                    } else if priority >= entry.disappear {
+                        0
+                    } else {
+                        entry.disappear
+                    };
+                }
+                0
+            }
+            25 => {
+                let entry = self.changes.entry(unit.btl_id).or_default();
+                match a0 {
+                    // `HideMesh(65535)`; Vanish's own mesh mask (1) is not
+                    // modeled.
+                    0 => entry.meshes_hidden = true,
+                    2 => entry.meshes_hidden = false,
+                    3 => entry.fade = Some((a1, false)),
+                    4 => {
+                        let value = if a1 >= 256 { a1 - 256 } else { a1 };
+                        entry.fade = Some((value, value < 70));
+                    }
+                    _ => {}
+                }
+                0
+            }
+            // `btl_stat.SetPresentColor`: the status color again, the fade gone.
+            27 => {
+                if let Some(entry) = self.changes.get_mut(&unit.btl_id) {
+                    entry.fade = None;
+                }
                 0
             }
             9 => 1,
@@ -290,9 +434,17 @@ impl BattleHost {
                         .and_then(|bone| unit.bones.get(bone).copied().flatten())
                         .unwrap_or(Bone::IDENTITY)
                 });
+                // A moved unit carries its bones along.
+                let shift = [0, 1, 2].map(|i| i32::from(moved[i]) - i32::from(unit.position[i]));
+                let bone = bone.map(|mut bone| {
+                    for (t, by) in bone.t.iter_mut().zip(shift) {
+                        *t += by;
+                    }
+                    bone
+                });
                 let at = match bone {
                     Some(bone) => bone.t.map(|v| v as i16),
-                    None if a1 == 0 => unit.position,
+                    None if a1 == 0 => moved,
                     None => middle,
                 };
                 match a0 {
@@ -456,6 +608,7 @@ impl EffectRun {
     pub fn start(image: &PluginImage, effect: i32, bytes: &[u8], setup: &Setup) -> Option<Self> {
         let host = Arc::new(Mutex::new(BattleHost {
             units: setup.units.clone(),
+            effect,
             intensity: 128,
             ..Default::default()
         }));
@@ -519,7 +672,29 @@ impl EffectRun {
             .host
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        Some(render_list(self.effect, &prims, &mut host.vram))
+        // `PSXTextureMgr.CaptureBG` runs as the frame renders: the key is
+        // set before the frame's packets pick their textures.
+        let capture = host.background.take();
+        if let Some(params) = capture {
+            let key = (params[1] >> 8 << 4) | (params[0] >> 6);
+            host.vram.background = Some(key as u16);
+        }
+        let mut list = render_list(self.effect, &prims, &mut host.vram);
+        list.background_capture = capture;
+        Some(list)
+    }
+
+    /// What the effect has done to each unit's model so far, by `btl_id`
+    /// (only the units it touched).
+    pub fn changes(&self) -> std::collections::BTreeMap<u16, UnitChange> {
+        self.host
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .changes
+            .iter()
+            .filter(|(_, change)| !change.is_empty())
+            .map(|(id, change)| (*id, change.clone()))
+            .collect()
     }
 
     /// One frame without building its render list (for the effect's timing
@@ -562,5 +737,104 @@ impl EffectRun {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .vram
             .clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A flat block of bytes standing for the plugin's memory.
+    struct Block(Vec<u8>);
+
+    impl Access for Block {
+        fn read(&self, at: u64, len: usize) -> Option<Vec<u8>> {
+            self.0
+                .get(at as usize..at as usize + len)
+                .map(<[u8]>::to_vec)
+        }
+
+        fn write(&mut self, at: u64, bytes: &[u8]) {
+            self.0[at as usize..at as usize + bytes.len()].copy_from_slice(bytes);
+        }
+    }
+
+    fn host() -> BattleHost {
+        let unit = Unit {
+            btl_id: 1,
+            player: true,
+            slot: 0,
+            serial: 0,
+            position: [100, 0, -200],
+            base: [100, 0, -200],
+            yaw: 1024,
+            height: 500,
+            radius: 256,
+            geo_radius: 256,
+            tar_bone: 0,
+            bones: Default::default(),
+        };
+        BattleHost {
+            units: vec![unit],
+            ..Default::default()
+        }
+    }
+
+    fn code(command: u8, btl_id: u8) -> i32 {
+        (i32::from(command) << 24) | i32::from(btl_id)
+    }
+
+    #[test]
+    fn set_commands_stage_the_unit_and_later_gets_see_it() {
+        let mut host = host();
+        let mut memory = Block(vec![0; 64]);
+        // Set Position (-50, -120, 30): later gets answer with it, and
+        // the bones follow.
+        for (at, value) in [-50i16, -120, 30].into_iter().enumerate() {
+            memory.write(8 + at as u64 * 2, &value.to_le_bytes());
+        }
+        host.answer(&mut memory, code(2, 1), [0; 4], 8);
+        let mut read = Block(vec![0; 64]);
+        host.answer(&mut read, code(1, 1), [0; 4], 16);
+        assert_eq!(read.0[16..22], memory.0[8..14]);
+        // Set Size, 2.0 on x: Get Size answers 8192.
+        host.answer(&mut memory, code(6, 1), [1 | 128, 8192, 4096, 4096], 0);
+        let mut size = Block(vec![0; 64]);
+        host.answer(&mut size, code(5, 1), [0; 4], 8);
+        assert_eq!(i32::from_le_bytes(size.0[8..12].try_into().unwrap()), 8192);
+        // Hide, then show: the priority rule keeps a Jump's hide.
+        host.effect = 393;
+        host.answer(&mut memory, code(18, 1), [1, 0, 0, 0], 0);
+        assert_eq!(host.answer(&mut memory, code(17, 1), [0; 4], 0), 1);
+        host.answer(&mut memory, code(18, 1), [0, 0, 0, 0], 0);
+        assert_eq!(host.answer(&mut memory, code(17, 1), [0; 4], 0), 0);
+        // Hide all meshes, show all.
+        host.answer(&mut memory, code(25, 1), [0, 0, 0, 0], 0);
+        assert!(host.changes[&1].meshes_hidden);
+        host.answer(&mut memory, code(25, 1), [2, 0, 0, 0], 0);
+        assert!(!host.changes[&1].meshes_hidden);
+        // Set Angles to a value: Euler (0, v - 180, 180 + v).
+        let mut angles = Block(vec![0; 64]);
+        angles.write(8, &1024i16.to_le_bytes());
+        angles.write(10, &2048i16.to_le_bytes());
+        angles.write(12, &0i16.to_le_bytes());
+        host.answer(&mut angles, code(4, 1), [2, 0, 0, 0], 8);
+        let euler = host.changes[&1].euler.expect("set");
+        assert_eq!(euler, [90.0, 0.0, 180.0]);
+    }
+
+    #[test]
+    fn a_background_capture_is_kept_for_the_frame() {
+        let mut host = host();
+        let mut memory = Block(vec![0; 64]);
+        for (i, value) in [448i32, 256, 128, 160, 0, 360, 3950]
+            .into_iter()
+            .enumerate()
+        {
+            memory.write(8 + i as u64 * 4, &value.to_le_bytes());
+        }
+        assert_eq!(host.background, None);
+        host.answer(&mut memory, code(120, 0), [0; 4], 8);
+        assert_eq!(host.background, Some([448, 256, 128, 160, 0, 360, 3950]));
     }
 }

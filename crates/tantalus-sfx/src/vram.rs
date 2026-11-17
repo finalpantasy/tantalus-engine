@@ -23,6 +23,10 @@ pub struct Vram {
     /// (`PSXTextureMgr.isCreateGenTexture`): from then on its 15-bit pages
     /// read the generated texture, not VRAM (`render::render_list`).
     pub generated_created: bool,
+    /// `PSXTextureMgr.bgKey` shifted down 16 (texture page x in bits 0-3, y in
+    /// bit 4) after the effect asked for a background capture (host command
+    /// 120, `CaptureBG`); 15-bit pages with that place read the capture.
+    pub background: Option<u16>,
 }
 
 impl Default for Vram {
@@ -30,6 +34,7 @@ impl Default for Vram {
         Self {
             pixels: vec![0; VRAM_WIDTH * VRAM_HEIGHT],
             generated_created: false,
+            background: None,
         }
     }
 }

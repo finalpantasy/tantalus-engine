@@ -126,6 +126,11 @@ struct Playing {
     list: Option<tantalus_sfx::render::RenderList>,
     /// The generated texture (`fill_generated`).
     generated: Option<Frame>,
+    /// The background capture (`PSXTextureMgr.bgTexture`), 256 x 256, taken
+    /// whenever the effect asks for one.
+    background: Option<Frame>,
+    /// What the effect has done to the units' models so far.
+    changes: std::collections::BTreeMap<u16, tantalus_sfx::player::UnitChange>,
 }
 
 /// An effect's own cameras.
@@ -518,26 +523,37 @@ pub fn psx_camera(camera: &BattleCamera) -> PsxCamera {
     }
 }
 
-/// Draws the effects running at `seconds`. `spots` are the units' places
-/// this frame (`None` for units not drawn).
-///
-/// Each effect's plugin is stepped up to the frame `seconds` is in, and
-/// played again from its start when the view goes back.
-pub fn draw_effects(
-    frame: &mut Frame,
+/// Whether any effect of `effects` is on stage at `seconds` and drawn.
+pub fn any_playing(effects: &[StageEffect], seconds: f64) -> bool {
+    effects
+        .iter()
+        .any(|effect| effect.age(seconds) >= 0.0 && is_drawn(effect.id))
+}
+
+/// Steps the effects running at `seconds` up to its frame (each effect's
+/// plugin is played again from its start when the view goes back), and
+/// returns what they did to the units' models, by unit index: summons hide
+/// the party, Mini scales, Jump moves (`SFX.BattleCallback`, commands 2, 4,
+/// 6, 18 and 25). `spots` are the units' places this frame (`None` for
+/// units not drawn); `ground` is the battle background, for the effects
+/// that capture it.
+pub fn advance_effects(
     camera: &BattleCamera,
     library: &EffectLibrary,
     stage: &BattleStage,
     effects: &[StageEffect],
     spots: &[Option<UnitSpot>],
+    ground: Option<&tantalus_assets::pc::battle_background::BattleBackground>,
     seconds: f64,
-) {
+) -> std::collections::BTreeMap<usize, tantalus_sfx::player::UnitChange> {
     let units = plugin_units(stage, spots);
     let psx_camera = psx_camera(camera);
     let mut playing = library
         .playing
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
+    let mut staged: std::collections::BTreeMap<usize, tantalus_sfx::player::UnitChange> =
+        Default::default();
     for effect in effects {
         let age = effect.age(seconds);
         let key = (effect.id, effect.caster, effect.start.to_bits());
@@ -554,6 +570,8 @@ pub fn draw_effects(
             played: 0,
             list: None,
             generated: None,
+            background: None,
+            changes: Default::default(),
         });
         if play.played < target
             && let Some(run) = play.run.as_mut()
@@ -568,20 +586,96 @@ pub fn draw_effects(
             match run.step(&psx_camera) {
                 Some(list) => {
                     fill_generated(&mut play.generated, &list);
+                    if let Some(params) = list.background_capture {
+                        if std::env::var_os("TANTALUS_SFX_BG_OUT").is_some() {
+                            eprintln!(
+                                "bg capture asked at frame {}: ground {}",
+                                play.played + 1,
+                                ground.is_some()
+                            );
+                        }
+                        play.background =
+                            ground.map(|ground| crate::battle_view::capture_ground(ground, params));
+                        // `TANTALUS_SFX_BG_OUT=<png>`: the capture, for a look.
+                        if let (Some(path), Some(capture)) =
+                            (std::env::var_os("TANTALUS_SFX_BG_OUT"), &play.background)
+                        {
+                            eprintln!("bg capture frame {} {:?}", play.played + 1, params);
+                            let _ =
+                                crate::battle_view::save_png(capture, std::path::Path::new(&path));
+                        }
+                    }
                     play.list = Some(list);
                     play.played += 1;
+                    play.changes = run.changes();
                     dump(effect, play.played, &units, &psx_camera, stage.put);
                 }
                 None => {
                     play.run = None;
                     play.list = None;
+                    play.changes.clear();
                 }
             }
         }
-        if let Some(list) = &play.list {
-            draw_list(frame, list, play.generated.as_ref());
+        for (btl_id, change) in &play.changes {
+            let Some(index) = units.iter().position(|unit| unit.btl_id == *btl_id) else {
+                continue;
+            };
+            let entry = staged.entry(index).or_default();
+            entry.position = change.position.or(entry.position);
+            entry.euler = change.euler.or(entry.euler);
+            entry.scale = change.scale.or(entry.scale);
+            entry.disappear = entry.disappear.max(change.disappear);
+            entry.meshes_hidden |= change.meshes_hidden;
+            entry.fade = change.fade.or(entry.fade);
         }
     }
+    staged
+}
+
+/// Draws the last frame [`advance_effects`] stepped of each effect running
+/// at `seconds`, over `frame`.
+pub fn show_effects(
+    frame: &mut Frame,
+    library: &EffectLibrary,
+    effects: &[StageEffect],
+    seconds: f64,
+) {
+    let playing = library
+        .playing
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    for effect in effects {
+        let key = (effect.id, effect.caster, effect.start.to_bits());
+        if effect.age(seconds) < 0.0 || !is_drawn(effect.id) {
+            continue;
+        }
+        if let Some(play) = playing.get(&key)
+            && let Some(list) = &play.list
+        {
+            draw_list(
+                frame,
+                list,
+                play.generated.as_ref(),
+                play.background.as_ref(),
+            );
+        }
+    }
+}
+
+/// Draws the effects running at `seconds` ([`advance_effects`], then
+/// [`show_effects`]), the units drawn as they are.
+pub fn draw_effects(
+    frame: &mut Frame,
+    camera: &BattleCamera,
+    library: &EffectLibrary,
+    stage: &BattleStage,
+    effects: &[StageEffect],
+    spots: &[Option<UnitSpot>],
+    seconds: f64,
+) {
+    advance_effects(camera, library, stage, effects, spots, None, seconds);
+    show_effects(frame, library, effects, seconds);
 }
 
 /// `TANTALUS_SFX_DUMP=<file>`: appends each played frame's input (the
@@ -740,6 +834,7 @@ pub fn draw_list(
     frame: &mut Frame,
     list: &tantalus_sfx::render::RenderList,
     generated: Option<&Frame>,
+    background: Option<&Frame>,
 ) {
     use tantalus_sfx::render::{GEN_H, GEN_W};
     let (sx, sy) = (
@@ -775,6 +870,17 @@ pub fn draw_list(
                 width: GEN_W,
                 height: GEN_H,
                 rgba: &generated.rgba,
+                clamp: true,
+            })
+        } else if batch.background {
+            // No ground mesh: the capture is clear, and nothing shows.
+            let Some(background) = background else {
+                continue;
+            };
+            Some(Texture {
+                width: background.width as usize,
+                height: background.height as usize,
+                rgba: &background.rgba,
                 clamp: true,
             })
         } else {
@@ -944,6 +1050,7 @@ mod tests {
             generated_begin: begin,
             generated_target: target,
             generated,
+            background: false,
             triangles: if begin {
                 Vec::new()
             } else {
@@ -953,6 +1060,7 @@ mod tests {
         let list = RenderList {
             batches: vec![batch(true, false, false), batch(false, true, false)],
             pages: Vec::new(),
+            background_capture: None,
         };
         let mut generated = None;
         fill_generated(&mut generated, &list);
@@ -962,7 +1070,7 @@ mod tests {
         assert_eq!(at(300, 200), [0, 0, 0, 255]);
         // The screen draw skips the batch that went into the texture.
         let mut frame = Frame::new(320, 220, [0, 0, 0, 255]);
-        draw_list(&mut frame, &list, generated.as_ref());
+        draw_list(&mut frame, &list, generated.as_ref(), None);
         assert!(frame.rgba.chunks(4).all(|pixel| pixel[0] == 0));
         // A batch that reads it shows it, 0..256 of its 512 texels wide.
         let read = RenderList {
@@ -971,8 +1079,9 @@ mod tests {
                 ..batch(false, false, true)
             }],
             pages: Vec::new(),
+            background_capture: None,
         };
-        draw_list(&mut frame, &read, generated.as_ref());
+        draw_list(&mut frame, &read, generated.as_ref(), None);
         assert!(frame.rgba.chunks(4).any(|pixel| pixel[0] == 255));
     }
 
@@ -1304,7 +1413,7 @@ dll  {:#?}",
                 let draw = |list: &Option<tantalus_sfx::render::RenderList>| {
                     let mut frame = Frame::new(640, 480, [0, 0, 0, 255]);
                     if let Some(list) = list {
-                        draw_list(&mut frame, list, None);
+                        draw_list(&mut frame, list, None, None);
                     }
                     frame
                 };
