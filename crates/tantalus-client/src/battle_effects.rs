@@ -41,6 +41,9 @@ pub enum EffectKind {
     Ifrit,
     /// `Ramuh__Full` 186 / `__Short` 415.
     Ramuh,
+    /// `Special_Trance_Activate` 257 / `Special_Trance_End` 489: a stand-in
+    /// glow on the member until the effect scripts run.
+    Trance,
 }
 
 impl EffectKind {
@@ -55,6 +58,7 @@ impl EffectKind {
             38 | 407 => Some(Self::Shiva),
             276 | 445 => Some(Self::Ifrit),
             186 | 415 => Some(Self::Ramuh),
+            257 | 489 => Some(Self::Trance),
             _ => None,
         }
     }
@@ -90,7 +94,18 @@ impl StageEffect {
 #[derive(Debug)]
 pub struct EffectLibrary {
     resources: std::path::PathBuf,
-    cache: std::sync::Mutex<std::collections::HashMap<i32, std::sync::Arc<Vec<EffectCameraPlay>>>>,
+    cache: std::sync::Mutex<std::collections::HashMap<i32, std::sync::Arc<EffectCameras>>>,
+    /// The plugin's per-effect flag words, read once.
+    flags: std::sync::OnceLock<Vec<u16>>,
+}
+
+/// An effect's own cameras.
+#[derive(Debug, Clone, Default)]
+pub struct EffectCameras {
+    pub plays: Vec<EffectCameraPlay>,
+    /// Its header forces them on with Battle Camera: Fixed
+    /// (`RecomputeGate323268`, header byte 28 bit `0x8`).
+    pub forced: bool,
 }
 
 impl EffectLibrary {
@@ -99,11 +114,32 @@ impl EffectLibrary {
         Self {
             resources,
             cache: std::sync::Mutex::new(std::collections::HashMap::new()),
+            flags: std::sync::OnceLock::new(),
         }
     }
 
+    /// Effect `id`'s flag word from `Plugins/FF9SpecialEffectPlugin.dll`
+    /// beside `resources.assets` (0 when it cannot be read).
+    pub fn flags(&self, id: i32) -> u16 {
+        let flags = self.flags.get_or_init(|| {
+            let dll = self
+                .resources
+                .with_file_name("Plugins")
+                .join("FF9SpecialEffectPlugin.dll");
+            std::fs::read(dll)
+                .ok()
+                .and_then(|bytes| tantalus_assets::pc::special_effect::plugin_effect_flags(&bytes))
+                .unwrap_or_default()
+        });
+        usize::try_from(id)
+            .ok()
+            .and_then(|id| flags.get(id))
+            .copied()
+            .unwrap_or(0)
+    }
+
     /// The cameras effect `id` plays (empty when its data is missing).
-    pub fn cameras(&self, id: i32) -> std::sync::Arc<Vec<EffectCameraPlay>> {
+    pub fn cameras(&self, id: i32) -> std::sync::Arc<EffectCameras> {
         let mut cache = self
             .cache
             .lock()
@@ -114,7 +150,7 @@ impl EffectLibrary {
             .clone()
     }
 
-    fn read(&self, id: i32) -> Option<Vec<EffectCameraPlay>> {
+    fn read(&self, id: i32) -> Option<EffectCameras> {
         use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
         use tantalus_assets::pc::special_effect::EffectFile;
         let name = format!("ef{id:03}");
@@ -126,7 +162,10 @@ impl EffectLibrary {
             .find(|(asset, _)| *asset == name)?;
         let bytes = file.read_text_asset(&object).ok()?.script;
         let effect = EffectFile::parse(&bytes, &name).ok()?;
-        Some(effect_camera_plays(&effect, &bytes))
+        Some(EffectCameras {
+            plays: effect_camera_plays(&effect, &bytes),
+            forced: self.flags(id) & 8 != 0,
+        })
     }
 }
 
@@ -156,6 +195,27 @@ pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
                 continue;
             };
             if *unit >= party {
+                continue;
+            }
+            // `SysTrans` plays the Trance effect on its unit from the start
+            // (`btl_vfx.GetPlayerCommandSFX`).
+            if *cmd_no == tantalus_legacy::battle::queue::cmd::SYS_TRANS {
+                let entering = matches!(frame.trance.get(*unit), Some(Some((_, true))));
+                let id = if entering {
+                    tantalus_tools::battle_effects::TRANCE_ACTIVATE
+                } else {
+                    tantalus_tools::battle_effects::TRANCE_END
+                };
+                if let Some(timing) = stage.effects.timing.get(&id) {
+                    out.push(StageEffect {
+                        id,
+                        caster: *unit,
+                        targets: vec![*unit],
+                        timing: *timing,
+                        applied: (tick + timing.hit as usize) as f64,
+                        start: tick as f64,
+                    });
+                }
                 continue;
             }
             let Some((id, timing)) =
@@ -284,6 +344,7 @@ pub fn draw_effects(
                 EffectKind::Shiva => blizzard(&mut sprites, big, age, hit, length, seed),
                 EffectKind::Ifrit => fire(&mut sprites, big, age, hit, length, seed),
                 EffectKind::Ramuh => thunder(&mut sprites, big, age, hit, length, seed),
+                EffectKind::Trance => trance(&mut sprites, spot, age, hit, length, seed),
             }
             for sprite in sprites {
                 draw_sprite(frame, camera, &sprite);
@@ -589,6 +650,17 @@ fn cure(out: &mut Vec<Sprite>, spot: UnitSpot, age: f32, hit: f32, length: f32, 
             shape: Shape::Star,
             color: scale([0.75, 1.0, 0.8], fade * (1.0 - cycle)),
         });
+    }
+}
+
+/// [`cure`]'s rising glow in the Trance gauge's pink.
+fn trance(out: &mut Vec<Sprite>, spot: UnitSpot, age: f32, hit: f32, length: f32, seed: u32) {
+    let start = out.len();
+    cure(out, spot, age, hit, length, seed);
+    for sprite in &mut out[start..] {
+        let [r, g, b] = sprite.color;
+        let level = r.max(g).max(b);
+        sprite.color = [level, level * 0.45, level * 0.75];
     }
 }
 

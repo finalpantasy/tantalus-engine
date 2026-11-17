@@ -972,6 +972,7 @@ fn chain_and_handoff_paths_agree_on_the_same_scene() {
                 base: base_stats,
                 globals: Default::default(),
                 row: 1,
+                trance: 0,
             }],
         );
         assert_eq!(report.error, None, "seed {seed}: chain path ran clean");
@@ -1047,7 +1048,7 @@ fn chain_and_handoff_paths_agree_on_the_same_scene() {
         // Survivor HP/MP carry-back: Opus's `save_party` (report ->
         // clamped record write) must land on the same numbers the
         // hand-off runner writes in place.
-        let mut chain_stats = BTreeMap::from([(
+        let chain_stats = BTreeMap::from([(
             0,
             tantalus_game::field::CharacterStats {
                 current_hp: 500,
@@ -1056,8 +1057,10 @@ fn chain_and_handoff_paths_agree_on_the_same_scene() {
                 max_mp: 100,
             },
         )]);
-        save_party(&report, &mut chain_stats);
-        let chain = &chain_stats[&0];
+        let mut chain_world = tantalus_game::FieldWorld::new();
+        chain_world.character_stats = chain_stats;
+        save_party(&report, &mut chain_world);
+        let chain = &chain_world.character_stats[&0];
         let handoff = &world.character_stats[&0];
         assert_eq!(
             (chain.current_hp, chain.current_mp),

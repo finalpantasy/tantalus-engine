@@ -630,6 +630,11 @@ impl CameraScript {
                         ];
                         p += 4;
                     }
+                    // `SFX_UpdateCamera`: the side bit takes the block's
+                    // variant (`byte_1802200B3 = dword_180220108`).
+                    if flags & 0x2000 != 0 {
+                        self.side = self.variant as u8;
+                    }
                     if flags & 0x4000 != 0 {
                         if self.byte(p) == 1 {
                             self.phase = 1;

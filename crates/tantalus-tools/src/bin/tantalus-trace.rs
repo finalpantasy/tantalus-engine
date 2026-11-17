@@ -396,6 +396,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                         base: *base.get(character)?,
                         globals: fight_globals,
                         row: 1,
+                        trance: 0,
                     })
                 })
                 .collect();
@@ -1527,16 +1528,14 @@ fn chain(
                                             world.global_memory.bytes(),
                                         ),
                                     row: u8::from(!world.back_row.contains(character)),
+                                    trance: world.trance.get(character).copied().unwrap_or(0),
                                 })
                             })
                             .collect();
                         for request in &step.encounters {
                             let items = director.world().items.clone();
                             let report = field_battles.fight_with_items(request, &party, &items);
-                            tantalus_tools::field_battle::save_party(
-                                &report,
-                                &mut director.world_mut().character_stats,
-                            );
+                            tantalus_tools::field_battle::save_party(&report, director.world_mut());
                             tantalus_tools::field_battle::pay_rewards(
                                 &report,
                                 director.world_mut(),

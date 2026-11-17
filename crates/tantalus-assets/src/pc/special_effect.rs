@@ -1017,6 +1017,43 @@ fn parse_camera_sequence(
         end,
     ))
 }
+/// RVA of the plugin's per-effect flag words (`unk_18004F020`), which
+/// `SfxVramInitUpload` copies to `0x1802208D0` and uploads to VRAM at
+/// (768, 320); `SeqStateUpdateStart` reads entry `effect` back as the
+/// play's flags (`dword_18032318C`).
+const PLUGIN_EFFECT_FLAGS_RVA: u32 = 0x4F020;
+/// Entries in that table (2048 bytes).
+const PLUGIN_EFFECT_FLAGS: usize = 1024;
+
+/// The per-effect flag words of `FF9SpecialEffectPlugin.dll` (its bytes),
+/// by effect id. Bit `0x8` forces the effect's cameras on
+/// (`RecomputeGate323268`); with bit `0x8000` `SeqStateUpdateStart`
+/// takes its other path (no gate, no state reset).
+pub fn plugin_effect_flags(dll: &[u8]) -> Option<Vec<u16>> {
+    let u16_at = |at: usize| Some(u16::from_le_bytes(dll.get(at..at + 2)?.try_into().ok()?));
+    let u32_at = |at: usize| Some(u32::from_le_bytes(dll.get(at..at + 4)?.try_into().ok()?));
+    let pe = usize::try_from(u32_at(0x3C)?).ok()?;
+    if dll.get(pe..pe + 4)? != b"PE\0\0" {
+        return None;
+    }
+    let sections = usize::from(u16_at(pe + 6)?);
+    let optional = usize::from(u16_at(pe + 20)?);
+    let table = pe + 24 + optional;
+    let rva = PLUGIN_EFFECT_FLAGS_RVA;
+    let offset = (0..sections).find_map(|index| {
+        let at = table + index * 40;
+        let virtual_size = u32_at(at + 8)?;
+        let virtual_address = u32_at(at + 12)?;
+        let raw_size = u32_at(at + 16)?;
+        let raw_offset = u32_at(at + 20)?;
+        let inside = rva.checked_sub(virtual_address)?;
+        (inside < virtual_size.max(raw_size)).then_some(raw_offset + inside)
+    })?;
+    let start = usize::try_from(offset).ok()?;
+    (0..PLUGIN_EFFECT_FLAGS)
+        .map(|index| u16_at(start + index * 2))
+        .collect()
+}
 
 #[cfg(test)]
 mod tests {

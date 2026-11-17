@@ -128,6 +128,12 @@ pub enum StageEvent {
         target: usize,
         item: Option<u32>,
     },
+    /// An enemy's `RunCamera` 0x12 ran; `play` says whether its camera
+    /// plays (`SFX.ShouldPlayAlternateCamera`).
+    AlternateCamera {
+        unit: usize,
+        play: bool,
+    },
 }
 
 /// The [`StageEvent`]s in `log` (new machine log entries). `hp` is each
@@ -213,6 +219,9 @@ pub fn stage_events(
                 target,
                 item,
             }),
+            BattleEvent::AlternateCamera { unit, play } => {
+                events.push(StageEvent::AlternateCamera { unit, play });
+            }
             _ => {}
         }
     }
@@ -352,6 +361,9 @@ pub struct BattleStage {
 pub struct AttackCamera {
     pub frame: u32,
     pub run: bool,
+    /// Op 0x12: it runs only when `ShouldPlayAlternateCamera` says so
+    /// ([`StageEvent::AlternateCamera`]).
+    pub alternate: bool,
     pub camera_no: u8,
 }
 
@@ -375,6 +387,7 @@ pub fn attack_cameras(bytes: &[u8]) -> Vec<Option<AttackCamera>> {
                     MarkerKind::Camera { op, id } => Some(AttackCamera {
                         frame: marker.frame,
                         run: op == CameraOp::Run,
+                        alternate: op == CameraOp::RunIfAlternate,
                         camera_no: id,
                     }),
                     _ => None,
@@ -384,6 +397,35 @@ pub fn attack_cameras(bytes: &[u8]) -> Vec<Option<AttackCamera>> {
 }
 
 impl BattleStage {
+    /// Each party `SysTrans` (`cmd_no` 59): its unit, the tick it starts,
+    /// and whether it enters Trance (the unit's status then). The model
+    /// changes [`SYS_TRANS_MODEL_FRAME`] ticks in (`btl_vfx.SetTranceModel`).
+    ///
+    /// [`SYS_TRANS_MODEL_FRAME`]: tantalus_legacy::battle::machine::SYS_TRANS_MODEL_FRAME
+    pub fn trance_changes(&self) -> Vec<(usize, usize, bool)> {
+        let mut out = Vec::new();
+        for (tick, frame) in self.frames.iter().enumerate() {
+            for event in &frame.events {
+                if let StageEvent::Command { unit, cmd_no, .. } = event
+                    && *cmd_no == tantalus_legacy::battle::queue::cmd::SYS_TRANS
+                    && let Some(Some((_, entering))) = frame.trance.get(*unit)
+                {
+                    out.push((*unit, tick, *entering));
+                }
+            }
+        }
+        out
+    }
+
+    /// Whether `unit` shows its Trance model at stage tick `tick`.
+    pub fn shows_trance_model(&self, unit: usize, tick: f64) -> bool {
+        let swap = f64::from(tantalus_legacy::battle::machine::SYS_TRANS_MODEL_FRAME);
+        self.trance_changes()
+            .into_iter()
+            .rfind(|&(changed, start, _)| changed == unit && start as f64 + swap <= tick)
+            .is_some_and(|(_, _, entering)| entering)
+    }
+
     /// The scene's units: `party` (machine units) then the pattern's
     /// placements.
     pub fn new(

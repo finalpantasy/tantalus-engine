@@ -34,6 +34,8 @@ pub fn run(args: &[std::ffi::OsString]) -> ExitCode {
         "--live",
         "--party-hp",
         "--recast",
+        "--trance",
+        "--enter-trance",
     ]);
     let Some(values) = super::flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
@@ -392,6 +394,13 @@ fn live_capture(
     if let (Some(hp), Some(fight)) = (party_hp, game.battle_mut()) {
         fight.cap_party_hp(hp);
     }
+    // `--trance N`: every member's Trance gauge is on and at N.
+    if let Some(trance) = values.get("--trance") {
+        let trance: u8 = trance.parse().map_err(|_| "bad --trance")?;
+        if let Some(fight) = game.battle_mut() {
+            fight.preset_trance(trance);
+        }
+    }
     let delta = 1.0 / 30.0;
     let mut steps: Steps = Vec::new();
     let mut waited = 0.0;
@@ -460,6 +469,45 @@ fn live_capture(
                 if !saved.contains(&name) && seconds >= start + after {
                     lines.push(save(&view, game, named(output, name))?);
                     saved.push(name);
+                }
+            }
+        }
+        // A member entering Trance: the effect, the new model, and its
+        // menu with the Trance commands.
+        if let Some(fight) = game.battle() {
+            let changes = fight.stage().trance_changes();
+            if let Some(&(unit, start, _)) = changes.iter().find(|change| change.2) {
+                let start = start as f64 / 15.0;
+                for (name, after) in [("trance-effect", 2.0), ("trance-model", 6.0)] {
+                    if !saved.contains(&name) && seconds >= start + after {
+                        lines.push(save(&view, game, named(output, name))?);
+                        saved.push(name);
+                    }
+                }
+                if !saved.contains(&"trance-menu")
+                    && view.menu.open()
+                    && view.menu.unit == Some(unit)
+                    && waited > 0.3
+                {
+                    lines.push(save(&view, game, named(output, "trance-menu"))?);
+                    saved.push("trance-menu");
+                    if let Some(menu) = fight.menu(unit) {
+                        let titles: Vec<String> = menu
+                            .commands
+                            .iter()
+                            .map(|command| match &command.kind {
+                                tantalus_tools::field_battle::CommandKind::List(list) => format!(
+                                    "{} {:?}",
+                                    command.title,
+                                    list.iter()
+                                        .map(|entry| entry.label.as_str())
+                                        .collect::<Vec<_>>()
+                                ),
+                                _ => command.title.clone(),
+                            })
+                            .collect();
+                        lines.push(format!("unit {unit} in Trance: commands {titles:?}"));
+                    }
                 }
             }
         }
@@ -532,6 +580,17 @@ fn live_capture(
         {
             lines.push(save(&view, game, numbered(output, at_index))?);
             at_index += 1;
+        }
+        // `--enter-trance N`: member N enters Trance once the menu is up.
+        if let Some(unit) = values.get("--enter-trance")
+            && !saved.contains(&"entered")
+            && view.menu.open()
+        {
+            let unit: usize = unit.parse().map_err(|_| "bad --enter-trance")?;
+            if let Some(fight) = game.battle_mut() {
+                fight.enter_trance(unit);
+            }
+            saved.push("entered");
         }
         let (events, done) = view.update(game, delta, held);
         lines.extend(events.iter().map(tantalus_client::live::describe));

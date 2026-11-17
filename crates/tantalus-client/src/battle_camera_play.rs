@@ -42,6 +42,9 @@ pub struct CameraDirector {
     /// Enemy cameras waiting for their op's frame: tick, caster, targets,
     /// camera number.
     pending: Vec<(usize, usize, Vec<usize>, u8)>,
+    /// An enemy command whose camera is `RunCamera` 0x12: its unit,
+    /// targets and `CameraNo`, until the machine says whether it plays.
+    alternate: Option<(usize, Vec<usize>, u8)>,
     /// A party command's reaction camera waiting for its effect to play:
     /// tick, set, caster, target.
     reaction: Option<(usize, usize, usize, Option<usize>)>,
@@ -115,9 +118,7 @@ impl CameraDirector {
         script.start_plunge(0);
         let mut effect_plays = Vec::new();
         let mut effect_starts = Vec::new();
-        // Battle Camera: Fixed turns the effects' cameras off
-        // (`RecomputeGate323268`).
-        if let Some(library) = library.filter(|_| !stage.fixed_camera) {
+        if let Some(library) = library {
             for effect in crate::battle_effects::stage_effects(stage) {
                 // A summon's cameras frame its own model and world, which
                 // are not drawn (a wall or nothing for 18 s of a full
@@ -129,7 +130,13 @@ impl CameraDirector {
                 }
                 let start = effect.start.round() as usize;
                 effect_starts.push(start);
-                for play in library.cameras(effect.id).iter() {
+                // Battle Camera: Fixed turns an effect's cameras off unless
+                // its header forces them (`RecomputeGate323268`).
+                let cameras = library.cameras(effect.id);
+                if stage.fixed_camera && !cameras.forced {
+                    continue;
+                }
+                for play in cameras.plays.iter() {
                     effect_plays.push((
                         start + play.frame as usize,
                         effect.caster,
@@ -148,6 +155,7 @@ impl CameraDirector {
             ticks: 0,
             camera: None,
             pending: Vec::new(),
+            alternate: None,
             reaction: None,
             effect_plays,
             effect_starts,
@@ -261,6 +269,16 @@ impl CameraDirector {
                         (*cmd_no, *sub_no, *short_summon),
                         targets,
                     ),
+                    // `SeqExecRunCamera` 0x12 when
+                    // `ShouldPlayAlternateCamera` let it play.
+                    StageEvent::AlternateCamera { unit, play } => {
+                        if let Some((owner, targets, camera_no)) = self.alternate.take()
+                            && owner == *unit
+                            && *play
+                        {
+                            self.pending.push((tick, owner, targets, camera_no));
+                        }
+                    }
                     // An effect camera runs to the end of its effect.
                     StageEvent::Finished { unit, .. }
                         if self.busy == Some(*unit) && self.effect_end.is_none() =>
@@ -343,6 +361,12 @@ impl CameraDirector {
                     targets.to_vec(),
                     camera.camera_no,
                 ));
+            }
+            // 0x12 reads its `CameraNo` only when it plays.
+            Some(camera) if camera.alternate => {
+                self.alternate = Some((unit, targets.to_vec(), camera.camera_no));
+                self.script
+                    .start_track_block(5 + unit - self.party, 80, unit, target, &self.world);
             }
             _ => {
                 self.script.context.camera_no = camera.map_or(0, |camera| camera.camera_no);

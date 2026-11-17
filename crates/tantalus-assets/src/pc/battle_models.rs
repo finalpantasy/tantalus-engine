@@ -1201,6 +1201,15 @@ pub fn player_model_names() -> Vec<(&'static str, &'static str)> {
 
 /// `BattleParameters.csv` row `serial`: label, model name and the
 /// `MP_IDLE_NORMAL` motion name (`SetPlayerDefMotion`, motion 0).
+/// `BattleParameters.csv` row `serial`: its `TranceModelId`
+/// (`btl_init.GetModelID(serial, isTrance: true)`).
+pub fn player_trance_model(serial: u32) -> Option<&'static str> {
+    names::PLAYERS
+        .iter()
+        .find(|row| row.serial == serial)
+        .map(|row| row.trance_model)
+}
+
 pub fn player_battle_row(serial: u32) -> Option<(&'static str, &'static str, &'static str)> {
     names::PLAYERS
         .iter()

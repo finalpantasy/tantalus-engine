@@ -656,6 +656,10 @@ impl PlayGame {
 
     fn party(&self) -> Vec<PartyFighter> {
         let world = self.world();
+        // Every fight starts from the summons the game has seen.
+        if let Some(battles) = &self.data.battles {
+            battles.set_summons_seen(&world.summons_seen);
+        }
         world
             .party
             .iter()
@@ -671,6 +675,7 @@ impl PlayGame {
                     base,
                     globals: PartyGlobals::from_globals(world.global_memory.bytes()),
                     row: u8::from(!world.back_row.contains(character)),
+                    trance: world.trance.get(character).copied().unwrap_or(0),
                 })
             })
             .collect()
@@ -1276,7 +1281,7 @@ impl PlayGame {
                     Some(battles) => {
                         let items = session.director.world().items.clone();
                         let mut report = battles.fight_with_items(request, &party, &items);
-                        save_party(&report, &mut session.director.world_mut().character_stats);
+                        save_party(&report, session.director.world_mut());
                         pay_rewards(&report, session.director.world_mut());
                         stages.push(report.stage.take());
                         report.outcome.unwrap_or_else(|| "no result".to_owned())
@@ -1505,7 +1510,7 @@ impl PlayGame {
         let mut report = fight.finish(battles);
         let session = self.session.as_mut().expect("session");
         let world = session.director.world_mut();
-        save_party(&report, &mut world.character_stats);
+        save_party(&report, world);
         let tables = &self.data.menu;
         let levels = |world: &FieldWorld| -> Vec<usize> {
             report
@@ -1750,7 +1755,7 @@ impl PlayGame {
                 Some(battles) => {
                     let items = session.director.world().items.clone();
                     let mut report = battles.fight_with_items(&request, &party, &items);
-                    save_party(&report, &mut session.director.world_mut().character_stats);
+                    save_party(&report, session.director.world_mut());
                     pay_rewards(&report, session.director.world_mut());
                     self.last_battle = report.stage.take();
                     report

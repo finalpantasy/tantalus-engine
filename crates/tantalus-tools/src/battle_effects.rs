@@ -148,16 +148,57 @@ impl EffectTable {
     }
 }
 
-/// Battle frames from a command's `CMD_MODE_LOOP` to its `PlaySFX`: the
-/// caster's step forward, chant and cast motion in `PlayerSequence.seq`
-/// (`MP_STEP_FORWARD`, `MP_IDLE_TO_CHANT`, `MP_CHANT` until the SFX is loaded,
-/// `MP_MAGIC`). A stand-in: the motions are not timed, and with Fire's
-/// `EffectPoint` at 5 it keeps the old 40-tick HP change.
-pub const CAST_LEAD: u32 = 35;
+/// Battle frames from a command's `CMD_MODE_LOOP` to its `PlaySFX` that
+/// [`EffectTable::command_timings`] assumes; the battle moves each command
+/// by its caster's own [`cast_leads`] (`BattleConfig::cast_leads`).
+pub const CAST_LEAD: u32 = tantalus_legacy::battle::machine::DEFAULT_CAST_LEAD;
+
+/// `BattlePlayerCharacter.PlayerMotionIndex` of the cast motions.
+const MP_IDLE_TO_CHANT: usize = 26;
+const MP_CHANT: usize = 27;
+const MP_MAGIC: usize = 28;
+const MP_STEP_FORWARD: usize = 29;
+const MP_ITEM1: usize = 31;
+
+/// Every party model's cast motions by serial (`BattleParameters.csv`
+/// motions, frames from `audit/animation-frames.csv`). A model missing a
+/// clip length is left out and keeps [`CAST_LEAD`].
+pub fn cast_leads() -> BTreeMap<u8, tantalus_legacy::battle::machine::CastLead> {
+    use tantalus_assets::pc::battle_models::{
+        animation_db_key, player_attack_sequences, player_battle_motions,
+    };
+    let frames = crate::animation_frames::table();
+    let mut out = BTreeMap::new();
+    for (serial, _, _) in player_attack_sequences() {
+        let Some(motions) = player_battle_motions(serial) else {
+            continue;
+        };
+        let length = |index: usize| -> Option<u32> {
+            let key = u16::try_from(animation_db_key(motions[index])?).ok()?;
+            frames.get(&key).map(|&frames| u32::from(frames))
+        };
+        let lead = (|| {
+            Some(tantalus_legacy::battle::machine::CastLead {
+                step_forward: length(MP_STEP_FORWARD)?,
+                idle_to_chant: length(MP_IDLE_TO_CHANT)?,
+                chant: length(MP_CHANT)?,
+                magic: length(MP_MAGIC)?,
+                item: length(MP_ITEM1)?,
+            })
+        })();
+        if let (Some(lead), Ok(serial)) = (lead, u8::try_from(serial)) {
+            out.insert(serial, lead);
+        }
+    }
+    out
+}
 
 /// The fewest ticks a command takes before its HP change and before it ends
 /// (the old stand-in for every command).
 pub const MIN_EFFECT_TICKS: u32 = 40;
+/// `SpecialEffect.Special_Trance_Activate` and `Special_Trance_End`.
+pub const TRANCE_ACTIVATE: i32 = 257;
+pub const TRANCE_END: i32 = 489;
 pub const MIN_COMMAND_TICKS: u32 = 75;
 
 impl EffectTable {
@@ -186,6 +227,17 @@ impl EffectTable {
                 if let Some(value) = ticks(if alternate { single } else { many }) {
                     out.insert((false, ability, variant), value);
                 }
+            }
+        }
+        // `SysTrans` plays the Trance effect from its first frame; the
+        // model changes at frame 75 and the command ends with the effect.
+        for (entering, effect) in [(true, TRANCE_ACTIVATE), (false, TRANCE_END)] {
+            if let Some(timing) = self.timing.get(&effect) {
+                let swap = tantalus_legacy::battle::machine::SYS_TRANS_MODEL_FRAME;
+                out.insert(
+                    tantalus_legacy::battle::machine::sys_trans_key(entering),
+                    (swap, timing.length.max(swap)),
+                );
             }
         }
         for (&item, &effect) in &self.items {
@@ -287,6 +339,18 @@ mod tests {
             })
         );
         assert_eq!(parse_effect_sequence("Wait: Time=3\n"), None);
+    }
+
+    /// Zidane (serial 0) chants with `ANH_MAIN_B0_000_200`..`_202` (10, 13
+    /// and 18 frames), steps forward in 7 and uses an item in 18.
+    #[test]
+    fn cast_leads_come_from_the_clip_lengths() {
+        let leads = cast_leads();
+        let zidane = leads[&0];
+        assert_eq!(zidane.ticks(false, false, false), 41);
+        assert_eq!(zidane.ticks(false, true, true), 7 + 10 + 26 + 18);
+        assert_eq!(zidane.ticks(true, false, false), 18);
+        assert!(leads.len() > 10);
     }
 
     /// Fire (hit 5, 49 frames) keeps the 40-tick HP change and ends at

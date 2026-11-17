@@ -67,7 +67,27 @@ const CHARACTERS: [&str; 12] = [
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct UnitLook {
     geo: u32,
+    /// A party member's Trance model (`TranceModelId`), which
+    /// `btl_vfx.SetTranceModel` swaps in; its clips are the same motions.
+    trance_geo: Option<u32>,
     motions: Motions,
+}
+
+impl UnitLook {
+    /// The model `unit` shows at `seconds`: its Trance model from frame 75
+    /// of the `SysTrans` that enters Trance until the one that leaves.
+    fn geo_at(&self, stage: &BattleStage, assets: &BattleAssets, unit: usize, seconds: f64) -> u32 {
+        match self.trance_geo {
+            Some(trance)
+                if matches!(assets.models.get(&trance), Some(Some(_)))
+                    && stage
+                        .shows_trance_model(unit, seconds.max(0.0) * BATTLE_TICKS_PER_SECOND) =>
+            {
+                trance
+            }
+            _ => self.geo,
+        }
+    }
 }
 
 fn named_clip(name: &str) -> Option<ClipKey> {
@@ -87,6 +107,10 @@ fn unit_look(stage: &BattleStage, model: &StageModel) -> Option<UnitLook> {
             let motions = player_battle_motions(u32::from(*serial))?;
             Some(UnitLook {
                 geo: geo_id_by_name(model)?,
+                trance_geo: tantalus_assets::pc::battle_models::player_trance_model(u32::from(
+                    *serial,
+                ))
+                .and_then(geo_id_by_name),
                 motions: Motions::Player(motions.iter().map(|name| named_clip(name)).collect()),
             })
         }
@@ -97,6 +121,7 @@ fn unit_look(stage: &BattleStage, model: &StageModel) -> Option<UnitLook> {
             death,
         } => Some(UnitLook {
             geo: u32::try_from(*geo).ok()?,
+            trance_geo: None,
             motions: Motions::Enemy {
                 idle: id_clip(*idle),
                 hit: id_clip(*hit),
@@ -201,11 +226,15 @@ impl BattleAssets {
             .iter()
             .filter_map(|unit| unit_look(stage, &unit.model))
             .collect();
-        let want_models: Vec<u32> = looks
+        // Each member's Trance model too (`BTL_DATA.tranceGo` is built with
+        // the battle model).
+        let mut want_models: Vec<u32> = looks
             .iter()
-            .map(|look| look.geo)
+            .flat_map(|look| std::iter::once(look.geo).chain(look.trance_geo))
             .filter(|geo| !self.models.contains_key(geo))
             .collect();
+        want_models.sort_unstable();
+        want_models.dedup();
         if !want_models.is_empty() {
             let loaded = with_store(&self.models_bundle, |store| {
                 let entries = store.container().map_err(|error| error.to_string())?;
@@ -751,7 +780,10 @@ impl BattleScene {
                     &mut frame,
                     &camera,
                     assets,
-                    (look.geo, stage.tar_bones.get(index).copied().flatten()),
+                    (
+                        look.geo_at(stage, assets, index, seconds),
+                        stage.tar_bones.get(index).copied().flatten(),
+                    ),
                     &motion,
                     unit.position,
                     motion.facing.unwrap_or(unit.turn),

@@ -117,6 +117,52 @@ pub struct Timing {
 /// [`Timing::effect_after_loop_ticks`] and [`Timing::loop_total_ticks`].
 pub type CommandTimings = std::collections::BTreeMap<(bool, i32, u8), (u32, u32)>;
 
+/// The [`CommandTimings`] key of a party member's `SysTrans`: the Trance
+/// effect (`Special_Trance_Activate`, 257) when `entering`, else
+/// `Special_Trance_End` (489) (`btl_vfx.GetPlayerCommandSFX`).
+pub fn sys_trans_key(entering: bool) -> (bool, i32, u8) {
+    (false, -(cmd::SYS_TRANS as i32), u8::from(entering))
+}
+
+/// SFX frame of `SysTrans` at which the model changes
+/// (`btl_cmd.CheckCommandLoop`: `SFX.frameIndex == 75` calls
+/// `btl_vfx.SetTranceModel`).
+pub const SYS_TRANS_MODEL_FRAME: u32 = 75;
+
+/// The lead [`CommandTimings`] values assume: battle frames from
+/// `CMD_MODE_LOOP` to `PlaySFX` for a caster without a [`CastLead`].
+pub const DEFAULT_CAST_LEAD: u32 = 35;
+
+/// A party member's cast motions in battle frames, from the clip lengths
+/// (`round(length * frameRate) + 1`) of its `BattleParameters.csv` motions.
+/// Memoria's `PlayerSequence.seq` (for example `ef000`, Fire) plays, before
+/// `PlaySFX`: `MP_STEP_FORWARD` when `CasterRow == 0 &&
+/// AreCasterAndSelectedTargetsEnemies`, then `MP_IDLE_TO_CHANT`, `MP_CHANT`
+/// (one loop, two when the spell has more than one target) and `MP_MAGIC`,
+/// or `MP_ITEM1` for an item. The SFX loads at once here, so
+/// `WaitSFXLoaded` adds nothing.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CastLead {
+    pub step_forward: u32,
+    pub idle_to_chant: u32,
+    pub chant: u32,
+    pub magic: u32,
+    pub item: u32,
+}
+
+impl CastLead {
+    /// Frames before `PlaySFX`.
+    pub fn ticks(&self, item: bool, many: bool, step: bool) -> u32 {
+        let step = if step { self.step_forward } else { 0 };
+        let cast = if item {
+            self.item
+        } else {
+            self.idle_to_chant + self.chant * if many { 2 } else { 1 } + self.magic
+        };
+        step + cast
+    }
+}
+
 /// `BattleAbilityId` of the summons `DecideSummonType` tracks
 /// (`btl_cmd.cs:1595-1614`): their first cast plays in full.
 pub const TRACKED_SUMMONS: [i32; 16] = [
@@ -139,6 +185,17 @@ pub struct BattleConfig {
     /// `FF9StateSystem.Achievement.summon_*`: summons already cast once
     /// (ability ids).
     pub summons_seen: Vec<i32>,
+    /// Enemy attacks (scene attack number) whose sequence has a
+    /// `RunCamera` op 0x12 (`SeqExecRunCamera` asks
+    /// `SFX.ShouldPlayAlternateCamera`): the op's frame and the attack's
+    /// `DefaultCamera` flag.
+    pub alternate_cameras: std::sync::Arc<std::collections::BTreeMap<i32, (u32, bool)>>,
+    /// Config Battle Camera: Fixed (`cfg.camera == 1`).
+    pub fixed_camera: bool,
+    /// Each party model's cast motions by `serial_no`; a player command with
+    /// a [`CommandTimings`] entry moves by its lead minus
+    /// [`DEFAULT_CAST_LEAD`].
+    pub cast_leads: std::sync::Arc<std::collections::BTreeMap<u8, CastLead>>,
 }
 
 impl Default for BattleConfig {
@@ -151,6 +208,9 @@ impl Default for BattleConfig {
             timing: Timing::default(),
             command_timing: std::sync::Arc::new(CommandTimings::new()),
             summons_seen: Vec::new(),
+            alternate_cameras: std::sync::Arc::default(),
+            fixed_camera: false,
+            cast_leads: std::sync::Arc::default(),
         }
     }
 }
@@ -396,6 +456,12 @@ pub enum BattleEvent {
     },
     TranceEnded {
         unit: usize,
+    },
+    /// An enemy's `RunCamera` op 0x12 ran: `play` is
+    /// `SFX.ShouldPlayAlternateCamera`'s answer.
+    AlternateCamera {
+        unit: usize,
+        play: bool,
     },
     PhaseChanged {
         phase: Phase,
@@ -2111,16 +2177,40 @@ impl Battle {
     fn command_ticks(&self, id: CmdId) -> (u32, u32) {
         let s = &self.cmds.slots[id];
         let variant = u8::from(s.cursor & 1 == 0) | (u8::from(s.short_summon) << 1);
-        let key = (s.cmd_no == cmd::ITEM, s.sub_no, variant);
+        let key = match s.regist {
+            Some(r) if s.cmd_no == cmd::SYS_TRANS => {
+                sys_trans_key(self.units[r].is_under_any_status(st::TRANCE))
+            }
+            _ => (s.cmd_no == cmd::ITEM, s.sub_no, variant),
+        };
         // Enemy commands index the scene's attacks, not `Actions.csv`.
-        let player = s.regist.is_some_and(|r| self.units[r].is_player);
-        player
-            .then(|| self.config.command_timing.get(&key).copied())
-            .flatten()
-            .unwrap_or((
+        let player = s.regist.filter(|&r| self.units[r].is_player);
+        let Some((effect, total)) =
+            player.and_then(|_| self.config.command_timing.get(&key).copied())
+        else {
+            return (
                 self.config.timing.effect_after_loop_ticks,
                 self.config.timing.loop_total_ticks,
-            ))
+            );
+        };
+        // `SysTrans` starts its effect at once; spells and items wait for
+        // the caster's motions (`PlayerSequence.seq`).
+        let lead = player.filter(|_| s.cmd_no != cmd::SYS_TRANS).and_then(|r| {
+            let unit = &self.units[r];
+            let lead = self.config.cast_leads.get(&unit.serial_no)?;
+            let step = unit.row == 0 && s.tar_id != 0 && s.tar_id & 0x0F == 0;
+            Some(lead.ticks(s.cmd_no == cmd::ITEM, s.tar_id.count_ones() > 1, step))
+        });
+        match lead {
+            Some(lead) => {
+                let effect = (effect + lead).saturating_sub(DEFAULT_CAST_LEAD);
+                (
+                    effect,
+                    (total + lead).saturating_sub(DEFAULT_CAST_LEAD).max(effect),
+                )
+            }
+            None => (effect, total),
+        }
     }
 
     /// `CheckTargetCondition` (`btl_cmd.cs:1221-1272`).
@@ -2172,6 +2262,7 @@ impl Battle {
         rng: &mut dyn BattleRandom,
     ) -> Result<(), BattleError> {
         let (effect_ticks, total_ticks) = self.command_ticks(id);
+        self.alternate_camera(id, total_ticks, rng);
         if !self.cmds.slots[id].effect_done && self.cmds.slots[id].loop_ticks >= effect_ticks {
             self.cmds.slots[id].effect_done = true;
             self.apply_effect(id, hooks, rng)?;
@@ -2198,6 +2289,37 @@ impl Battle {
         }
         self.cmds.slots[id].loop_ticks += 1;
         Ok(())
+    }
+
+    /// `SeqExecRunCamera` for sequence code 0x12 at its frame
+    /// (`btlseq.cs:797`, `SFX.ShouldPlayAlternateCamera`): an attack with
+    /// `DefaultCamera` always plays its camera; with Battle Camera: Fixed it
+    /// never does; otherwise `random8() < 128` and neither the attacker
+    /// nor a target under Vanish or Mini. The draw is on the battle RNG.
+    fn alternate_camera(&mut self, id: CmdId, total_ticks: u32, rng: &mut dyn BattleRandom) {
+        let s = &self.cmds.slots[id];
+        let Some(r) = s.regist.filter(|&r| !self.units[r].is_player) else {
+            return;
+        };
+        let Some(&(frame, default_camera)) = self.config.alternate_cameras.get(&s.sub_no) else {
+            return;
+        };
+        if s.loop_ticks != frame.min(total_ticks.saturating_sub(1)) {
+            return;
+        }
+        let tar = s.tar_id;
+        let play = if default_camera {
+            true
+        } else if self.config.fixed_camera || rng.random8() >= 128 {
+            false
+        } else {
+            let prevent = st::VANISH | st::MINI;
+            !self.units.iter().enumerate().any(|(i, unit)| {
+                (i == r || (self.sched[i].in_list && unit.id & tar != 0))
+                    && unit.is_under_any_status(prevent)
+            })
+        };
+        self.emit(BattleEvent::AlternateCamera { unit: r, play });
     }
 
     /// `ExecVfxCommand` for every target (`btl_cmd.cs:1526-1583`): `SBattleCalculator.CalcMain`

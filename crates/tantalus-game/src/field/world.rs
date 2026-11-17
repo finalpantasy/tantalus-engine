@@ -790,6 +790,14 @@ pub struct FieldWorld {
     /// Config screen values (`FF9CFG` and the ini options), saved with the game.
     #[serde(default)]
     pub settings: super::settings::GameSettings,
+    /// `PLAYER.trance` by character id: the Trance gauge carried between
+    /// battles (`btl_init.cs:379`, `btl_sys.SavePlayerData`).
+    #[serde(default)]
+    pub trance: BTreeMap<i32, u8>,
+    /// Summons (`BattleAbilityId`) cast at least once, in order: the
+    /// `BattleAchievement` summon flags `btl_cmd.DecideSummonType` reads.
+    #[serde(default)]
+    pub summons_seen: Vec<i32>,
     /// Party members moved to the back row by the Order screen (character
     /// ids; everyone else stands in the front row).
     #[serde(default)]
@@ -919,6 +927,8 @@ impl PartialEq for FieldWorld {
             && self.pending_card_game == other.pending_card_game
             && self.card_seed == other.card_seed
             && self.settings == other.settings
+            && self.trance == other.trance
+            && self.summons_seen == other.summons_seen
             && self.back_row == other.back_row
             && self.character_stats == other.character_stats
             && self.character_info == other.character_info
@@ -1055,6 +1065,8 @@ impl FieldWorld {
             pending_card_game: None,
             card_seed: 0x9E37_79B9_7F4A_7C15,
             settings: super::settings::GameSettings::default(),
+            trance: BTreeMap::new(),
+            summons_seen: Vec::new(),
             back_row: std::collections::BTreeSet::new(),
             overlays: BTreeMap::new(),
             tile_animations: Vec::new(),

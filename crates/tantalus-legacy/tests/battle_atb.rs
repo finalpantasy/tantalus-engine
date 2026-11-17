@@ -1110,3 +1110,49 @@ fn a_battle_speed_set_after_construction_matches_one_built_with_it() {
     assert_eq!(coefs(&late), coefs(&built));
     assert_eq!(late.config.btl_speed_config, 2);
 }
+
+/// `SFX.ShouldPlayAlternateCamera` for an enemy attack whose sequence has
+/// `RunCamera` 0x12 at frame 0: `DefaultCamera` plays without a draw,
+/// Battle Camera: Fixed skips without a draw, otherwise one `random8()`
+/// before the hit's draws decides (`< 128` plays).
+#[test]
+fn enemy_alternate_camera_draws_like_should_play_alternate_camera() {
+    let fight = |default_camera: bool, fixed_camera: bool, draws: &[(Draw, i32)]| {
+        let mut p = unit(1, true, 0);
+        p.cur_hp = 5000;
+        p.max_hp = 5000;
+        let mut b = Battle::new(
+            vec![p, unit(16, false, 0)],
+            BattleConfig {
+                alternate_cameras: Arc::new(BTreeMap::from([(0, (0u32, default_camera))])),
+                fixed_camera,
+                ..BattleConfig::default()
+            },
+            table(),
+        );
+        let mut h = Hooks {
+            enemy: Some(EnemyAction {
+                cmd_no: cmd::ENEMY_ATK,
+                sub_no: 0,
+                tar_id: 1,
+            }),
+        };
+        let mut r = SequenceRandom::with_kinds(draws);
+        run(&mut b, &mut h, &mut r, 243);
+        assert!(r.is_exhausted());
+        b.log.iter().find_map(|(_, event)| match event {
+            BattleEvent::AlternateCamera { unit: 1, play } => Some(*play),
+            _ => None,
+        })
+    };
+    let hit: Vec<(Draw, i32)> = HIT.iter().map(|&value| (Draw::Random16, value)).collect();
+    let with = |first: i32| {
+        let mut draws = vec![(Draw::Random8, first)];
+        draws.extend(hit.iter().copied());
+        draws
+    };
+    assert_eq!(fight(true, false, &hit), Some(true));
+    assert_eq!(fight(false, true, &hit), Some(false));
+    assert_eq!(fight(false, false, &with(127)), Some(true));
+    assert_eq!(fight(false, false, &with(128)), Some(false));
+}

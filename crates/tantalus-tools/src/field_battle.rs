@@ -22,7 +22,7 @@ use tantalus_game::battle::legacy::{LegacyBattleAdapter, unit_mappings};
 use tantalus_game::battle::{
     BattleCommand, BattleOutcome, CombatEvent, CombatInput, WorldGameServices,
 };
-use tantalus_game::field::world::{CharacterStats, EncounterRequest};
+use tantalus_game::field::world::EncounterRequest;
 use tantalus_game::new_game::BaseStats;
 use tantalus_legacy::EventBinary;
 use tantalus_legacy::battle::host::{apply_unit_views, battle_views};
@@ -67,6 +67,13 @@ pub struct FightReport {
     pub party_hp: Vec<(i32, u32, u32)>,
     /// Party MP at the end: character id, current, max.
     pub party_mp: Vec<(i32, u32, u32)>,
+    /// Trance gauge each member carries out (`btl_sys.SavePlayerData`).
+    #[serde(skip)]
+    pub party_trance: Vec<(i32, u8)>,
+    /// Summons cast so far (`BattleAchievement` summon flags), when the
+    /// fight ran.
+    #[serde(skip)]
+    pub summons_seen: Option<Vec<i32>>,
     pub enemy_hp: Vec<(u32, u32)>,
     /// Machine phase changes: tick, `phase/menu-off sequence`, enemy HP.
     pub phase_log: Vec<(u64, String, Vec<u32>)>,
@@ -118,6 +125,8 @@ pub struct PartyFighter {
     pub globals: PartyGlobals,
     /// 0 back row, 1 front row (`bi.row`); the Order screen sets it.
     pub row: u8,
+    /// `PLAYER.trance`, the gauge carried between battles.
+    pub trance: u8,
 }
 
 /// The event globals `btl_init` reads when it sets up a party member.
@@ -199,9 +208,10 @@ pub struct Equipment {
     item_effects: BTreeMap<i32, ItemRow>,
     /// Ability id -> its `Actions.csv` comment name (`Fire`), for menus.
     action_names: BTreeMap<i32, String>,
-    /// Preset id -> its `Ability1` and `Ability2` commands
-    /// (`Characters/CommandSets.csv`, outside Trance).
-    command_sets: BTreeMap<i32, [u32; 2]>,
+    /// Preset id -> its `Ability1` and `Ability2` commands, then the two
+    /// in Trance (`Characters/CommandSets.csv` `First`, `Second`,
+    /// `TranceFirst`, `TranceSecond`).
+    command_sets: BTreeMap<i32, [u32; 4]>,
     /// `BattleCommandId` -> its `Characters/Commands.csv` row.
     commands: BTreeMap<u32, CommandRow>,
 }
@@ -603,9 +613,12 @@ impl Equipment {
                 else {
                     continue;
                 };
-                equipment
-                    .command_sets
-                    .insert(id, [first.max(0) as u32, second.max(0) as u32]);
+                let trance_first = int(&row, 9).unwrap_or(first);
+                let trance_second = int(&row, 10).unwrap_or(second);
+                equipment.command_sets.insert(
+                    id,
+                    [first, second, trance_first, trance_second].map(|cmd_no| cmd_no.max(0) as u32),
+                );
             }
         }
         if let Ok(text) = read(characters.join("Commands.csv")) {
@@ -800,6 +813,14 @@ impl FieldBattles {
         }
     }
 
+    /// Sets the summons later fights start from (the saved game's).
+    pub fn set_summons_seen(&self, seen: &[i32]) {
+        if let Ok(mut current) = self.summons_seen.lock() {
+            current.clear();
+            current.extend_from_slice(seen);
+        }
+    }
+
     /// Fights `request` with `party`. [`save_party`] and [`pay_rewards`] carry
     /// the result back to the field.
     pub fn fight(&self, request: &EncounterRequest, party: &[PartyFighter]) -> FightReport {
@@ -928,6 +949,7 @@ impl FieldBattles {
             BattleConfig {
                 timing: COMMAND_TIMING,
                 command_timing: std::sync::Arc::new(self.equipment.effects.command_timings()),
+                cast_leads: std::sync::Arc::new(crate::battle_effects::cast_leads()),
                 summons_seen: self
                     .summons_seen
                     .lock()
@@ -1021,7 +1043,7 @@ impl FieldBattles {
                 ..SceneOverlay::default()
             },
         );
-        let adapter = adapter.with_hooks(hooks);
+        let mut adapter = adapter.with_hooks(hooks);
         let mut stage = crate::battle_stage::BattleStage::new(
             report.battle,
             // `EVT_BATTLE_<scene>` to the bare scene name.
@@ -1058,6 +1080,23 @@ impl FieldBattles {
         stage.attack_cameras = sequence
             .map(crate::battle_stage::attack_cameras)
             .unwrap_or_default();
+        // The attacks whose camera is `RunCamera` 0x12: the machine draws
+        // `ShouldPlayAlternateCamera` at the op's frame.
+        adapter.battle_mut().config.alternate_cameras = std::sync::Arc::new(
+            stage
+                .attack_cameras
+                .iter()
+                .enumerate()
+                .filter_map(|(index, camera)| {
+                    let camera = camera.filter(|camera| camera.alternate)?;
+                    let default_camera = scene
+                        .attacks
+                        .get(index)
+                        .is_some_and(|attack| attack.default_camera);
+                    Some((i32::try_from(index).ok()?, (camera.frame, default_camera)))
+                })
+                .collect(),
+        );
         // `btl_sys.SetBonus` on each enemy death; `Info.AfterEvent` scenes
         // pay nothing (`battle.cs:72`).
         let rows = pattern_rewards(scene, pattern).unwrap_or_default();
@@ -1078,6 +1117,13 @@ impl FieldBattles {
             entities,
             gear,
             ids,
+            trance_menu: menu
+                .iter()
+                .map(|menu| PartyMenu {
+                    commands: menu.trance_commands.clone(),
+                    ..menu.clone()
+                })
+                .collect(),
             menu,
             adapter,
             world: FieldWorld::new(),
@@ -1229,6 +1275,8 @@ pub struct MenuCommand {
 pub struct PartyMenu {
     pub attack: MenuEntry,
     pub commands: Vec<MenuCommand>,
+    /// The two ability commands in Trance (Zidane's Dyne for Skill).
+    pub trance_commands: Vec<MenuCommand>,
     pub defend: MenuEntry,
     pub change: MenuEntry,
     pub items: Vec<MenuEntry>,
@@ -1239,6 +1287,7 @@ impl PartyMenu {
         let commands = self
             .commands
             .iter()
+            .chain(&self.trance_commands)
             .flat_map(|command| match &command.kind {
                 CommandKind::Direct(entry) => std::slice::from_ref(entry),
                 CommandKind::List(list) => list.as_slice(),
@@ -1417,73 +1466,96 @@ fn player_menus(
                 .command_sets
                 .get(&preset(fighter.character))
                 .copied()
-                .unwrap_or_else(|| [STEAL, ability_command(fighter.character).0]);
-            let commands = set
-                .iter()
-                .filter(|&&cmd_no| cmd_no != 0)
-                .map(|&cmd_no| {
-                    let row = equipment.commands.get(&cmd_no);
-                    let title = row
-                        .map(|row| row.name.clone())
-                        .unwrap_or_else(|| ability_command(fighter.character).1.to_owned());
-                    let kind = match row.map(|row| row.kind) {
-                        Some(0) => {
-                            let main = row.map_or(0, |row| row.main);
-                            let ported = DIRECT_COMMANDS.contains(&cmd_no)
-                                || equipment
-                                    .actions
-                                    .get(&main)
-                                    .is_some_and(|row| DIRECT_SCRIPTS.contains(&row.script_id));
-                            match action(cmd_no, main) {
-                                Some(entry) if ported => CommandKind::Direct(entry),
-                                _ => CommandKind::Unavailable,
-                            }
+                .unwrap_or_else(|| {
+                    let ability = ability_command(fighter.character).0;
+                    [STEAL, ability, STEAL, ability]
+                });
+            // `BattleHUD.SetAbilityTrance`: entry `j` of a Trance command
+            // (Dyne) is known when entry `j` of the command it replaces
+            // (Skill) is.
+            let mut trance_known = known.clone();
+            for (normal, trance) in [(set[0], set[2]), (set[1], set[3])] {
+                let lists = equipment
+                    .commands
+                    .get(&normal)
+                    .zip(equipment.commands.get(&trance));
+                if let Some((normal, trance)) = lists.filter(|_| normal != trance) {
+                    for (from, to) in normal.list.iter().zip(&trance.list) {
+                        if from != to && known.contains(from) {
+                            trance_known.push(*to);
                         }
-                        Some(1) | None => {
-                            // The command's list, in its order, of the
-                            // abilities the member has.
-                            let list: Vec<i32> = match row {
-                                Some(row) => row.list.clone(),
-                                None => known.clone(),
-                            };
-                            let mut entries: Vec<MenuEntry> = list
-                                .iter()
-                                .filter(|ability| known.contains(ability))
-                                .filter_map(|&ability| action(cmd_no, ability))
-                                .collect();
-                            entries.dedup_by_key(|entry| entry.sub_no);
-                            CommandKind::List(entries)
-                        }
-                        // Throw: the weapons in the bag
-                        // (`BattleHUD` `ItemPanel` in throw mode).
-                        Some(3) => CommandKind::List(
-                            items
-                                .iter()
-                                .filter(|&(item, &count)| {
-                                    count > 0 && equipment.weapons.contains_key(item)
-                                })
-                                .filter_map(|(&item, _)| {
-                                    let mut throw = action(cmd_no, ABILITY_THROW)?;
-                                    throw.label = item.to_string();
-                                    throw.sub_no = item;
-                                    throw.item = Some(item);
-                                    throw.action = ContentId::parse(&format!(
-                                        "tantalus:command/{cmd_no}/{item}"
-                                    ))
-                                    .ok()?;
-                                    Some(throw)
-                                })
-                                .collect(),
-                        ),
-                        _ => CommandKind::Unavailable,
-                    };
-                    MenuCommand {
-                        title,
-                        cmd_no,
-                        kind,
                     }
-                })
-                .collect();
+                }
+            }
+            let build = |set: &[u32], known: &Vec<i32>| -> Vec<MenuCommand> {
+                set.iter()
+                    .filter(|&&cmd_no| cmd_no != 0)
+                    .map(|&cmd_no| {
+                        let row = equipment.commands.get(&cmd_no);
+                        let title = row
+                            .map(|row| row.name.clone())
+                            .unwrap_or_else(|| ability_command(fighter.character).1.to_owned());
+                        let kind = match row.map(|row| row.kind) {
+                            Some(0) => {
+                                let main = row.map_or(0, |row| row.main);
+                                let ported = DIRECT_COMMANDS.contains(&cmd_no)
+                                    || equipment
+                                        .actions
+                                        .get(&main)
+                                        .is_some_and(|row| DIRECT_SCRIPTS.contains(&row.script_id));
+                                match action(cmd_no, main) {
+                                    Some(entry) if ported => CommandKind::Direct(entry),
+                                    _ => CommandKind::Unavailable,
+                                }
+                            }
+                            Some(1) | None => {
+                                // The command's list, in its order, of the
+                                // abilities the member has.
+                                let list: Vec<i32> = match row {
+                                    Some(row) => row.list.clone(),
+                                    None => known.clone(),
+                                };
+                                let mut entries: Vec<MenuEntry> = list
+                                    .iter()
+                                    .filter(|ability| known.contains(ability))
+                                    .filter_map(|&ability| action(cmd_no, ability))
+                                    .collect();
+                                entries.dedup_by_key(|entry| entry.sub_no);
+                                CommandKind::List(entries)
+                            }
+                            // Throw: the weapons in the bag
+                            // (`BattleHUD` `ItemPanel` in throw mode).
+                            Some(3) => CommandKind::List(
+                                items
+                                    .iter()
+                                    .filter(|&(item, &count)| {
+                                        count > 0 && equipment.weapons.contains_key(item)
+                                    })
+                                    .filter_map(|(&item, _)| {
+                                        let mut throw = action(cmd_no, ABILITY_THROW)?;
+                                        throw.label = item.to_string();
+                                        throw.sub_no = item;
+                                        throw.item = Some(item);
+                                        throw.action = ContentId::parse(&format!(
+                                            "tantalus:command/{cmd_no}/{item}"
+                                        ))
+                                        .ok()?;
+                                        Some(throw)
+                                    })
+                                    .collect(),
+                            ),
+                            _ => CommandKind::Unavailable,
+                        };
+                        MenuCommand {
+                            title,
+                            cmd_no,
+                            kind,
+                        }
+                    })
+                    .collect()
+            };
+            let commands = build(&set[..2], &known);
+            let trance_commands = build(&set[2..], &trance_known);
             Some(PartyMenu {
                 attack: entry(
                     "Attack".into(),
@@ -1496,6 +1568,7 @@ fn player_menus(
                     false,
                 )?,
                 commands,
+                trance_commands,
                 defend: entry(
                     "Defend".into(),
                     cmd::DEFEND,
@@ -1533,6 +1606,8 @@ pub struct LiveFight {
     gear: Vec<Vec<i32>>,
     ids: StandInActions,
     menu: Vec<PartyMenu>,
+    /// [`Self::menu`] with each member's Trance commands.
+    trance_menu: Vec<PartyMenu>,
     adapter: LegacyBattleAdapter<EnemyAiHooks<SceneAttacks>>,
     world: FieldWorld,
     defeated: Vec<EntityId>,
@@ -1575,6 +1650,7 @@ impl LiveFight {
     pub fn apply_settings(&mut self, settings: &tantalus_game::field::settings::GameSettings) {
         self.set_battle_speed(settings.btl_speed);
         self.stage.fixed_camera = settings.camera == 1;
+        self.adapter.battle_mut().config.fixed_camera = settings.camera == 1;
     }
 
     /// Config `ATB: Wait` (`cfg.atb == 1`): `IsNativeEnableAtb` stops the
@@ -1597,6 +1673,28 @@ impl LiveFight {
         }
     }
 
+    /// Turns every party member's Trance gauge on at `trance` (capture
+    /// tooling: a hit or two away from Trance).
+    pub fn preset_trance(&mut self, trance: u8) {
+        let party = self.party.len();
+        let battle = self.adapter.battle_mut();
+        for unit in battle.units.iter_mut().take(party) {
+            unit.has_trance_gauge = true;
+            unit.trance = trance;
+        }
+    }
+
+    /// Puts party member `unit` into Trance now, the way a full gauge does
+    /// (`AlterStatus(Trance)` queues its `SysTrans`). Capture tooling.
+    pub fn enter_trance(&mut self, unit: usize) {
+        let battle = self.adapter.battle_mut();
+        if let Some(member) = battle.units.get_mut(unit) {
+            member.has_trance_gauge = true;
+            member.trance = u8::MAX;
+            battle.alter_status_on(unit, 14, &mut SplitMix64Random::new(0));
+        }
+    }
+
     /// Field entity of machine unit `unit`.
     pub fn entity(&self, unit: usize) -> Option<EntityId> {
         self.entities.get(unit).copied()
@@ -1613,9 +1711,18 @@ impl LiveFight {
         self.adapter.flee_attempt(&mut services).unwrap_or(false)
     }
 
-    /// The command menu of party member `unit`.
+    /// The command menu of party member `unit`, with its Trance commands
+    /// while it is in Trance (`BattleHUD.DisplayCommand`).
     pub fn menu(&self, unit: usize) -> Option<&PartyMenu> {
-        self.menu.get(unit)
+        let trance =
+            self.machine().units.get(unit).is_some_and(|unit| {
+                unit.is_under_any_status(tantalus_legacy::battle::status::TRANCE)
+            });
+        if trance {
+            self.trance_menu.get(unit)
+        } else {
+            self.menu.get(unit)
+        }
     }
 
     /// Item `item` left in the battle inventory.
@@ -1901,6 +2008,21 @@ impl LiveFight {
         if let Ok(mut seen) = battles.summons_seen.lock() {
             seen.clone_from(&adapter.battle().config.summons_seen);
         }
+        report.summons_seen = Some(adapter.battle().config.summons_seen.clone());
+        // `btl_sys.SavePlayerData`: a member still in Trance leaves with an
+        // empty gauge.
+        report.party_trance = party
+            .iter()
+            .zip(&adapter.battle().units)
+            .map(|(fighter, unit)| {
+                let trance = if unit.is_under_any_status(tantalus_legacy::battle::status::TRANCE) {
+                    0
+                } else {
+                    unit.trance
+                };
+                (fighter.character, trance)
+            })
+            .collect();
         if let FightState::Failed(error) = state {
             report.error = Some(error);
             return report;
@@ -2056,12 +2178,20 @@ impl LiveFight {
 }
 
 /// `btl_sys.SavePlayerData`: each party member's battle HP and MP go back
-/// to the player record, clamped to the record's maximum. A fight that
-/// failed to run leaves the records alone.
-pub fn save_party(report: &FightReport, stats: &mut BTreeMap<i32, CharacterStats>) {
+/// to the player record, clamped to the record's maximum, with its Trance
+/// gauge, and the summons cast are remembered. A fight that failed to run
+/// leaves the records alone.
+pub fn save_party(report: &FightReport, world: &mut FieldWorld) {
     if report.error.is_some() || report.outcome.is_none() {
         return;
     }
+    for &(character, trance) in &report.party_trance {
+        world.trance.insert(character, trance);
+    }
+    if let Some(seen) = &report.summons_seen {
+        world.summons_seen.clone_from(seen);
+    }
+    let stats = &mut world.character_stats;
     for &(character, hp, _) in &report.party_hp {
         if let Some(record) = stats.get_mut(&character) {
             record.current_hp = (hp as i32).min(record.max_hp);
@@ -2182,6 +2312,11 @@ fn party_unit(slot: usize, fighter: &PartyFighter, equipment: &Equipment) -> Bat
     unit.has_trance_gauge = fighter.globals.trance_gauge != 0
         && category.is_some_and(|category| category & 16 == 0)
         && !(fighter.character == 2 && fighter.globals.garnet_depress != 0);
+    unit.trance = if unit.has_trance_gauge {
+        fighter.trance
+    } else {
+        0
+    };
     unit.row = fighter.row;
     unit.level = 1;
     unit.cur_hp = fighter.hp.max(1);
@@ -2288,7 +2423,9 @@ mod tests {
 
     #[test]
     fn save_party_copies_battle_hp_and_mp_clamped_to_max() {
-        let mut stats = BTreeMap::from([(
+        use tantalus_game::field::world::CharacterStats;
+        let mut world = FieldWorld::new();
+        world.character_stats.insert(
             0,
             CharacterStats {
                 current_hp: 105,
@@ -2296,16 +2433,20 @@ mod tests {
                 current_mp: 36,
                 max_mp: 36,
             },
-        )]);
+        );
         let report = FightReport {
             outcome: Some("victory".to_owned()),
             party_hp: vec![(0, 40, 105)],
             party_mp: vec![(0, 99, 36)],
+            party_trance: vec![(0, 120)],
+            summons_seen: Some(vec![49]),
             ..FightReport::default()
         };
-        save_party(&report, &mut stats);
-        assert_eq!(stats[&0].current_hp, 40);
-        assert_eq!(stats[&0].current_mp, 36);
+        save_party(&report, &mut world);
+        assert_eq!(world.character_stats[&0].current_hp, 40);
+        assert_eq!(world.character_stats[&0].current_mp, 36);
+        assert_eq!(world.trance.get(&0), Some(&120));
+        assert_eq!(world.summons_seen, vec![49]);
 
         // A fight that did not run leaves the record alone.
         let failed = FightReport {
@@ -2313,8 +2454,8 @@ mod tests {
             party_hp: vec![(0, 1, 105)],
             ..FightReport::default()
         };
-        save_party(&failed, &mut stats);
-        assert_eq!(stats[&0].current_hp, 40);
+        save_party(&failed, &mut world);
+        assert_eq!(world.character_stats[&0].current_hp, 40);
     }
 
     #[test]
