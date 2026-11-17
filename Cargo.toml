@@ -38,3 +38,6 @@ opt-level = 3
 
 [profile.dev.package.tantalus-client]
 opt-level = 3
+# The rasterizer is the hot code; the debug-only checks cost it 10-20%.
+debug-assertions = false
+overflow-checks = false

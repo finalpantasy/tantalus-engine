@@ -454,6 +454,25 @@ fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
     let result = load_game(&values).and_then(|mut game| {
         // Without scripted exits the world map is walked.
         game.world_mode = !values.contains_key("--world-exits");
+        // Frame-rate bench scenes (`TANTALUS_BENCH_SCENE=world:FIELD|battle:ID|cards:OPPONENT`).
+        if let Ok(scene) = std::env::var("TANTALUS_BENCH_SCENE")
+            && let Some((kind, number)) = scene.split_once(':')
+            && let Ok(number) = number.parse::<i32>()
+        {
+            let mut events = Vec::new();
+            match kind {
+                "world" => game.start_world(Some(number), &mut events)?,
+                "battle" => game.live_battles = true,
+                "cards" => game.bench_card_game(number as u16),
+                _ => return Err(format!("bad TANTALUS_BENCH_SCENE `{scene}`")),
+            }
+            if kind == "battle" {
+                events = game.bench_battle(number);
+            }
+            for event in &events {
+                println!("{}", tantalus_client::live::describe(event));
+            }
+        }
         let assets = PathBuf::from(&values["--assets"]);
         tantalus_client::live::play(game, assets, scale, mute).map_err(|error| error.to_string())
     });

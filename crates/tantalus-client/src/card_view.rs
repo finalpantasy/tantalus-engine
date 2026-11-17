@@ -161,6 +161,11 @@ impl CardView {
     }
 
     /// Draws the game as it stands.
+    /// True once the first frame has opened the window.
+    pub fn is_open(&self) -> bool {
+        self.window.is_some() || self.art.is_none()
+    }
+
     pub fn update(&mut self, world: &mut bevy::ecs::world::World, game: &CardGame) {
         let Some(art) = &self.art else {
             return;

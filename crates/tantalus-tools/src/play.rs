@@ -1365,6 +1365,38 @@ impl PlayGame {
         self.pending.as_ref()?.fight.as_ref()
     }
 
+    /// Test aid for the frame-rate bench: starts battle `scene` as a live
+    /// fight over the current field.
+    pub fn bench_battle(&mut self, scene: i32) -> Vec<PlayEvent> {
+        let mut events = Vec::new();
+        self.pending = Some(PendingBattles {
+            requests: vec![tantalus_game::field::EncounterRequest {
+                rush: 0,
+                group: None,
+                battle: scene as _,
+                steiner_state: false,
+            }],
+            fight: None,
+            next_field: None,
+            world_map: None,
+            stage: None,
+        });
+        self.start_pending(&mut events);
+        events
+    }
+
+    /// Test aid for the frame-rate bench: starts a Tetra Master game
+    /// against `opponent`.
+    pub fn bench_card_game(&mut self, opponent: u16) {
+        if let (Some(session), Some(tables)) = (self.session.as_mut(), self.data.cards.clone()) {
+            self.card = tantalus_game::cards::CardGame::start(
+                session.director.world_mut(),
+                &tables,
+                opponent,
+            );
+        }
+    }
+
     /// Name of item `id` from the game text.
     pub fn item_name(&self, id: i32) -> Option<&str> {
         self.data.item_names.get(&id).map(String::as_str)

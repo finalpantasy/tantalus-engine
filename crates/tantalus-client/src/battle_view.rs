@@ -702,16 +702,19 @@ impl BattleScene {
         hud: Option<&BattleHud>,
         overlay: &Overlay,
     ) -> Frame {
+        use crate::live::bench::time;
         let camera = self.camera_at(assets, stage, seconds);
-        let mut frame = if camera == self.camera {
-            self.base.clone()
-        } else {
-            let mut frame = Frame::new(self.base.width, self.base.height, CLEAR);
-            if let Some(background) = assets.background(stage) {
-                draw_background(&mut frame, &camera, background, false);
+        let mut frame = time("b_base", || {
+            if camera == self.camera {
+                self.base.clone()
+            } else {
+                let mut frame = Frame::new(self.base.width, self.base.height, CLEAR);
+                if let Some(background) = assets.background(stage) {
+                    draw_background(&mut frame, &camera, background, false);
+                }
+                frame
             }
-            frame
-        };
+        });
         let record = stage.frame_at(seconds);
         let length = |clip: ClipKey| {
             assets
@@ -721,10 +724,12 @@ impl BattleScene {
                 .map_or(0.0, clip_length)
         };
         let effects = crate::battle_effects::stage_effects(stage);
-        crate::battle_effects::dim(
-            &mut frame,
-            crate::battle_effects::scene_intensity(&effects, seconds),
-        );
+        time("b_dim", || {
+            crate::battle_effects::dim(
+                &mut frame,
+                crate::battle_effects::scene_intensity(&effects, seconds),
+            )
+        });
         // Where each unit's head is on screen, and where it stands.
         let mut heads: Vec<Option<[f32; 2]>> = vec![None; stage.units.len()];
         let mut spots: Vec<Option<crate::battle_effects::UnitSpot>> = vec![None; stage.units.len()];
@@ -741,15 +746,17 @@ impl BattleScene {
             if motion.hidden {
                 continue;
             }
-            if let Some((top, bone)) = draw_unit(
-                &mut frame,
-                &camera,
-                assets,
-                (look.geo, stage.tar_bones.get(index).copied().flatten()),
-                &motion,
-                unit.position,
-                motion.facing.unwrap_or(unit.turn),
-            ) {
+            if let Some((top, bone)) = time("b_unit", || {
+                draw_unit(
+                    &mut frame,
+                    &camera,
+                    assets,
+                    (look.geo, stage.tar_bones.get(index).copied().flatten()),
+                    &motion,
+                    unit.position,
+                    motion.facing.unwrap_or(unit.turn),
+                )
+            }) {
                 let feet = Vec3::from_array(unit.position) + Vec3::from_array(motion.offset);
                 // An enemy's numbers and cursor sit on its `tar_bone`.
                 let at = bone.unwrap_or(feet + Vec3::Y * top);
@@ -760,14 +767,20 @@ impl BattleScene {
                 });
             }
         }
-        if let Some(background) = assets.background(stage) {
-            draw_background(&mut frame, &camera, background, true);
-        }
-        crate::battle_effects::draw_effects(&mut frame, &camera, &effects, &spots, seconds);
+        time("b_front", || {
+            if let Some(background) = assets.background(stage) {
+                draw_background(&mut frame, &camera, background, true);
+            }
+        });
+        time("b_effects", || {
+            crate::battle_effects::draw_effects(&mut frame, &camera, &effects, &spots, seconds)
+        });
         match hud {
             Some(hud) => {
-                let draw = hud_draw(stage, seconds, overlay, &heads);
-                hud.draw(&mut frame, &draw);
+                time("b_hud", || {
+                    let draw = hud_draw(stage, seconds, overlay, &heads);
+                    hud.draw(&mut frame, &draw);
+                });
             }
             None => readout(&mut frame, stage, record, seconds),
         }
@@ -1415,7 +1428,8 @@ impl FightView {
         game: &tantalus_tools::play::PlayGame,
     ) {
         if let Some(window) = &self.window {
-            window.show(world, self.render(assets, hud, game));
+            let frame = crate::live::bench::time("b_render", || self.render(assets, hud, game));
+            crate::live::bench::time("b_upload", || window.show(world, frame));
         }
     }
 

@@ -25,6 +25,10 @@ use crate::scene_adapter::{ClientError, field_sprites, spawn_field_scene};
 use crate::track::{TrackFrame, spawn_frame_markers};
 use crate::window::{FIELD_FRAME, find_field, fit_field_frame};
 
+/// Shortest time between redraws of the software-drawn views: 30 a second
+/// on a 30, 60 or 144 Hz display (a little under a frame at 30 Hz).
+const REDRAW_INTERVAL: f64 = 0.030;
+
 /// Field ticks per second (`FPS_FIELD`).
 pub const TICKS_PER_SECOND: f64 = 30.0;
 
@@ -269,6 +273,8 @@ struct Live {
     movie: Option<(crate::movie_view::MoviePlayer, i32)>,
     /// The Tetra Master game on screen.
     card: Option<crate::card_view::CardView>,
+    /// Seconds since a software-drawn view (world map, battle, cards) last redrew.
+    render_gap: f64,
 }
 
 /// Opens the play window. `game` is already on its first field.
@@ -322,6 +328,7 @@ pub fn play(
             movie: None,
             card: None,
             audio,
+            render_gap: 0.0,
         })
         .add_systems(Update, live_tick);
     app.run();
@@ -390,10 +397,91 @@ fn send_audio(audio: Option<&crate::audio::LiveAudio>, game: &mut PlayGame) {
     }
 }
 
+/// Frame timing for the play window, on when `TANTALUS_BENCH_FRAMES=N` is
+/// set: per-section milliseconds over N frames, printed once, then exit.
+pub mod bench {
+    use std::collections::BTreeMap;
+    use std::sync::Mutex;
+    use std::time::Instant;
+
+    static SAMPLES: Mutex<BTreeMap<&'static str, Vec<f64>>> = Mutex::new(BTreeMap::new());
+
+    pub fn frames() -> Option<usize> {
+        static FRAMES: std::sync::OnceLock<Option<usize>> = std::sync::OnceLock::new();
+        *FRAMES.get_or_init(|| {
+            std::env::var("TANTALUS_BENCH_FRAMES")
+                .ok()
+                .and_then(|value| value.parse().ok())
+        })
+    }
+
+    pub fn record(name: &'static str, ms: f64) {
+        if frames().is_some() {
+            SAMPLES
+                .lock()
+                .expect("bench lock")
+                .entry(name)
+                .or_default()
+                .push(ms);
+        }
+    }
+
+    /// Runs `body`, recording its time under `name`.
+    pub fn time<T>(name: &'static str, body: impl FnOnce() -> T) -> T {
+        if frames().is_none() {
+            return body();
+        }
+        let start = Instant::now();
+        let out = body();
+        record(name, start.elapsed().as_secs_f64() * 1000.0);
+        out
+    }
+
+    pub fn report() {
+        let samples = SAMPLES.lock().expect("bench lock");
+        println!("bench section: n mean p50 p95 max (ms)");
+        for (name, values) in samples.iter() {
+            let mut sorted = values.clone();
+            sorted.sort_by(|a, b| a.total_cmp(b));
+            let at = |q: f64| sorted[((sorted.len() - 1) as f64 * q) as usize];
+            let mean = sorted.iter().sum::<f64>() / sorted.len() as f64;
+            println!(
+                "bench {name}: {} {mean:.2} {:.2} {:.2} {:.2}",
+                sorted.len(),
+                at(0.5),
+                at(0.95),
+                sorted[sorted.len() - 1]
+            );
+        }
+    }
+}
+
 fn live_tick(world: &mut World) {
+    let Some(limit) = bench::frames() else {
+        live_tick_inner(world);
+        return;
+    };
+    bench::record(
+        "frame_interval",
+        world.resource::<Time>().delta_secs_f64() * 1000.0,
+    );
+    bench::time("live_tick", || live_tick_inner(world));
+    static COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    if COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1 >= limit {
+        bench::report();
+        std::process::exit(0);
+    }
+}
+
+fn live_tick_inner(world: &mut World) {
     let delta = world.resource::<Time>().delta_secs_f64();
     let held = pad_bits(world.resource::<ButtonInput<KeyCode>>());
     let mut live = world.remove_resource::<Live>().expect("live state");
+    // The software-drawn views change at most 30 times a second, so a
+    // faster display redraws them only that often: the redraw is the costly
+    // part of a frame, and skipping it leaves the tick untouched.
+    live.render_gap += delta;
+    let redraw = live.render_gap >= REDRAW_INTERVAL;
     if let Some((mut player, before)) = live.movie.take() {
         // Start skips; a Start held since before the movie began does not.
         let skipped = held & pad::START != 0 && before & pad::START == 0;
@@ -413,7 +501,7 @@ fn live_tick(world: &mut World) {
     }
     if let Some(mut view) = live.fight.take() {
         let mut game = live.game.lock().expect("game lock");
-        let (events, done) = view.update(&mut game, delta, held);
+        let (events, done) = bench::time("battle_update", || view.update(&mut game, delta, held));
         for event in &events {
             println!("{}", describe(event));
         }
@@ -423,12 +511,17 @@ fn live_tick(world: &mut World) {
             live.elapsed = 0.0;
         } else {
             let hud = live.battle_hud.lock().expect("hud lock");
-            view.show(
-                world,
-                &live.battle_assets,
-                hud.as_ref().and_then(Option::as_ref),
-                &game,
-            );
+            if redraw {
+                live.render_gap = 0.0;
+                bench::time("battle_show", || {
+                    view.show(
+                        world,
+                        &live.battle_assets,
+                        hud.as_ref().and_then(Option::as_ref),
+                        &game,
+                    )
+                });
+            }
             crate::battle_view::set_title(world, view.title());
             drop(hud);
             drop(game);
@@ -445,7 +538,7 @@ fn live_tick(world: &mut World) {
         while live.elapsed >= step && steps < 4 {
             live.elapsed -= step;
             steps += 1;
-            match game.tick(held) {
+            match bench::time("game_tick", || game.tick(held)) {
                 Ok(events) => {
                     for event in &events {
                         println!("{}", describe(event));
@@ -512,9 +605,13 @@ fn live_tick(world: &mut World) {
         let game = live.game.lock().expect("game lock");
         match game.card_game() {
             Some(card) => {
-                live.card
-                    .get_or_insert_with(|| crate::card_view::CardView::open(game.game_data()))
-                    .update(world, card);
+                let view = live
+                    .card
+                    .get_or_insert_with(|| crate::card_view::CardView::open(game.game_data()));
+                if redraw || !view.is_open() {
+                    live.render_gap = 0.0;
+                    bench::time("card", || view.update(world, card));
+                }
             }
             None => {
                 if let Some(view) = live.card.take() {
@@ -533,7 +630,12 @@ fn live_tick(world: &mut World) {
         let game = live.game.lock().expect("game lock");
         if let Some(play) = game.world_play.as_ref() {
             match live.world_view.as_mut() {
-                Some(view) => view.update(world, play),
+                Some(view) => {
+                    if redraw {
+                        live.render_gap = 0.0;
+                        bench::time("world_map", || view.update(world, play));
+                    }
+                }
                 None => {
                     live.world_view = Some(crate::world_view::LiveWorld::start(
                         world,
@@ -591,7 +693,7 @@ fn live_tick(world: &mut World) {
         }
     }
     if let Some(scene) = &live.field {
-        let (frame, placed) = world_frame(game.world(), game.ticks);
+        let (frame, placed) = bench::time("world_frame", || world_frame(game.world(), game.ticks));
         if live.markers_at != Some(game.ticks) {
             let field_name = game.field_name().map(str::to_owned);
             for problem in live.models.prepare_field(field_name.as_deref()) {
@@ -601,7 +703,9 @@ fn live_tick(world: &mut World) {
             for problem in live.models.prepare(frame.poses.values()) {
                 println!("!! actor models: {problem}");
             }
-            spawn_frame_markers(world, &scene.camera, &frame, &placed, Some(&live.models));
+            bench::time("markers", || {
+                spawn_frame_markers(world, &scene.camera, &frame, &placed, Some(&live.models))
+            });
             live.markers_at = Some(game.ticks);
         }
         crate::scene_adapter::apply_overlay_changes(
@@ -624,7 +728,9 @@ fn live_tick(world: &mut World) {
         {
             motion.place_sprites(world, scene);
         }
-        crate::dialog_view::sync_dialogs(world, &game, &scene.camera, &frame);
+        bench::time("dialogs", || {
+            crate::dialog_view::sync_dialogs(world, &game, &scene.camera, &frame)
+        });
         crate::presentation_view::sync_presentation(
             world,
             game.world(),
@@ -633,7 +739,7 @@ fn live_tick(world: &mut World) {
             &frame,
             game.ticks,
         );
-        crate::menu_view::sync_menu(world, &game);
+        bench::time("menu", || crate::menu_view::sync_menu(world, &game));
     }
     let mut title = format!(
         "Tantalus Engine: {} ({})",

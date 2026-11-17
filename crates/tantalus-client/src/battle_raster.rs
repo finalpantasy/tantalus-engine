@@ -222,6 +222,18 @@ impl Frame {
     }
 
     fn fill(&mut self, v: [ScreenVertex; 3], texture: Option<Texture<'_>>, state: DrawState) {
+        self.fill_with(v, texture, state, true);
+    }
+
+    /// `narrow` limits each row to the columns the triangle can cover; off,
+    /// the whole bounding box is scanned (the reference the tests compare to).
+    fn fill_with(
+        &mut self,
+        v: [ScreenVertex; 3],
+        texture: Option<Texture<'_>>,
+        state: DrawState,
+        narrow: bool,
+    ) {
         let area = edge(v[0].xy, v[1].xy, v[2].xy);
         // Screen y points down, so a clockwise triangle has a positive area.
         if area.abs() < 1e-6 || (state.cull_back && area < 0.0) {
@@ -235,8 +247,25 @@ impl Frame {
         let x1 = (max_x.ceil() as i64).min(i64::from(self.width) - 1);
         let y0 = min_y.floor().max(0.0) as i64;
         let y1 = (max_y.ceil() as i64).min(i64::from(self.height) - 1);
+        let sign = if area < 0.0 { -1.0 } else { 1.0 };
+        let sides = [(v[1].xy, v[2].xy), (v[2].xy, v[0].xy), (v[0].xy, v[1].xy)];
         for y in y0..=y1 {
-            for x in x0..=x1 {
+            // Only columns near where all three edge tests can hold are
+            // shaded; the per-pixel tests below decide, so the result is the
+            // same as scanning the whole bounding box.
+            let (mut from, mut to) = (x0, x1);
+            let py = y as f32 + 0.5;
+            let at = x0 as f32 + 0.5;
+            for (a, b) in sides.into_iter().filter(|_| narrow) {
+                let f0 = sign * edge(a, b, [at, py]);
+                let slope = sign * edge(a, b, [at + 1.0, py]) - f0;
+                if slope > 1e-12 {
+                    from = from.max(x0 + (-f0 / slope).floor() as i64 - 2);
+                } else if slope < -1e-12 {
+                    to = to.min(x0 + (-f0 / slope).ceil() as i64 + 2);
+                }
+            }
+            for x in from..=to {
                 let p = [x as f32 + 0.5, y as f32 + 0.5];
                 let b0 = edge(v[1].xy, v[2].xy, p) / area;
                 let b1 = edge(v[2].xy, v[0].xy, p) / area;
@@ -490,5 +519,41 @@ mod tests {
         let width = frame.text(0, 0, "HP 9", 1, [255, 255, 255]);
         assert_eq!(width, 24);
         assert!(frame.rgba.chunks(4).any(|pixel| pixel[0] == 255));
+    }
+}
+
+#[cfg(test)]
+mod narrowing_tests {
+    use super::*;
+
+    /// Narrowed rows shade exactly the pixels a bounding-box scan does.
+    #[test]
+    fn narrowed_fill_matches_the_bounding_box_scan() {
+        let mut seed = 0x1234_5678_u32;
+        let mut next = move || {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (seed >> 8) as f32 / 16_777_216.0
+        };
+        let mut narrow = Frame::new(64, 48, [0, 0, 0, 255]);
+        let mut full = Frame::new(64, 48, [0, 0, 0, 255]);
+        for _ in 0..400 {
+            let vertex = |next: &mut dyn FnMut() -> f32| ScreenVertex {
+                xy: [next() * 90.0 - 15.0, next() * 70.0 - 11.0],
+                w: 0.01 + next() * 0.5,
+                uv: [0.0, 0.0],
+            };
+            let v = [vertex(&mut next), vertex(&mut next), vertex(&mut next)];
+            let state = DrawState {
+                blend: Blend::Opaque,
+                depth_test: true,
+                depth_write: true,
+                cull_back: next() < 0.5,
+            };
+            narrow.fill_with(v, None, state, true);
+            full.fill_with(v, None, state, false);
+        }
+        assert_eq!(narrow.rgba, full.rgba);
+        assert_eq!(narrow.depth, full.depth);
+        assert!(narrow.rgba.iter().any(|&byte| byte != 0));
     }
 }
