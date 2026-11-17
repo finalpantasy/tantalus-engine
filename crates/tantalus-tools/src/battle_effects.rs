@@ -386,6 +386,15 @@ impl EffectTable {
         out
     }
 
+    /// The ticks effect `id` holds a command for: the HP change and the end
+    /// ([`CAST_LEAD`] after the command starts).
+    pub fn effect_timing_ticks(&self, effect: i32, item: bool) -> Option<(u32, u32)> {
+        let timing = self.timing_of(effect, item)?;
+        let hit = (CAST_LEAD + timing.hit).max(MIN_EFFECT_TICKS);
+        let total = (CAST_LEAD + timing.length).max(hit).max(MIN_COMMAND_TICKS);
+        Some((hit, total))
+    }
+
     /// One command's wait (see [`Self::command_timings`]), played on the
     /// plugin only now.
     pub fn command_timing_of(&self, key: &(bool, i32, u8)) -> Option<(u32, u32)> {

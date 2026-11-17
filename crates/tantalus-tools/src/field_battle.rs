@@ -969,8 +969,21 @@ impl FieldBattles {
                 timing: COMMAND_TIMING,
                 command_timing_late: {
                     let table = self.equipment.effects.clone();
+                    // Enemy attacks play the effect their scene entry names
+                    // (`BattleCommandInfo.VfxIndex`).
+                    let attack_effects: Vec<i32> = scene
+                        .attacks
+                        .iter()
+                        .map(|attack| i32::from(attack.vfx_index))
+                        .collect();
                     tantalus_legacy::battle::machine::LateTimings(Some(std::sync::Arc::new(
-                        move |key| table.command_timing_of(key),
+                        move |key| {
+                            if key.2 == tantalus_legacy::battle::machine::ENEMY_ATTACK_VARIANT {
+                                let effect = *attack_effects.get(usize::try_from(key.1).ok()?)?;
+                                return table.effect_timing_ticks(effect, false);
+                            }
+                            table.command_timing_of(key)
+                        },
                     )))
                 },
                 cast_leads: std::sync::Arc::new(crate::battle_effects::cast_leads()),

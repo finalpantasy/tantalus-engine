@@ -143,6 +143,10 @@ impl PartialEq for LateTimings {
     }
 }
 
+/// [`CommandTimings`] variant of an enemy attack: its key is (false, the
+/// scene's attack number, this).
+pub const ENEMY_ATTACK_VARIANT: u8 = 4;
+
 /// The [`CommandTimings`] key of a party member's `SysTrans`: the Trance
 /// effect (`Special_Trance_Activate`, 257) when `entering`, else
 /// `Special_Trance_End` (489) (`btl_vfx.GetPlayerCommandSFX`).
@@ -2206,14 +2210,29 @@ impl Battle {
     fn command_ticks(&self, id: CmdId) -> (u32, u32) {
         let s = &self.cmds.slots[id];
         let variant = u8::from(s.cursor & 1 == 0) | (u8::from(s.short_summon) << 1);
+        // Enemy commands index the scene's attacks, not `Actions.csv`:
+        // their key has [`ENEMY_ATTACK_VARIANT`] set.
+        let player = s.regist.filter(|&r| self.units[r].is_player);
         let key = match s.regist {
             Some(r) if s.cmd_no == cmd::SYS_TRANS => {
                 sys_trans_key(self.units[r].is_under_any_status(st::TRANCE))
             }
+            Some(_) if player.is_none() => (false, s.sub_no, ENEMY_ATTACK_VARIANT),
             _ => (s.cmd_no == cmd::ITEM, s.sub_no, variant),
         };
-        // Enemy commands index the scene's attacks, not `Actions.csv`.
-        let player = s.regist.filter(|&r| self.units[r].is_player);
+        // An enemy attack's effect takes as long as the effect plays, as in
+        // the game (the SFX holds the command), with no cast lead.
+        if s.regist.is_some()
+            && player.is_none()
+            && let Some(value) = self
+                .config
+                .command_timing_late
+                .0
+                .as_ref()
+                .and_then(|late| late(&key))
+        {
+            return value;
+        }
         let Some((effect, total)) = player.and_then(|_| {
             self.config.command_timing.get(&key).copied().or_else(|| {
                 self.config

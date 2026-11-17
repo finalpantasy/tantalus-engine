@@ -29,6 +29,13 @@ static class P
          "[StructLayout(LayoutKind.Explicit, Size = 24)]\ninternal unsafe struct Stack16_StartPsxTask_request\n{\n    [FieldOffset(20)] public int field_20;\n"),
         ("u0005_sub_180048B10.cs", "        request.field_12 = 0;\n", ""),
         ("u0005_sub_180048B10.cs", "int flags = request.field_12;", "int flags = request.field_20;"),
+        // The DLL's frame holds `args` above `request`: the second pointer
+        // handed to the script entry must fall inside the PSX address window
+        // the first (`request`) opened, as it does in the DLL (the stack
+        // grows down, so `args` is allocated first). Otherwise the sword
+        // skills (188-191, 221, 299, 401, 409-412) open one window too many.
+        ("u0005_sub_180048B10.cs", "        Span<int> args = stackalloc int[2];\n", ""),
+        ("u0005_sub_180048B10.cs", "        Stack16_StartPsxTask_request request = default;\n", "        Span<int> args = stackalloc int[2];\n        Stack16_StartPsxTask_request request = default;\n"),
     };
     static readonly HashSet<(string, string)> applied = new();
     static string Patch(string path, string text)

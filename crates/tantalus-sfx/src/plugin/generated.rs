@@ -875,33 +875,33 @@ self.ld::<u64>(0x1801c1de8u64)
         }
         let mut context: i64 = self.ld::<i64>(0x180066c68u64);
         { let __t22: u64 = (slot).wrapping_add(24); let __t23: u64 = ((handlerAddress) as u64); { let __a = __t22; let __v = __t23; self.st::<u64>(__a, __v); };  };
+let __t24: u64 = self.salloc(((2i32 as i64) * 4) as usize);
+        let mut args: Sp = Sp(__t24, (2i32 as i64) as i32);
         let request: u64 = self.salloc(24);
-        {  let __t24: i64 = 0i64; { let __a = request; let __v = __t24; self.st::<i64>(__a, __v); };  };
-        { let __t25: u64 = (request).wrapping_add(8); let __t26: i32 = 0i32; { let __a = __t25; let __v = __t26; self.st::<i32>(__a, __v); };  };
-        { let __t27: u64 = (slot).wrapping_add(12); let __t28: u64 = 0u64; { let __a = __t27; let __v = __t28; self.st::<u64>(__a, __v); };  };
+        {  let __t25: i64 = 0i64; { let __a = request; let __v = __t25; self.st::<i64>(__a, __v); };  };
+        { let __t26: u64 = (request).wrapping_add(8); let __t27: i32 = 0i32; { let __a = __t26; let __v = __t27; self.st::<i32>(__a, __v); };  };
+        { let __t28: u64 = (slot).wrapping_add(12); let __t29: u64 = 0u64; { let __a = __t28; let __v = __t29; self.st::<u64>(__a, __v); };  };
         let mut handler: u64 = self.ld::<u64>((slot).wrapping_add(24));
-        if (((({ let __f: u64 = handler; let __t29: i64 = (0i64) as i64; let __t30: i64 = (0i64) as i64; let __t31: i64 = (context) as i64; let __t32: i64 = (((slot) as i64)) as i64; let __t33: i64 = ((((request)) as i64)) as i64; (self.call_ptr(__f, &[__t29, __t30, __t31, __t32, __t33])) as i64 }) as u32) == 0u32)) {
+        if (((({ let __f: u64 = handler; let __t30: i64 = (0i64) as i64; let __t31: i64 = (0i64) as i64; let __t32: i64 = (context) as i64; let __t33: i64 = (((slot) as i64)) as i64; let __t34: i64 = ((((request)) as i64)) as i64; (self.call_ptr(__f, &[__t30, __t31, __t32, __t33, __t34])) as i64 }) as u32) == 0u32)) {
                 let mut entryCount: u32 = ((self.ld::<i32>((request).wrapping_add(4))) as u32);
                 if ((entryCount != 0u32)) {
                         let mut entrySize: u32 = (((self.ld::<i32>((request).wrapping_add(8))) as u32) & 0xfffffffcu32);
                         if ((((self.ld::<i32>((request).wrapping_add(8)) & 3i32)) != 0i32)) {
-                                {  let __t34: u32 = (entrySize).wrapping_add(4u32); entrySize = __t34;  };
+                                {  let __t35: u32 = (entrySize).wrapping_add(4u32); entrySize = __t35;  };
                         }
                         let mut entries: u64 = self.PsxObjectAlloc(((slot) as i64), (((((entryCount).wrapping_mul(((entrySize).wrapping_add(4u32)))).wrapping_add(0x10u32))) as i32));
                         let mut entriesAddress: u32 = ((self.PsxAddrMapperRegister(((0x180576a10u64) as i64), entries)) as u32);
                         let mut count: i32 = self.ld::<i32>((request).wrapping_add(4));
                         let mut size: i32 = self.ld::<i32>((request).wrapping_add(8));
                         let mut flags: i32 = self.ld::<i32>((request).wrapping_add(20));
-                        { let __t35: u64 = (slot).wrapping_add(16); let __t36: u32 = entriesAddress; { let __a = __t35; let __v = __t36; self.st::<u32>(__a, __v); };  };
+                        { let __t36: u64 = (slot).wrapping_add(16); let __t37: u32 = entriesAddress; { let __a = __t36; let __v = __t37; self.st::<u32>(__a, __v); };  };
                         let _ = self.PsxInitEntryBlock(entriesAddress, ((slot) as i64), size, count, flags);
                 }
                 if ((self.ld::<i32>(request) != 0i32)) {
-                        let mut scratch: u64 = { let __t38 = { let __t37 = self.ld::<i32>(request); self.AlignUp4(__t37) }; self.PsxObjectAlloc(((slot) as i64), __t38) };
-                        { let __t39: u64 = (slot).wrapping_add(12); let __t40: u32 = ((self.PsxAddrMapperRegister(((0x180576a10u64) as i64), scratch)) as u32); { let __a = __t39; let __v = __t40; self.st::<u32>(__a, __v); };  };
+                        let mut scratch: u64 = { let __t39 = { let __t38 = self.ld::<i32>(request); self.AlignUp4(__t38) }; self.PsxObjectAlloc(((slot) as i64), __t39) };
+                        { let __t40: u64 = (slot).wrapping_add(12); let __t41: u32 = ((self.PsxAddrMapperRegister(((0x180576a10u64) as i64), scratch)) as u32); { let __a = __t40; let __v = __t41; self.st::<u32>(__a, __v); };  };
                 }
         }
-let __t41: u64 = self.salloc(((2i32 as i64) * 4) as usize);
-        let mut args: Sp = Sp(__t41, (2i32 as i64) as i32);
         let mut argsAddress: u64 = (args).0;
         { let __t42: u64 = pa((args).0, (0i32) as i64, 4); let __t43: i32 = a3; { let __a = __t42; let __v = __t43; self.st::<i32>(__a, __v); };  };
         { let __t44: u64 = pa((args).0, (1i32) as i64, 4); let __t45: i32 = a4; { let __a = __t44; let __v = __t45; self.st::<i32>(__a, __v); };  };
