@@ -83,14 +83,11 @@ pub fn parse_effect_sequence(text: &str) -> Option<EffectTiming> {
     })
 }
 
-/// Effects whose plugin run does not match the player's DLL
-/// (`tantalus-sfx` `--test plugin sweep`): 212 to 224, where the DLL does
-/// not repeat itself, and Photon (299), one vertex off from frame 81.
-const NOT_MATCHING: [i32; 1] = [299];
-
-/// The effects the plugin plays: those that match the DLL.
+/// The effects the plugin plays: those that match the player's DLL
+/// (`tantalus-sfx` `--test plugin sweep`). Not 212 to 224, where the DLL
+/// does not repeat itself.
 pub fn is_drawn(id: i32) -> bool {
-    !(212..=224).contains(&id) && !NOT_MATCHING.contains(&id)
+    !(212..=224).contains(&id)
 }
 
 /// Frames an effect may play before it is cut off.

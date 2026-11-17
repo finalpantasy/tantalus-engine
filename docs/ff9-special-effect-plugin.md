@@ -269,9 +269,9 @@ Checks (`cargo test -p tantalus-sfx --features dll-oracle --test plugin -- --ign
 
 - Fire (ef000): 126 frames, 28,858 primitives and 208 host calls, all identical.
 - Cure (ef008, also Potion): 121 frames, 24,185 primitives and 191 host calls, all identical.
-- `sweep` over effects 0-511: 358 of 372 match. 212-224 differ from frame 60 on, and the DLL
+- `sweep` over effects 0-511: 461 of 480 match (the run counts each effect id the DLL has; 19 differ: 212-224 and 341-346). 212-224 differ from frame 60 on, and the DLL
   does not repeat itself there (two runs of 212 give different primitives), so they need a
-  deterministic reference first. Photon (299) differs from frame 81 by one pixel in one vertex.
+  deterministic reference first. Photon (299) matched after pinning one stack word (see Known oracle differences).
   The sword skills Darkside, Minus Strike, Iai Strike, Thunder Slash (188-191, 409-412) and
   Lancer (401) now match: Memoria's `SfxOpCtx16MoveNearObj` init had the flag test inverted (the
   DLL keeps the task running; the rewrite ended it in its first frame), found with
@@ -320,8 +320,19 @@ Harness notes:
 
 `battle_effects` plays every party spell and item effect through the translated plugin
 (`tantalus_sfx::SfxRuntime::play`, a fresh plugin per effect), except the ones that do not
-match the DLL (`battle_effects::is_drawn`: 212-224 and Photon 299):
+match the DLL (`battle_effects::is_drawn`: 212-224):
 
+- Background capture (host command 120): `BattleHost` keeps the seven capture words, the player
+  sets the capture page (`Vram::background`), and the view renders the first ground mesh into
+  a 256x256 texture (`battle_view::capture_ground`, `SFXRender.CaptureBG`); batches that sample
+  it (`Source::Background`) draw from that texture, as `SFXMesh.GetTexture` does.
+- Unit staging (commands 2-6, 17, 18, 25, 27): `UnitChange` records hide, move, turn, scale
+  and fade per unit; the view applies it when it draws the units, so summons hide the party,
+  Mini scales and Jump moves. Vanish's mesh mask and the exact fade curves are approximate.
+- Slow's clock and Stop's black sprite: `SFXMesh.End` swaps Slow's subtractive mesh for the
+  clock texture (`slowClockUV`) and draws Stop's sprite subtractively, twice; both are drawn.
+- Sounds (command 32): the plugin's sound calls keep their frame and fall due that many ticks
+  after the effect starts (`tantalus-tools` `battle_sound`, through `SFX.AdjustSoundIndex`).
 - Units: `SFX.InitBattleParty` from the stage (`btl_list` order, party then enemies, eight at
   most). `BTL_DATA_INIT` is 32 bytes (`SFX_INIT_PARAM` is 300); the plugin looks targets up by
   `btl_id` in those records and falls back to slot 0, the caster, when it finds none.
@@ -365,11 +376,12 @@ Checks:
 
 ## Known oracle differences
 
-- Photon (299): the port's output changes with the initial stack contents
-  (fill 00 and ff agree, 01 and 7f do not), so the effect reads an
-  uninitialized stack word. The one-pixel vertex difference from frame 81
-  follows from that; the DLL's stack content is not reproducible. The GTE
-  functions themselves match the DLL (`translated_gte_matches_the_dll`).
+- Photon (299): `SfxUpdateParticles` never clears its stack frame, and the attractor kinds 3 and 4
+  read its first quadword (`Pos`) before any particle writes it. A zeroed frame is off by one pixel
+  in one vertex from frame 81. Photon matches the DLL on all 163 frames for any value of 2 to 8
+  (0, 1, -1 and 9 or more do not), so `Plugin::play` pins 4 for effect 299 only; effects 212 to
+  224 read the same word and match the DLL longest with 0. The real stack content is not
+  reproducible. Logged as `sfx-photon-particle-pos`.
 - Effects 212-224: the port is stable under every stack fill, but the DLL's
   primitive count varies between runs (212: 28,858 or 30,146), so the DLL reads
   memory that differs per run (uninitialized or address dependent). The port's

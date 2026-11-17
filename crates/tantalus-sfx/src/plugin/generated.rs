@@ -15286,6 +15286,7 @@ let __t0: u64 = self.salloc(((8i32 as i64) * 4) as usize);
         let mut savedTick: i32 = { let __a: u64 = ((((self.ld::<i64>(0x180066c68u64)) as u64))).wrapping_add(40); self.ld::<i32>(__a) };
         {  let __t0: i32 = savedTick; { let __a = 0x180622400u64; let __v = __t0; self.st::<i32>(__a, __v); };  };
         let frame: u64 = self.salloc(56);
+        self.st::<i64>(frame, self.particle_pos);
         let mut f: u64 = frame;
         let mut last: i32 = 0i32;
         let mut index: i32 = 0i32;

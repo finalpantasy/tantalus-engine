@@ -99,6 +99,13 @@ pub struct Plugin {
     /// [`Plugin::calls`] (the last 4M).
     pub tracing: bool,
     pub calls: std::collections::VecDeque<&'static str>,
+    /// The first quadword of `SfxUpdateParticles`' stack frame (`Pos`, the particle position
+    /// scratch). The original never clears that frame and the attractor kinds 3 and 4 read it
+    /// before any particle writes it, so the DLL reads stack garbage there. A fresh frame reads
+    /// 0, which matches the DLL for the effects that read it early (212 to 224) but not Photon
+    /// (299): from frame 80 its output matches the DLL for any value of 2 to 8
+    /// ([`Plugin::play`] pins 4 for it; see `sfx-photon-particle-pos`).
+    pub particle_pos: i64,
 }
 
 impl std::fmt::Debug for Plugin {
@@ -123,6 +130,7 @@ impl Plugin {
             module_base: crate::mem::IMAGE_BASE,
             tracing: false,
             calls: Default::default(),
+            particle_pos: 0,
         }
     }
 
