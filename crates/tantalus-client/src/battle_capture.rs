@@ -148,8 +148,10 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
     })?;
     // `--recast N:ABILITY` or `N:iITEM`: draws the stage's Nth party
     // command (from 0) as Black Magic ABILITY or as using ITEM, a preview
-    // of effects the stand-in policy never casts. The HP change and the
-    // numbers stay the original command's.
+    // of effects the stand-in policy never casts. `N:ABILITYs` plays a
+    // summon's short effect. The HP change and the end of the command move
+    // to the new effect's timing (`EffectTable::command_timings`); the
+    // numbers and the rest of the battle stay the original's.
     let party = stage
         .units
         .iter()
@@ -168,32 +170,48 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
         let parsed = pair.split_once(':').and_then(|(index, to)| {
             let index = index.parse::<usize>().ok()?;
             Some(match to.strip_prefix('i') {
-                Some(item) => (index, (14u32, item.parse::<i32>().ok()?)),
-                None => (index, (22u32, to.parse::<i32>().ok()?)),
+                Some(item) => (index, (14u32, item.parse::<i32>().ok()?, false)),
+                None => match to.strip_suffix('s') {
+                    Some(short) => (index, (22u32, short.parse::<i32>().ok()?, true)),
+                    None => (index, (22u32, to.parse::<i32>().ok()?, false)),
+                },
             })
         });
         let (index, to) = parsed
             .ok_or_else(|| format!("bad --recast entry `{pair}`, want N:ABILITY or N:iITEM"))?;
         recasts.insert(index, to);
     }
+    let timings = stage.effects.command_timings();
     let mut seen_commands = 0usize;
-    for frame in &mut stage.frames {
+    // (unit, command tick, new effect tick, new end tick)
+    let mut moves = Vec::new();
+    for (tick, frame) in stage.frames.iter_mut().enumerate() {
         for event in &mut frame.events {
             if let tantalus_tools::battle_stage::StageEvent::Command {
                 unit,
                 cmd_no,
                 sub_no,
-                ..
+                targets,
+                short_summon,
             } = event
                 && *unit < party
             {
-                if let Some((to_cmd, to_sub)) = recasts.get(&seen_commands) {
+                if let Some((to_cmd, to_sub, short)) = recasts.get(&seen_commands) {
                     *cmd_no = *to_cmd;
                     *sub_no = *to_sub;
+                    *short_summon = *short;
+                    let variant = u8::from(targets.len() == 1) | (u8::from(*short) << 1);
+                    if let Some(&(effect, total)) = timings.get(&(*to_cmd == 14, *to_sub, variant))
+                    {
+                        moves.push((*unit, tick, effect as usize, total as usize));
+                    }
                 }
                 seen_commands += 1;
             }
         }
+    }
+    for (unit, start, effect, total) in moves {
+        move_command_events(&mut stage.frames, unit, start, effect, total);
     }
     // `--camera N` shows another default camera than the pattern's.
     if let Some(camera) = values.get("--camera") {
@@ -542,4 +560,48 @@ fn live_capture(
         game.stopped.as_deref().unwrap_or("the field resumed")
     ));
     Ok(lines)
+}
+
+/// Moves `unit`'s first `EffectApplied` events and its `Finished` after
+/// `start` to `start + effect` and `start + total` (a `--recast` preview).
+fn move_command_events(
+    frames: &mut [tantalus_tools::battle_stage::StageFrame],
+    unit: usize,
+    start: usize,
+    effect: usize,
+    total: usize,
+) {
+    use tantalus_tools::battle_stage::StageEvent;
+    let mut effects = Vec::new();
+    let mut finished = None;
+    for frame in frames.iter_mut().skip(start) {
+        let mut index = 0;
+        while index < frame.events.len() {
+            let take = match &frame.events[index] {
+                StageEvent::Effect { caster, .. } => *caster == unit && finished.is_none(),
+                StageEvent::Finished { unit: who, .. } => *who == unit && finished.is_none(),
+                _ => false,
+            };
+            if take {
+                let event = frame.events.remove(index);
+                if matches!(event, StageEvent::Finished { .. }) {
+                    finished = Some(event);
+                } else {
+                    effects.push(event);
+                }
+            } else {
+                index += 1;
+            }
+        }
+        if finished.is_some() {
+            break;
+        }
+    }
+    let last = frames.len().saturating_sub(1);
+    let effect_at = (start + effect).min(last);
+    let end_at = (start + total).min(last);
+    frames[effect_at].events.extend(effects);
+    if let Some(event) = finished {
+        frames[end_at].events.push(event);
+    }
 }

@@ -122,11 +122,13 @@ impl EffectTable {
 
     /// The effect a party member's command on `targets` units plays:
     /// `cmd_no` 14 (Item) reads the item table, any other the abilities.
+    /// `short_summon` picks `Vfx2` (`btl_vfx.cs:99`).
     pub fn effect_of(
         &self,
         cmd_no: u32,
         sub_no: i32,
         targets: usize,
+        short_summon: bool,
     ) -> Option<(i32, EffectTiming)> {
         // Attack plays the weapon's own effect (`GetPlayerAttackVfx`).
         if cmd_no == tantalus_legacy::battle::queue::cmd::ATTACK || sub_no == ABILITY_ATTACK {
@@ -136,13 +138,64 @@ impl EffectTable {
             *self.items.get(&sub_no)?
         } else {
             let (many, single, many_any) = *self.abilities.get(&sub_no)?;
-            if many_any && targets == 1 {
+            if (many_any && targets == 1) || short_summon {
                 single
             } else {
                 many
             }
         };
         Some((id, *self.timing.get(&id)?))
+    }
+}
+
+/// Battle frames from a command's `CMD_MODE_LOOP` to its `PlaySFX`: the
+/// caster's step forward, chant and cast motion in `PlayerSequence.seq`
+/// (`MP_STEP_FORWARD`, `MP_IDLE_TO_CHANT`, `MP_CHANT` until the SFX is loaded,
+/// `MP_MAGIC`). A stand-in: the motions are not timed, and with Fire's
+/// `EffectPoint` at 5 it keeps the old 40-tick HP change.
+pub const CAST_LEAD: u32 = 35;
+
+/// The fewest ticks a command takes before its HP change and before it ends
+/// (the old stand-in for every command).
+pub const MIN_EFFECT_TICKS: u32 = 40;
+pub const MIN_COMMAND_TICKS: u32 = 75;
+
+impl EffectTable {
+    /// Each command's wait for its effect, for the battle machine
+    /// (`BattleConfig::command_timing`): the HP change at the effect's
+    /// first `EffectPoint Type=Effect` (`ExecVfxCommand` from the SFX,
+    /// `btl_cmd.cs:1526`) and the end once the whole effect has played
+    /// (`WaitSFXDone`, `CheckCommandLoop` `btl_cmd.cs:1441`), both
+    /// [`CAST_LEAD`] after the command starts.
+    pub fn command_timings(&self) -> tantalus_legacy::battle::machine::CommandTimings {
+        let ticks = |id: i32| {
+            let timing = self.timing.get(&id)?;
+            let effect = (CAST_LEAD + timing.hit).max(MIN_EFFECT_TICKS);
+            let total = (CAST_LEAD + timing.length)
+                .max(effect)
+                .max(MIN_COMMAND_TICKS);
+            Some((effect, total))
+        };
+        let mut out = tantalus_legacy::battle::machine::CommandTimings::new();
+        for (&ability, &(many, single, many_any)) in &self.abilities {
+            if ability == ABILITY_ATTACK {
+                continue;
+            }
+            for variant in 0u8..4 {
+                let alternate = (many_any && variant & 1 != 0) || variant & 2 != 0;
+                if let Some(value) = ticks(if alternate { single } else { many }) {
+                    out.insert((false, ability, variant), value);
+                }
+            }
+        }
+        for (&item, &effect) in &self.items {
+            if let Some(value) = ticks(effect) {
+                for variant in 0u8..4 {
+                    out.insert((true, item, variant), value);
+                }
+            }
+        }
+        out
     }
 }
 
@@ -236,6 +289,31 @@ mod tests {
         assert_eq!(parse_effect_sequence("Wait: Time=3\n"), None);
     }
 
+    /// Fire (hit 5, 49 frames) keeps the 40-tick HP change and ends at
+    /// 35 + 49; a full Shiva (hit 288) waits for its hit, and its short
+    /// version (variant bit 1) for the short one's.
+    #[test]
+    fn command_timings_wait_for_the_effect() {
+        let mut table = EffectTable::default();
+        table.abilities.insert(25, (0, 0, false));
+        table.abilities.insert(49, (38, 407, false));
+        let timing = |hit, length| EffectTiming {
+            hit,
+            figure: hit,
+            length,
+            dim: None,
+        };
+        table.timing.insert(0, timing(5, 49));
+        table.timing.insert(38, timing(288, 364));
+        table.timing.insert(407, timing(60, 120));
+        let ticks = table.command_timings();
+        assert_eq!(ticks.get(&(false, 25, 1)), Some(&(40, 84)));
+        assert_eq!(ticks.get(&(false, 49, 1)), Some(&(323, 399)));
+        assert_eq!(ticks.get(&(false, 49, 0)), Some(&(323, 399)));
+        assert_eq!(ticks.get(&(false, 49, 3)), Some(&(95, 155)));
+        assert_eq!(table.effect_of(16, 49, 1, true).map(|e| e.0), Some(407));
+    }
+
     #[test]
     fn items_and_abilities_resolve_separately() {
         let mut table = EffectTable::default();
@@ -250,12 +328,12 @@ mod tests {
                 ..EffectTiming::default()
             },
         );
-        assert_eq!(table.effect_of(22, 25, 1).map(|e| e.0), Some(0));
-        assert_eq!(table.effect_of(22, 25, 3).map(|e| e.0), Some(70));
+        assert_eq!(table.effect_of(22, 25, 1, false).map(|e| e.0), Some(0));
+        assert_eq!(table.effect_of(22, 25, 3, false).map(|e| e.0), Some(70));
         assert_eq!(
-            table.effect_of(14, 236, 1).map(|e| (e.0, e.1.hit)),
+            table.effect_of(14, 236, 1, false).map(|e| (e.0, e.1.hit)),
             Some((8, 5))
         );
-        assert_eq!(table.effect_of(14, 25, 1), None);
+        assert_eq!(table.effect_of(14, 25, 1, false), None);
     }
 }

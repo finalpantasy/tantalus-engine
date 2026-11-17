@@ -27,7 +27,7 @@ pub const ROW_DEFEND: usize = 4;
 pub const ROW_CHANGE: usize = 5;
 
 /// Which list is open.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ListKind {
     /// The ability list of command row 1 or 2 (index into
     /// [`PartyMenu::commands`]).
@@ -58,6 +58,14 @@ pub struct BattleMenu {
     pub command: usize,
     pub list: usize,
     pub target: usize,
+    /// Config `Cursor: Memory` (`cfg.cursor != 0`): each member's menu opens
+    /// on the command and list rows last chosen
+    /// (`BattleHUD.TryGetMemorizedCommandObject`, `_abilityCursorMemorize`).
+    pub remember: bool,
+    /// Last command row per member.
+    memo_command: std::collections::BTreeMap<usize, usize>,
+    /// Last list row per member and list.
+    memo_list: std::collections::BTreeMap<(usize, ListKind), usize>,
 }
 
 impl Default for BattleMenu {
@@ -68,6 +76,9 @@ impl Default for BattleMenu {
             command: 0,
             list: 0,
             target: 0,
+            remember: false,
+            memo_command: std::collections::BTreeMap::new(),
+            memo_list: std::collections::BTreeMap::new(),
         }
     }
 }
@@ -145,10 +156,7 @@ impl BattleMenu {
             .filter(|&unit| unit < fight.party_len() && machine.units[unit].cur_hp > 0)
             .collect();
         if self.unit.is_none_or(|unit| !ready.contains(&unit)) {
-            *self = Self {
-                unit: ready.first().copied(),
-                ..Self::default()
-            };
+            self.reset_to(ready.first().copied());
         }
         let unit = self.unit?;
         // Triangle: the next ready member takes the menu
@@ -158,10 +166,7 @@ impl BattleMenu {
             && ready.len() > 1
             && let Some(position) = ready.iter().position(|&ready| ready == unit)
         {
-            *self = Self {
-                unit: Some(ready[(position + 1) % ready.len()]),
-                ..Self::default()
-            };
+            self.reset_to(Some(ready[(position + 1) % ready.len()]));
             return None;
         }
         let menu = fight.menu(unit)?;
@@ -210,13 +215,13 @@ impl BattleMenu {
                         }
                         CommandKind::List(_) => {
                             self.level = MenuLevel::List(ListKind::Ability(row - 1));
-                            self.list = 0;
+                            self.list = self.remembered_list(unit, ListKind::Ability(row - 1));
                         }
                         CommandKind::Unavailable => {}
                     },
                     ROW_ITEM => {
                         self.level = MenuLevel::List(ListKind::Items);
-                        self.list = 0;
+                        self.list = self.remembered_list(unit, ListKind::Items);
                     }
                     ROW_DEFEND => self.aim(fight, unit, menu.defend.clone(), MenuLevel::Commands),
                     ROW_CHANGE => self.aim(fight, unit, menu.change.clone(), MenuLevel::Commands),
@@ -269,10 +274,50 @@ impl BattleMenu {
                     action: entry.action.clone(),
                     targets,
                 };
-                *self = Self::default();
+                self.memorize(unit, &back);
+                self.reset_to(None);
                 Some(command)
             }
         }
+    }
+
+    /// The menu for `unit`, back on its first rows, or on its remembered
+    /// ones with [`Self::remember`].
+    fn reset_to(&mut self, unit: Option<usize>) {
+        self.unit = unit;
+        self.level = MenuLevel::Commands;
+        self.command = 0;
+        self.list = 0;
+        self.target = 0;
+        if self.remember
+            && let Some(unit) = unit
+        {
+            self.command = self.memo_command.get(&unit).copied().unwrap_or(0);
+        }
+    }
+
+    fn remembered_list(&self, unit: usize, kind: ListKind) -> usize {
+        if self.remember {
+            self.memo_list.get(&(unit, kind)).copied().unwrap_or(0)
+        } else {
+            0
+        }
+    }
+
+    /// Records the rows a chosen command came from
+    /// (`BattleHUD` `_commandCursorMemorize`).
+    fn memorize(&mut self, unit: usize, back: &MenuLevel) {
+        self.memo_command.insert(unit, self.command);
+        if let MenuLevel::List(kind) = back {
+            self.memo_list.insert((unit, *kind), self.list);
+        }
+    }
+
+    /// `BattleHUD.IsNativeEnableAtb` with Config `ATB: Wait`
+    /// (`cfg.atb == 1`): the gauges run only while no member is choosing or
+    /// the menu is on the command window.
+    pub fn wait_stalls_atb(&self) -> bool {
+        self.unit.is_some() && self.level != MenuLevel::Commands
     }
 
     /// Opens the target cursor for `entry`, on the caster for allies and

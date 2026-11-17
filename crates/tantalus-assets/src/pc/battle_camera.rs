@@ -172,6 +172,11 @@ pub struct CameraScript {
     selector_bits: u8,
     pub phase: u8,
     rand: u32,
+    /// `byte_1802200B3` (offset 83 of the camera block at `0x180220060`):
+    /// the random side bit `SfxStateReset` and `SfxStartTrackForEntry`
+    /// draw. An effect's alternate camera (`SfxOpStartTrackBlock` mode 3)
+    /// plays this entry of its list.
+    side: u8,
     /// Units the anchors follow: the effect's caster and target
     /// (`qword_18021FFF0`, `qword_18021FFF8`), the camera caster and
     /// target (`SetCameraTarget`), and its average target point.
@@ -218,6 +223,7 @@ impl CameraScript {
             selector_bits: 0,
             phase: 0,
             rand: seed,
+            side: 0,
             caster: None,
             target: None,
             camera_caster: None,
@@ -241,6 +247,18 @@ impl CameraScript {
             [self.eye[0], self.eye[1], self.eye[2]],
             [self.look[0], self.look[1], self.look[2]],
         )
+    }
+
+    /// `SfxStateReset` (`u0003_SfxSelectBlockVariant.cs`) at an effect's
+    /// start: draws the side bit, `(PsxRandStep() >> 16) & 1`.
+    pub fn draw_side(&mut self) -> u8 {
+        self.side = ((self.rand() >> 16) & 1) as u8;
+        self.side
+    }
+
+    /// The side bit last drawn.
+    pub fn side(&self) -> u8 {
+        self.side
     }
 
     fn rand(&mut self) -> u32 {
@@ -384,6 +402,8 @@ impl CameraScript {
         camera_no: u8,
         world: &CameraWorld,
     ) {
+        // `SfxStartTrackForEntry` draws the side bit first.
+        self.draw_side();
         self.camera_caster = Some(caster);
         self.camera_target = target;
         self.target_center = center;

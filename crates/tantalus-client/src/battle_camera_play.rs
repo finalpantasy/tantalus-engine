@@ -27,9 +27,9 @@ use tantalus_tools::battle_stage::{BattleStage, StageEvent, StageModel};
 
 use crate::battle_raster::BattleCamera;
 
-/// An effect's camera: tick, caster, target, camera set bytes, tick the
-/// effect ends.
-type EffectPlay = (usize, usize, Option<usize>, Vec<u8>, usize);
+/// An effect's camera: tick, caster, target, the camera sets to pick from
+/// (one unless `IsAlternate`), tick the effect ends.
+type EffectPlay = (usize, usize, Option<usize>, Vec<Vec<u8>>, usize);
 
 /// The camera state after the ticks run so far.
 #[derive(Debug, Clone)]
@@ -48,6 +48,8 @@ pub struct CameraDirector {
     /// The effects' own cameras (`PLAY_CAMERA`), in tick order: tick,
     /// caster, target, camera set bytes, tick the effect ends.
     effect_plays: Vec<EffectPlay>,
+    /// Ticks a drawn effect starts (`SfxStateReset` draws the side bit).
+    effect_starts: Vec<usize>,
     /// Tick the playing effect camera's effect ends.
     effect_end: Option<usize>,
     /// The unit whose command holds the camera.
@@ -112,7 +114,10 @@ impl CameraDirector {
         script.context.camera_no = if stage.camera < 3 { stage.camera } else { 0 };
         script.start_plunge(0);
         let mut effect_plays = Vec::new();
-        if let Some(library) = library {
+        let mut effect_starts = Vec::new();
+        // Battle Camera: Fixed turns the effects' cameras off
+        // (`RecomputeGate323268`).
+        if let Some(library) = library.filter(|_| !stage.fixed_camera) {
             for effect in crate::battle_effects::stage_effects(stage) {
                 // A summon's cameras frame its own model and world, which
                 // are not drawn (a wall or nothing for 18 s of a full
@@ -123,20 +128,19 @@ impl CameraDirector {
                     continue;
                 }
                 let start = effect.start.round() as usize;
+                effect_starts.push(start);
                 for play in library.cameras(effect.id).iter() {
-                    // `IsAlternate`: a random pick; here one fixed by the
-                    // caster and tick.
-                    let pick = (effect.caster + start) % play.choices.len();
                     effect_plays.push((
                         start + play.frame as usize,
                         effect.caster,
                         effect.targets.first().copied(),
-                        play.choices[pick].clone(),
+                        play.choices.clone(),
                         start + effect.timing.length as usize,
                     ));
                 }
             }
             effect_plays.sort_by_key(|play| play.0);
+            effect_starts.sort_unstable();
         }
         Some(Self {
             script,
@@ -146,6 +150,7 @@ impl CameraDirector {
             pending: Vec::new(),
             reaction: None,
             effect_plays,
+            effect_starts,
             effect_end: None,
             busy: None,
             victory: false,
@@ -198,12 +203,24 @@ impl CameraDirector {
                 true
             }
         });
+        while self
+            .effect_starts
+            .first()
+            .is_some_and(|start| *start <= tick)
+        {
+            self.effect_starts.remove(0);
+            self.script.draw_side();
+        }
         while self.effect_plays.first().is_some_and(|play| play.0 <= tick) {
-            let (_, caster, target, set, end) = self.effect_plays.remove(0);
+            let (_, caster, target, choices, end) = self.effect_plays.remove(0);
+            // `SfxOpStartTrackBlock` mode 3: the side bit's entry, at most
+            // the last.
+            let pick = usize::from(self.script.side()).min(choices.len() - 1);
+            let set = &choices[pick];
             self.busy = Some(caster);
             self.effect_end = Some(end);
             self.script
-                .start_effect_camera(&set, 0, caster, target, &self.world);
+                .start_effect_camera(set, 0, caster, target, &self.world);
         }
         if self.effect_end.is_some_and(|end| end <= tick) {
             self.effect_end = None;
@@ -236,7 +253,14 @@ impl CameraDirector {
                         cmd_no,
                         sub_no,
                         targets,
-                    } => self.command(stage, tick, *unit, *cmd_no, *sub_no, targets),
+                        short_summon,
+                    } => self.command(
+                        stage,
+                        tick,
+                        *unit,
+                        (*cmd_no, *sub_no, *short_summon),
+                        targets,
+                    ),
                     // An effect camera runs to the end of its effect.
                     StageEvent::Finished { unit, .. }
                         if self.busy == Some(*unit) && self.effect_end.is_none() =>
@@ -267,8 +291,7 @@ impl CameraDirector {
         stage: &BattleStage,
         tick: usize,
         unit: usize,
-        cmd_no: u32,
-        sub_no: i32,
+        (cmd_no, sub_no, short_summon): (u32, i32, bool),
         targets: &[usize],
     ) {
         let target = targets.first().copied();
@@ -277,7 +300,11 @@ impl CameraDirector {
             // Attack plays a short effect with `UseCamera=False`
             // (`SFXData.IsShortSpecialEffect`) and sequence-only commands
             // (Steal, Jump) play none: the camera stays.
-            let Some((id, timing)) = stage.effects.effect_of(cmd_no, sub_no, targets.len()) else {
+            let Some((id, timing)) =
+                stage
+                    .effects
+                    .effect_of(cmd_no, sub_no, targets.len(), short_summon)
+            else {
                 return;
             };
             if crate::battle_effects::EffectKind::of(id).is_some() {

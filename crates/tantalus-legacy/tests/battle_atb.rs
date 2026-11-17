@@ -15,6 +15,8 @@
 //! Command timeline for a command dequeued on tick T: inspection T,
 //! select-VFX T + 1, effect and finish T + 2 (zero injected waits).
 
+use std::collections::BTreeMap;
+use std::sync::Arc;
 use tantalus_legacy::battle::atb::{self, StartType};
 use tantalus_legacy::battle::flee;
 use tantalus_legacy::battle::machine::{
@@ -123,6 +125,17 @@ impl BattleHooks for Hooks {
                 Some(CommandSpec {
                     command: c,
                     default_ally: false,
+                    for_dead: false,
+                })
+            }
+            cmd::SUMMON_GARNET => {
+                let mut c = BattleCommand::new(103);
+                c.hit_rate = 255;
+                c.target_type = target_type::SELF;
+                c.mp_cost = 4;
+                Some(CommandSpec {
+                    command: c,
+                    default_ally: true,
                     for_dead: false,
                 })
             }
@@ -510,6 +523,100 @@ fn defend_timeline_and_removal() {
             .unwrap()
     );
     assert_eq!(b.units[0].status_current & st::DEFEND, 0);
+}
+
+/// A player command waits for its own effect (`BattleConfig::command_timing`):
+/// Defend with (10, 20) applies 10 ticks into `CMD_MODE_LOOP` (tick 93, not
+/// 83) and finishes 10 later.
+#[test]
+fn command_timing_delays_the_effect_and_the_end() {
+    let timing = BTreeMap::from([((false, 179, 1u8), (10u32, 20u32))]);
+    let mut b = Battle::new(
+        vec![unit(1, true, 40), unit(16, false, 0)],
+        BattleConfig {
+            command_timing: Arc::new(timing),
+            ..BattleConfig::default()
+        },
+        table(),
+    );
+    let (mut h, mut r) = (hooks(), SequenceRandom::r16(&[7, 7, 7, 7]));
+    run(&mut b, &mut h, &mut r, 80);
+    assert!(b.player_command(0, cmd::DEFEND, 179, 1, 0, &mut h).unwrap());
+    run(&mut b, &mut h, &mut r, 30);
+    assert_eq!(
+        first_tick(&b, |e| matches!(e, BattleEvent::EffectApplied { .. })),
+        Some(93)
+    );
+    assert_eq!(
+        first_tick(&b, |e| matches!(e, BattleEvent::CommandFinished { .. })),
+        Some(103)
+    );
+}
+
+/// `DecideSummonType`: Shiva's first cast plays in full and draws nothing;
+/// once seen, `random8() < 230` (more than twice its MP left) makes it
+/// short and picks the short effect's timing (variant bit 1).
+#[test]
+fn summon_first_cast_full_then_short() {
+    let timing = BTreeMap::from([
+        ((false, 49, 1u8), (300u32, 380u32)),
+        ((false, 49, 3u8), (60u32, 90u32)),
+    ]);
+    let mut p = unit(1, true, 40);
+    p.cur_mp = 50;
+    let mut b = Battle::new(
+        vec![p, unit(16, false, 0)],
+        BattleConfig {
+            command_timing: Arc::new(timing),
+            ..BattleConfig::default()
+        },
+        table(),
+    );
+    let (mut h, mut r) = (hooks(), SequenceRandom::r16(&[7, 7, 7, 7]));
+    run(&mut b, &mut h, &mut r, 80);
+    assert!(
+        b.player_command(0, cmd::SUMMON_GARNET, 49, 1, 0, &mut h)
+            .unwrap()
+    );
+    run(&mut b, &mut h, &mut r, 400);
+    let applied = ticks_of(&b, |e| matches!(e, BattleEvent::EffectApplied { .. }));
+    assert_eq!(applied.first(), Some(&(83 + 300)));
+    assert_eq!(b.config.summons_seen, vec![49]);
+
+    let mut b2 = Battle::new(
+        vec![
+            {
+                let mut p = unit(1, true, 40);
+                p.cur_mp = 50;
+                p
+            },
+            unit(16, false, 0),
+        ],
+        BattleConfig {
+            command_timing: b.config.command_timing.clone(),
+            summons_seen: vec![49],
+            ..BattleConfig::default()
+        },
+        table(),
+    );
+    let mut r2 = SequenceRandom::with_kinds(&[
+        (Draw::Random8, 229),
+        (Draw::Random16, 7),
+        (Draw::Random16, 7),
+        (Draw::Random16, 7),
+        (Draw::Random16, 7),
+    ]);
+    let mut h2 = hooks();
+    run(&mut b2, &mut h2, &mut r2, 80);
+    assert!(
+        b2.player_command(0, cmd::SUMMON_GARNET, 49, 1, 0, &mut h2)
+            .unwrap()
+    );
+    run(&mut b2, &mut h2, &mut r2, 100);
+    assert_eq!(
+        first_tick(&b2, |e| matches!(e, BattleEvent::EffectApplied { .. })),
+        Some(83 + 60)
+    );
 }
 
 // ---------------------------------------------------------------------------

@@ -402,11 +402,11 @@ fn draw_unit(
     frame: &mut Frame,
     camera: &BattleCamera,
     assets: &BattleAssets,
-    geo: u32,
+    (geo, bone): (u32, Option<u8>),
     motion: &UnitMotion,
     position: [f32; 3],
     turn: f32,
-) -> Option<f32> {
+) -> Option<(f32, Option<Vec3>)> {
     let Some(Some(model)) = assets.models.get(&geo) else {
         return None;
     };
@@ -438,6 +438,16 @@ fn draw_unit(
     let rotation =
         Quat::from_rotation_y(turn.to_radians()) * Quat::from_rotation_z(std::f32::consts::PI);
     let origin = Vec3::from_array(position) + Vec3::from_array(motion.offset);
+    // `GetChildByName("bone" + tar_bone)`: that bone's place in the pose.
+    let bone_at = bone.and_then(|bone| {
+        let name = format!("bone{bone:03}");
+        let index = model.nodes.iter().position(|node| node.name == name)?;
+        let world = tantalus_assets::pc::model_assembly::pose::world_matrices(&model.nodes, &poses);
+        // Row-major: the translation is the last column.
+        let m = world.get(index)?;
+        let local = Vec3::new(m[3], m[7], m[11]);
+        Some(origin + rotation * local)
+    });
     let mut top = 0.0f32;
     let state = DrawState {
         blend: Blend::Opaque,
@@ -496,7 +506,7 @@ fn draw_unit(
             }
         }
     }
-    Some(top)
+    Some((top, bone_at))
 }
 
 /// The last key time over every curve.
@@ -603,12 +613,12 @@ impl BattleScene {
                     &mut probe,
                     &camera,
                     assets,
-                    look.geo,
+                    (look.geo, None),
                     &motion,
                     unit.position,
                     unit.turn,
                 )
-                .unwrap_or(0.0)
+                .map_or(0.0, |(top, _)| top)
             })
             .collect();
         let director = CameraDirector::new(stage, &heights, Some(&assets.effects));
@@ -731,17 +741,18 @@ impl BattleScene {
             if motion.hidden {
                 continue;
             }
-            if let Some(top) = draw_unit(
+            if let Some((top, bone)) = draw_unit(
                 &mut frame,
                 &camera,
                 assets,
-                look.geo,
+                (look.geo, stage.tar_bones.get(index).copied().flatten()),
                 &motion,
                 unit.position,
                 motion.facing.unwrap_or(unit.turn),
             ) {
                 let feet = Vec3::from_array(unit.position) + Vec3::from_array(motion.offset);
-                let at = feet + Vec3::Y * top;
+                // An enemy's numbers and cursor sit on its `tar_bone`.
+                let at = bone.unwrap_or(feet + Vec3::Y * top);
                 heads[index] = frame.project(&camera, camera.to_view(at.to_array()));
                 spots[index] = Some(crate::battle_effects::UnitSpot {
                     feet: feet.to_array(),
@@ -801,6 +812,9 @@ fn hud_draw(
                     unit.max_mp,
                 ),
                 atb,
+                trance: record
+                    .and_then(|r| r.trance.get(index).copied().flatten())
+                    .map(|(gauge, active)| (f32::from(gauge) / 255.0, active)),
                 asked: overlay.asked == Some(index),
             }
         })
@@ -956,6 +970,27 @@ fn readout(frame: &mut Frame, stage: &BattleStage, record: Option<&StageFrame>, 
                 [90, 180, 255]
             };
             frame.rect(bar_x, y, filled, 6 * scale, fill, 1.0);
+        }
+        // Trance gauge under the ATB (`BattleHUD` `TranceSlider`): pink,
+        // full and bright in Trance.
+        if let Some(Some((trance, active))) = record.and_then(|r| r.trance.get(index).copied())
+            && bar_width > 0
+        {
+            let filled = bar_width * i32::from(trance) / 255;
+            let fill = if active {
+                [255, 150, 230]
+            } else {
+                [220, 90, 170]
+            };
+            frame.rect(
+                bar_x,
+                y + 7 * scale,
+                bar_width,
+                2 * scale,
+                [40, 20, 40],
+                1.0,
+            );
+            frame.rect(bar_x, y + 7 * scale, filled, 2 * scale, fill, 1.0);
         }
     }
 }
@@ -1288,6 +1323,10 @@ impl FightView {
             }
             return (events, done);
         }
+        let (remember, wait) = game.settings().map_or((false, false), |settings| {
+            (settings.cursor != 0, settings.atb == 1)
+        });
+        self.menu.remember = remember;
         if let Some(fight) = game.battle()
             && self.pending.is_none()
         {
@@ -1296,6 +1335,10 @@ impl FightView {
             let after = menu_snapshot(&self.menu);
             let sent = self.pending.is_some();
             game.battle_menu_sound(before, after, pressed, sent);
+        }
+        let stalled = wait && self.menu.wait_stalls_atb();
+        if let Some(fight) = game.battle_mut() {
+            fight.set_atb_wait_stall(stalled);
         }
         // Holding L1 and R1 runs: a flee roll each second held
         // (`BattleHUD.Update`, `btl_sys.CheckEscape(true)`).

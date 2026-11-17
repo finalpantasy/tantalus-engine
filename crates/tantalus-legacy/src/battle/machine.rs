@@ -109,6 +109,20 @@ pub struct Timing {
     pub loop_total_ticks: u32,
 }
 
+/// What a command's effect takes, from its SFX sequence: ticks in
+/// `CMD_MODE_LOOP` before the HP change and before the command ends.
+/// Keyed by (`cmd_no == Item`, ability or item id, variant); variant bit 0
+/// is a single target of a `ManyAny` ability and bit 1 a short summon (the
+/// `Vfx2` effect, `btl_vfx.cs:99`). A command missing here takes
+/// [`Timing::effect_after_loop_ticks`] and [`Timing::loop_total_ticks`].
+pub type CommandTimings = std::collections::BTreeMap<(bool, i32, u8), (u32, u32)>;
+
+/// `BattleAbilityId` of the summons `DecideSummonType` tracks
+/// (`btl_cmd.cs:1595-1614`): their first cast plays in full.
+pub const TRACKED_SUMMONS: [i32; 16] = [
+    49, 51, 53, 55, 58, 60, 62, 64, 66, 67, 68, 69, 70, 71, 72, 74,
+];
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct BattleConfig {
     /// `Configuration.Battle.ATBSpeedFactor` as configured (clamped at use).
@@ -120,6 +134,11 @@ pub struct BattleConfig {
     /// `btl_scene.Info.Runaway`.
     pub runaway: bool,
     pub timing: Timing,
+    /// Per-command effect waits; see [`CommandTimings`].
+    pub command_timing: std::sync::Arc<CommandTimings>,
+    /// `FF9StateSystem.Achievement.summon_*`: summons already cast once
+    /// (ability ids).
+    pub summons_seen: Vec<i32>,
 }
 
 impl Default for BattleConfig {
@@ -130,6 +149,8 @@ impl Default for BattleConfig {
             keep_rest_time: false,
             runaway: true,
             timing: Timing::default(),
+            command_timing: std::sync::Arc::new(CommandTimings::new()),
+            summons_seen: Vec::new(),
         }
     }
 }
@@ -2025,6 +2046,10 @@ impl Battle {
                 false
             }
             cmd::SYS_TRANS => true,
+            cmd::SUMMON_GARNET | cmd::SUMMON_EIKO | cmd::PHANTOM => {
+                self.decide_summon_type(id, r, rng);
+                true
+            }
             cmd::SYS_ESCAPE => {
                 if self.phase != Phase::Normal {
                     return true;
@@ -2056,6 +2081,46 @@ impl Battle {
             }
             _ => true,
         }
+    }
+
+    /// `DecideSummonType` (`btl_cmd.cs:1595-1627`): a tracked summon cast
+    /// for the first time plays in full; after that it is short on
+    /// `random8() < 230` with more than twice its MP cost left, else on
+    /// `< 170`.
+    fn decide_summon_type(&mut self, id: CmdId, caster: usize, rng: &mut dyn BattleRandom) {
+        let ability = self.cmds.slots[id].sub_no;
+        if TRACKED_SUMMONS.contains(&ability) && !self.config.summons_seen.contains(&ability) {
+            return;
+        }
+        let mp = self.cmds.slots[id]
+            .spec
+            .as_ref()
+            .map_or(0, |spec| spec.command.mp_cost);
+        let threshold = if i64::from(self.units[caster].cur_mp) > i64::from(mp) * 2 {
+            230
+        } else {
+            170
+        };
+        if rng.random8() < threshold {
+            self.cmds.slots[id].short_summon = true;
+        }
+    }
+
+    /// The ticks of [`Timing`] for command `id`: its effect's own when
+    /// [`BattleConfig::command_timing`] knows it.
+    fn command_ticks(&self, id: CmdId) -> (u32, u32) {
+        let s = &self.cmds.slots[id];
+        let variant = u8::from(s.cursor & 1 == 0) | (u8::from(s.short_summon) << 1);
+        let key = (s.cmd_no == cmd::ITEM, s.sub_no, variant);
+        // Enemy commands index the scene's attacks, not `Actions.csv`.
+        let player = s.regist.is_some_and(|r| self.units[r].is_player);
+        player
+            .then(|| self.config.command_timing.get(&key).copied())
+            .flatten()
+            .unwrap_or((
+                self.config.timing.effect_after_loop_ticks,
+                self.config.timing.loop_total_ticks,
+            ))
     }
 
     /// `CheckTargetCondition` (`btl_cmd.cs:1221-1272`).
@@ -2106,14 +2171,25 @@ impl Battle {
         hooks: &mut dyn BattleHooks,
         rng: &mut dyn BattleRandom,
     ) -> Result<(), BattleError> {
-        let t = self.config.timing;
-        if !self.cmds.slots[id].effect_done
-            && self.cmds.slots[id].loop_ticks >= t.effect_after_loop_ticks
-        {
+        let (effect_ticks, total_ticks) = self.command_ticks(id);
+        if !self.cmds.slots[id].effect_done && self.cmds.slots[id].loop_ticks >= effect_ticks {
             self.cmds.slots[id].effect_done = true;
             self.apply_effect(id, hooks, rng)?;
         }
-        if self.cmds.slots[id].effect_done && self.cmds.slots[id].loop_ticks >= t.loop_total_ticks {
+        if self.cmds.slots[id].effect_done && self.cmds.slots[id].loop_ticks >= total_ticks {
+            // `UpdateCommandAchievement` (`BattleAchievement.cs:68-98`): a
+            // player's summon is now seen.
+            let s = &self.cmds.slots[id];
+            if matches!(
+                s.cmd_no,
+                cmd::SUMMON_GARNET | cmd::SUMMON_EIKO | cmd::PHANTOM
+            ) && s.regist.is_some_and(|r| self.units[r].is_player)
+                && TRACKED_SUMMONS.contains(&s.sub_no)
+                && !self.config.summons_seen.contains(&s.sub_no)
+            {
+                let ability = s.sub_no;
+                self.config.summons_seen.push(ability);
+            }
             // `ReqFinishCommand` replays a partly reflected command on the
             // reflected targets instead of finishing.
             if !self.arm_reflect_second_pass(id) {

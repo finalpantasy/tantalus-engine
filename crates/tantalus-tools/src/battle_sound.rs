@@ -536,6 +536,7 @@ mod tests {
             cmd_no: 1,
             sub_no: ATTACK_ABILITY,
             targets: vec![1],
+            short_summon: false,
         };
         let hit = StageEvent::Effect {
             caster: 0,

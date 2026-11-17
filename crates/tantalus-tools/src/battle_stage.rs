@@ -74,6 +74,9 @@ pub struct StageFrame {
     pub events: Vec<StageEvent>,
     /// Each unit's `bi.row` (players: 0 back, 1 front), which Change flips.
     pub rows: Vec<u8>,
+    /// Each unit's Trance gauge (`trance`, 0 to 255) and whether it is in
+    /// Trance; `None` without a gauge (`HasTrance`).
+    pub trance: Vec<Option<(u8, bool)>>,
 }
 
 /// A machine event a client animates.
@@ -85,6 +88,8 @@ pub enum StageEvent {
         cmd_no: u32,
         sub_no: i32,
         targets: Vec<usize>,
+        /// `info.short_summon`: a summon plays its short effect.
+        short_summon: bool,
     },
     /// A command's effect landed (`EffectApplied`): `damage` is the HP
     /// lost (negative for a heal), 0 a miss or no change.
@@ -141,7 +146,9 @@ pub fn stage_events(
                     .iter()
                     .map(|&id| &machine.cmds.slots[id])
                     .find(|slot| slot.regist == Some(unit) && slot.cmd_no == cmd_no);
-                let (sub_no, tar_id) = slot.map_or((0, 0), |slot| (slot.sub_no, slot.tar_id));
+                let (sub_no, tar_id, short_summon) = slot.map_or((0, 0, false), |slot| {
+                    (slot.sub_no, slot.tar_id, slot.short_summon)
+                });
                 let targets = machine
                     .units
                     .iter()
@@ -154,6 +161,7 @@ pub fn stage_events(
                     cmd_no,
                     sub_no,
                     targets,
+                    short_summon,
                 });
             }
             BattleEvent::EffectApplied {
@@ -253,6 +261,49 @@ pub fn attack_animations(bytes: &[u8]) -> Vec<(Vec<u16>, bool)> {
         .collect()
 }
 
+/// The turns of one enemy attack sequence (`SeqExecTurn`,
+/// `btlseq.cs:839`): toward the targets' average position (`0x8001`)
+/// with its offset in degrees and its frames, and back to the battle
+/// rotation (`0x8000`) with its frames.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct AttackTurns {
+    pub toward: Option<(f32, u8)>,
+    pub back: Option<u8>,
+}
+
+/// [`AttackTurns`] of every sequence in the scene's sequence file, by
+/// attack number.
+pub fn attack_turns(bytes: &[u8]) -> Vec<AttackTurns> {
+    use tantalus_assets::pc::battle_sequence::TurnTarget;
+    let Ok(file) = SequenceFile::parse(bytes, "raw17") else {
+        return Vec::new();
+    };
+    (0..file.slots.len())
+        .map(|index| {
+            let mut turns = AttackTurns::default();
+            for placed in file.sequence(index).map_or(&[][..], |s| &s.ops[..]) {
+                if let SeqOp::Turn {
+                    target,
+                    offset,
+                    frames,
+                } = placed.op
+                {
+                    match target {
+                        TurnTarget::FaceTarget if turns.toward.is_none() => {
+                            turns.toward = Some((f32::from(offset) / 4096.0 * 360.0, frames));
+                        }
+                        TurnTarget::BattleRotation if turns.toward.is_some() => {
+                            turns.back = Some(frames);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            turns
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct BattleStage {
     pub battle: i32,
@@ -265,11 +316,19 @@ pub struct BattleStage {
     pub units: Vec<StageUnit>,
     /// Each unit's `radius_collision` (empty: unknown, 0).
     pub radii: Vec<f32>,
+    /// Each enemy's `tar_bone` (`btl_init.cs:163`: `Bone[3]` of its type),
+    /// the bone its damage numbers and the target cursor sit on
+    /// (`btl2d.GetFreeEntry`); `None` for the party.
+    pub tar_bones: Vec<Option<u8>>,
     pub frames: Vec<StageFrame>,
     pub outcome: Option<String>,
     /// [`attack_animations`] of the scene's sequence file, by enemy attack
     /// number (`sub_no`).
     pub attack_anims: Vec<(Vec<u16>, bool)>,
+    /// [`attack_turns`] of the scene's sequence file.
+    pub attack_turns: Vec<AttackTurns>,
+    /// Config Battle Camera: Fixed (`cfg.camera == 1`).
+    pub fixed_camera: bool,
     /// The sounds of each enemy attack ([`crate::battle_sound::sequence_sounds`]).
     pub sfx: Vec<Vec<crate::battle_sound::SequenceSfx>>,
     /// The scene's camera block (`camOffset` of the `.raw17`).
@@ -353,6 +412,7 @@ impl BattleStage {
         // `radius_collision`: 256 for players (`btl_init.cs:466`), the
         // monster type's `Radius` for enemies.
         let mut radii = vec![256.0; units.len()];
+        let mut tar_bones = vec![None; units.len()];
         if let Some(row) = scene.patterns.get(pattern) {
             let placements = row
                 .monsters
@@ -360,6 +420,12 @@ impl BattleStage {
                 .take(usize::from(row.monster_count).min(row.monsters.len()));
             for placement in placements {
                 units.push(enemy_unit(scene, placement));
+                tar_bones.push(
+                    scene
+                        .monster_types
+                        .get(usize::from(placement.type_no))
+                        .map(|kind| kind.bone[3]),
+                );
                 radii.push(
                     scene
                         .monster_types
@@ -375,9 +441,12 @@ impl BattleStage {
             camera: scene.patterns.get(pattern).map_or(0, |row| row.camera),
             units,
             radii,
+            tar_bones,
             frames: Vec::new(),
             outcome: None,
             attack_anims: Vec::new(),
+            attack_turns: Vec::new(),
+            fixed_camera: false,
             sfx: Vec::new(),
             camera_block: None,
             attack_cameras: Vec::new(),
@@ -412,6 +481,17 @@ impl BattleStage {
             phase: phase.to_owned(),
             events: Vec::new(),
             rows: units.iter().map(|unit| unit.row).collect(),
+            trance: units
+                .iter()
+                .map(|unit| {
+                    unit.has_trance_gauge.then(|| {
+                        (
+                            unit.trance,
+                            unit.is_under_any_status(tantalus_legacy::battle::status::TRANCE),
+                        )
+                    })
+                })
+                .collect(),
         });
     }
 

@@ -148,6 +148,10 @@ pub struct FieldBattles {
     scripts: BTreeMap<String, Vec<u8>>,
     scene_ids: BTreeMap<u16, String>,
     equipment: Equipment,
+    /// `FF9StateSystem.Achievement.summon_*` for this session: summons the
+    /// party has cast (`BattleAchievement.UpdateCommandAchievement`). Not
+    /// in the save yet.
+    summons_seen: std::sync::Mutex<Vec<i32>>,
 }
 
 /// Item ids below this are weapons; armor rows are `item - ARMOR_BASE`
@@ -776,6 +780,7 @@ impl FieldBattles {
             scripts,
             scene_ids: crate::battle_scene_rewards::parse_scene_id_table(&table),
             equipment,
+            summons_seen: std::sync::Mutex::new(Vec::new()),
         })
     }
 
@@ -791,6 +796,7 @@ impl FieldBattles {
             scripts,
             scene_ids,
             equipment,
+            summons_seen: std::sync::Mutex::new(Vec::new()),
         }
     }
 
@@ -921,6 +927,12 @@ impl FieldBattles {
             units,
             BattleConfig {
                 timing: COMMAND_TIMING,
+                command_timing: std::sync::Arc::new(self.equipment.effects.command_timings()),
+                summons_seen: self
+                    .summons_seen
+                    .lock()
+                    .map(|seen| seen.clone())
+                    .unwrap_or_default(),
                 ..BattleConfig::default()
             },
             StatusTable::new(vec![StatusDataRow::default(); 32]),
@@ -1024,6 +1036,9 @@ impl FieldBattles {
         );
         stage.attack_anims = sequence
             .map(crate::battle_stage::attack_animations)
+            .unwrap_or_default();
+        stage.attack_turns = sequence
+            .map(crate::battle_stage::attack_turns)
             .unwrap_or_default();
         stage.sfx = sequence
             .map(crate::battle_sound::sequence_sounds)
@@ -1553,6 +1568,22 @@ impl LiveFight {
             .set_btl_speed(u8::try_from(speed).unwrap_or(1));
     }
 
+    /// Applies the Config screen's battle settings to a battle that has not
+    /// started ticking: Battle Speed (`cfg.btl_speed`) and Battle Camera
+    /// (`cfg.camera`, 1 = Fixed: `RecomputeGate323268` asks the host
+    /// `GetCameraConfig` and turns the effects' own cameras off).
+    pub fn apply_settings(&mut self, settings: &tantalus_game::field::settings::GameSettings) {
+        self.set_battle_speed(settings.btl_speed);
+        self.stage.fixed_camera = settings.camera == 1;
+    }
+
+    /// Config `ATB: Wait` (`cfg.atb == 1`): `IsNativeEnableAtb` stops the
+    /// gauges while a member's menu is past the command window. The HUD
+    /// says when (`stalled`).
+    pub fn set_atb_wait_stall(&mut self, stalled: bool) {
+        self.adapter.battle_mut().atb_paused = stalled;
+    }
+
     /// Caps every party member's HP at `hp` (capture tooling: a quick way
     /// to reach the game over screen).
     pub fn cap_party_hp(&mut self, hp: u32) {
@@ -1867,6 +1898,9 @@ impl LiveFight {
             state,
             ..
         } = self;
+        if let Ok(mut seen) = battles.summons_seen.lock() {
+            seen.clone_from(&adapter.battle().config.summons_seen);
+        }
         if let FightState::Failed(error) = state {
             report.error = Some(error);
             return report;

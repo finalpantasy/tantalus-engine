@@ -16,6 +16,9 @@ use super::command::BattleCommand;
 pub mod cmd {
     pub const NONE: u32 = 0;
     pub const ATTACK: u32 = 1;
+    pub const SUMMON_GARNET: u32 = 16;
+    pub const PHANTOM: u32 = 18;
+    pub const SUMMON_EIKO: u32 = 20;
     pub const MAGIC_SWORD: u32 = 31;
     pub const ITEM: u32 = 14;
     pub const THROW: u32 = 15;
@@ -118,6 +121,9 @@ pub struct CmdSlot {
     /// (`btl_cmd.cs:264-266`); 0 for every other command. Reset by
     /// `ClearCommand` (`btl_cmd.cs:59`).
     pub magic_caster_id: u16,
+    /// `info.short_summon` (`btl_cmd.DecideSummonType`): the summon plays
+    /// its short effect (`Vfx2`).
+    pub short_summon: bool,
 }
 
 impl CmdSlot {
@@ -142,6 +148,7 @@ impl CmdSlot {
             has_checked_reflect: false,
             covered: false,
             magic_caster_id: 0,
+            short_summon: false,
         }
     }
 }

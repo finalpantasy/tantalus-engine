@@ -40,6 +40,9 @@ pub struct PartyRow {
     pub mp: (u32, u32),
     /// Gauge fill 0..=1.
     pub atb: f32,
+    /// Trance gauge fill 0..=1 and whether in Trance; `None` without a
+    /// gauge.
+    pub trance: Option<(f32, bool)>,
     /// Whose menu is open.
     pub asked: bool,
 }
@@ -158,6 +161,18 @@ impl BattleHud {
                 [90, 150, 230]
             };
             ui.rect(bx, by, bw * member.atb.clamp(0.0, 1.0), bh, fill, 1.0);
+            // Trance gauge under it (`BattleHUD` `TranceSlider`), pink;
+            // brighter while in Trance.
+            if let Some((trance, active)) = member.trance {
+                let (ty, th) = (by + bh + 4.0, 8.0);
+                ui.rect(bx - 3.0, ty - 2.0, bw + 6.0, th + 4.0, [30, 15, 30], 1.0);
+                let fill = if active {
+                    [255, 150, 230]
+                } else {
+                    [220, 80, 170]
+                };
+                ui.rect(bx, ty, bw * trance.clamp(0.0, 1.0), th, fill, 1.0);
+            }
         }
         // Left: the command menu, or the enemy names.
         let left_w: f32 = 560.0;

@@ -183,6 +183,7 @@ fn last_command(stage: &BattleStage, unit: usize, seconds: f64) -> Option<Runnin
                         cmd_no,
                         sub_no,
                         targets,
+                        ..
                     } if *who == unit => Some((index, *cmd_no, *sub_no, targets.first().copied())),
                     _ => None,
                 })
@@ -544,6 +545,23 @@ fn command_segments(
                 .cloned()
                 .unwrap_or_default();
             let strike = if moves { strike } else { [0.0; 3] };
+            // `SeqExecTurn` toward the target and back to the battle
+            // rotation, when the sequence has them (frames at 15 a second).
+            let turns = usize::try_from(running.sub_no)
+                .ok()
+                .and_then(|sub_no| stage.attack_turns.get(sub_no))
+                .copied()
+                .unwrap_or_default();
+            let enemy_face = turns.toward.map(|(offset, _)| face + offset);
+            let toward = turns
+                .toward
+                .zip(enemy_face)
+                .map(|((_, frames), face)| (turn, face, f32::from(frames) / 15.0));
+            let held = enemy_face.map(|face| (face, face, 0.0));
+            let back = turns
+                .back
+                .zip(enemy_face)
+                .map(|(frames, face)| (face, turn, f32::from(frames) / 15.0));
             // The clips back to back, the last but one (the blow) ending
             // at the effect when there is room.
             let lengths: Vec<f32> = clips.iter().map(|clip| len(Some(*clip))).collect();
@@ -561,7 +579,7 @@ fn command_segments(
                     looping: true,
                     from: [0.0; 3],
                     to: strike,
-                    turn: None,
+                    turn: toward,
                 });
             }
             for (index, (clip, length)) in clips.iter().zip(&lengths).enumerate() {
@@ -573,7 +591,11 @@ fn command_segments(
                     looping: false,
                     from: strike,
                     to: if last { [0.0; 3] } else { strike },
-                    turn: None,
+                    turn: match (index, last) {
+                        (_, true) if back.is_some() => back,
+                        (0, _) if !moves => toward,
+                        _ => held,
+                    },
                 });
                 at += length;
             }
@@ -687,6 +709,7 @@ mod tests {
                     cmd_no: 1,
                     sub_no: 176,
                     targets: vec![1],
+                    short_summon: false,
                 });
             }
             if tick == 55 {

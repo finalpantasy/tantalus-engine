@@ -150,6 +150,7 @@ pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
                 cmd_no,
                 sub_no,
                 targets,
+                short_summon,
             } = event
             else {
                 continue;
@@ -157,7 +158,10 @@ pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
             if *unit >= party {
                 continue;
             }
-            let Some((id, timing)) = stage.effects.effect_of(*cmd_no, *sub_no, targets.len())
+            let Some((id, timing)) =
+                stage
+                    .effects
+                    .effect_of(*cmd_no, *sub_no, targets.len(), *short_summon)
             else {
                 continue;
             };
@@ -636,6 +640,7 @@ mod tests {
             cmd_no: 22,
             sub_no: 25,
             targets: vec![1],
+            short_summon: false,
         });
         stage.frames[42].events.push(StageEvent::Effect {
             caster: 0,

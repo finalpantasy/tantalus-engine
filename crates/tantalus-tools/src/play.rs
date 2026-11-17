@@ -1356,6 +1356,11 @@ impl PlayGame {
     }
 
     /// The battle being fought live, if any ([`Self::live_battles`]).
+    /// The Config screen's values of the running game.
+    pub fn settings(&self) -> Option<&tantalus_game::field::settings::GameSettings> {
+        Some(&self.session.as_ref()?.director.world().settings)
+    }
+
     pub fn battle(&self) -> Option<&LiveFight> {
         self.pending.as_ref()?.fight.as_ref()
     }
@@ -1385,7 +1390,7 @@ impl PlayGame {
                     if let Ok(text) = self.data.text.battle_text(request.battle) {
                         fight.name_enemies(&text);
                     }
-                    fight.set_battle_speed(session.director.world().settings.btl_speed);
+                    fight.apply_settings(&session.director.world().settings);
                     pending.fight = Some(fight);
                     self.audio.push((
                         self.ticks,
