@@ -601,7 +601,11 @@ impl FieldMenu {
                 } else if confirm && let Some((item, _)) = list.get(cursor) {
                     // A Tent (script 76) is for save points only.
                     let tent = tables.effects.get(item).is_some_and(|e| e.script_id == 76);
-                    if usable(tables, *item) && party > 0 && (world.save_point || !tent) {
+                    if tent && usable(tables, *item) && party > 0 && world.save_point {
+                        // The Tent's effect spans the party (`ItemUI`
+                        // `_multiTarget`): one tent, every member.
+                        self.use_item_on_party(world, tables, *item);
+                    } else if usable(tables, *item) && party > 0 && (world.save_point || !tent) {
                         self.message = None;
                         self.screen = Screen::ItemTarget {
                             item: *item,
@@ -707,6 +711,42 @@ impl FieldMenu {
             }
         }
         true
+    }
+
+    /// An item used on the whole party (`ItemUI`: each member goes through
+    /// `FieldCalcMain`, and one item is removed in all).
+    fn use_item_on_party(&mut self, world: &mut FieldWorld, tables: &MenuTables, item: u16) {
+        let Some(effect) = tables.effects.get(&item) else {
+            return;
+        };
+        let key = i32::from(item);
+        let before = world.items.get(&key).copied().unwrap_or(0);
+        let seed = (self.revision as u32).wrapping_mul(2_654_435_761) >> 24;
+        let (mut hp, mut mp, mut used) = (0, 0, false);
+        for member in world.party.clone() {
+            // Each call consumes one; the party shares the one it spent.
+            world.items.insert(key, before);
+            if let Ok(ItemUseOutcome::Used {
+                hp_gained,
+                mp_gained,
+            }) = use_field_item(world, &tables.db, item, effect, member, || seed)
+            {
+                used = true;
+                hp += hp_gained;
+                mp += mp_gained;
+            }
+        }
+        let left = if used { before - 1 } else { before };
+        if left <= 0 {
+            world.items.remove(&key);
+        } else {
+            world.items.insert(key, left);
+        }
+        self.message = Some(if used {
+            format!("The party recovered {hp} HP and {mp} MP.")
+        } else {
+            "It had no effect.".into()
+        });
     }
 
     fn use_item(&mut self, world: &mut FieldWorld, tables: &MenuTables, item: u16, member: i32) {
@@ -1296,7 +1336,7 @@ mod tests {
     }
 
     #[test]
-    fn a_tent_works_only_at_a_save_point() {
+    fn a_tent_heals_the_whole_party_at_a_save_point() {
         let (mut tables, mut world) = (tables(), world());
         tables.effects.insert(
             236,
@@ -1312,10 +1352,20 @@ mod tests {
         assert!(menu.refused, "no tent away from a save point");
         assert_eq!(world.items[&236], 2);
         world.save_point = true;
+        world.party = vec![0, 1];
+        world.character_stats.insert(
+            1,
+            CharacterStats {
+                current_hp: 20,
+                max_hp: 150,
+                current_mp: 0,
+                max_mp: 5,
+            },
+        );
         menu.press(pad::CONFIRM, &mut world, &tables);
-        menu.press(pad::CONFIRM, &mut world, &tables);
-        assert_eq!(world.items[&236], 1);
+        assert_eq!(world.items[&236], 1, "one tent for the whole party");
         assert_eq!(world.character_stats[&0].current_hp, 75 + 10);
+        assert_eq!(world.character_stats[&1].current_hp, 75 + 20);
     }
 
     #[test]

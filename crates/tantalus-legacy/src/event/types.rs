@@ -2046,6 +2046,13 @@ pub trait LegacyEventHost {
         let _ = level;
         self.script_request_is_complete(entity)
     }
+
+    /// `EventEngine.Request`: whether an asynchronous request at `level`
+    /// runs. Hosts that keep the older behavior always accept.
+    fn async_request_accepted(&mut self, target: EntityId, level: i32) -> bool {
+        let _ = (target, level);
+        true
+    }
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError>;
     /// Shared byte memory for a variable scope (`gEventGlobal` for Global,
     /// `EventContext.mapvar` for Map). `None` keeps the VM's private

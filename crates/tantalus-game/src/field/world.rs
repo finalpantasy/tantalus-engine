@@ -410,6 +410,10 @@ pub const MAX_CARDS: usize = 100;
 /// `(disc, number)`. Behavior, not state: snapshots do not carry it.
 pub type FmvFrameCounts = std::sync::Arc<dyn Fn(i32, i32) -> Option<u32> + Send + Sync>;
 
+/// Runtime animation length lookup: the frame count of an animation id
+/// (`EventEngineUtils.GetCharAnimFrame`). Behavior, not state.
+pub type AnimationFrameCounts = std::sync::Arc<dyn Fn(u16) -> Option<u16> + Send + Sync>;
+
 /// Maps a content item identity to the legacy inventory item id.
 pub type ItemIdMap =
     std::sync::Arc<dyn Fn(&tantalus_contracts::ContentId) -> Option<i32> + Send + Sync>;
@@ -581,6 +585,15 @@ pub struct FieldWorld {
     /// `(disc, number)`. Runtime-only; snapshots do not carry it.
     #[serde(skip)]
     pub fmv_frame_counts: Option<FmvFrameCounts>,
+    /// Real animation lengths (runtime-only). Without it an animation lasts
+    /// `animation_default_ticks`.
+    #[serde(skip)]
+    pub animation_frame_counts: Option<AnimationFrameCounts>,
+    /// Reference request semantics (runtime-only, opt-in): a request names a
+    /// uid (`FindObjByUID`), and an asynchronous request at a level not below
+    /// the object's current one is dropped (`EventEngine.Request`).
+    #[serde(skip)]
+    pub reference_requests: bool,
     /// Reward-item identity to legacy inventory id mapping (runtime-only).
     #[serde(skip)]
     pub item_id_map: Option<ItemIdMap>,
@@ -845,6 +858,8 @@ impl FieldWorld {
             run_disabled: false,
             player_facing_polls: 0,
             fmv_frame_counts: None,
+            animation_frame_counts: None,
+            reference_requests: false,
             item_id_map: None,
             character_exp: BTreeMap::new(),
             ability_pa: BTreeMap::new(),
@@ -1472,7 +1487,7 @@ impl FieldWorld {
 
     /// `GetUIDFromLocalUID` then `FindObjByUID`. A party slot names the
     /// object of its `partyUID` entry; an empty slot keeps the plain uid.
-    pub(crate) fn resolve_uid(&self, uid: i32) -> Option<EntityId> {
+    pub fn resolve_uid(&self, uid: i32) -> Option<EntityId> {
         self.party_slot_object(uid)
             .or_else(|| self.uid_map.get(&uid).copied())
     }
@@ -1652,6 +1667,8 @@ impl FieldWorld {
         self.atan_table = template.atan_table.clone();
         self.level_growth = template.level_growth.clone();
         self.fmv_frame_counts = template.fmv_frame_counts.clone();
+        self.animation_frame_counts = template.animation_frame_counts.clone();
+        self.reference_requests = template.reference_requests;
         self.item_id_map = template.item_id_map.clone();
     }
 

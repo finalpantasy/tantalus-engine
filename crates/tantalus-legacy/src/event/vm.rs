@@ -1458,11 +1458,15 @@ impl EventVm {
                         ));
                     }
                     self.pc = next;
-                    events.push(HostEvent::RequestScriptAsync {
-                        level,
-                        target: EntityId::new(target as u64),
-                        tag,
-                    });
+                    // `EventEngine.Request`: a level not below the object's
+                    // current one is dropped, and the script goes on.
+                    if host.async_request_accepted(EntityId::new(target as u64), level) {
+                        events.push(HostEvent::RequestScriptAsync {
+                            level,
+                            target: EntityId::new(target as u64),
+                            tag,
+                        });
+                    }
                 }
                 InstructionKind::RequestScriptSync { level, target, tag } => {
                     let level = self.evaluate(host, &level, instruction.offset, opcode)?;

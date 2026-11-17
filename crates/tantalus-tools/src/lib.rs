@@ -1,5 +1,6 @@
 pub mod ability_menu;
 pub mod actor_placement;
+pub mod animation_frames;
 pub mod audit_summary;
 pub mod battle_ai_demo;
 pub mod battle_effects;

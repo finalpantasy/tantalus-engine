@@ -77,6 +77,11 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut fight_hp: std::collections::BTreeMap<i32, u32> = Default::default();
     let mut battle_ids: Option<PathBuf> = None;
     let mut waypoints: BTreeMap<i32, Vec<[f32; 2]>> = BTreeMap::new();
+    let mut save_at: BTreeMap<i32, PathBuf> = BTreeMap::new();
+    let mut load_world: Option<PathBuf> = None;
+    let mut animation_frames: Option<PathBuf> = None;
+    let mut reference_requests = false;
+    let mut give_items: Vec<(i32, i32)> = Vec::new();
     while let Some(flag) = iter.next() {
         let mut value = || {
             iter.next()
@@ -160,6 +165,31 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 }
             }
             "--battles" => battle_ids = Some(PathBuf::from(value()?)),
+            // Shards of a long run: write the world as the chain enters MAP,
+            // and start a later run from it (`--start MAP --load-world`).
+            "--save-at" => {
+                let text = value()?;
+                let (map, path) = text
+                    .split_once(':')
+                    .and_then(|(map, path)| Some((map.parse().ok()?, PathBuf::from(path))))
+                    .ok_or_else(|| format!("bad --save-at `{text}`, want MAP:PATH"))?;
+                save_at.insert(map, path);
+            }
+            "--load-world" => load_world = Some(PathBuf::from(value()?)),
+            // Real animation lengths (`animation-frames` writes the table).
+            "--animation-frames" => animation_frames = Some(PathBuf::from(value()?)),
+            "--reference-requests" => reference_requests = true,
+            "--give-items" => {
+                for pair in value()?.split(',').filter(|part| !part.is_empty()) {
+                    let (item, count) = pair
+                        .split_once(':')
+                        .ok_or("--give-items wants ID:COUNT,...")?;
+                    give_items.push((
+                        parse_number(item.trim(), "--give-items")?,
+                        parse_number(count.trim(), "--give-items")?,
+                    ));
+                }
+            }
             "--hold" => {
                 for part in value()?.split(',') {
                     let parsed = part
@@ -270,6 +300,15 @@ fn run(args: Vec<String>) -> Result<(), String> {
             let event = event.ok_or("--event is required")?;
             let binary = load_event(&bundle, &event)?;
             disassemble(&binary, only_entry)
+        }
+        "animation-frames" => {
+            // Writes the frame count of every animation clip as CSV.
+            let bundle = bundle.ok_or("--bundle is required")?;
+            let table = tantalus_tools::animation_frames::build(
+                bundle.parent().ok_or("--bundle has no directory")?,
+            )?;
+            print!("{}", tantalus_tools::animation_frames::to_csv(&table));
+            Ok(())
         }
         "fight" => {
             // One battle with the new-game party stats, for iterating on
@@ -417,6 +456,11 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     set_globals,
                     backgrounds,
                     waypoints,
+                    save_at,
+                    load_world,
+                    animation_frames,
+                    reference_requests,
+                    give_items,
                     battles: match battle_ids {
                         Some(ids) => Some(tantalus_tools::field_battle::FieldBattles::load(
                             bundle.parent().ok_or("--bundle has no directory")?,
@@ -911,6 +955,14 @@ struct ChainOptions {
     /// map, once its regions and talks are done: fields that wait for the
     /// player to walk somewhere (map 116's roof waits for Vivi's x <= 900).
     waypoints: BTreeMap<i32, Vec<[f32; 2]>>,
+    /// Worlds to write when the chain enters a map (`--save-at`).
+    save_at: BTreeMap<i32, PathBuf>,
+    /// A world written by `--save-at`, to continue from.
+    load_world: Option<PathBuf>,
+    /// Animation id to frame count table (`--animation-frames`).
+    animation_frames: Option<PathBuf>,
+    reference_requests: bool,
+    give_items: Vec<(i32, i32)>,
     /// Fight each encounter on the legacy battle machine (`--battles`).
     battles: Option<tantalus_tools::field_battle::FieldBattles>,
 }
@@ -994,6 +1046,11 @@ fn chain(
         set_globals,
         backgrounds,
         waypoints,
+        save_at,
+        load_world,
+        animation_frames,
+        reference_requests,
+        give_items,
         battles: field_battles,
     } = options;
     let battle_base: BTreeMap<i32, tantalus_game::new_game::BaseStats> = growth_tables
@@ -1067,6 +1124,13 @@ fn chain(
             resolved
         }));
     }
+    world.reference_requests = reference_requests;
+    if let Some(path) = &animation_frames {
+        let text = std::fs::read_to_string(path)
+            .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+        let table = tantalus_tools::animation_frames::read_csv(&text);
+        world.animation_frame_counts = Some(std::sync::Arc::new(move |id| table.get(&id).copied()));
+    }
     // FF9Play_Init: every character has a player record from new game on.
     world.character_stats = stats;
     world.items = initial_items;
@@ -1095,11 +1159,23 @@ fn chain(
             .global_memory
             .set(*index, tantalus_legacy::VariableType::Byte, *value);
     }
+    if let Some(path) = &load_world {
+        let text = std::fs::read_to_string(path)
+            .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+        let mut loaded: tantalus_game::FieldWorld = serde_json::from_str(&text)
+            .map_err(|error| format!("cannot decode {}: {error}", path.display()))?;
+        loaded.copy_providers_from(&world);
+        world = loaded;
+    }
+    for (item, count) in &give_items {
+        world.add_item_amount(*item, *count);
+    }
     let mut map = start;
     if let Some(dir) = &actor_track {
         std::fs::create_dir_all(dir).map_err(|error| format!("{}: {error}", dir.display()))?;
     }
     let mut world_exits_used = vec![false; world_exits.len()];
+    let mut saved_maps: BTreeSet<i32> = BTreeSet::new();
     for field_number in 0..max_fields {
         let Some(name) = db.get(&map) else {
             println!(
@@ -1129,6 +1205,15 @@ fn chain(
             .collect();
         // The first unused route entry for this map; it is used up when the
         // field leaves through its destination.
+        if let Some(path) = save_at.get(&map)
+            && !saved_maps.contains(&map)
+        {
+            saved_maps.insert(map);
+            let text = serde_json::to_string(&world.for_save())
+                .map_err(|error| format!("cannot encode the world: {error}"))?;
+            std::fs::write(path, text)
+                .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
+        }
         let scenario_now = scenario_counter(&world);
         let route_index = route
             .iter()

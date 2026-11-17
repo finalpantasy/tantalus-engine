@@ -105,12 +105,17 @@ enum Screen {
     },
 }
 
+/// Party members the comparison shows at once (`charInfoHud`).
+const COMPARE_WIDTH: usize = 4;
+
 /// The open shop.
 #[derive(Debug, Clone)]
 pub struct ShopMenu {
     id: i32,
     kind: ShopKind,
     screen: Screen,
+    /// First party member shown in the comparison (`availableCharaStart`).
+    chara_start: usize,
     /// Counts presses; a client redraws when it changes.
     pub revision: u64,
     /// Set when the last press was refused (the game plays the refusal sound).
@@ -130,6 +135,7 @@ impl ShopMenu {
             } else {
                 Screen::Command(0)
             },
+            chara_start: 0,
             revision: 0,
             refused: false,
         }
@@ -188,6 +194,16 @@ impl ShopMenu {
         self.revision += 1;
         let confirm = pressed & (pad::CONFIRM | pad::CIRCLE) != 0;
         let cancel = pressed & (pad::CANCEL | pad::CROSS) != 0;
+        // `ShopUI.OnKeyLeftTrigger` / `OnKeyRightTrigger`: L1 and R1 slide the
+        // four-wide window over the party in the comparison.
+        if matches!(self.screen, Screen::Buy(_)) {
+            if pressed & pad::L1 != 0 && self.chara_start > 0 {
+                self.chara_start -= 1;
+            } else if pressed & pad::R1 != 0 && self.chara_start + COMPARE_WIDTH < world.party.len()
+            {
+                self.chara_start += 1;
+            }
+        }
         match self.screen {
             Screen::Command(cursor) => {
                 let cursor = step(cursor, COMMANDS.len(), pressed);
@@ -486,7 +502,12 @@ impl ShopMenu {
             ));
             rows_used = 2.0;
             if !selling {
-                for member in world.party.iter().take(4) {
+                for member in world
+                    .party
+                    .iter()
+                    .skip(self.chara_start)
+                    .take(COMPARE_WIDTH)
+                {
                     let character = tables.character(world, *member);
                     let mask = equip_mask_from_char_id(*member as u32);
                     let Some(compare) = shop_comparison(&tables.db, item, mask, &character.equip)
@@ -677,6 +698,27 @@ mod tests {
         shop.press(pad::CONFIRM, &mut world, &tables, &shops);
         assert_eq!(world.items.get(&1), Some(&2));
         assert_eq!(world.gil, 750);
+    }
+
+    #[test]
+    fn l1_and_r1_slide_the_comparison_over_a_big_party() {
+        let (tables, shops, mut world) = setup();
+        world.party = vec![0, 1, 2, 3, 4];
+        let mut shop = ShopMenu::new(1, &tables, &shops);
+        shop.press(pad::CONFIRM, &mut world, &tables, &shops);
+        let names = |shop: &ShopMenu, world: &FieldWorld| {
+            let frame = shop.frame(world, &tables, &shops);
+            let side = frame.windows.iter().find(|w| w.x == 208.0).unwrap();
+            side.texts.iter().filter(|t| t.x == 8.0).count() - 2
+        };
+        assert_eq!(names(&shop, &world), 4);
+        shop.press(pad::L1, &mut world, &tables, &shops);
+        assert_eq!(shop.chara_start, 0, "L1 stops at the first member");
+        shop.press(pad::R1, &mut world, &tables, &shops);
+        assert_eq!(shop.chara_start, 1);
+        shop.press(pad::R1, &mut world, &tables, &shops);
+        assert_eq!(shop.chara_start, 1, "R1 stops when the last is shown");
+        assert_eq!(names(&shop, &world), 4);
     }
 
     #[test]

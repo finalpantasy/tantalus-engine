@@ -300,7 +300,16 @@ impl EntryScheduler {
             });
         }
         for request in &step.requests {
-            let target = request.target.get() as usize;
+            // The request names a uid (`FindObjByUID`); an object created
+            // with `InitObject` and an explicit uid runs its entry's code.
+            let uid = request.target.get();
+            let resolved = director
+                .world()
+                .reference_requests
+                .then(|| i32::try_from(uid).ok())
+                .flatten()
+                .and_then(|uid| director.world().resolve_uid(uid));
+            let target = resolved.map_or(uid, |entity| entity.get()) as usize;
             if target >= pool.len() {
                 self.unspawned += 1;
                 continue;
@@ -315,15 +324,13 @@ impl EntryScheduler {
                 director.remove_entry(entity);
             }
             match register(director, pool, target, tag)? {
-                Some(entity) => self.spawned.push((entity, target as u64)),
+                Some(entity) => self.spawned.push((entity, uid)),
                 None => {
                     // Nothing will run, so nothing would ever clear the
                     // pend: release a waiting caller.
                     self.unspawned += 1;
-                    if !self.spawned.iter().any(|(_, base)| *base == target as u64) {
-                        director
-                            .world_mut()
-                            .complete_request(EntityId::new(target as u64));
+                    if !self.spawned.iter().any(|(_, base)| *base == uid) {
+                        director.world_mut().complete_request(EntityId::new(uid));
                     }
                 }
             }

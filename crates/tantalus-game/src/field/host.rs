@@ -719,8 +719,14 @@ impl LegacyEventHost for FieldHost<'_> {
                 HostEvent::DeleteObject { target } => {
                     self.world.delete_object(*target);
                 }
-                HostEvent::PlayAnimation { actor, .. } => {
-                    let frames = self.world.animation_default_ticks;
+                HostEvent::PlayAnimation { actor, animation } => {
+                    // The clip's own length when the caller provides it.
+                    let frames = self
+                        .world
+                        .animation_frame_counts
+                        .as_ref()
+                        .and_then(|counts| counts(*animation))
+                        .unwrap_or(self.world.animation_default_ticks);
                     let state = self.actor_mut(*actor, "play animation")?;
                     // `ExecAnim` (EventEngine.cs:1313) starts on `inFrame`;
                     // a ranged animation lasts its frame span.
@@ -1297,6 +1303,10 @@ impl LegacyEventHost for FieldHost<'_> {
         level: i32,
     ) -> Result<bool, EngineError> {
         Ok(self.world.request_acceptable(target, level))
+    }
+
+    fn async_request_accepted(&mut self, target: EntityId, level: i32) -> bool {
+        !self.world.reference_requests || self.world.request_acceptable(target, level)
     }
 
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError> {
