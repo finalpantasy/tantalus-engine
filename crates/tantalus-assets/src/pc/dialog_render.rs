@@ -974,6 +974,17 @@ pub struct WindowText {
 }
 
 impl DialogAssets {
+    /// The body width, in resource pixels, of a window holding one line of
+    /// `text` (the advances plus the left and right padding).
+    pub fn text_window_width(&self, text: &str) -> i32 {
+        let advances: i32 = text
+            .chars()
+            .filter_map(|ch| self.glyphs.glyph(ch))
+            .map(|glyph| glyph.advance + SPACING_X)
+            .sum();
+        advances + (PHRASE_X_PADDING * 2.0) as i32
+    }
+
     /// Draws a framed window of `body_width` x `body_height` resource pixels
     /// with `texts` in the game's font, the way a dialog page is drawn.
     pub fn render_window(&self, body_width: i32, body_height: i32, texts: &[WindowText]) -> Image {

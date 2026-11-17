@@ -21,7 +21,7 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::sprite::Anchor;
 use tantalus_assets::pc::dialog_render::{
     BORDER_PADDING, DialogAssets, LINE_HEIGHT, PHRASE_Y_PADDING, RESOURCE_X_MULTIPLIER,
-    RESOURCE_Y_MULTIPLIER, SizeMode, WindowAtlasChoice,
+    RESOURCE_Y_MULTIPLIER, SizeMode, WindowAtlasChoice, WindowText,
 };
 use tantalus_contracts::LegacyFieldCamera;
 use tantalus_tools::play::{OpenDialog, PlayGame};
@@ -58,8 +58,28 @@ const SPEAKER_HEIGHT: f32 = crate::scene_adapter::CHAR_AIM_HEIGHT;
 
 /// `ETb` window flags.
 const FLAG_NO_TAIL: u8 = 4;
+/// `ETb.winMOG`: the Mognet window.
+const FLAG_MOG: u8 = 8;
 const FLAG_TRANSPARENT: u8 = 16;
+/// `ETb.winATE`: the Active Time Event window.
+const FLAG_ATE: u8 = 64;
 const FLAG_CHAT: u8 = 128;
+
+/// The caption a window's flags give it (`ETb.FlagsToStyles`: a window that
+/// is not chat style is `Dialog.CaptionType.Mognet` for `winMOG` or
+/// `ActiveTimeEvent` for `winATE`; `Dialog.Caption` is
+/// `FF9TextTool.GetDialogCaptionText`, the localized name of the type).
+fn caption(flags: u8) -> Option<&'static str> {
+    if flags & FLAG_CHAT != 0 {
+        None
+    } else if flags & FLAG_MOG != 0 {
+        Some("Mognet")
+    } else if flags & FLAG_ATE != 0 {
+        Some("Active Time Event")
+    } else {
+        None
+    }
+}
 
 /// A rendered window kept for reuse: the picture and the sizes the placement needs.
 struct Rendered {
@@ -109,7 +129,17 @@ pub fn sync_dialogs(
     scene_camera: &LegacyFieldCamera,
     frame: &TrackFrame,
 ) {
-    let dialogs = game.open_dialogs();
+    let mut dialogs = game.open_dialogs();
+    // Test aid: `TANTALUS_DIALOG_FLAGS=8` replaces every dialog's window flags,
+    // to see the Mognet caption without playing up to a Mognet window.
+    if let Some(extra) = std::env::var("TANTALUS_DIALOG_FLAGS")
+        .ok()
+        .and_then(|value| value.parse::<u8>().ok())
+    {
+        for dialog in &mut dialogs {
+            dialog.flags = extra;
+        }
+    }
     let mut cameras = world.query_filtered::<(Entity, &Transform), With<Camera2d>>();
     let camera = cameras
         .iter(world)
@@ -531,6 +561,58 @@ fn spawn_window(
         ),
         ChildOf(root),
     ));
+    if let Some(text) = caption(dialog.flags)
+        && let Some(Some(assets)) = view.assets.as_ref()
+    {
+        // The caption tab: a small window of the caption text on the
+        // top left corner of the window, over its border.
+        let texts = [WindowText {
+            x: 0.0,
+            y: 0.0,
+            text: text.to_owned(),
+            color: [1.0; 4],
+            right: false,
+        }];
+        let picture = assets.render_window(
+            assets.text_window_width(text),
+            (LINE_HEIGHT + PHRASE_Y_PADDING) as i32,
+            &texts,
+        );
+        let step = RESOURCE_X_MULTIPLIER / TEXELS;
+        let (pw, ph) = (
+            ((picture.width as f32 / step).round() as usize).max(1),
+            ((picture.height as f32 / (RESOURCE_Y_MULTIPLIER / TEXELS)).round() as usize).max(1),
+        );
+        let data = downscale(&picture.rgba, picture.width, picture.height, pw, ph);
+        let mut image = Image::new(
+            Extent3d {
+                width: pw as u32,
+                height: ph as u32,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            data,
+            TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::default(),
+        );
+        image.sampler = ImageSampler::linear();
+        let handle = world.resource_mut::<Assets<Image>>().add(image);
+        let tab = Vec2::new(pw as f32, ph as f32) / TEXELS;
+        world.spawn((
+            Sprite {
+                image: handle,
+                custom_size: Some(tab),
+                ..default()
+            },
+            Anchor::TOP_LEFT,
+            Transform::from_translation(
+                // Its bottom edge on the window's top border.
+                local(top_left.x - border.x, top_left.y - tab.y + border.y * 2.0)
+                    + Vec3::Z * (z + 0.03),
+            ),
+            ChildOf(root),
+        ));
+    }
     if let Some((tail_x, upper)) = tail
         && dialog.flags & (FLAG_NO_TAIL | FLAG_TRANSPARENT) == 0
     {
@@ -566,7 +648,17 @@ fn spawn_window(
 
 #[cfg(test)]
 mod tests {
-    use super::message_tick;
+    use super::{FLAG_ATE, FLAG_CHAT, FLAG_MOG, caption, message_tick};
+
+    #[test]
+    fn mognet_and_ate_windows_get_a_caption_unless_chat_style() {
+        // `ETb.FlagsToStyles`.
+        assert_eq!(caption(FLAG_MOG), Some("Mognet"));
+        assert_eq!(caption(FLAG_ATE), Some("Active Time Event"));
+        assert_eq!(caption(FLAG_MOG | FLAG_ATE), Some("Mognet"));
+        assert_eq!(caption(FLAG_MOG | FLAG_CHAT), None);
+        assert_eq!(caption(0), None);
+    }
 
     #[test]
     fn the_message_speed_picks_the_animation_tick() {
