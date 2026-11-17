@@ -1438,13 +1438,12 @@ impl LegacyEventHost for FieldHost<'_> {
     }
 
     fn read_system_list(&mut self, index: u8) -> Result<i32, EngineError> {
-        self.world
-            .system_list(index)
-            .ok_or_else(|| Self::unknown("system list"))
+        // The reference keeps eight zero-initialized lists (`index & 7`).
+        Ok(self.world.system_list(index & 7).unwrap_or(0))
     }
 
     fn write_system_list(&mut self, index: u8, value: i32) -> Result<(), EngineError> {
-        self.world.set_system_list(index, value);
+        self.world.set_system_list(index & 7, value);
         Ok(())
     }
 

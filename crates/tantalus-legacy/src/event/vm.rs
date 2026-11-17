@@ -2654,13 +2654,10 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::SetSimulationActive { simulation, active });
                 }
+                // The reference engine only skips WATCH's label and expression
+                // (`SetVariableSpec` moves indexes, evaluates nothing).
                 InstructionKind::Watch { .. } => {
-                    return Err(VmError::new(
-                        VmErrorKind::UnsupportedOpcode,
-                        instruction.offset,
-                        Some(opcode),
-                        "WATCH behavior is not proven by the pinned source",
-                    ));
+                    self.pc = next;
                 }
                 InstructionKind::SetSimulationFlags { simulation, flags } => {
                     let simulation =
@@ -3989,13 +3986,9 @@ impl EventVm {
                                 .map_err(|error| VmError::host(error, offset, opcode))?;
                             changed
                         }
-                        None => {
-                            return Err(expression_error(
-                                offset,
-                                opcode,
-                                "increment/decrement target is not writable",
-                            ));
-                        }
+                        // The reference engine has no writer for sources such as
+                        // object members read by value; it still yields the value.
+                        None => current.wrapping_add(delta),
                     };
                     stack.push(StackValue {
                         value: if matches!(
