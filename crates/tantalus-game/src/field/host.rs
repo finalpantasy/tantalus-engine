@@ -743,6 +743,10 @@ impl LegacyEventHost for FieldHost<'_> {
     fn apply(&mut self, events: &[HostEvent]) -> Result<(), EngineError> {
         for event in events {
             // Memoria's per-field script patches (`script_fixes.rs`).
+            if self.world.script_skips(event) {
+                continue;
+            }
+            self.world.script_walk_flags(event);
             let patched = self.world.script_fix(event);
             let event = patched.as_ref().unwrap_or(event);
             // v1 member-target tracking: the reference resolves member

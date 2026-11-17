@@ -238,7 +238,8 @@ impl ViewScroll {
                 bounds,
             } => {
                 let [w, h] = camera.size.map(f32::from);
-                let [min_x, max_x, min_y, max_y] = bounds.map(f32::from);
+                let [_, max_x, min_y, max_y] = bounds.map(f32::from);
+                let min_x = f32::from(crate::widescreen::camera_min_x(bounds[0]));
                 let vx = [
                     (min_x + HALF[0]).min(w - HALF[0]),
                     (max_x - HALF[0]).max(HALF[0]),

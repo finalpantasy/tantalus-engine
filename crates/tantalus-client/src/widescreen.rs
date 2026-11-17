@@ -305,6 +305,28 @@ pub fn field_view_width(map: i32, camera: i32, state: SceneState, aspect: f32) -
     width
 }
 
+/// Memoria's `ActualPsxScreenWidth` (220 rows times the aspect) when the
+/// widescreen support is on, else `None`: what the layer fixes in
+/// `widescreen_layers` read.
+pub fn layer_screen_width() -> Option<f32> {
+    let aspect = view_aspect();
+    (aspect >= MIN_WIDE).then_some(PSX_SCREEN_HEIGHT * aspect)
+}
+
+/// `BGVPORT` for field 2220 (Desert Palace) when the view is wide: Memoria moves the camera's
+/// left bound from 154 to 544 so the wide view does not see the hidden path too soon
+/// (`EventEngine.DoEventCode.cs`, `BGVPORT`; `ActualPsxScreenWidth > 390`).
+pub fn camera_min_x(requested: i16) -> i16 {
+    if FIELD_MAP.load(Ordering::Relaxed) == 2220
+        && requested == 154
+        && PSX_SCREEN_HEIGHT * view_aspect() > 390.0
+    {
+        544
+    } else {
+        requested
+    }
+}
+
 /// Notes the field being drawn, so the scroll range and the camera agree.
 /// Call before [`crate::view_scroll::ViewScroll::view`] each frame.
 pub fn set_field(map: i32, camera: i32, state: SceneState) {

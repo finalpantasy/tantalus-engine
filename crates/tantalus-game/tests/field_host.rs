@@ -814,3 +814,107 @@ fn memoria_field_script_patches() {
     );
     assert_eq!(dagger.position[2], 1274.0);
 }
+
+/// The widescreen-era script patches of `EventEngine.DoEventCode.cs`: positions that put actors
+/// in view too soon, and the field 103 `CFLAG` skip.
+#[test]
+fn memoria_widescreen_script_patches() {
+    use tantalus_legacy::HostEvent;
+    let run = |map: i32, sc: u16, who: u64, at: [f32; 3], event: HostEvent| {
+        let mut world = FieldWorld::new();
+        world.field_map_no = map;
+        world
+            .global_memory
+            .set(0, tantalus_legacy::VariableType::UInt16, i32::from(sc));
+        world.add_actor(actor(who), at);
+        apply_events(&mut world, &[event]);
+        world.actors[&actor(who)].clone()
+    };
+    let pos = |who: u64, x: i32, z: i32| HostEvent::SetActorPosition {
+        actor: actor(who),
+        position: [x, 32768, z],
+    };
+    let at =
+        |state: &tantalus_game::field::world::ActorState| (state.position[0], state.position[2]);
+    // 2600 Dagger, 2651 Mikoto, 1901 Gilmanesh.
+    assert_eq!(
+        at(&run(2600, 10700, 8, [0.0; 3], pos(8, 1173, -1685))),
+        (1173.0, -1985.0)
+    );
+    assert_eq!(
+        at(&run(2600, 10000, 8, [0.0; 3], pos(8, 1173, -1685))),
+        (1173.0, -1685.0)
+    );
+    assert_eq!(
+        at(&run(2651, 10890, 4, [0.0; 3], pos(4, 1449, -6844))),
+        (1749.0, -7244.0)
+    );
+    assert_eq!(
+        at(&run(1901, 7550, 2, [0.0; 3], pos(2, 142, 2172))),
+        (400.0, 2172.0)
+    );
+    // 1815 Steiner on the dock; 1901 Quina walks further and is hidden past the edge.
+    let walk = |map: i32, sc: u16, who: u64, from: f32, to: [i16; 2]| {
+        run(
+            map,
+            sc,
+            who,
+            [from, 0.0, 0.0],
+            HostEvent::WalkActor {
+                actor: actor(who),
+                destination: to,
+            },
+        )
+    };
+    let goal = |state: &tantalus_game::field::world::ActorState| {
+        state.movement.as_ref().map(|m| m.destination)
+    };
+    assert_eq!(
+        goal(&walk(1815, 7070, 3, 0.0, [-2312, -245])),
+        Some([-3000.0, -245.0])
+    );
+    assert_eq!(
+        goal(&walk(1815, 7000, 3, 0.0, [-2312, -245])),
+        Some([-2312.0, -245.0])
+    );
+    let quina = walk(1901, 0, 2, 900.0, [672, 100]);
+    assert_eq!(goal(&quina), Some([1000.0, 100.0]));
+    assert_eq!(quina.flags & 63, 14);
+    assert_ne!(walk(1901, 0, 2, 800.0, [672, 100]).flags & 63, 14);
+    // 1550 Quina runs to the Mog (MOVE3 only).
+    let mixed = |mode: u8, who: u64, to: [i32; 3]| {
+        goal(&run(
+            1550,
+            0,
+            who,
+            [0.0; 3],
+            HostEvent::WalkActorMixed {
+                actor: actor(who),
+                destination: to,
+                mode,
+            },
+        ))
+    };
+    assert_eq!(mixed(2, 18, [1798, 0, 5]), Some([2800.0, 5.0]));
+    assert_eq!(mixed(2, 2, [1797, 0, 5]), Some([2800.0, 5.0]));
+    assert_eq!(mixed(1, 18, [1798, 0, 5]), Some([1798.0, 5.0]));
+    assert_eq!(mixed(3, 15, [-1109, 0, -1014]), Some([-1155.0, -1070.0]));
+    // 103: the crowd keeps its flags when the script asks for 14.
+    let flags = |map: i32, who: u64, flags: u8| {
+        run(
+            map,
+            0,
+            who,
+            [0.0; 3],
+            HostEvent::SetObjectFlags {
+                object: actor(who),
+                flags,
+            },
+        )
+        .flags
+    };
+    assert_ne!(flags(103, 9, 14), 14);
+    assert_eq!(flags(103, 9, 15), 15);
+    assert_eq!(flags(103, 18, 14), 14);
+    assert_eq!(flags(104, 9, 14), 14);
+}

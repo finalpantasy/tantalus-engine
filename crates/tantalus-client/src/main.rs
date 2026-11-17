@@ -842,6 +842,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
             } else {
                 None
             };
+            state.map = game.map().unwrap_or(-1);
             state.tick(&game.world().overlay_motion, at);
         }
         if game.stopped.is_some() {

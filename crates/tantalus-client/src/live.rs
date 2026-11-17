@@ -443,6 +443,7 @@ fn step_overlay_motion(
     } else {
         None
     };
+    motion.map = game.map().unwrap_or(-1);
     motion.tick(&game.world().overlay_motion, at);
 }
 

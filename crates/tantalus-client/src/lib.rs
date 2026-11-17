@@ -35,6 +35,7 @@ pub mod trance_glow;
 pub mod view_scroll;
 pub mod widescreen;
 pub mod widescreen_data;
+pub mod widescreen_layers;
 pub mod window;
 pub mod world_minimap;
 pub mod world_view;

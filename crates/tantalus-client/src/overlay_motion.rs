@@ -36,6 +36,12 @@ pub struct OverlayMotionState {
     sampled: u64,
     previous: Offsets,
     current: Offsets,
+    /// The field being shown (`FF9.fldMapNo`), which Memoria's widescreen
+    /// layer fixes are keyed on; set by the caller before each tick.
+    pub map: i32,
+    /// Layers a widescreen fix stretches about their own origin
+    /// (`widescreen_layers`), by overlay index.
+    scales: BTreeMap<usize, [f32; 2]>,
 }
 
 impl OverlayMotionState {
@@ -57,6 +63,8 @@ impl OverlayMotionState {
             sampled: 0,
             previous: Offsets::new(),
             current: Offsets::new(),
+            map: -1,
+            scales: BTreeMap::new(),
         })
     }
 
@@ -92,12 +100,44 @@ impl OverlayMotionState {
             self.animation.set_camera_position([x, -y]);
         }
         self.animation.scroll_service();
+        if let Some(screen) = crate::widescreen::layer_screen_width() {
+            self.widescreen_layers(screen, view.map_or(0.0, |[x, _]| x));
+        }
         for (index, overlay) in self.animation.overlays.iter().enumerate() {
             let scrolls = overlay.flags
                 & (overlay_flag::LOOP | overlay_flag::PARALLAX | overlay_flag::SCROLL_WITH_OFFSET)
                 != 0;
             if scrolls {
                 self.scrolled.insert(index);
+            }
+        }
+    }
+
+    /// `SceneServiceScroll`'s widescreen cases (`widescreen_layers`), run
+    /// after the scroll service has placed each layer.
+    fn widescreen_layers(&mut self, screen: f32, view_x: f32) {
+        // `mainCamera.localPosition.x`: the view's left edge in the classic frame.
+        let camera_x = view_x - (crate::widescreen::field_width() / 2.0 - 160.0);
+        for (index, overlay) in self.animation.overlays.iter_mut().enumerate() {
+            let scale = if overlay.flags & overlay_flag::LOOP != 0 {
+                crate::widescreen_layers::looped(self.map, screen, &mut overlay.cur_x)
+            } else if overlay.flags & overlay_flag::PARALLAX != 0 {
+                let mut cur = [overlay.cur_x, overlay.cur_y];
+                let scale = crate::widescreen_layers::parallax(
+                    self.map,
+                    index,
+                    screen,
+                    &mut cur,
+                    camera_x,
+                    overlay.scroll_x,
+                );
+                [overlay.cur_x, overlay.cur_y] = cur;
+                scale
+            } else {
+                None
+            };
+            if let Some(scale) = scale {
+                self.scales.insert(index, scale);
             }
         }
     }
@@ -122,14 +162,19 @@ impl OverlayMotionState {
             OverlayMotion::Origin { block, x, y } => animation
                 .overlay_set_origin(block.into(), f32::from(x), f32::from(y))
                 .map(|_| block),
-            OverlayMotion::Move { block, offset } => animation
-                .overlay_move(
-                    block.into(),
-                    f32::from(offset[0]),
-                    f32::from(offset[1]),
-                    offset[2],
-                )
-                .map(|_| block),
+            OverlayMotion::Move { block, offset } => {
+                let mut dx = f32::from(offset[0]);
+                if crate::widescreen::layer_screen_width().is_some()
+                    && let Some((moved, scale)) =
+                        crate::widescreen_layers::overlay_move(self.map, block as usize, dx)
+                {
+                    dx = moved;
+                    self.scales.insert(block as usize, scale);
+                }
+                animation
+                    .overlay_move(block.into(), dx, f32::from(offset[1]), offset[2])
+                    .map(|_| block)
+            }
             OverlayMotion::ScrollWithOffset {
                 block,
                 enabled,
@@ -186,6 +231,19 @@ impl OverlayMotionState {
             };
             // Pixel offsets grow down; Bevy y grows up.
             transform.translation = base.translation + Vec3::new(at[0], -at[1], 0.0);
+            // A stretched layer scales about its origin (`scene + curX/curY`).
+            if let Some(&[sx, sy]) = self.scales.get(&(identity.overlay as usize))
+                && let Some(overlay) = self.animation.overlays.get(identity.overlay as usize)
+            {
+                let pivot = Vec2::new(
+                    f32::from(scene.scene_offset[0]) + overlay.cur_x - HALF_FRAME[0] as f32,
+                    -(f32::from(scene.scene_offset[1]) + overlay.cur_y - HALF_FRAME[1] as f32),
+                );
+                let from = transform.translation.truncate() - pivot;
+                transform.translation.x = pivot.x + from.x * sx;
+                transform.translation.y = pivot.y + from.y * sy;
+                transform.scale = Vec3::new(sx, sy, 1.0);
+            }
         }
     }
 
