@@ -644,21 +644,29 @@ entry fields. "Furthest" is the highest scenario counter the run reached.
 
 | Segment | Start field @ scenario | Furthest | Where it ends, blocker and lead |
 | --- | --- | --- | --- |
-| Lindblum, hunt prelude | 613 @ 3118 (saved world from the story route) | 3140 | ends in 606 (Aerbs Mountains title): entry 2 loops on Map31 == 0 and entry 0 function 1 waits for a key (`KeyOn(589824)`, Cancel/Special) behind a camera-position test (SysVar 12/13); the explorer's Cancel taps do not reach it. 606 also holds a walk at `MSPEED 1`. Next worker: read 606 entry 0 function 1 pc 596 to 700 |
+| Lindblum, hunt | 613 @ 3118 (saved world from the story route), then 606 @ 3140 | 3700 | fixed: 606 waited for Cancel or Special behind a camera-position test on system variables 12/13, which `VRP` fills from the field view. The view now starts at the vrp midpoint and follows SCROLL, release and the 3D player service (`FieldMap.BG_init`, `EBG_scene2DScroll`, `SceneService3DScroll`). With `--pan 606@110:225/165:105/400:104/395:190/275:205/300:105` the run goes 606 -> 615 -> ... -> the Festival of the Hunt (3175, timed, scored by the field scripts from system variables 24/27) -> 3180/3190 -> 3700, then the explorer circles 615 to 619 and 601 |
 | Gizamaluke's Grotto | 701 @ 3740 | 3740 | 701 -> 702 -> 703 -> 704 -> 706 in 6000 ticks, 6 talks; no blocker found yet, needs a longer run |
-| Burmecia | 751 / 750 @ 3800 to 4990 | 4990 | the explorer loops 752 <-> 756 <-> 757 (balcony question "Go out to the balcony?" Yes/No, a `ScriptRequest` wait in entry 6); answer it with `--choices`, then look for the next exit |
-| South Gate | 800 @ 3740 | 3750 | 800 <-> 801, stealth scene ("I must get rid of them before I go into the alley"): waits on a shared script and a 21 frame wait; sneaking input not modelled |
+| Burmecia | 751 @ 3800; 755 @ 3820 with entrance 604 | 3830 | the 756/757 balcony question is input: Yes jumps across the roofs between 756 and 757 by design. The story needs 755's floor to give way, which tests `B_BGIFLOOR` of `B_PTR 250` == 3. Fixed: the floor is now the one under the controlled actor (`BGI.BGI_charGetInfo`), and pointer 250 is the controlled object (`GetUIDFromLocalUID`). With `--waypoints 755@1100:3800/600:4400/400:4450` the floor drops (3830). The next steps (757 at 3840/3850, the 753 door at 3860) need a route the explorer does not find |
+| South Gate | 800 @ 3740 | 3750 | unchanged: 800 -> 801, the stealth scene ("I must get rid of them before I go into the alley") waits on shared scripts, a 21 frame wait and an animation wait; not investigated further |
 | Cleyra trunk | 1000 @ 4650 | 4660 | with `--hold MAP:16` for 1000 to 1018 (the same Up-held climb as 557/565: entries poll `KeyState(Held)` 16/192/32 and wait on `WaitAnimation`) the run goes 1000 -> 1006 and reaches the world map (9000) |
-| Cleyra settlement | 1050 @ 4660 | 4700 | with the hold: 1050 -> 1051 -> ... -> 1012 at 4700; ends on `WaitAnimation` in 1012 entry 15 (3844@31) |
+| Cleyra settlement | 1050 @ 4660 | 4700 | with `--hold MAP:16` for 1000 to 1018 and 1050 (1050 is a ladder too). The 1012 `WaitAnimation` was a loop, not a stuck clip: entry 14's region pushes Zidane back with `MOVH` (slide) until scenario 4800 sets Global bit 3861, and `MOVH` did nothing, so he stayed in the region and the scene replayed. Fixed (`MoveToward_mixed`, flag 1 keeps the facing). 1012 now pushes back as intended; the explorer keeps walking into the closed trunk path instead of the settlement |
 | Cleyra, the attack | 1100 @ 4700 | 4888 | with the hold: 1100 -> 1101 (4888) -> ... -> 1109 <-> 1110 loop |
 | Red Rose | 1150 @ 5000 | 5020 | 1150 -> 1153 (balance game, text "Press or to shift your center of gravity!") -> 1208 at 5020 |
-| Alexandria castle | 1200 / 1201 @ 5050 | 5050 | no control for 6000 ticks: 1201 entry 2 waits at pc 1515 and entry 10 at 917 on frame waits; 1208 @ 5020 shows Brahne and Garnet (1208 -> 1207 -> 1206) |
-| End of disc 1 | 1800 @ 10250 | 10400 | 1800 -> 2850 at 10400 and waits on the party menu (`Waiting:PartyMenu`, entry 0 pc 3675): the chain has no party menu answer |
+| Alexandria castle | 1200 / 1201 @ 5050 | 5050 | unchanged: no control for 6000 ticks (1201 entry 2 pc 1515 and entry 10 pc 917 on frame waits); not investigated further |
+| End of disc 1 | 768 @ 3890 with entrance 626 or 627 | 3900, disc 2 | disc 1 ends in Burmecia, not in 1800: `EVT_BURMECIA_PALACE_2` (768) sets entrance 1 and changes to field 70, whose `DISCCHANGE 17184` goes to field 800 on disc 2. The trace now records the disc change (`disc_change` in the row) and goes on: 768 -> 767 -> 768 (3900) -> 70 -> 800 -> 814 -> 813 -> 812, which stops with no control for 6000 ticks. 1800 @ 10250 is disc 3 (Garnet's haircut); its `DISCCHANGE` (-30956) goes to 1812 on disc 3, and its party menu wait in 2850 needs a roster (a fresh world has an empty party) |
 
-What is left: every row above needs a longer run with answers for its
-prompts; the first real blockers to fix are the 606 key wait (hunt), the
-party menu wait (1800), and the Cleyra 1012 animation wait. The disc 1
-`DISCCHANGE` itself was not reached.
+What is left: Burmecia past 3830 (a route to 757 and the 753 door), the
+South Gate stealth scene, the Alexandria castle frame waits, disc 2 field
+812, and the Cleyra settlement route. The party menu (`PARTYMENU`) is
+answered in the trace by keeping the party, filled from the roster when it
+is too small; `play` drives it with the pad.
+
+The chain moved with these fixes (the scrolled field view, `MOVH`, pointer
+250, the per-actor floor): chain110 has the same 158 fields, next maps and
+scenario counters as chain109, with different ticks and operation counts
+in fields that use `MOVH` or read the view (103, 115, 307 and others).
+`audit/story-route-expected.json` was regenerated for the same reason
+(same fields and scenario counters, new ticks).
 
 `audit/story-route.sh` now ends at field 565, scenario 3118 (97 fields,
 `MAX_FIELDS`); probe with
