@@ -942,6 +942,23 @@ impl DialogAssets {
         let image = render_page(&layout, 0, &self.glyphs, window)?;
         Some((image, layout))
     }
+
+    /// [`Self::render`] with only the first `visible` glyphs of the first page drawn; the
+    /// window keeps its full size (the text typing in).
+    pub fn render_limited(
+        &self,
+        entry: &MesEntry,
+        mode: SizeMode,
+        framed: bool,
+        visible: usize,
+    ) -> Option<(Image, DialogLayout)> {
+        let layout = layout_entry(entry, &self.glyphs, mode, 0);
+        let mut partial = layout.clone();
+        partial.pages.get_mut(0)?.glyphs.truncate(visible);
+        let window = framed.then_some(&self.window);
+        let image = render_page(&partial, 0, &self.glyphs, window)?;
+        Some((image, layout))
+    }
 }
 
 /// One run of text for [`DialogAssets::render_window`]: position in

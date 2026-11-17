@@ -71,13 +71,17 @@ struct Rendered {
     /// Top of each text line below the label top, UI units.
     line_tops: Vec<f32>,
     choice_line: Option<usize>,
+    /// Glyphs on the first page.
+    glyphs: usize,
 }
 
 /// What the view has on screen and what it needs to draw more.
 #[derive(Default)]
 pub struct DialogView {
     root: Option<Entity>,
-    shown: Vec<(u8, u16, usize, [i32; 2])>,
+    shown: Vec<(u8, u16, usize, [i32; 2], usize)>,
+    /// The game tick each open window first appeared on, for the typing speed.
+    opened: HashMap<(u8, u16), u64>,
     assets: Option<Option<DialogAssets>>,
     cache: HashMap<String, Rendered>,
 }
@@ -105,14 +109,36 @@ pub fn sync_dialogs(
             speaker_screen(dialog, scene_camera, frame, view_center)
         })
         .collect();
-    let shown: Vec<(u8, u16, usize, [i32; 2])> = dialogs
-        .iter()
-        .zip(&anchors)
-        .map(|(dialog, anchor)| {
-            let at = anchor.map_or([0, 0], |[x, y]| [x.round() as i32, y.round() as i32]);
-            (dialog.window, dialog.text, cursor, at)
-        })
-        .collect();
+    if view.assets.is_none() {
+        let path = game.game_data().join("resources.assets");
+        view.assets = Some(match DialogAssets::load(&path, WindowAtlasChoice::Blue) {
+            Ok(assets) => Some(assets),
+            Err(error) => {
+                println!("!! dialog font and window art: {error}");
+                None
+            }
+        });
+    }
+    // Text types in at the appearance speed of the text modifier: three times the animation
+    // tick of the field message setting, in glyphs a second at 30 ticks a second.
+    let per_second = 3.0 * message_tick(game.world().settings.fld_msg);
+    view.opened
+        .retain(|key, _| dialogs.iter().any(|d| (d.window, d.text) == *key));
+    let mut shown: Vec<(u8, u16, usize, [i32; 2], usize)> = Vec::new();
+    for (dialog, anchor) in dialogs.iter().zip(&anchors) {
+        let at = anchor.map_or([0, 0], |[x, y]| [x.round() as i32, y.round() as i32]);
+        let total = {
+            let mut images = world.resource_mut::<Assets<Image>>();
+            render(&mut view, &mut images, dialog)
+                .map_or(0, |key| view.cache.get(&key).map_or(0, |r| r.glyphs))
+        };
+        let opened = *view
+            .opened
+            .entry((dialog.window, dialog.text))
+            .or_insert(game.ticks);
+        let typed = ((game.ticks - opened) as f32 / 30.0 * per_second) as usize;
+        shown.push((dialog.window, dialog.text, cursor, at, typed.min(total)));
+    }
     let attached = match (view.root, camera) {
         (Some(root), Some((camera, _))) => world
             .get::<ChildOf>(root)
@@ -129,16 +155,6 @@ pub fn sync_dialogs(
         entity.despawn();
     }
     view.shown = shown;
-    if view.assets.is_none() {
-        let path = game.game_data().join("resources.assets");
-        view.assets = Some(match DialogAssets::load(&path, WindowAtlasChoice::Blue) {
-            Ok(assets) => Some(assets),
-            Err(error) => {
-                println!("!! dialog font and window art: {error}");
-                None
-            }
-        });
-    }
     if let (Some((camera, _)), false) = (camera, dialogs.is_empty()) {
         let root = world
             .spawn((
@@ -148,13 +164,14 @@ pub fn sync_dialogs(
             ))
             .id();
         for (index, (dialog, anchor)) in dialogs.iter().zip(&anchors).enumerate() {
+            let visible = view.shown[index].4;
             spawn_window(
                 world,
                 &mut view,
                 root,
                 dialog,
                 *anchor,
-                cursor,
+                (cursor, visible),
                 index as f32 * 0.1,
             );
         }
@@ -198,11 +215,7 @@ fn render(
     images: &mut Assets<Image>,
     dialog: &OpenDialog,
 ) -> Option<String> {
-    let key = format!(
-        "{:?}|{}",
-        dialog.entry.tokens,
-        dialog.flags & FLAG_TRANSPARENT
-    );
+    let key = render_key(dialog);
     if view.cache.contains_key(&key) {
         return Some(key);
     }
@@ -240,9 +253,65 @@ fn render(
         )),
         line_tops: page.lines.iter().map(|line| line.base_y).collect(),
         choice_line: page.choice_line,
+        glyphs: page.glyphs.len(),
     };
     view.cache.insert(key.clone(), rendered);
     Some(key)
+}
+
+fn render_key(dialog: &OpenDialog) -> String {
+    format!(
+        "{:?}|{}",
+        dialog.entry.tokens,
+        dialog.flags & FLAG_TRANSPARENT
+    )
+}
+
+/// The animation tick of field message speed `fld_msg`; the last entry past the table.
+pub fn message_tick(fld_msg: u64) -> f32 {
+    let at = usize::try_from(fld_msg)
+        .unwrap_or(usize::MAX)
+        .min(tantalus_legacy::party_menu::config::DIALOG_TEXT_TICK.len() - 1);
+    f32::from(tantalus_legacy::party_menu::config::DIALOG_TEXT_TICK[at])
+}
+
+/// The window with its first `visible` glyphs drawn, not cached.
+fn render_typing(
+    view: &DialogView,
+    images: &mut Assets<Image>,
+    dialog: &OpenDialog,
+    visible: usize,
+) -> Option<Rendered> {
+    let full = view.cache.get(&render_key(dialog))?;
+    let assets = view.assets.as_ref()?.as_ref()?;
+    let framed = dialog.flags & FLAG_TRANSPARENT == 0;
+    let (picture, _) = assets.render_limited(&dialog.entry, SizeMode::Auto, framed, visible)?;
+    let step = RESOURCE_X_MULTIPLIER / TEXELS;
+    let (width, height) = (
+        ((picture.width as f32 / step).round() as usize).max(1),
+        ((picture.height as f32 / (RESOURCE_Y_MULTIPLIER / TEXELS)).round() as usize).max(1),
+    );
+    let data = downscale(&picture.rgba, picture.width, picture.height, width, height);
+    let mut image = Image::new(
+        Extent3d {
+            width: width as u32,
+            height: height as u32,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    );
+    image.sampler = ImageSampler::linear();
+    Some(Rendered {
+        image: images.add(image),
+        texels: Vec2::new(width as f32, height as f32),
+        body: full.body,
+        line_tops: full.line_tops.clone(),
+        choice_line: full.choice_line,
+        glyphs: full.glyphs,
+    })
 }
 
 /// Area-average resample of straight-alpha RGBA8 (averaged premultiplied).
@@ -398,16 +467,27 @@ fn spawn_window(
     root: Entity,
     dialog: &OpenDialog,
     anchor: Option<[f32; 2]>,
-    cursor: usize,
+    (cursor, visible): (usize, usize),
     z: f32,
 ) {
     let key = {
         let mut images = world.resource_mut::<Assets<Image>>();
         render(view, &mut images, dialog)
     };
-    let Some(rendered) = key.and_then(|key| view.cache.get(&key)) else {
+    let Some(full) = key.and_then(|key| view.cache.get(&key)) else {
         return;
     };
+    // Mid-typing the picture is drawn fresh with the glyphs so far (freed when replaced).
+    let typing = if visible < full.glyphs {
+        let mut images = world.resource_mut::<Assets<Image>>();
+        render_typing(view, &mut images, dialog, visible)
+    } else {
+        None
+    };
+    let Some(full) = view.cache.get(&render_key(dialog)) else {
+        return;
+    };
+    let rendered = typing.as_ref().unwrap_or(full);
     let border = Vec2::splat(BORDER_PADDING as f32) / RESOURCE_X_MULTIPLIER;
     let size = rendered.body;
     let (top_left, tail) = place(dialog, size, anchor);
@@ -459,5 +539,19 @@ fn spawn_window(
                 .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_4)),
             ChildOf(root),
         ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::message_tick;
+
+    #[test]
+    fn the_message_speed_picks_the_animation_tick() {
+        // `Dialog.DialogTextAnimationTick`: 4, 7, 10, 16, 24, 40, 64, 64.
+        assert_eq!(message_tick(0), 4.0);
+        assert_eq!(message_tick(3), 16.0);
+        assert_eq!(message_tick(6), 64.0);
+        assert_eq!(message_tick(99), 64.0);
     }
 }

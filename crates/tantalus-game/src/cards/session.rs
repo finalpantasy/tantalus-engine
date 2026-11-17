@@ -26,7 +26,10 @@ use tantalus_legacy::quad::{
 
 use super::{CardRecord, CardRng, CardTables, collection, store_collection};
 use crate::field::world::FieldWorld;
+use tantalus_legacy::quad::QuadRng;
 
+/// `Configuration.TetraMaster.MaxCardCount`.
+pub const MAX_CARDS: usize = 100;
 /// Cards a hand holds.
 pub const HAND: usize = 5;
 /// Ticks the coin shows.
@@ -221,6 +224,17 @@ impl CardGame {
     /// A game against opponent `opponent` (the `MINIGAME` argument). `None` when the player has
     /// fewer than five cards, as the scripts require.
     pub fn start(world: &mut FieldWorld, tables: &CardTables, opponent: u16) -> Option<Self> {
+        // `QuadMistDatabase.CreateDataIfLessThanFive`: a player with fewer than five cards is
+        // handed eight random ones.
+        if world.cards.len() < HAND {
+            let mut seed = CardRng(world.card_seed);
+            for _ in 0..8 {
+                if world.cards.len() < MAX_CARDS {
+                    world.cards.push(seed.range(0, 100) as u32);
+                }
+            }
+            world.card_seed = seed.0;
+        }
         let cards = collection(world, tables);
         if cards.len() < HAND {
             return None;
@@ -937,9 +951,10 @@ mod tests {
     }
 
     #[test]
-    fn fewer_than_five_cards_cannot_play() {
+    fn fewer_than_five_cards_are_topped_up_with_eight() {
         let mut world = world(4);
-        assert!(CardGame::start(&mut world, &tables(), 0).is_none());
+        assert!(CardGame::start(&mut world, &tables(), 0).is_some());
+        assert_eq!(world.cards.len(), 12);
     }
 
     #[test]
