@@ -21,6 +21,7 @@ pub mod live;
 pub mod menu_view;
 pub mod movie_view;
 pub mod overlay_motion;
+pub mod presentation_view;
 pub mod projection;
 pub mod psx_blend;
 pub mod scene_adapter;

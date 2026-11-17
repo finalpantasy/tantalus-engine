@@ -484,6 +484,27 @@ pub fn apply_overlay_changes(
     }
 }
 
+/// `SetTileShadeColor` (`EBG_overlaySetShadeColor`): a tile block's material color becomes
+/// `color / 128` per channel, so 128 leaves it as drawn and more brightens it. Blended
+/// layers keep their own material and are not tinted.
+pub fn apply_tile_shade(world: &mut World, shade: &BTreeMap<i32, [u8; 3]>) {
+    if shade.is_empty() {
+        return;
+    }
+    let mut sprites = world.query::<(&FieldSpriteIdentity, &mut Sprite)>();
+    for (identity, mut sprite) in sprites.iter_mut(world) {
+        if let Some([r, g, b]) = shade.get(&(identity.overlay as i32)) {
+            let alpha = sprite.color.alpha();
+            sprite.color = Color::linear_rgba(
+                f32::from(*r) / 128.0,
+                f32::from(*g) / 128.0,
+                f32::from(*b) / 128.0,
+                alpha,
+            );
+        }
+    }
+}
+
 /// Marks the sprite that carries a tile block's border quads.
 #[derive(Component)]
 pub struct OverlayBorder;

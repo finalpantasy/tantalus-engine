@@ -922,6 +922,29 @@ impl PlayGame {
         self.world_mut_any().gil = gil;
     }
 
+    /// Raises the script presentation state a capture wants to look at: the bubble icon, the
+    /// "here" icon mode, a finished fade filter and the player's object scale (a test aid).
+    pub fn show_presentation(
+        &mut self,
+        bubble: Option<i32>,
+        here: i32,
+        fade: Option<(i32, [i32; 3])>,
+        player_scale: Option<i32>,
+    ) {
+        let world = self.world_mut_any();
+        if let (Some(scale), Some(player)) = (player_scale, world.player()) {
+            world.actor_presentation.entry(player).or_default().scale = [scale; 3];
+        }
+        world.bubble_icon = bubble;
+        world.here_icon = here;
+        world.fade_filter = fade.map(|(mode, color)| tantalus_game::field::world::FadeFilter {
+            mode,
+            frames: 16,
+            color,
+            elapsed: 16,
+        });
+    }
+
     fn world_mut_any(&mut self) -> &mut FieldWorld {
         match self.session.as_mut() {
             Some(session) => session.director.world_mut(),

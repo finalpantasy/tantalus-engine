@@ -149,6 +149,8 @@ impl FieldHost<'_> {
                 mode,
             },
             HostEvent::SetCameraFollowHeight { height } => CameraRequest::FollowHeight(height),
+            HostEvent::LockCameraFollow => CameraRequest::FollowLock(true),
+            HostEvent::UnlockCameraFollow => CameraRequest::FollowLock(false),
             HostEvent::SetCameraBounds { camera, bounds } => {
                 CameraRequest::Bounds { camera, bounds }
             }
@@ -777,6 +779,144 @@ impl LegacyEventHost for FieldHost<'_> {
                         remaining_ticks: ticks,
                     });
                 }
+                HostEvent::SetMovementSpeed { actor, speed } => {
+                    // `MSPEED` (DoEventCode.cs:886): `actor.speed = walkSpeed`.
+                    self.actor_mut(*actor, "movement speed")?.move_speed = *speed;
+                }
+                HostEvent::ResetWalkState { .. } => {
+                    // `CLRDIST` (EventEngine.clrdist) resets the reference's walk-distance
+                    // bookkeeping (`lastdist`, `actMove`); the walk here keeps no such state.
+                }
+                HostEvent::SetTurnSpeed { actor, speed } => {
+                    // `TSPEED`: a speed of 0 means 16.
+                    self.actor_mut(*actor, "turn speed")?.turn_speed =
+                        if *speed == 0 { 16 } else { *speed };
+                }
+                HostEvent::SetWalkTurnSpeed { actor, speed } => {
+                    // `MROT`: `actor.omega`; the script layer already mapped 0 to 255.
+                    self.world
+                        .actor_presentation
+                        .entry(*actor)
+                        .or_default()
+                        .walk_turn_speed = *speed;
+                }
+                HostEvent::TurnTowardObject {
+                    actor,
+                    target,
+                    speed,
+                } => {
+                    // `TURNA`: a missing object does nothing; otherwise `StartTurn` toward
+                    // `angleAsm(target - actor)`.
+                    let target_position = u64::try_from(*target)
+                        .ok()
+                        .map(|uid| self.world.resolve_object(EntityId::new(uid)))
+                        .and_then(|entity| self.world.actors.get(&entity))
+                        .map(|state| state.position);
+                    if let Some(target_position) = target_position {
+                        let state = self.actor_mut(*actor, "turn toward object")?;
+                        let angle = angle_toward(state.position, target_position);
+                        start_turn(state, angle, *speed);
+                    }
+                }
+                HostEvent::TurnActorToPosition { actor, x, z } => {
+                    // `TURNTO`: nothing when already standing on the point, else a turn at
+                    // the object's own turn speed.
+                    let state = self.actor_mut(*actor, "turn to position")?;
+                    if state.position[0].round() as i32 != *x
+                        || state.position[2].round() as i32 != *z
+                    {
+                        let angle = angle_toward(state.position, [*x as f32, 0.0, *z as f32]);
+                        let speed = i32::from(state.turn_speed);
+                        start_turn(state, angle, speed);
+                    }
+                }
+                HostEvent::TurnToAngle { actor, angle } => {
+                    // `TURNDS`: a turn at the object's own turn speed.
+                    let state = self.actor_mut(*actor, "turn to angle")?;
+                    let speed = i32::from(state.turn_speed);
+                    start_turn(state, *angle, speed);
+                }
+                HostEvent::TurnObjectToAngle { actor, angle } => {
+                    // `DDIR` (0x87): the object faces the angle at once (0 south .. 192 east).
+                    let object = self.world.resolve_object(*actor);
+                    let state = self.actor_mut(object, "turn object to angle")?;
+                    state.facing = (*angle & 0xFF) as i16;
+                }
+                HostEvent::SetLeftTurnAnimation { actor, animation } => {
+                    self.world
+                        .actor_presentation
+                        .entry(*actor)
+                        .or_default()
+                        .turn_left_animation = Some(*animation);
+                }
+                HostEvent::SetRightTurnAnimation { actor, animation } => {
+                    self.world
+                        .actor_presentation
+                        .entry(*actor)
+                        .or_default()
+                        .turn_right_animation = Some(*animation);
+                }
+                HostEvent::SetJumpAnimation {
+                    actor,
+                    animation,
+                    parameters,
+                } => {
+                    self.world
+                        .actor_presentation
+                        .entry(*actor)
+                        .or_default()
+                        .jump_animation = Some((*animation, *parameters));
+                }
+                HostEvent::SetInactiveAnimation { actor, animation } => {
+                    self.world
+                        .actor_presentation
+                        .entry(*actor)
+                        .or_default()
+                        .inactive_animation = Some(*animation);
+                }
+                HostEvent::SetAnimationSpeed { actor, speed } => {
+                    self.world
+                        .actor_presentation
+                        .entry(*actor)
+                        .or_default()
+                        .animation_speed = *speed;
+                }
+                HostEvent::SetAnimationLoopCount { actor, count } => {
+                    self.world
+                        .actor_presentation
+                        .entry(*actor)
+                        .or_default()
+                        .animation_loop_count = *count;
+                }
+                HostEvent::DisableIdleAnimation => self.world.idle_disabled = true,
+                HostEvent::AttachObject {
+                    attached,
+                    carrying,
+                    bone,
+                } => {
+                    // `ATTACH` (0x4C, field mode): `geoAttach` needs both objects to exist;
+                    // otherwise nothing happens.
+                    let attached = self.world.resolve_object(*attached);
+                    let carrying = self.world.resolve_object(*carrying);
+                    if self.world.actors.contains_key(&attached)
+                        && self.world.actors.contains_key(&carrying)
+                    {
+                        let entry = self.world.attachments.entry(attached).or_default();
+                        entry.carrier = Some(carrying);
+                        entry.bone = *bone;
+                    }
+                }
+                HostEvent::DetachObject { attached } => {
+                    // `DETACH` (0x4D): `geoDetach` puts the object back where it stands.
+                    let attached = self.world.resolve_object(*attached);
+                    if let Some(entry) = self.world.attachments.get_mut(&attached) {
+                        entry.carrier = None;
+                    }
+                }
+                HostEvent::AttachObjectOffset { actor, x, y, z } => {
+                    // `ATTACHOFFSET` (0xD4): `geoAttachOffset` on the current object.
+                    self.world.attachments.entry(*actor).or_default().offset = [*x, *y, *z];
+                }
                 HostEvent::SetActorFacing { actor, angle } => {
                     let state = self.actor_mut(*actor, "set facing")?;
                     state.facing = facing_from_fixed_point(*angle);
@@ -932,6 +1072,90 @@ impl LegacyEventHost for FieldHost<'_> {
                     }
                 }
                 HostEvent::SyncPartyUid => self.world.setup_party_uid(),
+                HostEvent::SetCharacterRow { character, row } => {
+                    // `SETROW`: `info.row` of the character (0 is the back row).
+                    if let Some(character) = character_slot(*character) {
+                        if *row == 0 {
+                            self.world.back_row.insert(character);
+                        } else {
+                            self.world.back_row.remove(&character);
+                        }
+                    }
+                }
+                HostEvent::InitializeCharacter {
+                    character,
+                    enable_leveling,
+                    equipment_set,
+                    category,
+                    menu_preset,
+                } => {
+                    // `JOIN` (`SetCharacterData`); 255 keeps the category and preset.
+                    if let Some(character) = character_slot(*character) {
+                        self.world
+                            .character_info
+                            .entry(character)
+                            .or_default()
+                            .initialized = Some(super::world::CharacterInit {
+                            enable_leveling: *enable_leveling,
+                            equipment_set: *equipment_set,
+                            category: u8::try_from(*category).ok().filter(|v| *v != 255),
+                            menu_preset: u8::try_from(*menu_preset).ok().filter(|v| *v != 255),
+                        });
+                    }
+                }
+                HostEvent::SetPlayerName { character, text } => {
+                    // `PLAYERNAME`: the field text becomes the character's name.
+                    if let Some(character) = character_slot(*character) {
+                        self.world
+                            .character_info
+                            .entry(character)
+                            .or_default()
+                            .name_text = Some(*text);
+                    }
+                }
+                HostEvent::ClearPartyStatus {
+                    character,
+                    statuses,
+                } => {
+                    // `CLEARSTATUS`: 0x7F is the vanilla "clear everything".
+                    if let Some(character) = character_slot(*character) {
+                        let mask = if *statuses == 0x7F {
+                            u32::MAX
+                        } else {
+                            *statuses as u32
+                        };
+                        self.world
+                            .character_info
+                            .entry(character)
+                            .or_default()
+                            .cured_statuses |= mask;
+                    }
+                }
+                HostEvent::SetPartyAvailability { mask } => {
+                    // `FULLMEMBER`: the VM already moved Beatrix to bit 11.
+                    self.world.party_reserve = Some(*mask);
+                }
+                HostEvent::GameOver => self.world.game_over = true,
+                HostEvent::ChangeDisc { destination } => {
+                    // `DISCCHANGE`: low 14 bits the field, bits 14-15 the disc.
+                    self.world.disc_change = Some((
+                        (*destination & 16383) as u16,
+                        (*destination >> 14 & 3) as u8,
+                    ));
+                }
+                // `HINT`: field preloading is ignored outside the PSX build.
+                HostEvent::PreloadField { .. } => {}
+                HostEvent::ExitField => {
+                    // `MOVQ`: the controlled character walks to the exit and the player
+                    // loses control.
+                    if let Some(actor) = self.world.control_actor
+                        && let Some(state) = self.world.actors.get_mut(&actor)
+                    {
+                        state.exit_walk = true;
+                        state.movement = None;
+                    }
+                    self.world.user_control = false;
+                }
                 HostEvent::DefineRegion { region, vertices } => {
                     self.world.regions.insert(
                         *region,
@@ -1359,6 +1583,44 @@ const CONTROL_OBJECT_UID: u64 = 250;
 /// read returns `fixed >> 4 & 255` (0 south, 64 west, 128 north, 192 east).
 fn facing_from_fixed_point(angle: i16) -> i16 {
     (angle >> 4) & 0xFF
+}
+
+/// `EventEngine.angleAsm` between two positions, as the 12-bit fixed-point angle the turn
+/// events carry (facing scale 0 south, 64 west, 128 north, 192 east, shifted left four).
+fn angle_toward(from: [f32; 3], to: [f32; 3]) -> i16 {
+    let (dx, dz) = (to[0] - from[0], to[2] - from[2]);
+    if dx == 0.0 && dz == 0.0 {
+        return 0;
+    }
+    let degrees = dx.atan2(-dz).to_degrees();
+    let facing = (128.0 + degrees * 128.0 / 180.0).round().rem_euclid(256.0) as i16;
+    facing << 4
+}
+
+/// `StartTurn` (DoEventCode.cs:3339): a turn onto the angle it already faces does nothing;
+/// a speed of 0 means 16.
+fn start_turn(state: &mut crate::field::ActorState, angle: i16, speed: i32) {
+    let facing = facing_from_fixed_point(angle);
+    if facing == state.facing {
+        return;
+    }
+    let speed = if speed == 0 { 16 } else { speed };
+    state.in_frame = 0;
+    state.out_frame = u8::MAX;
+    state.facing = facing;
+    state.turn = Some(Turn {
+        target: angle,
+        speed,
+        remaining_ticks: 1 + speed.max(1) as u32,
+    });
+}
+
+/// `chr2slot`: a script's character index as a character id; anything outside the twelve
+/// characters is `CharacterId.NONE`.
+fn character_slot(old: i32) -> Option<i32> {
+    (0..=11)
+        .contains(&old)
+        .then(|| character_old_index_to_id(old))
 }
 
 /// `ff9play.CharacterOldIndexToID`: scripts name characters by the old

@@ -485,3 +485,133 @@ fn presentation_ops_record_scale_head_focus_icons_and_fades() {
     world.advance_animations();
     assert_eq!(world.fade_filter.unwrap().elapsed, 1);
 }
+
+fn apply_events(world: &mut FieldWorld, events: &[tantalus_legacy::HostEvent]) {
+    let mut host = FieldHost::new(world);
+    host.apply(events).unwrap();
+}
+
+#[test]
+fn party_and_flow_ops_are_recorded() {
+    use tantalus_legacy::HostEvent;
+    let mut world = FieldWorld::new();
+    apply_events(
+        &mut world,
+        &[
+            // Script character 8 is Beatrix, character id 11.
+            HostEvent::SetPlayerName {
+                character: 8,
+                text: 5,
+            },
+            HostEvent::ClearPartyStatus {
+                character: 8,
+                statuses: 0x7F,
+            },
+            HostEvent::SetPartyAvailability { mask: 0x0FFF },
+            HostEvent::ChangeDisc {
+                destination: (2 << 14) | 4000,
+            },
+            HostEvent::GameOver,
+        ],
+    );
+    let beatrix = &world.character_info[&11];
+    assert_eq!(beatrix.name_text, Some(5));
+    assert_eq!(beatrix.cured_statuses, u32::MAX);
+    assert_eq!(world.party_reserve, Some(0x0FFF));
+    assert_eq!(world.disc_change, Some((4000, 2)));
+    assert!(world.game_over);
+}
+
+#[test]
+fn movement_speed_scales_the_walk_and_turns_use_the_turn_speed() {
+    use tantalus_legacy::HostEvent;
+    let mut world = FieldWorld::new();
+    world.add_actor(actor(1), [0.0; 3]);
+    world.add_actor(actor(2), [1000.0, 0.0, 0.0]);
+    apply_events(
+        &mut world,
+        &[
+            HostEvent::SetMovementSpeed {
+                actor: actor(1),
+                speed: 15,
+            },
+            HostEvent::SetTurnSpeed {
+                actor: actor(1),
+                speed: 0,
+            },
+            HostEvent::WalkActor {
+                actor: actor(1),
+                destination: [1000, 0],
+            },
+        ],
+    );
+    world.advance();
+    // Half the default speed of 30 moves half the standard step.
+    assert_eq!(world.actors[&actor(1)].position[0], world.walk_speed / 2.0);
+    assert_eq!(world.actors[&actor(1)].turn_speed, 16);
+    // The other actor lies due east, which the facing scale calls 192.
+    apply_events(
+        &mut world,
+        &[HostEvent::TurnObjectToAngle {
+            actor: actor(1),
+            angle: 0,
+        }],
+    );
+    assert_eq!(world.actors[&actor(1)].facing, 0);
+    apply_events(
+        &mut world,
+        &[HostEvent::TurnTowardObject {
+            actor: actor(1),
+            target: 2,
+            speed: 16,
+        }],
+    );
+    let state = &world.actors[&actor(1)];
+    assert_eq!(state.facing, 192);
+    assert!(state.turn.is_some());
+    // Facing an angle it already faces does not start a turn.
+    apply_events(
+        &mut world,
+        &[HostEvent::TurnToAngle {
+            actor: actor(1),
+            angle: 192 << 4,
+        }],
+    );
+    let before = world.actors[&actor(1)].turn;
+    assert_eq!(world.actors[&actor(1)].facing, 192);
+    assert_eq!(world.actors[&actor(1)].turn, before);
+}
+
+#[test]
+fn attachments_follow_attach_offset_and_detach() {
+    use tantalus_legacy::HostEvent;
+    let mut world = FieldWorld::new();
+    world.add_actor(actor(1), [0.0; 3]);
+    world.add_actor(actor(2), [0.0; 3]);
+    apply_events(
+        &mut world,
+        &[
+            HostEvent::AttachObject {
+                attached: actor(2),
+                carrying: actor(1),
+                bone: 13,
+            },
+            HostEvent::AttachObjectOffset {
+                actor: actor(2),
+                x: 1,
+                y: 2,
+                z: 3,
+            },
+        ],
+    );
+    let held = world.attachments[&actor(2)];
+    assert_eq!(
+        (held.carrier, held.bone, held.offset),
+        (Some(actor(1)), 13, [1, 2, 3])
+    );
+    apply_events(
+        &mut world,
+        &[HostEvent::DetachObject { attached: actor(2) }],
+    );
+    assert_eq!(world.attachments[&actor(2)].carrier, None);
+}

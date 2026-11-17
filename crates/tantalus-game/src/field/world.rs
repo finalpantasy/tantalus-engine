@@ -88,6 +88,12 @@ pub struct ActorState {
     /// What the renderer draws; the scripts never read it back.
     #[serde(default)]
     pub look: ActorLook,
+    /// `SetMovementSpeed` (`MSPEED`, `Actor.speed`): field units per frame, 30 by default.
+    #[serde(default = "default_move_speed")]
+    pub move_speed: u8,
+    /// `SetTurnSpeed` (`TSPEED`, `Actor.tspeed`): the speed of scripted turns, 16 by default.
+    #[serde(default = "default_turn_speed")]
+    pub turn_speed: u8,
 }
 
 /// One background layer script (`EBG_overlay*` setter) the renderer replays
@@ -155,7 +161,29 @@ pub const CHAR_ATTR_LADDER: u32 = 4;
 pub const CHAR_ATTR_SHADOW_OFF: u32 = 16;
 pub const CHAR_ATTR_SHADOW_LOCK: u32 = 32;
 
-/// What a script set on an actor that only the renderer shows (runtime-only).
+/// What field scripts set on a character beyond stats (`SetCharacterData`, `SetName`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct CharacterInfo {
+    /// `PLAYERNAME`: the field text id of the new name.
+    pub name_text: Option<i32>,
+    /// `JOIN`: the level/equipment/category/menu preset the script initialized the member with.
+    pub initialized: Option<CharacterInit>,
+    /// `CLEARSTATUS`: statuses cured so far (bit mask, battle status ids 0..31).
+    pub cured_statuses: u32,
+}
+
+/// `JOIN` (`SetCharacterData`) arguments.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CharacterInit {
+    pub enable_leveling: bool,
+    pub equipment_set: i32,
+    /// `None` when the script passed 255 (keep the current category).
+    pub category: Option<u8>,
+    /// `None` when the script passed 255 (keep the menu preset).
+    pub menu_preset: Option<u8>,
+}
+
+/// What field scripts set on an actor that only the renderer shows (runtime-only).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ActorPresentation {
     /// `SetObjectScale` (`SCALE`): x, z, y scale (4096 = 1.0 in the reference's fixed point).
@@ -167,6 +195,19 @@ pub struct ActorPresentation {
     pub head_focus_target: u8,
     /// `SetHeadFocusFlags`: head tracking on/off bits (0 = off).
     pub head_focus_flags: u8,
+    /// `SetWalkTurnSpeed` (`MROT`, `Actor.omega`): how fast the actor turns while it walks.
+    pub walk_turn_speed: u8,
+    /// `SetLeftTurnAnimation` / `SetRightTurnAnimation` (`ATURNL`, `ATURNR`).
+    pub turn_left_animation: Option<u16>,
+    pub turn_right_animation: Option<u16>,
+    /// `SetJumpAnimation` (`AJUMP`): the animation and its two parameter bytes.
+    pub jump_animation: Option<(u16, [u8; 2])>,
+    /// `SetInactiveAnimation` (`ASLEEP`).
+    pub inactive_animation: Option<u16>,
+    /// `SetAnimationSpeed` (`ASPEED`, `Actor.aspeed0`); 16 by default.
+    pub animation_speed: u8,
+    /// `SetAnimationLoopCount` (`ALOOP`).
+    pub animation_loop_count: u8,
 }
 
 impl Default for ActorPresentation {
@@ -177,6 +218,13 @@ impl Default for ActorPresentation {
             head_focus_self: 0,
             head_focus_target: 0,
             head_focus_flags: 0,
+            walk_turn_speed: 16,
+            turn_left_animation: None,
+            turn_right_animation: None,
+            jump_animation: None,
+            inactive_animation: None,
+            animation_speed: 16,
+            animation_loop_count: 0,
         }
     }
 }
@@ -254,6 +302,18 @@ pub enum CameraRequest {
     FollowHeight(i16),
     /// `BGVPORT` (`EBG_cameraSetViewport`): `[min x, max x, min y, max y]`.
     Bounds { camera: i32, bounds: [i16; 4] },
+    /// `BGCLOCK`/`BGCUNLOCK` (`EBG_charLookAtLock`/`Unlock`): unlocked, the camera's view range
+    /// is no longer clamped to the camera bounds.
+    FollowLock(bool),
+}
+
+/// `AttachObject` (`geoAttach`): `object` rides `carrier`'s bone `bone`, offset by `AttachObjectOffset`
+/// (`geoAttachOffset`). The scripts never read it back, so it is runtime-only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Attachment {
+    pub carrier: Option<EntityId>,
+    pub bone: i32,
+    pub offset: [i32; 3],
 }
 
 /// An actor's model and animation ids from `SetActorModel` (`SETMODEL`),
@@ -302,6 +362,16 @@ fn full_out_frame() -> u8 {
     u8::MAX
 }
 
+/// `Actor` constructor: `speed = 30`.
+fn default_move_speed() -> u8 {
+    30
+}
+
+/// `Actor` constructor: `tspeed` turns at 16 (`StartTurn` treats 0 as 16).
+fn default_turn_speed() -> u8 {
+    16
+}
+
 impl ActorState {
     pub fn new(position: [f32; 3]) -> Self {
         Self {
@@ -329,6 +399,8 @@ impl ActorState {
             anim_frozen: false,
             anim_span: 0,
             look: ActorLook::default(),
+            move_speed: default_move_speed(),
+            turn_speed: default_turn_speed(),
         }
     }
 }
@@ -460,6 +532,18 @@ pub struct FieldWorld {
     pub gil: u32,
     pub party: Vec<i32>,
     pub character_stats: BTreeMap<i32, CharacterStats>,
+    /// Script-set character data by character id (names, init arguments, cured statuses).
+    #[serde(default)]
+    pub character_info: BTreeMap<i32, CharacterInfo>,
+    /// `FULLMEMBER` (`SetPartyReserve`): the characters a later party menu may offer.
+    #[serde(default)]
+    pub party_reserve: Option<i32>,
+    /// `GAMEOVER`: the script ended the game.
+    #[serde(default)]
+    pub game_over: bool,
+    /// `DISCCHANGE`: the destination field and disc the script asked to change to.
+    #[serde(default)]
+    pub disc_change: Option<(u16, u8)>,
     pub field_name: Option<i32>,
     pub timer: TimerState,
     pub encounters: Vec<EncounterRequest>,
@@ -697,6 +781,13 @@ pub struct FieldWorld {
     /// The speech-bubble icon `ShowBubbleIcon` raised over the player, if any (runtime-only).
     #[serde(skip)]
     pub bubble_icon: Option<i32>,
+    /// Objects carried by others, keyed by the carried object (runtime-only).
+    #[serde(skip)]
+    pub attachments: BTreeMap<EntityId, Attachment>,
+    /// `DisableIdleAnimation` (`SLEEPINH`, `idletimer = -1`): the player no longer plays the
+    /// inactive animation (runtime-only).
+    #[serde(skip)]
+    pub idle_disabled: bool,
     /// `SetHereIcon` mode: whether the "you are here" icon shows (runtime-only).
     #[serde(skip)]
     pub here_icon: i32,
@@ -749,6 +840,10 @@ impl PartialEq for FieldWorld {
             && self.settings == other.settings
             && self.back_row == other.back_row
             && self.character_stats == other.character_stats
+            && self.character_info == other.character_info
+            && self.party_reserve == other.party_reserve
+            && self.game_over == other.game_over
+            && self.disc_change == other.disc_change
             && self.field_name == other.field_name
             && self.timer == other.timer
             && self.encounters == other.encounters
@@ -808,6 +903,10 @@ impl FieldWorld {
             gil: 0,
             party: Vec::new(),
             character_stats: BTreeMap::new(),
+            character_info: BTreeMap::new(),
+            party_reserve: None,
+            game_over: false,
+            disc_change: None,
             field_name: None,
             timer: TimerState::default(),
             encounters: Vec::new(),
@@ -889,6 +988,8 @@ impl FieldWorld {
             light_changes: Vec::new(),
             actor_presentation: BTreeMap::new(),
             bubble_icon: None,
+            attachments: BTreeMap::new(),
+            idle_disabled: false,
             here_icon: 0,
             tile_shade: BTreeMap::new(),
             fade_filter: None,
@@ -929,6 +1030,7 @@ impl FieldWorld {
         // `EventEngine` clears `dashinh` when a field starts.
         self.run_disabled = false;
         self.actor_presentation.clear();
+        self.attachments.clear();
         self.bubble_icon = None;
         self.here_icon = 0;
         self.tile_shade.clear();
@@ -1229,13 +1331,15 @@ impl FieldWorld {
                     movement.destination[1] - state.position[2],
                 ];
                 let distance = f32::sqrt(dx * dx + dz * dz);
-                if distance <= self.walk_speed || distance == 0.0 {
+                // `MoveToward_mixed_ex` moves `Actor.speed` units a frame (30 by default).
+                let walk_speed = self.walk_speed * f32::from(state.move_speed) / 30.0;
+                if distance <= walk_speed || distance == 0.0 {
                     state.position[0] = movement.destination[0];
                     state.position[2] = movement.destination[1];
                     state.movement = None;
                 } else {
-                    state.position[0] += dx / distance * self.walk_speed;
-                    state.position[2] += dz / distance * self.walk_speed;
+                    state.position[0] += dx / distance * walk_speed;
+                    state.position[2] += dz / distance * walk_speed;
                     if state.path_active
                         && Some(*id) != player
                         && state.look.model.is_some()
@@ -1483,6 +1587,15 @@ impl FieldWorld {
 
     pub(crate) fn set_member_target(&mut self, target: Option<EntityId>) {
         self.member_target = target;
+    }
+
+    /// An object named by a script operand: a uid resolves through the party slots and the
+    /// uid map, anything unknown is taken as the entity itself.
+    pub(crate) fn resolve_object(&self, object: EntityId) -> EntityId {
+        i32::try_from(object.get())
+            .ok()
+            .and_then(|uid| self.resolve_uid(uid))
+            .unwrap_or(object)
     }
 
     /// `GetUIDFromLocalUID` then `FindObjByUID`. A party slot names the

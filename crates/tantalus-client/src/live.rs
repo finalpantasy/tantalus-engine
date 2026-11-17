@@ -103,6 +103,11 @@ pub fn world_frame(world: &FieldWorld, tick: u64) -> (TrackFrame, BTreeSet<u64>)
                     hidden_meshes: actor.look.hidden_meshes,
                     script: world.actor_shadows.get(id).copied().unwrap_or_default(),
                     short_hair: scenario_counter(world) >= 10300,
+                    scale: world
+                        .actor_presentation
+                        .get(id)
+                        .filter(|look| look.scale != [4096; 3])
+                        .map(|look| look.scale.map(|value| value as f32 / 4096.0)),
                     floor: world
                         .navigation()
                         .and_then(|mesh| crate::field_light::actor_floor(mesh, actor.position)),
@@ -598,6 +603,7 @@ fn live_tick(world: &mut World) {
             &game.world().overlays,
             player_position(&frame),
         );
+        crate::scene_adapter::apply_tile_shade(world, &game.world().tile_shade);
         let at = live.view.view(
             &game.world().camera_log,
             &scene.camera,
@@ -612,6 +618,7 @@ fn live_tick(world: &mut World) {
             motion.place_sprites(world, scene);
         }
         crate::dialog_view::sync_dialogs(world, &game, &scene.camera, &frame);
+        crate::presentation_view::sync_presentation(world, game.world(), &scene.camera, &frame);
         crate::menu_view::sync_menu(world, &game);
     }
     let mut title = format!(

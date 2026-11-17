@@ -43,6 +43,8 @@ pub struct ViewScroll {
     stamps: Vec<u64>,
     applied: usize,
     frozen: bool,
+    /// `BGCUNLOCK`: the view range is no longer clamped to the camera bounds.
+    unlocked: bool,
     rotation: bool,
     mode: Mode,
     aim: f32,
@@ -57,6 +59,7 @@ impl Default for ViewScroll {
             stamps: Vec::new(),
             applied: 0,
             frozen: false,
+            unlocked: false,
             rotation: false,
             mode: Mode::Follow,
             aim: CHAR_AIM_HEIGHT,
@@ -106,6 +109,10 @@ impl ViewScroll {
     }
 
     fn range(&self, camera: &LegacyFieldCamera, index: u32) -> [f32; 4] {
+        if self.unlocked {
+            // `EBG_charLookAtUnlock` widens the camera bounds to the `short` limits.
+            return [-32768.0, 32767.0, -32768.0, 32767.0];
+        }
         i32::try_from(index)
             .ok()
             .and_then(|index| self.bounds.get(&index))
@@ -196,6 +203,7 @@ impl ViewScroll {
                 }
             }
             CameraRequest::FollowHeight(height) => self.aim = f32::from(height),
+            CameraRequest::FollowLock(locked) => self.unlocked = !locked,
             CameraRequest::Bounds {
                 camera: index,
                 bounds,

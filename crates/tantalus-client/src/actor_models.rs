@@ -56,6 +56,8 @@ pub struct ActorPose {
     /// Garnet's hair is cut (`ScenarioCounter >= 10300`): her model keeps
     /// `short_hair` instead of `long_hair` (`PosObj.shortHair`).
     pub short_hair: bool,
+    /// `SetObjectScale` (`CHRSCALE`): the model's x, y (up) and z scale; `None` is unscaled.
+    pub scale: Option<[f32; 3]>,
 }
 
 /// One projected vertex: raster space position, view depth and texture
@@ -566,7 +568,14 @@ impl ActorModels {
                 .iter()
                 .enumerate()
                 .map(|(index, vertex)| {
-                    let field = place_vertex(*vertex, pose.facing, position);
+                    let vertex = pose.scale.map_or(*vertex, |scale| {
+                        [
+                            vertex[0] * scale[0],
+                            vertex[1] * scale[1],
+                            vertex[2] * scale[2],
+                        ]
+                    });
+                    let field = place_vertex(vertex, pose.facing, position);
                     let (xy, depth) = project_field_point_depth(camera, field)?;
                     Some(ScreenVertex {
                         xy,
