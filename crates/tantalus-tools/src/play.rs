@@ -1429,6 +1429,7 @@ impl PlayGame {
                 group: None,
                 battle: scene as _,
                 steiner_state: false,
+                timer: None,
             }],
             fight: None,
             next_field: None,
@@ -1841,6 +1842,7 @@ impl PlayGame {
                 group: None,
                 battle: scene,
                 steiner_state: false,
+                timer: None,
             };
             if self.live_battles && self.data.battles.is_some() {
                 self.pending = Some(PendingBattles {

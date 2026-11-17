@@ -32,7 +32,8 @@ use tantalus_legacy::battle::machine::{
 use tantalus_legacy::battle::queue::{CommandSpec, cmd};
 use tantalus_legacy::battle::rng::SplitMix64Random;
 use tantalus_legacy::battle::script_host::{
-    AiEvent, BattleScriptDriver, BattleScriptState, EnemyAiHooks, SceneOverlay, ScriptTable,
+    AiEvent, BattleScriptDriver, BattleScriptState, BattleTimer, EnemyAiHooks, SceneOverlay,
+    ScriptTable,
 };
 use tantalus_legacy::battle::status::DEATH;
 use tantalus_legacy::battle::targeting::target_type;
@@ -79,6 +80,9 @@ pub struct FightReport {
     pub phase_log: Vec<(u64, String, Vec<u32>)>,
     /// `btl_result` once the machine is over.
     pub result_code: Option<u8>,
+    /// The scene's `Info.NoGameOver`: a lost fight goes back to the field.
+    #[serde(skip)]
+    pub no_game_over: bool,
     /// The first battle script error, if any.
     pub ai_error: Option<String>,
     /// Distinct script events worth a look: unmodeled reads and spawns,
@@ -877,7 +881,13 @@ impl FieldBattles {
         };
         match self.run(request, &mut report) {
             Ok((scene, sequence, pattern, script)) => {
-                self.battle(scene, sequence, pattern, script, party, items, report)
+                let timer = request.timer.map(|timer| BattleTimer {
+                    time: timer.time(),
+                    running: timer.running,
+                });
+                self.battle(
+                    scene, sequence, pattern, script, party, items, timer, report,
+                )
             }
             Err(error) => Err(fail(report, error)),
         }
@@ -921,8 +931,11 @@ impl FieldBattles {
         script: Option<&[u8]>,
         party: &[PartyFighter],
         items: &BTreeMap<i32, i32>,
+        timer: Option<BattleTimer>,
         mut report: FightReport,
     ) -> Result<LiveFight, Box<FightReport>> {
+        // `SB2_HEAD` flag 4 is `Info.NoGameOver` (`BTL_SCENE.cs`).
+        report.no_game_over = scene.header.flags & 0x4 != 0;
         let mut units: Vec<BattleUnit> = party
             .iter()
             .enumerate()
@@ -1040,6 +1053,7 @@ impl FieldBattles {
                 // loop takes (see `SceneOverlay::load_frames`).
                 load_status: 0x7F,
                 load_frames: 3,
+                timer,
                 ..SceneOverlay::default()
             },
         );
@@ -2187,6 +2201,13 @@ pub fn save_party(report: &FightReport, world: &mut FieldWorld) {
     }
     world.last_battle = report.battle;
     world.battle_result = battle_result(report);
+    // `btl_sys.ManageBattleEnd`: a defeat in a scene without `NoGameOver` becomes
+    // `BTL_RESULT_GAMEOVER` and the game over screen; the party records are not saved.
+    if matches!(world.battle_result, 3 | 6) && !report.no_game_over {
+        world.battle_result = 6;
+        world.game_over = true;
+        return;
+    }
     // `TimerUI.Update` follows real time and keeps running through the battle (the Festival
     // of the Hunt clock): the fight's ticks run at `BATTLE_TPS`, the field's at 30.
     if world.timer.running {
@@ -2487,6 +2508,41 @@ mod tests {
         };
         save_party(&failed, &mut world);
         assert_eq!(world.character_stats[&0].current_hp, 40);
+    }
+
+    /// `btl_sys.ManageBattleEnd`: a lost fight is a game over unless the scene has
+    /// `NoGameOver`, which goes back to the field with the defeat (`BTL_RESULT_DEFEAT`).
+    #[test]
+    fn a_lost_fight_is_a_game_over_unless_the_scene_allows_losing() {
+        use tantalus_game::field::world::CharacterStats;
+        let stats = CharacterStats {
+            current_hp: 105,
+            max_hp: 105,
+            current_mp: 36,
+            max_mp: 36,
+        };
+        let lost = FightReport {
+            outcome: Some("defeat".to_owned()),
+            party_hp: vec![(0, 0, 105)],
+            ..FightReport::default()
+        };
+        let mut world = FieldWorld::new();
+        world.character_stats.insert(0, stats);
+        save_party(&lost, &mut world);
+        assert!(world.game_over);
+        assert_eq!(world.battle_result, 6);
+        assert_eq!(world.character_stats[&0].current_hp, 105);
+
+        let hunt = FightReport {
+            no_game_over: true,
+            ..lost
+        };
+        let mut world = FieldWorld::new();
+        world.character_stats.insert(0, stats);
+        save_party(&hunt, &mut world);
+        assert!(!world.game_over);
+        assert_eq!(world.battle_result, 3);
+        assert_eq!(world.character_stats[&0].current_hp, 0);
     }
 
     #[test]

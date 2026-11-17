@@ -459,6 +459,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 group: None,
                 battle,
                 steiner_state: false,
+                timer: None,
             };
             let report = battles.fight_with_items(&request, &party, &fight_items);
             println!(
@@ -1639,6 +1640,12 @@ fn chain(
                                 director.world_mut(),
                             );
                             fights.push(report);
+                        }
+                        // A lost fight that allows a game over ends the game
+                        // (`btl_sys.ManageBattleEnd`, `GameOverUI`).
+                        if director.world().game_over {
+                            error = Some("game over after a lost battle".to_string());
+                            break;
                         }
                         // Back on the same field after a battle,
                         // `EventEngine.StartEvents` restores the saved

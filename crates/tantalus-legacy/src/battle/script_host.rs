@@ -230,6 +230,29 @@ pub struct SceneOverlay {
     /// reach their load waits before the bits appear and pass them in the
     /// same frame as entry 0 (EF_E006's watcher relies on that order).
     pub load_frames: u32,
+    /// The field clock (`TimerUI`) when it is shown at the start of the fight.
+    pub timer: Option<BattleTimer>,
+}
+
+/// `TimerUI` as the fight starts: `TimerUI.Update` keeps counting down in real time while
+/// the battle runs, so the battle scripts see it fall at the battle tick rate.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct BattleTimer {
+    /// `TimerUI.Time` in seconds.
+    pub time: f32,
+    /// `TimerUI.Play`.
+    pub running: bool,
+}
+
+impl BattleTimer {
+    /// `TimerUI.Time` after `ticks` battle ticks, floored at zero.
+    pub fn time_after(&self, ticks: u32) -> f32 {
+        if !self.running {
+            return self.time;
+        }
+        let elapsed = ticks as f32 / super::atb::BATTLE_TPS as f32;
+        (self.time - elapsed).max(0.0)
+    }
 }
 
 /// Snapshots the machine into script state: [`battle_views`] plus the id
@@ -258,6 +281,10 @@ pub fn sync_state_from_battle(
     data.gil = overlay.gil;
     data.bonus_ap = overlay.bonus_ap;
     data.load_status = overlay.load_status;
+    if let Some(timer) = overlay.timer {
+        data.timer_shown = true;
+        data.timer_seconds = timer.time_after(battle.tick_no).round_ties_even() as i32;
+    }
     data.current_command = battle.running.first().map(|&id| {
         let slot = &battle.cmds.slots[id];
         CurrentCommandView {

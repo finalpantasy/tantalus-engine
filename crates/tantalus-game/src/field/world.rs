@@ -494,6 +494,10 @@ pub struct EncounterRequest {
     pub group: Option<i32>,
     pub battle: i32,
     pub steiner_state: bool,
+    /// The field clock when it is shown (`TimerUI.Enable`), which the battle scripts read and
+    /// which keeps running through the fight.
+    #[serde(default)]
+    pub timer: Option<TimerState>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -1735,7 +1739,13 @@ impl FieldWorld {
             group: None,
             battle: i32::from(scene),
             steiner_state: false,
+            timer: self.shown_timer(),
         });
+    }
+
+    /// `TimerUI` as a battle starts: only a shown clock reaches the battle scripts.
+    pub fn shown_timer(&self) -> Option<TimerState> {
+        self.timer.displayed.then_some(self.timer)
     }
 
     /// `EventEngine.SelectScene` (`EventEngine.cs:191`), field mode.

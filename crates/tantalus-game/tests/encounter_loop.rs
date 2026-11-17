@@ -80,6 +80,7 @@ fn field_encounter_runs_a_battle_and_commits_rewards_exactly_once() {
                     group: None,
                     battle: 0x56,
                     steiner_state: false,
+                    timer: None,
                 },
                 ruleset(),
             )

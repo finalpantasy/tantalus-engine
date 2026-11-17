@@ -292,6 +292,11 @@ pub struct BattleDataView {
     pub phoenix_used: bool,
     /// Sysvar 44: `battle.btl_bonus.ap`.
     pub bonus_ap: u16,
+    /// Sysvar 21: `TimerUI.Enable`. The field clock stays on screen and keeps running through
+    /// the fight (the Festival of the Hunt scripts end the battle when it reaches 0).
+    pub timer_shown: bool,
+    /// Sysvar 17: `Convert.ToInt32(TimerUI.Time)`.
+    pub timer_seconds: i32,
     /// Current command, when one is resolving.
     pub current_command: Option<CurrentCommandView>,
     /// System-list element 2: mask of player `btl_id`s (`GetBattleID(0)`).
@@ -357,6 +362,10 @@ pub(super) fn battle_sysvar(
             .as_ref()
             .map_or(-1, |c| c.effect_counter as i32),
         44 => i32::from(data.bonus_ap),
+        // 17 GetTimerTime, 21 IsTimerShown (`EventEngine.GetSysvar.cs`): `TimerUI` is global,
+        // so battle scripts read the field clock too.
+        17 => data.timer_seconds,
+        21 => i32::from(data.timer_shown),
         // Field-context sysvars (1-23, 191, 192+): not modeled in the
         // battle host, answered with the probe default (documented
         // deviation).

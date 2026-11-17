@@ -42,6 +42,8 @@ fn sample_data() -> BattleDataView {
         bonus_exp: 640,
         phoenix_used: true,
         bonus_ap: 12,
+        timer_shown: false,
+        timer_seconds: 0,
         current_command: Some(CurrentCommandView {
             cmd_no: 3,
             sub_no: 0x1D,
@@ -58,6 +60,24 @@ fn sample_data() -> BattleDataView {
 }
 
 #[test]
+fn battle_sysvars_read_the_field_clock() {
+    let data = BattleDataView {
+        timer_shown: true,
+        timer_seconds: 7,
+        ..sample_data()
+    };
+    let mut host = BattleScriptHost::new(&data);
+    assert_eq!(
+        LegacyEventHost::read_system_variable(&mut host, 17).unwrap(),
+        7
+    );
+    assert_eq!(
+        LegacyEventHost::read_system_variable(&mut host, 21).unwrap(),
+        1
+    );
+}
+
+#[test]
 fn battle_sysvars_answer_getsysvar_and_getbattledata() {
     let data = sample_data();
     let mut host = BattleScriptHost::new(&data);
@@ -65,6 +85,9 @@ fn battle_sysvars_answer_getsysvar_and_getbattledata() {
         LegacyEventHost::read_system_variable(host, code).unwrap()
     };
     assert_eq!(read(&mut host, 24), 0x55);
+    // 17 and 21 are the field clock, which battle scripts read too.
+    assert_eq!(read(&mut host, 17), 0);
+    assert_eq!(read(&mut host, 21), 0);
     assert_eq!(read(&mut host, 25), 1);
     assert_eq!(read(&mut host, 26), 0);
     assert_eq!(read(&mut host, 27), 1);

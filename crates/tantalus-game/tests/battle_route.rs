@@ -260,6 +260,7 @@ fn field_encounter_drives_the_legacy_machine_to_victory_and_pays_rewards() {
                 group: None,
                 battle: 0x55,
                 steiner_state: false,
+                timer: None,
             },
             adapter,
         )
@@ -428,6 +429,7 @@ fn legacy_battle_replays_identically_from_identical_world_state() {
                     rush: 0,
                     group: None,
                     battle: 0x55,
+                    timer: None,
                     steiner_state: false,
                 },
                 adapter,

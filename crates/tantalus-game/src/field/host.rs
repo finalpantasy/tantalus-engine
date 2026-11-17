@@ -1200,6 +1200,7 @@ impl LegacyEventHost for FieldHost<'_> {
                         group: *group,
                         battle: *battle,
                         steiner_state: *steiner_state,
+                        timer: self.world.shown_timer(),
                     });
                 }
                 HostEvent::ChangeField { field } => {
@@ -1454,6 +1455,9 @@ impl LegacyEventHost for FieldHost<'_> {
         match variable {
             // 0 GetRandom: `Comn.random8()`, 0..=255.
             0 => return Ok(i32::from(self.world.next_random_u8())),
+            // 1 GetFieldCamera: `fieldmap.camIdx` (`EventEngine.GetSysvar.cs`), the
+            // camera `SetFieldCamera` last activated.
+            1 => return Ok(self.world.view.camera_index() as i32),
             // 2 IsMovementEnabled: `EventContext.usercontrol`.
             2 => return Ok(i32::from(self.world.user_control)),
             // 8 GetDialogProgression: `ETb.gMesSignal`.
@@ -1930,6 +1934,58 @@ mod tests {
         assert_eq!(world.available_choice(0), 2);
         world.begin_field();
         assert_eq!(world.choice_mask, -1);
+    }
+
+    /// A battle started under a shown clock carries it: `TimerUI` is global and the battle
+    /// scripts read it (the Festival of the Hunt).
+    #[test]
+    fn battles_carry_the_shown_field_clock() {
+        let mut world = FieldWorld::new();
+        let start = HostEvent::StartBattle {
+            rush: 0,
+            group: None,
+            battle: 14,
+            steiner_state: false,
+        };
+        FieldHost::new(&mut world)
+            .apply(std::slice::from_ref(&start))
+            .unwrap();
+        assert_eq!(world.take_encounters()[0].timer, None);
+        world.timer.set_time(60);
+        world.timer.running = true;
+        world.timer.displayed = true;
+        FieldHost::new(&mut world).apply(&[start]).unwrap();
+        assert_eq!(world.take_encounters()[0].timer, Some(world.timer));
+    }
+
+    /// System variable 1 is `fieldmap.camIdx` (field 1206 waits on it).
+    #[test]
+    fn system_variable_one_reads_the_field_camera() {
+        // Fields without tile animations still track the camera (the view's index).
+        let camera = tantalus_contracts::LegacyFieldCamera {
+            projection: 256,
+            rotation: [4096, 0, 0, 0, 4096, 0, 0, 0, 4096],
+            translation: tantalus_contracts::Point3 {
+                x: 0,
+                y: 0,
+                z: 1000,
+            },
+            center_offset: [0, 0],
+            size: [512, 336],
+            viewport_x: [100, 412],
+            viewport_y: [99, 238],
+            depth_offset: 0,
+        };
+        let mut world = FieldWorld::new();
+        world.provide_cameras(vec![camera.clone(), camera]);
+        let mut host = FieldHost::new(&mut world);
+        assert_eq!(host.read_system_variable(1).unwrap(), 0);
+        host.apply(&[HostEvent::SetFieldCamera { camera: 1 }])
+            .unwrap();
+        assert_eq!(host.read_system_variable(1).unwrap(), 1);
+        host.apply(&[HostEvent::SetFieldCamera { camera: 5 }])
+            .unwrap();
+        assert_eq!(host.read_system_variable(1).unwrap(), 1);
     }
 
     /// `getvobj` member 6 is `Obj.level`: 7 in the idle loop, the request's

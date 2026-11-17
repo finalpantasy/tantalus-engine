@@ -124,6 +124,11 @@ impl FieldView {
         self.vrp.map(|value| i32::from(value as i16))
     }
 
+    /// `fieldmap.camIdx`, the camera `ActivateCamera` last picked.
+    pub fn camera_index(&self) -> usize {
+        self.camera
+    }
+
     /// `ActivateCamera` for a valid camera index.
     pub fn set_camera(&mut self, camera: i32) {
         if let Ok(camera) = usize::try_from(camera)

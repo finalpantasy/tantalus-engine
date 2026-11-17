@@ -651,3 +651,54 @@ fn full_gauge_enemy_gets_its_script_pick_through_the_machine_hook() {
     assert_eq!(queued, vec![(82, 1, 1)]);
     assert_eq!(battle.cmds.slots[battle.cmds.queue[0]].sub_no, 2);
 }
+
+/// `TimerUI` keeps running through a fight: the Festival of the Hunt scripts
+/// read system variables 21 (`TimerUI.Enable`) and 17 (`TimerUI.Time`) and end
+/// the battle when the clock reaches 0.
+#[test]
+fn battle_scripts_read_the_running_field_clock() {
+    use tantalus_legacy::battle::script_host::BattleTimer;
+    let rows = (0..32)
+        .map(|_| StatusDataRow {
+            opr_cnt: 0,
+            conti_cnt: 0,
+            clear_on_apply: 0,
+            immunity_provided: 0,
+        })
+        .collect();
+    let mut battle = Battle::new(
+        vec![machine_unit(1, true), machine_unit(ENEMY, false)],
+        BattleConfig::default(),
+        StatusTable::new(rows),
+    );
+    let mut script = state();
+    sync_state_from_battle(&mut script, &battle, &SceneOverlay::default());
+    assert!(!script.data.timer_shown);
+    let overlay = SceneOverlay {
+        timer: Some(BattleTimer {
+            time: 2.4,
+            running: true,
+        }),
+        ..SceneOverlay::default()
+    };
+    sync_state_from_battle(&mut script, &battle, &overlay);
+    assert!(script.data.timer_shown);
+    assert_eq!(script.data.timer_seconds, 2);
+    // 15 battle ticks are one second.
+    battle.tick_no = 15;
+    sync_state_from_battle(&mut script, &battle, &overlay);
+    assert_eq!(script.data.timer_seconds, 1);
+    battle.tick_no = 60;
+    sync_state_from_battle(&mut script, &battle, &overlay);
+    assert_eq!(script.data.timer_seconds, 0);
+    // A paused clock (`TimerUI.Play` off) stays where it was.
+    let paused = SceneOverlay {
+        timer: Some(BattleTimer {
+            time: 2.4,
+            running: false,
+        }),
+        ..SceneOverlay::default()
+    };
+    sync_state_from_battle(&mut script, &battle, &paused);
+    assert_eq!(script.data.timer_seconds, 2);
+}
