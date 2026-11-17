@@ -1,5 +1,6 @@
 pub mod akb2;
 pub mod asset_bundle;
+pub mod asset_language;
 pub mod audio_decode;
 pub mod battle_background;
 pub mod battle_camera;

@@ -135,7 +135,10 @@ fn run(args: Vec<String>) -> Result<(), String> {
             }
             "--game-data" => game_data = Some(PathBuf::from(value()?)),
             "--mes-map" => mes_map = Some(PathBuf::from(value()?)),
-            "--language" => language = value()?,
+            "--language" => {
+                language = value()?;
+                tantalus_tools::field_session::set_asset_language(&language);
+            }
             "--choices" => {
                 for part in value()?.split(',') {
                     // `*:TEXT=N` answers that text on every field

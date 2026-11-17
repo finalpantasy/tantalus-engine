@@ -75,8 +75,8 @@ impl BattleRandom for CycleRandom {
     }
 }
 
-/// Every `EVT_BATTLE_*` script in the bundle, by upper-case name without the
-/// `.eb` suffix.
+/// Every `EVT_BATTLE_*` script in the bundle (the copy for the asset language, see
+/// `tantalus_assets::pc::asset_language`), by upper-case name without the `.eb` suffix.
 pub fn load_battle_scripts(bundle_path: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> {
     let bundle = UnityRawBundle::open(bundle_path).map_err(|error| error.to_string())?;
     let bytes = bundle
@@ -85,8 +85,13 @@ pub fn load_battle_scripts(bundle_path: &Path) -> Result<BTreeMap<String, Vec<u8
     let serialized = SerializedFile::parse(&bytes, &bundle_path.to_string_lossy())
         .map_err(|error| error.to_string())?;
     let mut scripts = BTreeMap::new();
+    let other_languages = tantalus_assets::pc::asset_language::other_language_event_scripts(
+        &serialized,
+        &bundle_path.to_string_lossy(),
+        &tantalus_assets::pc::asset_language::asset_language(),
+    );
     for (index, object) in serialized.report().objects.iter().enumerate() {
-        if object.class_id != 49 {
+        if object.class_id != 49 || other_languages.contains(&object.path_id) {
             continue;
         }
         let asset = TextAsset::parse(

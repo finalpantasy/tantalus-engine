@@ -248,8 +248,14 @@ fn run_assets_extract_text(args: Vec<OsString>) -> Result<(), String> {
     let mut found = None;
     let mut text_assets = 0usize;
     let mut sample_names = Vec::new();
+    // One copy of each event script per language: the one for the asset language.
+    let other_languages = tantalus_assets::pc::asset_language::other_language_event_scripts(
+        &serialized,
+        &path.to_string_lossy(),
+        &tantalus_assets::pc::asset_language::asset_language(),
+    );
     for (index, object) in serialized.report().objects.iter().enumerate() {
-        if object.class_id != 49 {
+        if object.class_id != 49 || other_languages.contains(&object.path_id) {
             continue;
         }
         text_assets += 1;
@@ -1158,8 +1164,14 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
                 .map_err(|error| error.to_string())?;
         let mut candidates = Vec::new();
+        // One copy of each event script per language: the one for the asset language.
+        let other_languages = tantalus_assets::pc::asset_language::other_language_event_scripts(
+            &serialized,
+            &path.to_string_lossy(),
+            &tantalus_assets::pc::asset_language::asset_language(),
+        );
         for (index, object) in serialized.report().objects.iter().enumerate() {
-            if object.class_id != 49 {
+            if object.class_id != 49 || other_languages.contains(&object.path_id) {
                 continue;
             }
             let asset = tantalus_assets::pc::text_asset::TextAsset::parse(
@@ -1333,8 +1345,14 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 .map_err(|error| error.to_string())?;
         let mut candidates = Vec::new();
         let mut scanned = 0usize;
+        // One copy of each event script per language: the one for the asset language.
+        let other_languages = tantalus_assets::pc::asset_language::other_language_event_scripts(
+            &serialized,
+            &path.to_string_lossy(),
+            &tantalus_assets::pc::asset_language::asset_language(),
+        );
         for (index, object) in serialized.report().objects.iter().enumerate() {
-            if object.class_id != 49 {
+            if object.class_id != 49 || other_languages.contains(&object.path_id) {
                 continue;
             }
             let data = match serialized.object_data(index) {
@@ -1391,8 +1409,14 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             tantalus_assets::pc::serialized::SerializedFile::parse(&bytes, &path.to_string_lossy())
                 .map_err(|error| error.to_string())?;
         let mut found = None;
+        // One copy of each event script per language: the one for the asset language.
+        let other_languages = tantalus_assets::pc::asset_language::other_language_event_scripts(
+            &serialized,
+            &path.to_string_lossy(),
+            &tantalus_assets::pc::asset_language::asset_language(),
+        );
         for (index, object) in serialized.report().objects.iter().enumerate() {
-            if object.class_id != 49 {
+            if object.class_id != 49 || other_languages.contains(&object.path_id) {
                 continue;
             }
             let asset = tantalus_assets::pc::text_asset::TextAsset::parse(
@@ -1433,8 +1457,14 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
             )
             .map_err(|error| error.to_string())?;
             let mut nav_asset = None;
+            // One copy of each event script per language: the one for the asset language.
+            let other_languages = tantalus_assets::pc::asset_language::other_language_event_scripts(
+                &nav_serialized,
+                &bundle_path.to_string_lossy(),
+                &tantalus_assets::pc::asset_language::asset_language(),
+            );
             for (index, object) in nav_serialized.report().objects.iter().enumerate() {
-                if object.class_id != 49 {
+                if object.class_id != 49 || other_languages.contains(&object.path_id) {
                     continue;
                 }
                 let asset = tantalus_assets::pc::text_asset::TextAsset::parse(
@@ -2073,8 +2103,14 @@ fn run_assets_inspect_bundle(args: Vec<OsString>) -> Result<(), String> {
                 .map_err(|error| error.to_string())?;
         let mut selected = None;
         let mut failures = Vec::new();
+        // One copy of each event script per language: the one for the asset language.
+        let other_languages = tantalus_assets::pc::asset_language::other_language_event_scripts(
+            &serialized,
+            &path.to_string_lossy(),
+            &tantalus_assets::pc::asset_language::asset_language(),
+        );
         for (index, object) in serialized.report().objects.iter().enumerate() {
-            if object.class_id != 49 {
+            if object.class_id != 49 || other_languages.contains(&object.path_id) {
                 continue;
             }
             let bytes = serialized

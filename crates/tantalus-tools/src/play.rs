@@ -123,6 +123,8 @@ impl PlayData {
     pub fn load(paths: &PlayPaths) -> Result<Self, String> {
         let sa = &paths.streaming_assets;
         let memoria = &paths.memoria;
+        // The event scripts follow the text tables' language (`Localization.CurrentSymbol`).
+        crate::field_session::set_asset_language(&paths.language);
         let bundle = sa.join("p0data7.bin");
         let field_bundles = (11..=19)
             .map(|n| sa.join(format!("p0data{n}.bin")))

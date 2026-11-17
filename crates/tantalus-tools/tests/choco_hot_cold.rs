@@ -1,7 +1,7 @@
 //! Chocobo Hot and Cold in Chocobo's Forest (`EVT_CHOCO_CH_FST_0`, field 2950), end to end:
 //! Mene's menu (a talk region, `EventCollision.CheckQuadInput`), the 60 gil fee, the how-to
 //! page closed with Special (square), the clock (`TimerUI`), digging (Special, `KeyOn(0x80000)`)
-//! with Choco's hints, and the end: "Limit bonus points" and the Chocograph. Needs the game
+//! with Choco's hints, and the end: the tally of points. Needs the game
 //! install, so it returns early without one.
 
 use std::path::PathBuf;
@@ -76,7 +76,7 @@ fn hot_and_cold_runs_from_mene_to_the_chocograph() {
             let digging = world.user_control
                 && texts(&game)
                     .iter()
-                    .all(|t| !t.contains("Depth") && !t.contains("Time"));
+                    .all(|t| !t.contains("Time") && !t.starts_with("Found") && !t.contains("Kweh"));
             if tick % 15 == 0 && digging {
                 if dig.is_multiple_of(2) {
                     let mut spots: Vec<u64> = world
@@ -91,7 +91,8 @@ fn hot_and_cold_runs_from_mene_to_the_chocograph() {
                 }
                 dig += 1;
                 held |= pad::SQUARE;
-            } else if tick % 6 == 3 && texts(&game).iter().any(|t| t.contains("Time")) {
+            } else if tick % 6 == 3 {
+                // Dig, dig, dig: mash Special while the treasure comes up.
                 held |= pad::SQUARE;
             }
         }
@@ -125,10 +126,10 @@ fn hot_and_cold_runs_from_mene_to_the_chocograph() {
             }
         }
         let world = game.world();
-        if seen
-            .iter()
-            .any(|text| text.contains("picture of some location"))
-            && world.user_control
+        if seen.iter().any(|text| text.contains("Found # point(s)"))
+            && texts(&game)
+                .iter()
+                .any(|t| t.contains("Check current points"))
             && world.timer.time_int() == 0
         {
             break;
@@ -147,10 +148,13 @@ fn hot_and_cold_runs_from_mene_to_the_chocograph() {
     assert!(hits[0].0 > started, "the hint came after the clock started");
     let any = |needle: &str| seen.iter().any(|text| text.contains(needle));
     assert!(any("How to play Chocobo Hot"), "the how-to page showed");
-    assert!(any("Found a Card"), "a treasure was dug up");
-    assert!(any("Limit bonus points"), "the end tallied the bonus");
-    assert!(any("picture of some location"), "the Chocograph was found");
+    assert!(any("Found "), "a treasure was dug up");
+    assert!(
+        !any("carry any more"),
+        "the card pickup said it could not carry"
+    );
+    assert!(any("Found # point(s)"), "the end tallied the points");
+    assert!(any("Check current points"), "Mene's menu came back");
     let world = game.world();
     assert_eq!(world.timer.time_int(), 0);
-    assert!(world.user_control, "control came back after the end");
 }

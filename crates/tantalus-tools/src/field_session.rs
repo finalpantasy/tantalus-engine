@@ -8,6 +8,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+use tantalus_assets::pc::asset_language::other_language_event_scripts;
+pub use tantalus_assets::pc::asset_language::{asset_language, set_asset_language};
 use tantalus_contracts::EntityId;
 use tantalus_game::field::{DirectorStep, FieldDirector, FieldWorld};
 use tantalus_legacy::{EventBinary, EventProgram, VmStatus};
@@ -37,7 +39,9 @@ pub fn load_event(bundle_path: &Path, name: &str) -> Result<EventBinary, String>
     EventBinary::parse(&script).map_err(|error| error.to_string())
 }
 
-/// The bytes of the TextAsset called `name` in a Unity bundle, if any.
+/// The bytes of the TextAsset called `name` in a Unity bundle, if any. The bundle holds each
+/// event script once per language under one asset name; the copy for [`asset_language`] is
+/// taken (`EventEngineUtils.loadEventData`: `EventBinary/<Field|Battle|World>/<CurrentSymbol>/`).
 pub fn find_text_asset(bundle_path: &Path, name: &str) -> Result<Option<Vec<u8>>, String> {
     let bundle = tantalus_assets::pc::unity_raw::UnityRawBundle::open(bundle_path)
         .map_err(|error| error.to_string())?;
@@ -49,8 +53,13 @@ pub fn find_text_asset(bundle_path: &Path, name: &str) -> Result<Option<Vec<u8>>
         &bundle_path.to_string_lossy(),
     )
     .map_err(|error| error.to_string())?;
+    let other_languages = other_language_event_scripts(
+        &serialized,
+        &bundle_path.to_string_lossy(),
+        &asset_language(),
+    );
     for (index, object) in serialized.report().objects.iter().enumerate() {
-        if object.class_id != 49 {
+        if object.class_id != 49 || other_languages.contains(&object.path_id) {
             continue;
         }
         let asset = tantalus_assets::pc::text_asset::TextAsset::parse(

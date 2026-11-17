@@ -267,7 +267,7 @@ impl WorldScript {
             .ok_or("the world script has no place prompt (entry 1, function 1)")?;
         let mut world = self.world().clone();
         world.user_control = true;
-        world.set_input(0x10000);
+        world.set_input(0x20000);
         world
             .map_memory
             .set(24, VariableType::Byte, place + 100)
