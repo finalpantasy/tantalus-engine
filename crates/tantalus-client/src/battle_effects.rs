@@ -2,20 +2,17 @@
 //! plugin ([`tantalus_sfx`], the translated `FF9SpecialEffectPlugin`) on
 //! the original timing.
 //!
-//! When each part happens is data ([`tantalus_tools::battle_effects`],
-//! Memoria's `Sequence.seq`): the effect starts `hit` frames before the
-//! machine's `EffectApplied` (the HP change), the damage numbers wait for
-//! the `Figure` point and Thunder dims the scene for its `HoldDuration`.
+//! When each part happens is the plugin's own
+//! ([`tantalus_tools::battle_effects::EffectTable::load_plugin_timing`]): the
+//! machine's `EffectApplied` (the HP change) falls on the effect's first
+//! Effect point, the damage numbers on its `Figure` point, and Thunder
+//! dims the scene for its `HoldDuration` (`Sequence.seq`).
+//!
 //! What is drawn is the plugin's: each effect gets a fresh plugin
 //! (`SFX_Play` with the battle's units as `SFX.InitBattleParty` gives
 //! them), steps one battle frame at a time (`SFX.UpdatePlugin` runs once
 //! per `BattleSubSystem`) under the view's camera, and its packets are
 //! drawn as `SFXRender` batches them, over the scene.
-//!
-//! Garnet's summons run far longer than the 40 frames the battle machine
-//! gives a command before its HP change, so an effect never starts before
-//! its command: it then lands after the HP change, and its numbers wait
-//! for its own `Figure` point.
 //!
 //! The spells' own cameras ([`EffectLibrary`], `PLAY_CAMERA` in the
 //! effect's sequence stream) are played by `battle_camera_play` for the
@@ -111,7 +108,6 @@ pub struct EffectLibrary {
     runtime: std::sync::OnceLock<Option<tantalus_sfx::SfxRuntime>>,
     packages: Mutex<HashMap<i32, Option<Arc<Vec<u8>>>>>,
     playing: Mutex<HashMap<PlayKey, Playing>>,
-    timings: Mutex<HashMap<(i32, bool), Option<EffectTiming>>>,
 }
 
 /// An effect on the stage: its id, caster and start tick.
@@ -144,7 +140,6 @@ impl EffectLibrary {
             runtime: std::sync::OnceLock::new(),
             packages: Mutex::new(HashMap::new()),
             playing: Mutex::new(HashMap::new()),
-            timings: Mutex::new(HashMap::new()),
         }
     }
 
@@ -162,52 +157,6 @@ impl EffectLibrary {
                     .and_then(tantalus_sfx::SfxRuntime::new)
             })
             .as_ref()
-    }
-
-    /// When the plugin's effect `id` reaches its first `Effect` and
-    /// `Figure` points and its end, in frames from `SFX_Play` (`None` when
-    /// it cannot play or has no `Effect` point). Played once per effect,
-    /// one player on one enemy.
-    pub fn plugin_timing(&self, id: i32, item: bool) -> Option<EffectTiming> {
-        if !is_drawn(id) {
-            return None;
-        }
-        let mut timings = self.timings.lock().unwrap_or_else(PoisonError::into_inner);
-        *timings.entry((id, item)).or_insert_with(|| {
-            let unit = |btl_id: u16, player: bool, z: i16| Unit {
-                btl_id,
-                player,
-                slot: 0,
-                serial: 0,
-                position: [0, 0, z],
-                base: [0, 0, z],
-                yaw: if player { 2048 } else { 0 },
-                height: 512,
-                radius: 256,
-                geo_radius: 256,
-                tar_bone: 0,
-            };
-            let setup = Setup {
-                units: vec![unit(1, true, -1500), unit(0x10, false, 500)],
-                caster: 0,
-                targets: vec![1],
-                item,
-                put: [0, 0],
-            };
-            let package = self.package(id)?;
-            let mut run = self.runtime()?.play(id, &package, &setup)?;
-            let camera = psx_camera(&BattleCamera::preset(0));
-            while run.frame() < MAX_FRAMES && run.step(&camera).is_some() {}
-            let events = run.events();
-            let hit = events.effect_points.first()?.0;
-            let figure = events.figure_points.first().map_or(hit, |point| point.0);
-            Some(EffectTiming {
-                hit,
-                figure: figure.max(hit),
-                length: run.frame().max(hit),
-                dim: None,
-            })
-        })
     }
 
     /// Effect `id`'s package (`None` when it cannot be read).
@@ -269,21 +218,11 @@ impl EffectLibrary {
 }
 
 /// Every party command with a known effect, in stage order, on the
-/// sequence timing ([`stage_effects_with`] without the plugin).
+/// plugin's own timing (`EffectTable::load_plugin_timing`: the HP change
+/// and numbers wait for its `Effect` and `Figure` points, callbacks 23 and
+/// 24, as in the Steam game, where `ExecVfxCommand` runs from the plugin;
+/// `Sequence.seq` stays for effects the plugin cannot play).
 pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
-    stage_effects_with(stage, None)
-}
-
-/// Every party command with a known effect, in stage order. With the
-/// plugin (`library`), a spell's HP change and numbers wait for the
-/// plugin's own `Effect` and `Figure` points (callbacks 23 and 24,
-/// `SFX.BattleCallback`), as in the Steam game, where `ExecVfxCommand`
-/// runs from the plugin; Memoria's `Sequence.seq` timing is for its
-/// rewritten effects and is kept only when the plugin cannot play one.
-pub fn stage_effects_with(
-    stage: &BattleStage,
-    library: Option<&EffectLibrary>,
-) -> Vec<StageEffect> {
     let party = stage
         .units
         .iter()
@@ -327,7 +266,7 @@ pub fn stage_effects_with(
                 }
                 continue;
             }
-            let Some((id, mut timing)) =
+            let Some((id, timing)) =
                 stage
                     .effects
                     .effect_of(*cmd_no, *sub_no, targets.len(), *short_summon)
@@ -339,11 +278,6 @@ pub fn stage_effects_with(
                 tantalus_legacy::battle::queue::cmd::ITEM
                     | tantalus_legacy::battle::queue::cmd::AUTO_POTION
             );
-            if let Some(points) = library.and_then(|library| library.plugin_timing(id, item)) {
-                timing.hit = points.hit;
-                timing.figure = points.figure;
-                timing.length = points.length;
-            }
             let applied = stage.frames[tick..]
                 .iter()
                 .enumerate()
@@ -428,20 +362,7 @@ pub struct UnitSpot {
     pub turn: f32,
 }
 
-/// Effects whose plugin run does not match the player's DLL
-/// (`tantalus-sfx` `--test plugin sweep`): 212 to 224, where the DLL does
-/// not repeat itself, and the sword skills Darkside, Minus Strike, Iai
-/// Strike, Thunder Slash (both levels), Bio Sword, Lancer and Photon, where
-/// the port opens one PSX address window more than the DLL from frame 57.
-const NOT_MATCHING: [i32; 11] = [188, 189, 190, 191, 221, 299, 401, 409, 410, 411, 412];
-
-/// The effects the plugin draws: those that match the DLL.
-pub fn is_drawn(id: i32) -> bool {
-    !(212..=224).contains(&id) && !NOT_MATCHING.contains(&id)
-}
-
-/// Frames an effect may play before it is cut off.
-const MAX_FRAMES: u32 = 3000;
+pub use tantalus_tools::battle_effects::{MAX_FRAMES, is_drawn};
 
 /// PSX battle space (y down) from the view's world (y up).
 fn psx(point: [f32; 3]) -> [i16; 3] {

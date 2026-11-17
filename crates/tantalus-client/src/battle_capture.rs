@@ -202,7 +202,7 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
             .ok_or_else(|| format!("bad --recast entry `{pair}`, want N:ABILITY or N:iITEM"))?;
         recasts.insert(index, to);
     }
-    let timings = stage.effects.command_timings();
+    let table = stage.effects.clone();
     let mut seen_commands = 0usize;
     // (unit, command tick, new effect tick, new end tick)
     let mut moves = Vec::new();
@@ -222,7 +222,8 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
                     *sub_no = *to_sub;
                     *short_summon = *short;
                     let variant = u8::from(targets.len() == 1) | (u8::from(*short) << 1);
-                    if let Some(&(effect, total)) = timings.get(&(*to_cmd == 14, *to_sub, variant))
+                    if let Some((effect, total)) =
+                        table.command_timing_of(&(*to_cmd == 14, *to_sub, variant))
                     {
                         moves.push((*unit, tick, effect as usize, total as usize));
                     }
@@ -257,17 +258,16 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
         playback.stage.frames.len(),
         playback.stage.outcome.as_deref().unwrap_or("-"),
     ));
-    for effect in
-        tantalus_client::battle_effects::stage_effects_with(&playback.stage, Some(assets.effects()))
-    {
+    for effect in tantalus_client::battle_effects::stage_effects(&playback.stage) {
         lines.push(format!(
-            "effect {} by unit {} on {:?}: starts at {:.2}s, hits at {:.2}s, numbers at {:.2}s",
+            "effect {} by unit {} on {:?}: starts at {:.2}s, hits at {:.2}s, numbers at {:.2}s, HP changes at {:.2}s",
             effect.id,
             effect.caster,
             effect.targets,
             effect.start / BATTLE_TICKS_PER_SECOND,
             (effect.start + f64::from(effect.timing.hit)) / BATTLE_TICKS_PER_SECOND,
             (effect.start + f64::from(effect.timing.figure)) / BATTLE_TICKS_PER_SECOND,
+            effect.applied / BATTLE_TICKS_PER_SECOND,
         ));
     }
     for (index, at) in times.iter().enumerate() {

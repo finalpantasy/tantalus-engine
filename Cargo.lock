@@ -6034,6 +6034,7 @@ dependencies = [
  "tantalus-core",
  "tantalus-game",
  "tantalus-legacy",
+ "tantalus-sfx",
  "tempfile",
 ]
 

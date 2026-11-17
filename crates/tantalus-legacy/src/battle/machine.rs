@@ -117,6 +117,32 @@ pub struct Timing {
 /// [`Timing::effect_after_loop_ticks`] and [`Timing::loop_total_ticks`].
 pub type CommandTimings = std::collections::BTreeMap<(bool, i32, u8), (u32, u32)>;
 
+/// Timings asked for when a command needs them, for effects that take long
+/// to time ([`BattleConfig::command_timing_late`]). Compares equal always:
+/// it is runtime-only.
+#[derive(Clone, Default)]
+pub struct LateTimings(pub Option<LateTimingFn>);
+
+/// Looks one [`CommandTimings`] key up.
+pub type LateTimingFn =
+    std::sync::Arc<dyn Fn(&(bool, i32, u8)) -> Option<(u32, u32)> + Send + Sync>;
+
+impl std::fmt::Debug for LateTimings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(if self.0.is_some() {
+            "LateTimings(..)"
+        } else {
+            "LateTimings(none)"
+        })
+    }
+}
+
+impl PartialEq for LateTimings {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
 /// The [`CommandTimings`] key of a party member's `SysTrans`: the Trance
 /// effect (`Special_Trance_Activate`, 257) when `entering`, else
 /// `Special_Trance_End` (489) (`btl_vfx.GetPlayerCommandSFX`).
@@ -182,6 +208,8 @@ pub struct BattleConfig {
     pub timing: Timing,
     /// Per-command effect waits; see [`CommandTimings`].
     pub command_timing: std::sync::Arc<CommandTimings>,
+    /// Asked for a key `command_timing` lacks.
+    pub command_timing_late: LateTimings,
     /// `FF9StateSystem.Achievement.summon_*`: summons already cast once
     /// (ability ids).
     pub summons_seen: Vec<i32>,
@@ -207,6 +235,7 @@ impl Default for BattleConfig {
             runaway: true,
             timing: Timing::default(),
             command_timing: std::sync::Arc::new(CommandTimings::new()),
+            command_timing_late: LateTimings::default(),
             summons_seen: Vec::new(),
             alternate_cameras: std::sync::Arc::default(),
             fixed_camera: false,
@@ -2185,9 +2214,15 @@ impl Battle {
         };
         // Enemy commands index the scene's attacks, not `Actions.csv`.
         let player = s.regist.filter(|&r| self.units[r].is_player);
-        let Some((effect, total)) =
-            player.and_then(|_| self.config.command_timing.get(&key).copied())
-        else {
+        let Some((effect, total)) = player.and_then(|_| {
+            self.config.command_timing.get(&key).copied().or_else(|| {
+                self.config
+                    .command_timing_late
+                    .0
+                    .as_ref()
+                    .and_then(|late| late(&key))
+            })
+        }) else {
             return (
                 self.config.timing.effect_after_loop_ticks,
                 self.config.timing.loop_total_ticks,

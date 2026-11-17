@@ -447,6 +447,17 @@ impl EffectRun {
     /// One frame seen through `camera`. `None` once the effect has ended
     /// (or faulted).
     pub fn step(&mut self, camera: &PsxCamera) -> Option<RenderList> {
+        let prims = self.advance(camera)?;
+        let mut host = self
+            .host
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        Some(render_list(self.effect, &prims, &mut host.vram))
+    }
+
+    /// One frame without building its render list (for the effect's timing
+    /// only). `None` once the effect has ended (or faulted).
+    pub fn advance(&mut self, camera: &PsxCamera) -> Option<Vec<crate::plugin::Prim>> {
         if self.done {
             return None;
         }
@@ -462,12 +473,11 @@ impl EffectRun {
             return None;
         };
         self.frame += 1;
-        let mut host = self
-            .host
+        self.host
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        host.frame = self.frame;
-        Some(render_list(self.effect, &prims, &mut host.vram))
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .frame = self.frame;
+        Some(prims)
     }
 
     /// Every `LoadImage` so far.

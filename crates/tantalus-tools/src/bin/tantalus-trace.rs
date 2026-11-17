@@ -441,7 +441,13 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 bundle.parent().ok_or("--bundle has no directory")?,
                 &bundle,
                 &ids,
-                tantalus_tools::field_battle::Equipment::load(&dir)?,
+                {
+                    let mut equipment = tantalus_tools::field_battle::Equipment::load(&dir)?;
+                    if let Some(game_data) = &game_data {
+                        equipment.load_plugin_timing(game_data);
+                    }
+                    equipment
+                },
             )?;
             let party: Vec<tantalus_tools::field_battle::PartyFighter> = fight_party
                 .iter()
@@ -558,7 +564,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     stats,
                     text,
                     choices,
-                    game_data,
+                    game_data: game_data.clone(),
                     growth_tables,
                     initial_items,
                     item_ids,
@@ -591,7 +597,14 @@ fn run(args: Vec<String>) -> Result<(), String> {
                             &bundle,
                             &ids,
                             match &character_data {
-                                Some(dir) => tantalus_tools::field_battle::Equipment::load(dir)?,
+                                Some(dir) => {
+                                    let mut equipment =
+                                        tantalus_tools::field_battle::Equipment::load(dir)?;
+                                    if let Some(game_data) = &game_data {
+                                        equipment.load_plugin_timing(game_data);
+                                    }
+                                    equipment
+                                }
                                 None => Default::default(),
                             },
                         )?),

@@ -465,6 +465,12 @@ fn ability_id(text: &str) -> Option<i32> {
 }
 
 impl Equipment {
+    /// Times every spell and item effect on the translated plugin
+    /// ([`crate::battle_effects::EffectTable::load_plugin_timing`]).
+    pub fn load_plugin_timing(&mut self, game_data: &Path) {
+        std::sync::Arc::make_mut(&mut self.effects).load_plugin_timing(game_data);
+    }
+
     /// Reads `CharacterParameters.csv` and `DefaultEquipment.csv` from
     /// `characters` and `Weapons.csv` / `Armors.csv` from `../Items`.
     pub fn load(characters: &Path) -> Result<Self, String> {
@@ -961,7 +967,12 @@ impl FieldBattles {
             units,
             BattleConfig {
                 timing: COMMAND_TIMING,
-                command_timing: std::sync::Arc::new(self.equipment.effects.command_timings()),
+                command_timing_late: {
+                    let table = self.equipment.effects.clone();
+                    tantalus_legacy::battle::machine::LateTimings(Some(std::sync::Arc::new(
+                        move |key| table.command_timing_of(key),
+                    )))
+                },
                 cast_leads: std::sync::Arc::new(crate::battle_effects::cast_leads()),
                 summons_seen: self
                     .summons_seen
@@ -2429,6 +2440,42 @@ mod tests {
         assert!(world.learned_abilities[&0].contains(&101));
         assert_eq!(world.ability_pa[&0][&102], 25);
         assert_eq!(world.cards, vec![7]);
+    }
+
+    /// `TANTALUS_MEMORIA` and `TANTALUS_GAME_DATA` set: prints each effect's
+    /// plugin timing next to `Sequence.seq`'s (`--nocapture`).
+    #[test]
+    #[ignore = "needs the game data and Memoria"]
+    fn plugin_timing_next_to_the_sequences() {
+        let (Some(root), Some(data)) = (
+            std::env::var_os("TANTALUS_MEMORIA"),
+            std::env::var_os("TANTALUS_GAME_DATA"),
+        ) else {
+            return;
+        };
+        let characters = Path::new(&root).join("Memoria.Patcher/StreamingAssets/Data/Characters");
+        let mut equipment = Equipment::load(&characters).expect("Memoria tables load");
+        equipment.load_plugin_timing(Path::new(&data));
+        let table = &equipment.effects;
+        let mut ids: Vec<(i32, bool)> = table
+            .abilities
+            .values()
+            .flat_map(|a| [(a.0, false), (a.1, false)])
+            .collect();
+        ids.extend(table.items.values().map(|&id| (id, true)));
+        ids.sort_unstable();
+        ids.dedup();
+        for (id, item) in ids {
+            let start = std::time::Instant::now();
+            let plugin = table.timing_of(id, item);
+            let seq = table.timing.get(&id);
+            println!(
+                "{id} item={item}: now {:?} seq {:?} ({:?})",
+                plugin.map(|t| (t.hit, t.figure, t.length)),
+                seq.map(|t| (t.hit, t.figure, t.length)),
+                start.elapsed()
+            );
+        }
     }
 
     #[test]

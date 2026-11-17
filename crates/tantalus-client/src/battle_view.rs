@@ -822,7 +822,7 @@ impl BattleScene {
                 .and_then(Option::as_ref)
                 .map_or(0.0, clip_length)
         };
-        let effects = crate::battle_effects::stage_effects_with(stage, Some(&assets.effects));
+        let effects = crate::battle_effects::stage_effects(stage);
         time("b_dim", || {
             crate::battle_effects::dim(
                 &mut frame,

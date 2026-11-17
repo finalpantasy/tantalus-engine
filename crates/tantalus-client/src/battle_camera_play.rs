@@ -119,7 +119,7 @@ impl CameraDirector {
         let mut effect_plays = Vec::new();
         let mut effect_starts = Vec::new();
         if let Some(library) = library {
-            for effect in crate::battle_effects::stage_effects_with(stage, Some(library)) {
+            for effect in crate::battle_effects::stage_effects(stage) {
                 // A summon's cameras frame its own model and world, which
                 // are not drawn (a wall or nothing for 18 s of a full
                 // summon): it keeps the scene's camera.

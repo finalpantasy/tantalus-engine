@@ -37,6 +37,11 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
+# The translated effect plugin runs every effect frame; timing all effects
+# at start-up is minutes at opt-level 1.
+[profile.dev.package.tantalus-sfx]
+opt-level = 3
+
 [profile.dev.package.tantalus-client]
 opt-level = 3
 # The rasterizer is the hot code; the debug-only checks cost it 10-20%.

@@ -326,10 +326,11 @@ match the DLL (`battle_effects::is_drawn`: 212-224 and the eleven sword skills a
   (`battle_effects::psx_camera`, the inverse of `battle_camera_play::unity_camera`), is
   written where `SFX_Update` reads it before every frame, so the packets line up with the
   models. The plugin's own camera script is not run.
-- Timing: one plugin frame per battle frame (`SFX.UpdatePlugin` runs once per
-  `BattleSubSystem`). The plugin is started so its own Effect point (callback 23) falls on the
-  machine's HP change, never before the command, and the damage numbers wait for its Figure
-  point (callback 24). The machine still uses the `Sequence.seq` timing
+- Timing: one plugin frame per battle frame (`SFX.UpdatePlugin` runs once
+  per `BattleSubSystem`). The battle machine takes each effect's HP change (the plugin's
+  Effect point, callback 23), numbers (Figure point, callback 24) and end from the plugin
+  itself (`EffectTable::load_plugin_timing`; each effect is played once, on first use, in
+  `command_timing_of`), so the burst and the HP readout land together
   (`sfx-battle-hp-change-timing`).
 - Drawing: `tantalus_sfx::render::render_list` turns each frame's packets into the batches
   `SFXRender` draws (opaque, additive and subtractive lists keyed by page, CLUT and filter,

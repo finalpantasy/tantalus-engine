@@ -156,12 +156,11 @@ impl PlayData {
             &characters.join("../Items/InitialItems.csv"),
         )?)?;
         let battles = match &paths.battles {
-            Some(ids) => Some(FieldBattles::load(
-                sa,
-                &bundle,
-                ids,
-                crate::field_battle::Equipment::load(&characters)?,
-            )?),
+            Some(ids) => Some(FieldBattles::load(sa, &bundle, ids, {
+                let mut equipment = crate::field_battle::Equipment::load(&characters)?;
+                equipment.load_plugin_timing(&paths.game_data);
+                equipment
+            })?),
             None => None,
         };
         Ok(Self {
