@@ -747,6 +747,8 @@ impl PlayGame {
                     globals: PartyGlobals::from_globals(world.global_memory.bytes()),
                     row: u8::from(!world.back_row.contains(character)),
                     trance: world.trance.get(character).copied().unwrap_or(0),
+                    equip: PartyFighter::loadout(world, *character).0,
+                    support: PartyFighter::loadout(world, *character).1,
                 })
             })
             .collect()

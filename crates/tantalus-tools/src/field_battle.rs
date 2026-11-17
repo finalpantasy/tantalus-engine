@@ -133,6 +133,33 @@ pub struct PartyFighter {
     pub row: u8,
     /// `PLAYER.trance`, the gauge carried between battles.
     pub trance: u8,
+    /// `PLAYER.equip`: weapon, head, wrist, armor, accessory item ids, -1
+    /// for an empty slot. `None` fights in the character's default set.
+    pub equip: Option<[i32; 5]>,
+    /// `PLAYER.sa`: support abilities switched on, bit `n` is ability
+    /// `192 + n` (`SupportAbility`).
+    pub support: u64,
+}
+
+impl PartyFighter {
+    /// The gear and enabled support abilities the field world records for
+    /// `character` (`PLAYER.equip`, `PLAYER.sa`); no equipment entry means
+    /// the default set.
+    pub fn loadout(world: &FieldWorld, character: i32) -> (Option<[i32; 5]>, u64) {
+        let equip = world
+            .equipment
+            .get(&character)
+            .map(|slots| slots.map(|item| item.map_or(-1, i32::from)));
+        let support = world
+            .support_enabled
+            .get(&character)
+            .into_iter()
+            .flatten()
+            .filter_map(|&ability| u32::try_from(ability - 192).ok())
+            .filter(|&bit| bit < 64)
+            .fold(0_u64, |mask, bit| mask | 1 << bit);
+        (equip, support)
+    }
 }
 
 /// The event globals `btl_init` reads when it sets up a party member.
@@ -191,6 +218,11 @@ pub struct Equipment {
     shapes: BTreeMap<i32, u8>,
     /// `BonusId` -> speed, strength, magic, spirit (`Stats.csv`).
     bonuses: BTreeMap<i32, [i32; 4]>,
+    /// `BonusId` -> element sets bonus, guard, absorb, half, weak
+    /// (`Stats.csv` `BonusElement` .. `WeakElement`).
+    bonus_elements: BTreeMap<i32, [u8; 5]>,
+    /// Weapon id -> `StatusIndex` into `status_sets` (`Weapons.csv`).
+    weapon_status_index: BTreeMap<i32, i32>,
     /// Item id -> ability ids (`Items.csv` `AbilityIds`: `AA:X` is X,
     /// `SA:X` is 192 + X, `ff9abil.cs:24-25`).
     item_abilities: BTreeMap<i32, Vec<i32>>,
@@ -522,12 +554,15 @@ impl Equipment {
             else {
                 continue;
             };
+            if let Some(index) = int(&row, 3) {
+                equipment.weapon_status_index.insert(id, index);
+            }
             equipment.weapons.insert(
                 id,
                 WeaponStats {
                     power,
                     rate: int(&row, 8).unwrap_or(0),
-                    elements: Elements::NONE,
+                    elements: Elements(row.get(7).map_or(0, |list| status_mask(list)) as u8),
                     category: category as u8,
                     status: 0,
                 },
@@ -565,6 +600,12 @@ impl Equipment {
                 *value = int(&row, 2 + index).unwrap_or(0);
             }
             equipment.bonuses.insert(id, stats);
+            // BonusElement;GuardElement;AbsorbElement;HalfElement;WeakElement
+            let mut sets = [0_u8; 5];
+            for (index, set) in sets.iter_mut().enumerate() {
+                *set = row.get(6 + index).map_or(0, |list| status_mask(list)) as u8;
+            }
+            equipment.bonus_elements.insert(id, sets);
         }
         // Comment;Id;Statuses, each status `Name(id)` (`#! UnshiftStatuses`:
         // the id is the bit index).
@@ -692,26 +733,47 @@ impl Equipment {
         Ok(equipment)
     }
 
-    /// The default weapon's `GraphicsId` (`WeaponShape`), 0 without one.
-    fn weapon_shape(&self, character: i32) -> u8 {
+    /// The five items a member fights with: what the field world carries
+    /// (`PLAYER.equip`), else the character's default set. -1 is an empty
+    /// slot.
+    fn slots(&self, fighter: &PartyFighter) -> Option<[i32; 5]> {
+        fighter
+            .equip
+            .or_else(|| self.default_slots(fighter.character))
+    }
+
+    fn default_slots(&self, character: i32) -> Option<[i32; 5]> {
         self.sets
             .get(&character)
             .and_then(|set| self.items.get(set))
+            .copied()
+    }
+
+    /// The weapon's `GraphicsId` (`WeaponShape`), 0 without one.
+    fn weapon_shape(&self, slots: Option<[i32; 5]>) -> u8 {
+        slots
             .and_then(|slots| self.shapes.get(&slots[0]))
             .copied()
             .unwrap_or(0)
     }
 
-    /// The character's default weapon and summed armor defences.
-    fn outfit(&self, character: i32) -> (Option<WeaponStats>, [i32; 4]) {
-        let Some(slots) = self
-            .sets
-            .get(&character)
-            .and_then(|set| self.items.get(set))
-        else {
+    /// The equipped weapon (with its element and added status set,
+    /// `BattleUnit.cs:225-229`) and summed armor defences, capped at 255
+    /// (`FF9PLAY_DEFPARAM_VAL_MAX`, `ff9play.FF9Play_Update`).
+    fn outfit(&self, slots: Option<[i32; 5]>) -> (Option<WeaponStats>, [i32; 4]) {
+        let Some(slots) = slots else {
             return (None, [0; 4]);
         };
-        let weapon = self.weapons.get(&slots[0]).copied();
+        let weapon = self.weapons.get(&slots[0]).map(|stats| {
+            let mut stats = *stats;
+            stats.status = self
+                .weapon_status_index
+                .get(&slots[0])
+                .and_then(|index| self.status_sets.get(index))
+                .copied()
+                .unwrap_or(0);
+            stats
+        });
         let mut defence = [0; 4];
         for &item in &slots[1..] {
             if let Some(stats) = self.armors.get(&(item - ARMOR_BASE)) {
@@ -720,16 +782,34 @@ impl Equipment {
                 }
             }
         }
+        for value in &mut defence {
+            *value = (*value).min(255);
+        }
         (weapon, defence)
     }
 
-    /// `itemData.ability` of every default-equipped item, slot order, and
-    /// the character's learnable table (`_FF9Abil_PaData[PresetId]`).
-    fn abilities(&self, character: i32) -> (Vec<i32>, Vec<PaEntry>) {
-        let equipped = self
-            .sets
-            .get(&character)
-            .and_then(|set| self.items.get(set))
+    /// `btl_eqp.InitEquipPrivilegeAttrib`: bonus, guard, absorb, half and
+    /// weak element sets, the union over the five items.
+    fn element_sets(&self, slots: Option<[i32; 5]>) -> [u8; 5] {
+        let mut total = [0_u8; 5];
+        for item in slots.iter().flatten() {
+            if let Some(sets) = self
+                .bonus_ids
+                .get(item)
+                .and_then(|bonus| self.bonus_elements.get(bonus))
+            {
+                for (sum, value) in total.iter_mut().zip(sets) {
+                    *sum |= value;
+                }
+            }
+        }
+        total
+    }
+
+    /// `itemData.ability` of every equipped item, slot order, and the
+    /// character's learnable table (`_FF9Abil_PaData[PresetId]`).
+    fn abilities(&self, character: i32, slots: Option<[i32; 5]>) -> (Vec<i32>, Vec<PaEntry>) {
+        let equipped = slots
             .map(|slots| {
                 slots
                     .iter()
@@ -750,16 +830,9 @@ impl Equipment {
 
     /// The equipment half of `ff9play.FF9Play_Update`: speed, strength,
     /// magic and spirit bonuses summed over the five equipped items.
-    fn stat_bonus(&self, character: i32) -> [i32; 4] {
+    fn stat_bonus(&self, slots: Option<[i32; 5]>) -> [i32; 4] {
         let mut total = [0; 4];
-        let Some(slots) = self
-            .sets
-            .get(&character)
-            .and_then(|set| self.items.get(set))
-        else {
-            return total;
-        };
-        for item in slots {
+        for item in slots.iter().flatten() {
             if let Some(stats) = self
                 .bonus_ids
                 .get(item)
@@ -1038,7 +1111,11 @@ impl FieldBattles {
         // Abilities each member's default gear gives (`AA:X` ids under 192).
         let gear: Vec<Vec<i32>> = party
             .iter()
-            .map(|fighter| self.equipment.abilities(fighter.character).0)
+            .map(|fighter| {
+                self.equipment
+                    .abilities(fighter.character, self.equipment.slots(fighter))
+                    .0
+            })
             .collect();
         let mut action_map = BTreeMap::from([
             (ids.attack.clone(), (cmd::ATTACK, ABILITY_ATTACK)),
@@ -1506,7 +1583,9 @@ fn player_menus(
         .filter_map(|(fighter, gear)| {
             // Only what the member can learn: gear lists every
             // character's abilities (`Abilities/<Preset>.csv`).
-            let learnable = equipment.abilities(fighter.character).1;
+            let learnable = equipment
+                .abilities(fighter.character, equipment.slots(fighter))
+                .1;
             let known: Vec<i32> = gear
                 .iter()
                 .copied()
@@ -2199,7 +2278,8 @@ impl LiveFight {
                 .zip(reward.shares)
                 .filter_map(|(fighter, share)| {
                     let ap = share.ap?;
-                    let (equipped, learnable) = equipment.abilities(fighter.character);
+                    let (equipped, learnable) =
+                        equipment.abilities(fighter.character, equipment.slots(fighter));
                     let goals = equipped
                         .into_iter()
                         .filter(|&ability| ability != 0)
@@ -2332,7 +2412,8 @@ pub fn save_party(report: &FightReport, world: &mut FieldWorld) {
 /// (alive) and still below the EXP cap. The field does not track EXP per
 /// level yet, so every line counts as under the cap.
 fn reward_member(fighter: &PartyFighter, hp: u32, mp: u32, equipment: &Equipment) -> PartyMember {
-    let (equipped_abilities, learnable) = equipment.abilities(fighter.character);
+    let (equipped_abilities, learnable) =
+        equipment.abilities(fighter.character, equipment.slots(fighter));
     let stats = fighter.base;
     let base = tantalus_legacy::battle::rewards::BaseStats {
         dex: stats.speed,
@@ -2460,12 +2541,13 @@ fn level_basis(base: &BaseStats, level: u8, equip: [i32; 4]) -> [u8; 4] {
 /// A party member at level 1: base stats, the field HP/MP and the default
 /// equipment (a power-12 short-range weapon when the tables have none).
 fn party_unit(slot: usize, fighter: &PartyFighter, equipment: &Equipment) -> BattleUnit {
-    let (weapon, defence) = equipment.outfit(fighter.character);
+    let slots = equipment.slots(fighter);
+    let (weapon, defence) = equipment.outfit(slots);
     let mut unit = BattleUnit::new(1 << slot, true);
     unit.character_id = fighter.character as u8;
     unit.serial_no = tantalus_legacy::battle::unit::default_serial_number(
         unit.character_id,
-        equipment.weapon_shape(fighter.character),
+        equipment.weapon_shape(slots),
         fighter.globals.scenario,
     )
     .unwrap_or(255);
@@ -2487,7 +2569,7 @@ fn party_unit(slot: usize, fighter: &PartyFighter, equipment: &Equipment) -> Bat
     unit.cur_mp = fighter.mp;
     unit.max_mp = fighter.max_mp;
     // `FF9Play_Update`: `elem = basis + equipment bonus`, capped at 99.
-    let bonus = equipment.stat_bonus(fighter.character);
+    let bonus = equipment.stat_bonus(slots);
     let basis = level_basis(&fighter.base, unit.level, bonus);
     let stat = |base: u8, add: i32| (i32::from(base) + add).clamp(0, 99) as u8;
     unit.dexterity = stat(basis[0], bonus[0]);
@@ -2505,7 +2587,47 @@ fn party_unit(slot: usize, fighter: &PartyFighter, equipment: &Equipment) -> Bat
         category: WeaponStats::SHORT_RANGE,
         status: 0,
     }));
+    // `btl_eqp.InitEquipPrivilegeAttrib`.
+    let [bonus_set, guard, absorb, half, weak] = equipment.element_sets(slots);
+    unit.bonus_elements = Elements(bonus_set);
+    unit.guard_elements = Elements(guard);
+    unit.absorb_elements = Elements(absorb);
+    unit.half_elements = Elements(half);
+    unit.weak_elements = Elements(weak);
+    apply_support_abilities(&mut unit, fighter.support);
     unit
+}
+
+/// `PLAYER.sa` into the unit: the enabled set (`ff9abil.GetEnabledSA`) and
+/// the status abilities `btl_abil.CheckStatusAbility` applies through the
+/// `StatusInit` features of `AbilityFeatures.txt`: Auto-Reflect/Float/
+/// Haste/Regen (permanent), Auto-Life (starting status), and the resist
+/// abilities (Body Temp, Insomniac, Antibody, Bright Eyes, Loudmouth,
+/// Jelly, Locomotion, Clear Headed).
+fn apply_support_abilities(unit: &mut BattleUnit, support: u64) {
+    use tantalus_legacy::battle::status as st;
+    for bit in 0..64_u8 {
+        if support & (1 << bit) == 0 {
+            continue;
+        }
+        unit.support_abilities.insert(bit);
+        match bit {
+            0 => unit.status_permanent |= st::REFLECT,
+            1 => unit.status_permanent |= st::FLOAT,
+            2 => unit.status_permanent |= st::HASTE,
+            3 => unit.status_permanent |= st::REGEN,
+            4 => unit.status_current |= st::AUTO_LIFE,
+            40 => unit.status_resist |= st::FREEZE | st::HEAT,
+            48 => unit.status_resist |= st::SLEEP,
+            49 => unit.status_resist |= st::POISON | st::VENOM,
+            50 => unit.status_resist |= st::BLIND,
+            51 => unit.status_resist |= st::SILENCE,
+            53 => unit.status_resist |= st::PETRIFY | st::GRADUAL_PETRIFY,
+            57 => unit.status_resist |= st::STOP,
+            58 => unit.status_resist |= st::CONFUSE,
+            _ => {}
+        }
+    }
 }
 
 #[cfg(test)]
@@ -2530,6 +2652,8 @@ mod tests {
             globals: PartyGlobals::default(),
             row: 1,
             trance: 0,
+            equip: None,
+            support: 0,
         }
     }
 
@@ -2562,8 +2686,11 @@ mod tests {
         equipment
             .bonuses
             .extend([(0, [0; 4]), (2, [0, 0, 0, 1]), (5, [1, 2, 0, 0])]);
-        assert_eq!(equipment.stat_bonus(0), [1, 2, 0, 1]);
-        assert_eq!(equipment.stat_bonus(3), [0; 4]);
+        assert_eq!(
+            equipment.stat_bonus(equipment.default_slots(0)),
+            [1, 2, 0, 1]
+        );
+        assert_eq!(equipment.stat_bonus(equipment.default_slots(3)), [0; 4]);
     }
 
     /// Reads the Memoria tables when `TANTALUS_MEMORIA` points at the
@@ -2620,6 +2747,90 @@ mod tests {
         }
     }
 
+    /// The world's equipment (not the default set) feeds stats, defence,
+    /// the weapon, element sets and enabled support abilities.
+    #[test]
+    fn party_unit_fights_in_the_worlds_gear() {
+        let mut equipment = Equipment::default();
+        equipment.sets.insert(0, 7);
+        equipment.items.insert(7, [1, -1, -1, -1, -1]);
+        equipment.weapons.insert(
+            1,
+            WeaponStats {
+                power: 12,
+                rate: 0,
+                elements: Elements::NONE,
+                category: 1,
+                status: 0,
+            },
+        );
+        equipment.weapons.insert(
+            2,
+            WeaponStats {
+                power: 40,
+                rate: 25,
+                elements: Elements(1),
+                category: 1,
+                status: 0,
+            },
+        );
+        equipment.weapon_status_index.insert(2, 5);
+        equipment.status_sets.insert(5, 1 << 16);
+        // Item 90 is armor row 2: defence 10, evade 3, magic defence 7,
+        // magic evade 4, bonus 9: strength +2, guard Fire, weak Ice.
+        equipment.armors.insert(2, [10, 3, 7, 4]);
+        equipment.bonus_ids.insert(90, 9);
+        equipment.bonuses.insert(9, [0, 2, 0, 0]);
+        equipment.bonus_elements.insert(9, [0, 1, 0, 0, 2]);
+        let default = party_unit(0, &zidane(), &equipment);
+        assert_eq!(default.weapon.map(|w| w.power), Some(12));
+        assert_eq!(default.physical_defence, 0);
+        let mut fighter = zidane();
+        fighter.equip = Some([2, 90, -1, -1, -1]);
+        fighter.support = (1 << 4) | (1 << 49);
+        let unit = party_unit(0, &fighter, &equipment);
+        let weapon = unit.weapon.expect("weapon");
+        assert_eq!(
+            (weapon.power, weapon.elements, weapon.status),
+            (40, Elements(1), 1 << 16)
+        );
+        assert_eq!(unit.strength, default.strength + 2);
+        assert_eq!(
+            (
+                unit.physical_defence,
+                unit.physical_evade,
+                unit.magic_defence,
+                unit.magic_evade
+            ),
+            (10, 3, 7, 4)
+        );
+        assert_eq!(
+            (unit.guard_elements, unit.weak_elements),
+            (Elements(1), Elements(2))
+        );
+        assert!(unit.has_support_ability(4) && unit.has_support_ability(49));
+        assert_ne!(
+            unit.status_current & tantalus_legacy::battle::status::AUTO_LIFE,
+            0
+        );
+        assert_ne!(
+            unit.status_resist & tantalus_legacy::battle::status::POISON,
+            0
+        );
+    }
+
+    #[test]
+    fn loadout_reads_the_worlds_equipment_and_support_abilities() {
+        let mut world = FieldWorld::new();
+        assert_eq!(PartyFighter::loadout(&world, 0), (None, 0));
+        world.equip(0, 0, Some(5));
+        world.equip(0, 3, Some(120));
+        world.support_enabled.insert(0, vec![192, 241]);
+        let (equip, support) = PartyFighter::loadout(&world, 0);
+        assert_eq!(equip, Some([5, -1, -1, 120, -1]));
+        assert_eq!(support, 1 | 1 << 49);
+    }
+
     #[test]
     fn stat_bonus_reads_memoria_tables_when_present() {
         let Some(root) = std::env::var_os("TANTALUS_MEMORIA") else {
@@ -2631,10 +2842,13 @@ mod tests {
         assert!(!equipment.bonus_ids.is_empty());
         // Beatrix's default set carries stat bonuses; Zidane's starting gear
         // carries none.
-        assert_eq!(equipment.stat_bonus(11), [1, 2, 3, 8]);
-        assert_eq!(equipment.stat_bonus(0), [0; 4]);
+        assert_eq!(
+            equipment.stat_bonus(equipment.default_slots(11)),
+            [1, 2, 3, 8]
+        );
+        assert_eq!(equipment.stat_bonus(equipment.default_slots(0)), [0; 4]);
         // Zidane starts with a Dagger (Flee, 40 AP to learn).
-        let (equipped, learnable) = equipment.abilities(0);
+        let (equipped, learnable) = equipment.abilities(0, equipment.default_slots(0));
         assert!(equipped.contains(&101), "{equipped:?}");
         assert!(learnable.contains(&PaEntry {
             id: 101,

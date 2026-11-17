@@ -494,6 +494,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
                         globals: fight_globals,
                         row: 1,
                         trance: 0,
+                        equip: None,
+                        support: 0,
                     })
                 })
                 .collect();
@@ -1828,6 +1830,14 @@ fn chain(
                                         ),
                                     row: u8::from(!world.back_row.contains(character)),
                                     trance: world.trance.get(character).copied().unwrap_or(0),
+                                    equip: tantalus_tools::field_battle::PartyFighter::loadout(
+                                        world, *character,
+                                    )
+                                    .0,
+                                    support: tantalus_tools::field_battle::PartyFighter::loadout(
+                                        world, *character,
+                                    )
+                                    .1,
                                 })
                             })
                             .collect();

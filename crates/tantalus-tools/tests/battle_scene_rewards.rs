@@ -976,6 +976,8 @@ fn chain_and_handoff_paths_agree_on_the_same_scene() {
                 globals: Default::default(),
                 row: 1,
                 trance: 0,
+                equip: None,
+                support: 0,
             }],
         );
         assert_eq!(report.error, None, "seed {seed}: chain path ran clean");
