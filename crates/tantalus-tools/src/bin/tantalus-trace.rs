@@ -39,7 +39,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--wall-regions MAP,...] [--gil N] [--settle TICKS] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--wall-regions MAP,...] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -82,6 +82,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut waypoint_dwell_ticks: u64 = WAYPOINT_DWELL;
     let mut waypoint_objects: BTreeSet<(i32, i32)> = BTreeSet::new();
     let mut settle_ticks: u64 = CONTROL_SETTLE;
+    let mut talk_grace: u64 = 0;
     let mut fight_battle: Option<i32> = None;
     let mut fight_party: Vec<i32> = vec![0];
     let mut fight_globals = tantalus_tools::field_battle::PartyGlobals::default();
@@ -290,6 +291,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 }
             }
             "--settle" => settle_ticks = parse_number(&value()?, "--settle")?,
+            "--talk-grace" => talk_grace = parse_number(&value()?, "--talk-grace")?,
             "--waypoint-objects" => {
                 for part in value()?.split(',') {
                     let parsed = part
@@ -588,6 +590,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     waypoint_dwell_ticks,
                     waypoint_objects,
                     settle_ticks,
+                    talk_grace,
                     backgrounds,
                     waypoints,
                     save_at,
@@ -1153,6 +1156,10 @@ struct ChainOptions {
     /// Ticks of continuous control before the explorer acts (`--settle`);
     /// Hot and Cold gives control for about 24 ticks per dig.
     settle_ticks: u64,
+    /// Ticks the explorer waits after a talk before it acts again
+    /// (`--talk-grace`): a talk that starts a scene (Fossil Roo's gargant
+    /// ride) takes control a tick or two later. 0 keeps the old behavior.
+    talk_grace: u64,
     /// `EventEngineUtils.eventIDToFBGID`: field map number to background
     /// name, whose `<name>.bgi` walkmesh backs `BGI` triangle queries.
     backgrounds: BTreeMap<i32, String>,
@@ -1260,6 +1267,7 @@ fn chain(
         waypoint_dwell_ticks,
         waypoint_objects,
         settle_ticks,
+        talk_grace,
         backgrounds,
         waypoints,
         save_at,
@@ -1573,6 +1581,7 @@ fn chain(
         let mut exit_runs: BTreeMap<usize, (u32, usize)> = BTreeMap::new();
         let mut waypoint_index = 0usize;
         let mut waypoint_dwell = 0u64;
+        let mut last_talk_press: Option<u64> = None;
         let mut talk_scenario = scenario_at_start;
         let skipped: BTreeSet<usize> = skip_talk
             .iter()
@@ -2027,6 +2036,8 @@ fn chain(
                 // ticks while they start. Act only once control has held
                 // for CONTROL_SETTLE ticks.
                 let settled = world.user_control
+                    && last_talk_press
+                        .is_none_or(|tick| ticks_run.saturating_sub(tick) >= talk_grace)
                     && control_changes
                         .last()
                         .is_none_or(|(tick, _, _)| ticks_run.saturating_sub(*tick) >= settle_ticks);
@@ -2305,6 +2316,9 @@ fn chain(
                                     waypoint_dwell = 0;
                                     waypoint_index += 1;
                                 }
+                            }
+                            if talking {
+                                last_talk_press = Some(ticks_run);
                             }
                             if let (true, Some(entry)) = (talking, talk_target) {
                                 let dwell = talk_dwell.entry(entry).or_insert(0);
