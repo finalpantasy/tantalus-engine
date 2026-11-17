@@ -12,7 +12,7 @@ fn main() -> ExitCode {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--load SLOT|menu] [--save-dir DIR] [--scale N] [--mute]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] [--party 0,1,2,3] [--hurt 1] [--give 2,3] [--presentation BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE]] [--audio-log] [--audio-wav FILE] --output <png> [--size WxH]
+            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--load SLOT|menu] [--save-dir DIR] [--scale N] [--mute]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] [--party 0,1,2,3] [--hurt 1] [--give 2,3] [--presentation BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE[:ATE]]] [--audio-log] [--audio-wav FILE] --output <png> [--size WxH]
 tantalus-client capture-battle <play flags> --battles <tsv> [--ticks N] [--hold ...] [--auto-confirm N] [--battle N] [--at SECONDS,...] [--camera N] [--window-frame <png>] [--live 1] --output <png> [--size WxH]"
         );
         return ExitCode::SUCCESS;
@@ -668,7 +668,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     }
     audio.finish()?;
     if let Some(spec) = values.get("--presentation") {
-        // BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE], a test aid; a negative bubble or fade mode is off.
+        // BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE[:ATE]], a test aid; a negative bubble or fade mode is off.
         let numbers: Vec<i32> = spec
             .split(':')
             .filter_map(|part| part.parse().ok())
@@ -679,9 +679,12 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                 here,
                 (mode >= 0).then_some((mode, [c, m, y])),
                 rest.first().copied(),
+                rest.get(1).copied(),
             );
         } else {
-            return Err("bad --presentation, want BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE]".to_owned());
+            return Err(
+                "bad --presentation, want BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE[:ATE]]".to_owned(),
+            );
         }
     }
     if let Some(play) = game.world_play.as_ref() {
@@ -776,8 +779,10 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
             tantalus_client::presentation_view::sync_presentation(
                 world,
                 game.world(),
+                game.game_data(),
                 &field.scene.camera,
                 &frame,
+                game.ticks,
             );
             tantalus_client::menu_view::sync_menu(world, &game);
         },
@@ -789,7 +794,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         .and_then(|player| game.world().actors.get(&player))
         .map(|actor| actor.position);
     Ok(format!(
-        "saved field {} ({}) after {} ticks with {} actors ({} as models), player at {player:?}, bubble {:?} here {} fade {:?}, to {}",
+        "saved field {} ({}) after {} ticks with {} actors ({} as models), player at {player:?}, bubble {:?} here {} fade {:?}, {} attached, to {}",
         game.map().unwrap_or(-1),
         game.field_name().unwrap_or("-"),
         game.ticks,
@@ -798,6 +803,11 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         game.world().bubble_icon,
         game.world().here_icon,
         game.world().fade_filter,
+        game.world()
+            .attachments
+            .values()
+            .filter(|held| held.carrier.is_some())
+            .count(),
         output.display()
     ))
 }

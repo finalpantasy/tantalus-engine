@@ -23,6 +23,8 @@ pub struct TrackFrame {
     pub actors: Vec<(u64, [f32; 3])>,
     /// Model, animation and facing per actor; empty for recorded tracks.
     pub poses: BTreeMap<u64, ActorPose>,
+    /// Actors carried by another's bone: `(carried, carrier, bone, offset)`.
+    pub attachments: Vec<(u64, u64, i32, [i32; 3])>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,6 +76,7 @@ impl ActorTrack {
                 player: value["player"].as_u64(),
                 actors,
                 poses: BTreeMap::new(),
+                attachments: Vec::new(),
             });
         }
         Ok(Self { map, field, frames })
@@ -128,23 +131,52 @@ pub fn spawn_frame_markers(
     // The software rasterizer is the frame's cost: each actor's body and
     // shadow rasters are independent, so they run on their own threads.
     let mut rasters: BTreeMap<u64, (Option<Raster>, Option<Raster>)> = BTreeMap::new();
+    // Carried actors are drawn on their carrier's bone, not where they stand.
+    let carried_ids: BTreeSet<u64> = frame
+        .attachments
+        .iter()
+        .filter(|(_, carrier, _, _)| {
+            frame
+                .poses
+                .get(carrier)
+                .is_some_and(|pose| pose.model.is_some())
+        })
+        .map(|(carried, ..)| *carried)
+        .collect();
     if let Some(models) = models {
-        let jobs: Vec<(u64, [f32; 3], &ActorPose)> = frame
+        let jobs: Vec<(
+            u64,
+            [f32; 3],
+            &ActorPose,
+            Vec<crate::actor_models::CarriedPose>,
+        )> = frame
             .actors
             .iter()
-            .filter(|(id, _)| placed.contains(id))
+            .filter(|(id, _)| placed.contains(id) && !carried_ids.contains(id))
             .filter_map(|(id, position)| {
                 let pose = frame.poses.get(id)?;
-                (pose.model.is_some() && pose.visible).then_some((*id, *position, pose))
+                let carried = frame
+                    .attachments
+                    .iter()
+                    .filter(|(_, carrier, _, _)| carrier == id)
+                    .filter_map(|(carried, _, bone, offset)| {
+                        Some(crate::actor_models::CarriedPose {
+                            pose: *frame.poses.get(carried)?,
+                            bone: *bone,
+                            offset: *offset,
+                        })
+                    })
+                    .collect();
+                (pose.model.is_some() && pose.visible).then_some((*id, *position, pose, carried))
             })
             .collect();
         std::thread::scope(|scope| {
             let handles: Vec<_> = jobs
                 .iter()
-                .map(|(id, position, pose)| {
+                .map(|(id, position, pose, carried)| {
                     let (id, position, pose) = (*id, *position, *pose);
                     scope.spawn(move || {
-                        let body = models.render(camera, position, pose);
+                        let body = models.render_carrying(camera, position, pose, carried);
                         let shadow = body
                             .as_ref()
                             .and_then(|_| models.render_shadow(camera, position, pose));
@@ -160,7 +192,7 @@ pub fn spawn_frame_markers(
         });
     }
     for (id, position) in &frame.actors {
-        if !placed.contains(id) {
+        if !placed.contains(id) || carried_ids.contains(id) {
             continue;
         }
         if frame

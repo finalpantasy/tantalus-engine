@@ -931,18 +931,22 @@ impl PlayGame {
         here: i32,
         fade: Option<(i32, [i32; 3])>,
         player_scale: Option<i32>,
+        ate_mode: Option<i32>,
     ) {
         let world = self.world_mut_any();
+        world.ate_icon_mode = ate_mode.unwrap_or(0);
         if let (Some(scale), Some(player)) = (player_scale, world.player()) {
             world.actor_presentation.entry(player).or_default().scale = [scale; 3];
         }
         world.bubble_icon = bubble;
         world.here_icon = here;
+        world.here_icon_timer = if here != 0 { 30 } else { 0 };
         world.fade_filter = fade.map(|(mode, color)| tantalus_game::field::world::FadeFilter {
             mode,
             frames: 16,
             color,
             elapsed: 16,
+            from: [0; 3],
         });
     }
 

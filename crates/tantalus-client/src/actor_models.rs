@@ -17,7 +17,8 @@ use std::path::{Path, PathBuf};
 use tantalus_assets::pc::field_models::{model_dirs, resolve_animation};
 use tantalus_assets::pc::map_config::MapConfig;
 use tantalus_assets::pc::model_assembly::pose::{
-    Interpolation, bind_clip, rest_pose, sample_clip, skin_model,
+    Interpolation, NodePose, bind_clip, rest_pose, sample_clip, skin_model, transform_point,
+    world_matrices,
 };
 use tantalus_assets::pc::model_assembly::{
     AssembleOptions, AssembledModel, ModelCatalog, SerializedStore, assemble_model, clip_entries,
@@ -531,11 +532,15 @@ impl ActorModels {
         position: [f32; 3],
         pose: &ActorPose,
     ) -> Option<Raster> {
-        let model = self.models.get(&pose.model?)?.as_ref()?;
+        self.render_carrying(camera, position, pose, &[])
+    }
+
+    /// The node poses of `pose`'s model: the clip at its time, or the rest pose.
+    fn node_poses(&self, model: &AssembledModel, pose: &ActorPose) -> Vec<NodePose> {
         let clip = pose
             .animation
             .and_then(|animation| self.clips.get(&animation)?.as_ref());
-        let poses = match clip {
+        match clip {
             Some(clip) => {
                 let length = clip_length(clip);
                 let time = if length > 0.0 {
@@ -552,11 +557,22 @@ impl ActorModels {
                 )
             }
             None => rest_pose(model),
-        };
-        let skinned = skin_model(model, &poses);
+        }
+    }
+
+    /// Projects every shown triangle of `pose`'s model. `place` carries a skinned vertex
+    /// (model space) to the field.
+    fn collect_triangles<'a>(
+        &'a self,
+        camera: &LegacyFieldCamera,
+        model: &'a AssembledModel,
+        pose: &ActorPose,
+        skinned: &[Vec<[f32; 3]>],
+        place: &dyn Fn([f32; 3]) -> [f32; 3],
+        triangles: &mut Vec<([ScreenVertex; 3], Option<Texels<'a>>)>,
+    ) {
         let tint = self.light(pose).tint;
-        let mut triangles = Vec::new();
-        for (part, vertices) in model.parts.iter().zip(&skinned) {
+        for (part, vertices) in model.parts.iter().zip(skinned) {
             if under_battle_model(model, part.node)
                 || mesh_index(model, part.node)
                     .is_some_and(|mesh| mesh < 32 && pose.hidden_meshes & (1 << mesh) != 0)
@@ -575,8 +591,7 @@ impl ActorModels {
                             vertex[2] * scale[2],
                         ]
                     });
-                    let field = place_vertex(vertex, pose.facing, position);
-                    let (xy, depth) = project_field_point_depth(camera, field)?;
+                    let (xy, depth) = project_field_point_depth(camera, place(vertex))?;
                     Some(ScreenVertex {
                         xy,
                         depth,
@@ -621,8 +636,73 @@ impl ActorModels {
                 }
             }
         }
+    }
+
+    /// [`Self::render`] with the objects other scripts attached (`AttachObject`) to its bones
+    /// drawn with it: each rides its carrier's `bone<NNN>` node, moved by the attach offset
+    /// (`geo.geoAttach`, `FieldMapActor.GeoAttach`).
+    pub fn render_carrying(
+        &self,
+        camera: &LegacyFieldCamera,
+        position: [f32; 3],
+        pose: &ActorPose,
+        carried: &[CarriedPose],
+    ) -> Option<Raster> {
+        let model = self.models.get(&pose.model?)?.as_ref()?;
+        let poses = self.node_poses(model, pose);
+        let skinned = skin_model(model, &poses);
+        let own = |vertex: [f32; 3]| place_vertex(vertex, pose.facing, position);
+        let mut triangles = Vec::new();
+        self.collect_triangles(camera, model, pose, &skinned, &own, &mut triangles);
+        if !carried.is_empty() {
+            let world = world_matrices(&model.nodes, &poses);
+            for item in carried {
+                let Some(carried_model) = item
+                    .pose
+                    .model
+                    .and_then(|id| self.models.get(&id)?.as_ref())
+                else {
+                    continue;
+                };
+                let name = format!("bone{:03}", item.bone);
+                let Some(bone) = model.nodes.iter().position(|node| node.name == name) else {
+                    continue;
+                };
+                let bone_world = world[bone];
+                // `GeoAttachOffset` stores the script offset negated, in the bone's space.
+                let offset = item.offset.map(|value| -(value as f32));
+                let carried_poses = self.node_poses(carried_model, &item.pose);
+                let carried_skinned = skin_model(carried_model, &carried_poses);
+                let on_bone = |vertex: [f32; 3]| {
+                    let local = [
+                        vertex[0] + offset[0],
+                        vertex[1] + offset[1],
+                        vertex[2] + offset[2],
+                    ];
+                    own(transform_point(&bone_world, local))
+                };
+                self.collect_triangles(
+                    camera,
+                    carried_model,
+                    &item.pose,
+                    &carried_skinned,
+                    &on_bone,
+                    &mut triangles,
+                );
+            }
+        }
         rasterize(&triangles)
     }
+}
+
+/// An actor drawn on another's bone.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CarriedPose {
+    pub pose: ActorPose,
+    /// The carrier's bone index (`bone<NNN>`).
+    pub bone: i32,
+    /// `AttachObjectOffset` x, y, z.
+    pub offset: [i32; 3],
 }
 
 /// `ModelFactory.CreateModel` disables every renderer under the

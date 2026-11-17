@@ -208,6 +208,8 @@ pub struct ActorPresentation {
     pub animation_speed: u8,
     /// `SetAnimationLoopCount` (`ALOOP`).
     pub animation_loop_count: u8,
+    /// `SetActorModel` eye height (`PosObj.eye`, already scaled by -4).
+    pub eye: i16,
 }
 
 impl Default for ActorPresentation {
@@ -225,6 +227,7 @@ impl Default for ActorPresentation {
             inactive_animation: None,
             animation_speed: 16,
             animation_loop_count: 0,
+            eye: 0,
         }
     }
 }
@@ -235,13 +238,33 @@ pub struct FadeFilter {
     pub mode: i32,
     /// Ticks the fade takes; 0 applies at once.
     pub frames: i32,
-    /// Color offset per channel.
+    /// Target color offset per channel.
     pub color: [i32; 3],
     /// Ticks since the fade started.
     pub elapsed: i32,
+    /// The offset this mode had when the fade started (`SceneDirector._prevColor`).
+    pub from: [i32; 3],
 }
 
 impl FadeFilter {
+    /// The offset per channel now: `ServiceFade` lerps `_prevColor` to the target color over
+    /// the fade's frames (`Color32.Lerp`).
+    pub fn color_now(&self) -> [i32; 3] {
+        if self.frames <= 0 || self.elapsed >= self.frames {
+            return self.color;
+        }
+        let t = self.elapsed.max(0) as f32 / self.frames as f32;
+        std::array::from_fn(|i| {
+            (self.from[i] as f32 + (self.color[i] - self.from[i]) as f32 * t).round() as i32
+        })
+    }
+
+    /// Index of this filter's blend: 0 adds the color to the screen, 1 subtracts it
+    /// (`FadeMode.Add` / `FadeMode.Sub`).
+    pub fn slot(&self) -> usize {
+        usize::from(self.mode & 2 != 0)
+    }
+
     /// How far the fade has gone, 0 to 256.
     pub fn progress(&self) -> i32 {
         if self.frames <= 0 {
@@ -800,6 +823,17 @@ pub struct FieldWorld {
     /// `SetHereIcon` mode: whether the "you are here" icon shows (runtime-only).
     #[serde(skip)]
     pub here_icon: i32,
+    /// `EIcon.sHereIconTimer`: ticks the here icon still has; it shows from 57 down to 1
+    /// (runtime-only).
+    #[serde(skip)]
+    pub here_icon_timer: i32,
+    /// `SetActiveTimeEventIcon` (`EIcon.sAIconMode`): the ATE prompt's mode (runtime-only).
+    #[serde(skip)]
+    pub ate_icon_mode: i32,
+    /// The fade offset each mode has now, `[add, subtract]` (`SceneDirector.abrColor`)
+    /// (runtime-only).
+    #[serde(skip)]
+    pub fade_current: [[i32; 3]; 2],
     /// `SetTileShadeColor`: the tint of each background overlay, by overlay (runtime-only).
     #[serde(skip)]
     pub tile_shade: BTreeMap<i32, [u8; 3]>,
@@ -1002,6 +1036,9 @@ impl FieldWorld {
             attachments: BTreeMap::new(),
             idle_disabled: false,
             here_icon: 0,
+            here_icon_timer: 0,
+            ate_icon_mode: 0,
+            fade_current: [[0; 3]; 2],
             tile_shade: BTreeMap::new(),
             fade_filter: None,
             level_growth: None,
@@ -1077,6 +1114,9 @@ impl FieldWorld {
         self.attachments.clear();
         self.bubble_icon = None;
         self.here_icon = 0;
+        self.here_icon_timer = 0;
+        self.ate_icon_mode = 0;
+        self.fade_current = [[0; 3]; 2];
         self.tile_shade.clear();
         self.fade_filter = None;
         self.regions.clear();
@@ -1443,7 +1483,9 @@ impl FieldWorld {
     pub fn advance_animations(&mut self) {
         if let Some(fade) = self.fade_filter.as_mut() {
             fade.elapsed = fade.elapsed.saturating_add(1);
+            self.fade_current[fade.slot()] = fade.color_now();
         }
+        self.here_icon_timer = (self.here_icon_timer - 1).max(0);
         for state in self.actors.values_mut() {
             if state.anim_frozen {
                 // `ProcessAnime` does nothing while `afFreeze` is set.

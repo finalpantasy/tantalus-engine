@@ -591,16 +591,16 @@ fn attachments_follow_attach_offset_and_detach() {
     apply_events(
         &mut world,
         &[
+            HostEvent::AttachObjectOffset {
+                actor: actor(1),
+                x: 1,
+                y: 2,
+                z: 3,
+            },
             HostEvent::AttachObject {
                 attached: actor(2),
                 carrying: actor(1),
                 bone: 13,
-            },
-            HostEvent::AttachObjectOffset {
-                actor: actor(2),
-                x: 1,
-                y: 2,
-                z: 3,
             },
         ],
     );
@@ -614,4 +614,25 @@ fn attachments_follow_attach_offset_and_detach() {
         &[HostEvent::DetachObject { attached: actor(2) }],
     );
     assert_eq!(world.attachments[&actor(2)].carrier, None);
+}
+
+#[test]
+fn quina_walks_slower_in_the_marsh() {
+    use tantalus_legacy::HostEvent;
+    let set = |map: i32, who: u64| {
+        let mut world = FieldWorld::new();
+        world.field_map_no = map;
+        world.add_actor(actor(who), [0.0; 3]);
+        apply_events(
+            &mut world,
+            &[HostEvent::SetMovementSpeed {
+                actor: actor(who),
+                speed: 30,
+            }],
+        );
+        world.actors[&actor(who)].move_speed
+    };
+    assert_eq!(set(658, 18), 25);
+    assert_eq!(set(658, 5), 30);
+    assert_eq!(set(659, 18), 30);
 }

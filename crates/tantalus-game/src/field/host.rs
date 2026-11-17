@@ -270,7 +270,17 @@ impl FieldHost<'_> {
                     .head_focus_flags = flags;
             }
             HostEvent::ShowBubbleIcon { icon } => self.world.bubble_icon = Some(icon),
-            HostEvent::SetHereIcon { mode } => self.world.here_icon = mode,
+            HostEvent::SetHereIcon { mode } => {
+                self.world.here_icon = mode;
+                // `EIcon.SetHereIcon`: no importance cancels the icon; above 2 it always
+                // starts the 60 tick timer, otherwise only while the player has control.
+                if mode <= 0 {
+                    self.world.here_icon_timer = 0;
+                } else if mode > 2 || (self.world.user_control && mode == 2) {
+                    self.world.here_icon_timer = 60;
+                }
+            }
+            HostEvent::SetActiveTimeEventIcon { mode } => self.world.ate_icon_mode = mode,
             HostEvent::SetTileShadeColor { overlay, color } => {
                 self.world.tile_shade.insert(overlay, color);
             }
@@ -281,11 +291,13 @@ impl FieldHost<'_> {
                 magenta,
                 yellow,
             } => {
+                let slot = usize::from(mode & 2 != 0);
                 self.world.fade_filter = Some(super::world::FadeFilter {
                     mode,
                     frames: frame,
                     color: [cyan, magenta, yellow],
                     elapsed: 0,
+                    from: self.world.fade_current[slot],
                 });
             }
             HostEvent::SetModelLight {
@@ -529,6 +541,9 @@ impl FieldHost<'_> {
         };
         if let Some(state) = self.world.actors.get_mut(&actor) {
             apply(state);
+        }
+        if let HostEvent::SetActorModel { eye_height, .. } = event {
+            self.world.actor_presentation.entry(actor).or_default().eye = *eye_height;
         }
         if matches!(event, HostEvent::SetActorModel { .. })
             && self
@@ -823,8 +838,18 @@ impl LegacyEventHost for FieldHost<'_> {
                     });
                 }
                 HostEvent::SetMovementSpeed { actor, speed } => {
-                    // `MSPEED` (DoEventCode.cs:886): `actor.speed = walkSpeed`.
-                    self.actor_mut(*actor, "movement speed")?.move_speed = *speed;
+                    // `MSPEED` (DoEventCode.cs:886): `actor.speed = walkSpeed`. Memoria's fix
+                    // for Quina in Qu's Marsh/Pond (map 658, object 18): a speed of 30 becomes
+                    // 25 so Quina keeps pace with the scene (approved-differences
+                    // `memoria-quina-658-walk-speed`; Memoria limits it to one script
+                    // position, here it covers every speed-30 call of that object).
+                    let speed =
+                        if self.world.field_map_no == 658 && actor.get() == 18 && *speed == 30 {
+                            25
+                        } else {
+                            *speed
+                        };
+                    self.actor_mut(*actor, "movement speed")?.move_speed = speed;
                 }
                 HostEvent::ResetWalkState { .. } => {
                     // `CLRDIST` (EventEngine.clrdist) resets the reference's walk-distance
@@ -944,9 +969,17 @@ impl LegacyEventHost for FieldHost<'_> {
                     if self.world.actors.contains_key(&attached)
                         && self.world.actors.contains_key(&carrying)
                     {
+                        // `GeoAttach` copies the carrier's `AttachObjectOffset` (the script
+                        // sets it on the carrier before attaching).
+                        let offset = self
+                            .world
+                            .attachments
+                            .get(&carrying)
+                            .map_or([0; 3], |held| held.offset);
                         let entry = self.world.attachments.entry(attached).or_default();
                         entry.carrier = Some(carrying);
                         entry.bone = *bone;
+                        entry.offset = offset;
                     }
                 }
                 HostEvent::DetachObject { attached } => {
@@ -957,7 +990,8 @@ impl LegacyEventHost for FieldHost<'_> {
                     }
                 }
                 HostEvent::AttachObjectOffset { actor, x, y, z } => {
-                    // `ATTACHOFFSET` (0xD4): `geoAttachOffset` on the current object.
+                    // `ATTACHOFFSET` (0xD4): `geoAttachOffset` on the current object, the one
+                    // a later `AttachObject` takes the offset from.
                     self.world.attachments.entry(*actor).or_default().offset = [*x, *y, *z];
                 }
                 HostEvent::SetActorFacing { actor, angle } => {

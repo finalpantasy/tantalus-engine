@@ -921,6 +921,57 @@ pub fn load_atlas(
     Ok((atlas, header.width as u32, header.height as u32, rgba))
 }
 
+/// One atlas sprite cut out of its texture: RGBA8, top row first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpriteImage {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+}
+
+/// Cuts the sprites `names` out of the atlas `atlas_name` of `path`
+/// (`UISpriteData` rectangles index the decoded texture top-first). A name the atlas
+/// lacks is an error.
+pub fn load_sprites(
+    path: &Path,
+    atlas_name: &str,
+    names: &[&str],
+) -> Result<BTreeMap<String, SpriteImage>, ImportError> {
+    let (atlas, width, height, rgba) = load_atlas(path, atlas_name)?;
+    let mut sprites = BTreeMap::new();
+    for name in names {
+        let sprite = atlas
+            .sprites
+            .iter()
+            .find(|sprite| sprite.name == *name)
+            .ok_or_else(|| {
+                ImportError::invalid(
+                    path.display(),
+                    format!("{atlas_name} has no sprite `{name}`"),
+                )
+            })?;
+        let (w, h) = (sprite.width.max(0) as usize, sprite.height.max(0) as usize);
+        let mut cut = Vec::with_capacity(w * h * 4);
+        for row in 0..h {
+            for column in 0..w {
+                let x = (sprite.x as usize + column).min(width as usize - 1);
+                let y = (sprite.y as usize + row).min(height as usize - 1);
+                let at = (y * width as usize + x) * 4;
+                cut.extend_from_slice(&rgba[at..at + 4]);
+            }
+        }
+        sprites.insert(
+            (*name).to_owned(),
+            SpriteImage {
+                width: w as u32,
+                height: h as u32,
+                rgba: cut,
+            },
+        );
+    }
+    Ok(sprites)
+}
+
 /// The leading Texture2D fields (enough to size and classify it).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextureHeader {

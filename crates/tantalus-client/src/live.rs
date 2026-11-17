@@ -143,6 +143,13 @@ pub fn world_frame(world: &FieldWorld, tick: u64) -> (TrackFrame, BTreeSet<u64>)
         player: world.player().map(|player| player.get()),
         actors,
         poses,
+        attachments: world
+            .attachments
+            .iter()
+            .filter_map(|(carried, held)| {
+                Some((carried.get(), held.carrier?.get(), held.bone, held.offset))
+            })
+            .collect(),
     };
     (frame, placed)
 }
@@ -618,7 +625,14 @@ fn live_tick(world: &mut World) {
             motion.place_sprites(world, scene);
         }
         crate::dialog_view::sync_dialogs(world, &game, &scene.camera, &frame);
-        crate::presentation_view::sync_presentation(world, game.world(), &scene.camera, &frame);
+        crate::presentation_view::sync_presentation(
+            world,
+            game.world(),
+            game.game_data(),
+            &scene.camera,
+            &frame,
+            game.ticks,
+        );
         crate::menu_view::sync_menu(world, &game);
     }
     let mut title = format!(

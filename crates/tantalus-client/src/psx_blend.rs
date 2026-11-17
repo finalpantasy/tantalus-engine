@@ -22,7 +22,9 @@ pub struct PsxBlendPlugin;
 impl Plugin for PsxBlendPlugin {
     fn build(&self, app: &mut App) {
         embedded_asset!(app, "shaders/psx_blend.wgsl");
+        embedded_asset!(app, "shaders/fade_blend.wgsl");
         app.add_plugins(Material2dPlugin::<PsxBlendMaterial>::default());
+        app.add_plugins(Material2dPlugin::<FadeBlendMaterial>::default());
     }
 }
 
@@ -115,6 +117,50 @@ impl Material2d for PsxBlendMaterial {
     }
 
     // Sorted with the sprites by z in the transparent phase.
+    fn alpha_mode(&self) -> AlphaMode2d {
+        AlphaMode2d::Blend
+    }
+
+    fn specialize(
+        descriptor: &mut RenderPipelineDescriptor,
+        _layout: &MeshVertexBufferLayoutRef,
+        key: Material2dKey<Self>,
+    ) -> Result<(), SpecializedMeshPipelineError> {
+        if let Some(fragment) = descriptor.fragment.as_mut() {
+            for target in fragment.targets.iter_mut().flatten() {
+                target.blend = Some(blend_state(key.bind_group_data.mode));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The script fade filter as a full-screen quad: its color is added to (mode 0) or
+/// subtracted from (mode 2) what is already drawn, per channel.
+#[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
+#[bind_group_data(PsxBlendKey)]
+pub struct FadeBlendMaterial {
+    #[uniform(0)]
+    pub color: Vec4,
+    pub mode: u8,
+}
+
+impl From<&FadeBlendMaterial> for PsxBlendKey {
+    fn from(material: &FadeBlendMaterial) -> Self {
+        Self {
+            mode: material.mode,
+        }
+    }
+}
+
+impl Material2d for FadeBlendMaterial {
+    fn fragment_shader() -> ShaderRef {
+        ShaderRef::Path(
+            AssetPath::from_path_buf(embedded_path!("shaders/fade_blend.wgsl"))
+                .with_source("embedded"),
+        )
+    }
+
     fn alpha_mode(&self) -> AlphaMode2d {
         AlphaMode2d::Blend
     }
