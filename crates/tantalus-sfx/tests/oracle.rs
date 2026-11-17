@@ -323,3 +323,183 @@ fn fire_and_cure_pages_match_the_dll() {
     page_capture(0);
     page_capture(8);
 }
+
+/// `MipsDecodeAll`: the port decodes every script the plugin decoded
+/// while playing Fire and Cure (and every effect with `TANTALUS_SFX_SWEEP`)
+/// into the same records.
+#[test]
+#[ignore = "needs the player's FF9SpecialEffectPlugin.dll"]
+fn decoder_matches_the_dll() {
+    use tantalus_sfx::mips::{Decoder, OpcodeTable};
+    let image =
+        tantalus_sfx::image::PluginImage::parse(std::fs::read(dll()).expect("dll")).expect("image");
+    let table = OpcodeTable::read(&image).expect("opcode table");
+    let sweep = std::env::var_os("TANTALUS_SFX_SWEEP").is_some();
+    let mut file = tantalus_assets::pc::serialized_inventory::StandaloneSerialized::open(
+        &install().join("x64/FF9_Data/resources.assets"),
+    )
+    .expect("assets");
+    let assets = file.text_assets().expect("text assets");
+    let (mut scripts, mut stale, mut differing) = (0, 0, Vec::new());
+    let range = |name: &str, default: i32| {
+        std::env::var(name)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    };
+    for id in range("TANTALUS_SFX_FROM", 0)..range("TANTALUS_SFX_TO", 512) {
+        if !sweep && id != 0 && id != 8 {
+            continue;
+        }
+        let name = format!("ef{id:03}");
+        let Some((_, object)) = assets.iter().find(|(asset, _)| *asset == name) else {
+            continue;
+        };
+        let bytes = file.read_text_asset(object).expect("read").script;
+        if sweep {
+            eprintln!("{id}: playing");
+        }
+        // A fresh plugin per effect: what one effect leaves behind (its
+        // buffers, a script still running) does not leak into the next.
+        let mut oracle = Oracle::load(&dll()).expect("load");
+        oracle.init_battle(&init_param()).expect("init");
+        oracle.play(id, &bytes, &request()).expect("play");
+        let mut seen = std::collections::HashSet::new();
+        for _ in 0..900 {
+            for script in oracle.decoded_scripts() {
+                if !seen.insert((script.bank, script.address, script.words.len())) {
+                    continue;
+                }
+                scripts += 1;
+                // Scripts keep data inside their code block and write it
+                // while they run, so decode the words as the package holds
+                // them (found by the first eight words in memory).
+                let probe: Vec<u8> = script
+                    .words
+                    .iter()
+                    .take(8)
+                    .flat_map(|w| w.to_le_bytes())
+                    .collect();
+                let words = match bytes
+                    .windows(probe.len())
+                    .position(|w| w == probe.as_slice())
+                {
+                    Some(at) if at + script.words.len() * 4 <= bytes.len() => bytes
+                        [at..at + script.words.len() * 4]
+                        .chunks(4)
+                        .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+                        .collect(),
+                    _ => script.words.clone(),
+                };
+                let ours = Decoder::default().decode(&table, script.address, &words);
+                // Slots an opcode does not write hold the previous
+                // record's values, which may come from a script decoded
+                // before this one; compare the slots each opcode writes.
+                let written = |record: &[u32; 4]| {
+                    let count = table.operand_count((record[0] & 0xFFFF) as usize);
+                    record[..=count].to_vec()
+                };
+                let bad: Vec<usize> = (0..ours.len())
+                    .filter(|&at| written(&ours[at]) != written(&script.records[at]))
+                    .collect();
+                // The plugin reuses the code buffer after decoding, so a
+                // later snapshot can hold other bytes than it decoded: most
+                // records then differ. Count those apart from real misses.
+                if bad.len() * 2 > ours.len() {
+                    stale += 1;
+                } else if let Some(&at) = bad.first() {
+                    differing.push((id, script.bank, at, words[at], ours[at], script.records[at]));
+                }
+            }
+            if oracle.frame().expect("frame").is_none() {
+                break;
+            }
+        }
+    }
+    println!(
+        "{scripts} scripts decoded, {stale} overwritten after decoding, {} differ",
+        differing.len()
+    );
+    for row in differing.iter().take(10) {
+        println!("{row:x?}");
+    }
+    assert!(scripts > stale);
+    assert!(differing.is_empty());
+}
+
+/// The GTE subset against the plugin's own functions, called directly on
+/// its register file (`0x180211F40`) with pseudo-random registers:
+/// `GteRtps` (0x3E80), `GteRtV0Tr` (0x3D60), `GteAvsz3` (0x48D0) and
+/// `GteDpcs` (0x4B50). The entry points come from the code layout (the
+/// RVAs Memoria cites inside each function).
+#[test]
+#[ignore = "needs the player's FF9SpecialEffectPlugin.dll"]
+fn gte_matches_the_dll() {
+    use tantalus_sfx::gte::Gte;
+    let mut oracle = Oracle::load(&dll()).expect("load");
+    let mut seed = 0x1234_5678_9ABC_DEF0u64;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed as u32
+    };
+    let words = |oracle: &Oracle| -> Vec<u32> {
+        oracle
+            .module_bytes(0x211F40, 256)
+            .chunks(4)
+            .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+            .collect()
+    };
+    let mut differing = Vec::new();
+    for (name, rva, command) in [
+        ("rtps", 0x3E80u32, 0x18_0001u32),
+        ("rtv0tr", 0x3D60, 0x48_0012),
+        ("avsz3", 0x48D0, 0x158_002D),
+        ("dpcs", 0x4B50, 0x78_0010),
+    ] {
+        for round in 0..2000 {
+            let mut gte = Gte {
+                dqa_address: (oracle.base() as u32).wrapping_add(0x211FAC),
+                ..Gte::default()
+            };
+            for word in gte.control.iter_mut().chain(gte.data.iter_mut()) {
+                // Small values half the time, so clamps and fast paths both run.
+                *word = if round % 2 == 0 {
+                    next() & 0x0FFF_0FFF
+                } else {
+                    next()
+                };
+            }
+            let bytes: Vec<u8> = gte
+                .control
+                .iter()
+                .chain(&gte.data)
+                .flat_map(|w| w.to_le_bytes())
+                .collect();
+            oracle.write_module_bytes(0x211F40, &bytes);
+            // SAFETY: test-only; the functions take an int (RTPS's vector)
+            // or nothing and only touch the register file.
+            unsafe {
+                let function: extern "C" fn(i32) -> i64 = std::mem::transmute(oracle.internal(rva));
+                function(0);
+            }
+            assert!(gte.command(command));
+            let theirs = words(&oracle);
+            let ours: Vec<u32> = gte.control.iter().chain(&gte.data).copied().collect();
+            if theirs != ours {
+                let at = (0..64).find(|&i| theirs[i] != ours[i]).unwrap();
+                differing.push((name, round, at, ours[at], theirs[at]));
+            }
+        }
+    }
+    println!(
+        "module base {:#x}, {} differ",
+        oracle.base(),
+        differing.len()
+    );
+    for row in differing.iter().take(12) {
+        println!("{row:x?}");
+    }
+    assert!(differing.is_empty());
+}

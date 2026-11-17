@@ -175,9 +175,20 @@ type GetPrim = unsafe extern "C" fn(*mut i32) -> *const u8;
 /// (the `P_TAG` header first).
 pub type Prim = (i32, Vec<u32>);
 
+/// A script as the plugin decoded it (see [`Oracle::decoded_scripts`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecodedScript {
+    pub bank: usize,
+    pub address: u32,
+    pub words: Vec<u32>,
+    pub records: Vec<[u32; 4]>,
+}
+
 /// The loaded plugin. Dropping it unloads the DLL.
 pub struct Oracle {
     library: libloading::Library,
+    /// The module's load address (its `HMODULE`).
+    base: usize,
     _lock: std::sync::MutexGuard<'static, ()>,
     frame: i32,
 }
@@ -207,14 +218,86 @@ impl Oracle {
             )
         }
         .map_err(|error| error.to_string())?;
+        let raw = library.into_raw();
+        let base = raw as usize;
+        // SAFETY: `raw` came from `into_raw` just above.
+        let library = unsafe { libloading::os::windows::Library::from_raw(raw) };
         let oracle = Self {
             library: library.into(),
+            base,
             _lock: lock,
             frame: 0,
         };
         // SAFETY: the export's signature is Memoria's DllImport.
         unsafe { oracle.symbol::<InitSystem>(b"SFX_InitSystem")?(callback) };
         Ok(oracle)
+    }
+
+    /// `len` bytes of the loaded module at `rva`.
+    pub fn module_bytes(&self, rva: u32, len: usize) -> Vec<u8> {
+        // SAFETY: test-only; callers pass ranges inside the mapped image.
+        unsafe { std::slice::from_raw_parts((self.base + rva as usize) as *const u8, len).to_vec() }
+    }
+
+    /// Writes `bytes` into the loaded module at `rva` (test-only: GTE
+    /// registers and similar `.data` globals).
+    pub fn write_module_bytes(&mut self, rva: u32, bytes: &[u8]) {
+        // SAFETY: test-only; callers pass ranges inside the module's
+        // writable data.
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                bytes.as_ptr(),
+                (self.base + rva as usize) as *mut u8,
+                bytes.len(),
+            );
+        }
+    }
+
+    /// The module's internal function at `rva`, as a pointer to cast to
+    /// its signature.
+    pub fn internal(&self, rva: u32) -> *const () {
+        (self.base + rva as usize) as *const ()
+    }
+
+    /// The module's load address.
+    pub fn base(&self) -> usize {
+        self.base
+    }
+
+    /// The scripts the plugin decoded last, per bank: the PSX address, the
+    /// MIPS words and the 16-byte records `MipsDecodeAll` made of them (the
+    /// thread states at `qword_1803678E0 + 3096 + 64 * bank`,
+    /// `SfxLoaderStep.cs:413-425`).
+    pub fn decoded_scripts(&self) -> Vec<DecodedScript> {
+        let mut out = Vec::new();
+        // SAFETY: test-only reads of the plugin's own heap through the
+        // pointers it keeps; null pointers are skipped.
+        unsafe {
+            let context = *((self.base + 0x3678E0) as *const usize);
+            if context == 0 {
+                return out;
+            }
+            for bank in 0..2 {
+                let thread = context + 3096 + 64 * bank;
+                let address = *(thread as *const u32);
+                let size = *((thread + 4) as *const u32) as usize;
+                let code = *((thread + 8) as *const usize);
+                let records = *((thread + 24) as *const usize);
+                if code == 0 || records == 0 || size == 0 || size > 1 << 20 {
+                    continue;
+                }
+                let words = std::slice::from_raw_parts(code as *const u32, size / 4).to_vec();
+                let records =
+                    std::slice::from_raw_parts(records as *const [u32; 4], size / 4).to_vec();
+                out.push(DecodedScript {
+                    bank,
+                    address,
+                    words,
+                    records,
+                });
+            }
+        }
+        out
     }
 
     fn symbol<T: Copy>(&self, name: &[u8]) -> Result<T, String> {

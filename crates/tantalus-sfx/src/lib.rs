@@ -6,8 +6,11 @@
 //! (c) 2017 Albeoris) and is checked against the player's own DLL by the
 //! test-only [`oracle`] (feature `dll-oracle`).
 
+pub mod gte;
 pub mod image;
+pub mod interp;
 pub mod loader;
+pub mod mips;
 pub mod vram;
 
 #[cfg(feature = "dll-oracle")]

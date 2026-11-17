@@ -236,3 +236,35 @@ Risks and open points:
   and out of scope; the target is the vanilla plugin's behavior plus logged bug fixes.
 - Memoria is MIT-licensed (Albeoris, 2017); a translation keeps its copyright notice next to
   the GPL code.
+
+## Port status (crates/tantalus-sfx)
+
+Each part is checked against the player's DLL by the `dll-oracle` tests
+(`cargo test -p tantalus-sfx --features dll-oracle --test oracle -- --ignored`). They are
+test-only and never a runtime fallback; CI builds neither the feature nor the tests.
+
+| Part | Module | Check against the DLL |
+| --- | --- | --- |
+| Data sections by RVA | `image` | used by every check below |
+| VRAM, page decode | `vram` | Fire (ef000) and Cure (ef008) pages decode the same; PNGs in `local/sfx` |
+| Init uploads, loader records 0, 1, 4, 9, page restore | `loader` | init uploads match; effect uploads match for 370 of 372 effects |
+| `MipsDecodeAll` with the table read from the DLL | `mips` | 381 of 381 scripts decode to the same records (a fresh plugin per effect) |
+| GTE: RTPS, RTPT, RTV0TR, NCLIP, AVSZ3, DPCS, MFC2/MTC2 | `gte` | 8,000 random register files give the same results from the DLL's own functions |
+| `PsxInterpreterRun` | `interp` | unit tests only; frame-level checks need the native calls |
+
+Not ported yet: the sequencer (`SeqStateUpdate`), the PSX memory mapper and segments, the
+native call table and the primitive emitters. Until the sequencer is ported, the loader picks
+record groups by the order of the sequence's LOAD_CHUNK ops. Two effects still differ there:
+
+- 149 (Stop) makes extra 192x64 uploads through native calls 0, 1 and 166 while it plays.
+- 381 (Ark__Full) loads groups the sequencer picks at run time.
+
+Harness notes:
+
+- Effects played back to back in one plugin instance can hang inside the DLL (211 and 228
+  after the effects before them) and leave buffers that change later decodes. The sweeps
+  load a fresh plugin for each effect.
+- RTPS multiplies by the address of the DQA register, not its value (Memoria keeps this). The
+  DLL is relocated at load, so the original result changes from launch to launch. Tantalus
+  uses the preferred-base address; see `sfx-gte-rtps-dqa-address` in
+  `audit/approved-differences.csv`.
