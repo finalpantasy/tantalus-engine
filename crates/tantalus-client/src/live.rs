@@ -97,6 +97,7 @@ pub fn world_frame(world: &FieldWorld, tick: u64) -> (TrackFrame, BTreeSet<u64>)
                 crate::actor_models::ActorPose {
                     actor: id.get(),
                     facing: actor.facing.rem_euclid(256) as u8,
+                    facing_frac: 0.0,
                     model: actor.look.model,
                     animation: actor.look.current_moving(
                         playing,
@@ -276,6 +277,20 @@ struct Live {
     card: Option<crate::card_view::CardView>,
     /// Seconds since a software-drawn view (world map, battle, cards) last redrew.
     render_gap: f64,
+    /// The frame rate setting (`--fps-cap`).
+    fps: crate::smooth::FpsSettings,
+    /// The last two logic frames of the field's actors, drawn blended.
+    frames: crate::smooth::Pair<TrackFrame>,
+    /// Actors placed somewhere, for the frame in `frames`.
+    placed: BTreeSet<u64>,
+    /// The last two logic positions of the field view's center.
+    views: crate::smooth::Pair<[f32; 2]>,
+    /// Share of the tick the field markers were last drawn at.
+    drawn_alpha: f32,
+    /// The last two logic poses of the world map's player and camera.
+    world_poses: crate::smooth::Pair<crate::smooth::WorldPose>,
+    /// Tick of the last world pose.
+    world_pose_at: Option<u64>,
 }
 
 /// Opens the play window. `game` is already on its first field.
@@ -284,6 +299,7 @@ pub fn play(
     streaming_assets: std::path::PathBuf,
     scale: u32,
     mute: bool,
+    fps: crate::smooth::FpsSettings,
 ) -> Result<(), ClientError> {
     let scale = scale.clamp(1, 8);
     game.live_battles = true;
@@ -301,6 +317,7 @@ pub fn play(
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "Tantalus Engine".into(),
+                        present_mode: fps.present_mode(),
                         resolution: WindowResolution::new(
                             FIELD_FRAME.0 as u32 * scale,
                             FIELD_FRAME.1 as u32 * scale,
@@ -333,10 +350,30 @@ pub fn play(
             card: None,
             audio,
             render_gap: 0.0,
+            fps,
+            frames: crate::smooth::Pair::default(),
+            placed: BTreeSet::new(),
+            views: crate::smooth::Pair::default(),
+            drawn_alpha: -1.0,
+            world_poses: crate::smooth::Pair::default(),
+            world_pose_at: None,
         })
-        .add_systems(Update, live_tick);
+        .insert_resource(FrameCap(crate::smooth::FrameLimiter::new(
+            fps.frame_budget(),
+        )))
+        .add_systems(Update, live_tick)
+        .add_systems(Last, hold_frame_cap);
     app.run();
     Ok(())
+}
+
+/// The `--fps-cap N` limiter.
+#[derive(Resource)]
+struct FrameCap(crate::smooth::FrameLimiter);
+
+/// Ends each frame by waiting out the rest of its cap budget.
+fn hold_frame_cap(mut cap: ResMut<FrameCap>) {
+    cap.0.wait();
 }
 
 /// Puts `field`'s background and camera in `world`, replacing `old`.
@@ -417,6 +454,11 @@ pub mod bench {
                 .ok()
                 .and_then(|value| value.parse().ok())
         })
+    }
+
+    /// Drops what was recorded (a headless bench's warm-up frames).
+    pub fn reset() {
+        SAMPLES.lock().expect("bench lock").clear();
     }
 
     pub fn record(name: &'static str, ms: f64) {
@@ -652,9 +694,19 @@ fn live_tick_inner(world: &mut World) {
         if let Some(play) = game.world_play.as_ref() {
             match live.world_view.as_mut() {
                 Some(view) => {
+                    // The logic pose is read once a tick; the frames between
+                    // draw the last two blended.
+                    if live.world_pose_at != Some(game.ticks) {
+                        let snap = live.world_pose_at.is_none();
+                        live.world_poses
+                            .push(crate::world_view::pose_of(play), snap);
+                        live.world_pose_at = Some(game.ticks);
+                    }
                     if gpu_redraw {
                         live.render_gap = 0.0;
-                        bench::time("world_map", || view.update(world, play));
+                        let t = crate::smooth::alpha(live.elapsed, live.fps.interpolate);
+                        let pose = live.world_poses.world(t);
+                        bench::time("world_map", || view.update(world, play, pose.as_ref()));
                     }
                 }
                 None => {
@@ -670,6 +722,8 @@ fn live_tick_inner(world: &mut World) {
     }
     if let Some(view) = live.world_view.take() {
         view.finish(world);
+        live.world_poses.clear();
+        live.world_pose_at = None;
     }
     let mut game = live.game.lock().expect("game lock");
     let background = game.background().map(str::to_owned);
@@ -715,8 +769,14 @@ fn live_tick_inner(world: &mut World) {
         }
     }
     if let Some(scene) = &live.field {
-        let (frame, placed) = bench::time("world_frame", || world_frame(game.world(), game.ticks));
-        if live.markers_at != Some(game.ticks) {
+        // The logic state is read once a tick. Between ticks the display
+        // frames draw the last two logic states blended (`smooth.rs`); the
+        // game itself is only read, never written, from here on.
+        let new_tick = live.markers_at != Some(game.ticks);
+        if new_tick {
+            let snap = live.markers_at.is_none();
+            let (frame, placed) =
+                bench::time("world_frame", || world_frame(game.world(), game.ticks));
             let field_name = game.field_name().map(str::to_owned);
             for problem in bench::time("load_prepare_field", || {
                 live.models.prepare_field(field_name.as_deref())
@@ -733,10 +793,39 @@ fn live_tick_inner(world: &mut World) {
                 &game.world().tex_anims,
                 game.world().tex_anim_clock,
             );
-            bench::time("markers", || {
-                spawn_frame_markers(world, &scene.camera, &frame, &placed, Some(&live.models))
-            });
+            let at = live.view.view(
+                &game.world().camera_log,
+                &scene.camera,
+                scene.camera_index,
+                player_position(&frame),
+                game.ticks,
+            );
+            if snap {
+                live.views.clear();
+            }
+            if let Some(at) = at {
+                live.views.push(at, snap);
+            }
+            live.frames.push(frame, snap);
+            live.placed = placed;
             live.markers_at = Some(game.ticks);
+        }
+        let t = crate::smooth::alpha(live.elapsed, live.fps.interpolate);
+        let frame = live
+            .frames
+            .frame(t)
+            .expect("a logic frame is captured before the first draw");
+        if new_tick || (live.fps.interpolate && t != live.drawn_alpha) {
+            bench::time("markers", || {
+                spawn_frame_markers(
+                    world,
+                    &scene.camera,
+                    &frame,
+                    &live.placed,
+                    Some(&live.models),
+                )
+            });
+            live.drawn_alpha = t;
         }
         crate::scene_adapter::apply_overlay_changes(
             world,
@@ -745,14 +834,7 @@ fn live_tick_inner(world: &mut World) {
             player_position(&frame),
         );
         crate::scene_adapter::apply_tile_shade(world, &game.world().tile_shade);
-        let at = live.view.view(
-            &game.world().camera_log,
-            &scene.camera,
-            scene.camera_index,
-            player_position(&frame),
-            game.ticks,
-        );
-        place_camera(world, at);
+        place_camera(world, live.views.view(t));
         if let Some(motion) = &live.motion
             && !motion.is_idle()
         {
@@ -824,5 +906,42 @@ mod tests {
         // No walkmesh: the height is left as the scripts set it.
         assert!(frame.actors.contains(&(3, [10.0, 32768.0, 20.0])));
         assert_eq!(drawn, BTreeSet::from([3]));
+    }
+
+    /// The smooth frame rate only reads the game: moving actors are drawn
+    /// blended at any rate and the world they came from is the same after,
+    /// and the 30 Hz logic frames are the same whatever the display rate.
+    #[test]
+    fn blending_never_feeds_back_into_the_game() {
+        let mut world = FieldWorld::new();
+        let id = tantalus_contracts::EntityId::new(3);
+        world.add_actor(id, [0.0, 0.0, 0.0]);
+        let mut pair = crate::smooth::Pair::default();
+        let mut logic = Vec::new();
+        for tick in 0..30u64 {
+            let before = world.clone();
+            world.actors.get_mut(&id).expect("actor").position[0] += 7.0;
+            let (frame, _) = world_frame(&world, tick);
+            logic.push(frame.clone());
+            pair.push(frame, tick == 0);
+            let at_tick = world.clone();
+            // Draw 8 display frames of the tick (240 Hz on 30 Hz logic).
+            for step in 0..8 {
+                let drawn = pair.frame(step as f32 / 8.0).expect("frame");
+                if tick > 0 {
+                    let x = drawn.actors[0].1[0];
+                    assert!(x >= before.actors[&id].position[0] - 1e-3);
+                    assert!(x <= world.actors[&id].position[0] + 1e-3);
+                }
+            }
+            assert!(world == at_tick, "drawing changed the world");
+        }
+        // The logic frames: the same run captured again, nothing blended in.
+        let mut again = FieldWorld::new();
+        again.add_actor(id, [0.0, 0.0, 0.0]);
+        for (tick, frame) in logic.iter().enumerate() {
+            again.actors.get_mut(&id).expect("actor").position[0] += 7.0;
+            assert_eq!(&world_frame(&again, tick as u64).0, frame);
+        }
     }
 }

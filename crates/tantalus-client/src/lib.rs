@@ -28,6 +28,7 @@ pub mod presentation_view;
 pub mod projection;
 pub mod psx_blend;
 pub mod scene_adapter;
+pub mod smooth;
 pub mod track;
 pub mod trance_glow;
 pub mod view_scroll;
