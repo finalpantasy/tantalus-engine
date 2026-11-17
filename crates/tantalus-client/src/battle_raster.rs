@@ -66,9 +66,9 @@ impl BattleCamera {
     /// y as [`Frame::project`] places them, w the view distance, and z 1, so
     /// depth is 1 / distance and the GPU's `z <= w` clip is the CPU's
     /// `distance >= NEAR_CLIP` (1).
-    pub fn clip_matrix(&self) -> Mat4 {
+    pub fn clip_matrix(&self, psx_w: f32) -> Mat4 {
         use bevy::math::Vec4;
-        let half = PSX_WIDTH / 2.0;
+        let half = psx_w / 2.0;
         let offset = 1.0 - 2.0 * PSX_TOP / PSX_HEIGHT;
         let projection = Mat4::from_cols(
             Vec4::new(self.near / half, 0.0, 0.0, 0.0),
@@ -176,6 +176,9 @@ pub struct Frame {
     pub rgba: Vec<u8>,
     /// View distance per pixel (`f32::INFINITY` where nothing wrote).
     pub depth: Vec<f32>,
+    /// The picture's width in PSX pixels: 320, or wider for a widescreen
+    /// view ([`crate::widescreen::psx_width`]) whose 220 rows stay.
+    pub psx_w: f32,
     /// Set for a frame drawn on the GPU ([`Frame::for_view`]): the draws
     /// are recorded instead, and `rgba` and `depth` stay empty.
     recording: Option<Box<crate::frame_gpu::Recording>>,
@@ -198,6 +201,7 @@ impl Frame {
             height,
             rgba: clear.repeat(pixels),
             depth: vec![f32::INFINITY; pixels],
+            psx_w: PSX_WIDTH,
             recording: None,
         }
     }
@@ -209,6 +213,7 @@ impl Frame {
             height,
             rgba,
             depth: Vec::new(),
+            psx_w: PSX_WIDTH,
             recording: None,
         }
     }
@@ -216,11 +221,13 @@ impl Frame {
     /// A frame for the battle or world view: recorded for the GPU when
     /// [`crate::frame_gpu::active`], drawn on the CPU otherwise.
     pub fn for_view(width: u32, height: u32, clear: [u8; 4]) -> Self {
-        if crate::frame_gpu::active() {
+        let mut frame = if crate::frame_gpu::active() {
             Self::recorded(width, height, clear)
         } else {
             Self::new(width, height, clear)
-        }
+        };
+        frame.psx_w = crate::widescreen::psx_width(width, height);
+        frame
     }
 
     /// A frame recorded for the GPU whether or not the backend is on.
@@ -230,6 +237,7 @@ impl Frame {
             height,
             rgba: Vec::new(),
             depth: Vec::new(),
+            psx_w: PSX_WIDTH,
             recording: Some(Box::new(crate::frame_gpu::Recording::new(
                 width, height, clear,
             ))),
@@ -253,10 +261,10 @@ impl Frame {
     pub fn project(&self, camera: &BattleCamera, view: Vec3) -> Option<[f32; 2]> {
         let distance = -view.z;
         (distance >= NEAR_CLIP).then(|| {
-            let x = PSX_WIDTH / 2.0 + camera.near * view.x / distance;
+            let x = self.psx_w / 2.0 + camera.near * view.x / distance;
             let y = PSX_TOP - camera.near * view.y / distance;
             [
-                x * self.width as f32 / PSX_WIDTH,
+                x * self.width as f32 / self.psx_w,
                 y * self.height as f32 / PSX_HEIGHT,
             ]
         })

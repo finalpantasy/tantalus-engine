@@ -131,20 +131,78 @@ pub fn find_field(
     )))
 }
 
-/// Gives every 2D camera a projection that always shows the whole field
-/// frame, letterboxed to the window's aspect ratio.
+/// Gives the field's 2D camera a projection that always shows the whole
+/// field view. With a known target size ([`crate::widescreen::set_target`])
+/// the view is the widescreen one: `widescreen::field_width()` art pixels
+/// over the 240 rows, in the centered viewport of that aspect (pillarboxed
+/// where the art is narrower, letterboxed to a fixed `--aspect`). Without
+/// one, the whole 320x240 frame fits the window.
 pub fn fit_field_frame(world: &mut World) {
-    let mut cameras = world.query_filtered::<Entity, With<Camera2d>>();
+    use bevy::camera::Viewport;
+    use bevy::camera::visibility::RenderLayers;
+    let mut cameras = world.query_filtered::<Entity, (With<Camera2d>, Without<RenderLayers>)>();
     let cameras: Vec<Entity> = cameras.iter(world).collect();
+    let (view_width, view_height) = (crate::widescreen::field_width(), FIELD_FRAME.1);
+    let viewport = crate::widescreen::target().map(|(width, height)| {
+        let (sx, sy, sw, sh) = crate::widescreen::screen_rect(width, height);
+        let (x, y, w, h) = crate::widescreen::fit_rect(sw, sh, view_width / view_height);
+        Viewport {
+            physical_position: UVec2::new(sx + x, sy + y),
+            physical_size: UVec2::new(w.max(1), h.max(1)),
+            ..default()
+        }
+    });
     for camera in cameras {
-        world
-            .entity_mut(camera)
-            .insert(Projection::Orthographic(OrthographicProjection {
-                scaling_mode: ScalingMode::AutoMin {
-                    min_width: FIELD_FRAME.0,
-                    min_height: FIELD_FRAME.1,
-                },
-                ..OrthographicProjection::default_2d()
-            }));
+        let scaling_mode = if viewport.is_some() {
+            ScalingMode::Fixed {
+                width: view_width,
+                height: view_height,
+            }
+        } else {
+            ScalingMode::AutoMin {
+                min_width: FIELD_FRAME.0,
+                min_height: FIELD_FRAME.1,
+            }
+        };
+        let mut entity = world.entity_mut(camera);
+        entity.insert(Projection::Orthographic(OrthographicProjection {
+            scaling_mode,
+            ..OrthographicProjection::default_2d()
+        }));
+        if let Some(mut camera) = entity.get_mut::<Camera>() {
+            camera.viewport = viewport.clone();
+        }
+    }
+}
+
+/// Fits the camera showing a battle or world frame of `frame` pixels to the
+/// target: the frame's own aspect, centered (letterboxed to a fixed
+/// `--aspect`, pillarboxed if the window changed shape since the frame was
+/// made). Call each time the frame is shown.
+pub fn fit_frame_camera(world: &mut World, camera: Entity, frame: (u32, u32)) {
+    use bevy::camera::Viewport;
+    let aspect = frame.0 as f32 / frame.1.max(1) as f32;
+    let (view_width, view_height) = (FIELD_FRAME.1 * aspect, FIELD_FRAME.1);
+    let viewport = crate::widescreen::target().map(|(width, height)| {
+        let (sx, sy, sw, sh) = crate::widescreen::screen_rect(width, height);
+        let (x, y, w, h) = crate::widescreen::fit_rect(sw, sh, aspect);
+        Viewport {
+            physical_position: UVec2::new(sx + x, sy + y),
+            physical_size: UVec2::new(w.max(1), h.max(1)),
+            ..default()
+        }
+    });
+    let Ok(mut entity) = world.get_entity_mut(camera) else {
+        return;
+    };
+    entity.insert(Projection::Orthographic(OrthographicProjection {
+        scaling_mode: ScalingMode::Fixed {
+            width: view_width,
+            height: view_height,
+        },
+        ..OrthographicProjection::default_2d()
+    }));
+    if let Some(mut camera) = entity.get_mut::<Camera>() {
+        camera.viewport = viewport;
     }
 }

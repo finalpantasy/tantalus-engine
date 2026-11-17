@@ -9,7 +9,15 @@ use tantalus_client::capture::{
 use tantalus_contracts::ScenePresentationMode;
 
 fn main() -> ExitCode {
-    let args: Vec<_> = std::env::args_os().skip(1).collect();
+    let mut args: Vec<_> = std::env::args_os().skip(1).collect();
+    // `--aspect 16:9|16:10|21:9|4:3|auto` (or `aspect = "..."` in `tantalus.toml`).
+    match tantalus_client::widescreen::take_aspect_flag(&mut args) {
+        Ok(()) => {}
+        Err(error) => {
+            eprintln!("{error}");
+            return ExitCode::FAILURE;
+        }
+    }
     // Opt-in Memoria `KeepRestTimeInBattle` (default off, vanilla).
     let (keep_rest, args) = take_switch(&args, "--keep-rest-time");
     let env_on = std::env::var("TANTALUS_KEEP_REST_TIME").is_ok_and(|v| v == "1");
@@ -649,6 +657,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         Some(size) => parse_size(std::path::Path::new(size)).ok_or("--size must be WxH")?,
     };
     let holds = parse_holds(values.get("--hold"))?;
+    tantalus_client::widescreen::set_target(width, height);
     // `--place TICK:X,Y,Z`: a test aid, moves the player there on that tick.
     let place: Option<(u64, [f32; 3])> = match values.get("--place") {
         Some(spec) => {
@@ -953,6 +962,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                 tantalus_client::live::player_position(&frame),
             );
             tantalus_client::scene_adapter::apply_tile_shade(world, &game.world().tile_shade);
+            tantalus_client::live::note_field_view(&game);
             let at = view.view(
                 &game.world().camera_log,
                 &field.scene.camera,
@@ -961,6 +971,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                 game.ticks,
             );
             tantalus_client::live::place_camera(world, at);
+            tantalus_client::window::fit_field_frame(world);
             if let Some((_, state, _)) = &motion {
                 state.place_sprites(world, &field.scene);
             }
@@ -1209,6 +1220,7 @@ fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<
         None => (640, 480),
         Some(size) => parse_size(std::path::Path::new(size)).ok_or("--size must be WxH")?,
     };
+    tantalus_client::widescreen::set_target(width, height);
     let holds = parse_holds(values.get("--hold"))?;
     let shots: Vec<u64> = values
         .get("--shots")
@@ -1357,7 +1369,10 @@ fn overlay_menu(
     let mut base = image::open(output)
         .map_err(|error| format!("cannot read {}: {error}", output.display()))?
         .to_rgba8();
-    let (sx, sy) = (base.width() as f32 / 320.0, base.height() as f32 / 240.0);
+    // The menu keeps its 4:3 area, centered in a wider picture.
+    let sy = base.height() as f32 / 240.0;
+    let sx = sy;
+    let left = (base.width() as f32 - 320.0 * sx) / 2.0;
     let border = BORDER_PADDING as f32 / RESOURCE_X_MULTIPLIER;
     let color = |tint: Tint| {
         let [r, g, b, a] = DEFAULT_TEXT_COLOR;
@@ -1405,12 +1420,12 @@ fn overlay_menu(
             height,
             image::imageops::FilterType::Triangle,
         );
-        let x = ((window.x - border) * sx).round() as i64;
+        let x = (left + (window.x - border) * sx).round() as i64;
         let y = (((window.y - border) + 8.0) * sy).round() as i64;
         image::imageops::overlay(&mut base, &scaled, x, y);
     }
     if let Some((px, py)) = frame.pointer {
-        let (cx, cy) = ((px * sx) as i64, ((py + 8.0) * sy) as i64);
+        let (cx, cy) = ((left + px * sx) as i64, ((py + 8.0) * sy) as i64);
         for (dx, dy) in (-5i64..=5).flat_map(|dx| (-5i64..=5).map(move |dy| (dx, dy))) {
             if dx.abs() + dy.abs() <= 5
                 && let (Ok(x), Ok(y)) = (u32::try_from(cx + dx), u32::try_from(cy + dy))

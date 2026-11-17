@@ -52,6 +52,18 @@ pub struct ViewScroll {
     at: Option<[f32; 2]>,
 }
 
+/// `BGCAM_DEF.RefreshCache`: a view wider than 320 pulls the scroll range in
+/// by half the extra width on each side (all the way to its middle when the
+/// range is narrower than the extra).
+fn widen_range(range: [f32; 4]) -> [f32; 4] {
+    let width = crate::widescreen::field_width();
+    if width <= crate::widescreen::CLASSIC_WIDTH || range[0] <= -32768.0 {
+        return range;
+    }
+    let delta = crate::widescreen::range_delta(width, range[1] - range[0]);
+    [range[0] + delta, range[1] - delta, range[2], range[3]]
+}
+
 impl Default for ViewScroll {
     fn default() -> Self {
         Self {
@@ -105,6 +117,14 @@ impl ViewScroll {
         }
         let target = self.target(camera, range, player);
         self.advance(tick, target);
+        // Widescreen keeps scripted pans inside the narrowed range too
+        // (`FieldMap.EBG_scene2DScroll` clamps `destX` to `vrpMinX..vrpMaxX`).
+        if crate::widescreen::field_width() > crate::widescreen::CLASSIC_WIDTH
+            && !self.unlocked
+            && let Some(at) = self.at.as_mut()
+        {
+            at[0] = at[0].clamp(range[0], range[1].max(range[0]));
+        }
         self.at
     }
 
@@ -113,11 +133,12 @@ impl ViewScroll {
             // `EBG_charLookAtUnlock` widens the camera bounds to the `short` limits.
             return [-32768.0, 32767.0, -32768.0, 32767.0];
         }
-        i32::try_from(index)
+        let range = i32::try_from(index)
             .ok()
             .and_then(|index| self.bounds.get(&index))
             .copied()
-            .unwrap_or_else(|| view_range(camera))
+            .unwrap_or_else(|| view_range(camera));
+        widen_range(range)
     }
 
     fn target(

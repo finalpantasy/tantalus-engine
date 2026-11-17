@@ -838,9 +838,16 @@ pub fn draw_list(
 ) {
     use tantalus_sfx::render::{GEN_H, GEN_W};
     let (sx, sy) = (
-        frame.width as f32 / crate::battle_raster::PSX_WIDTH,
+        frame.width as f32 / frame.psx_w,
         frame.height as f32 / crate::battle_raster::PSX_HEIGHT,
     );
+    // A widescreen frame is wider than the 320 the packets were made for:
+    // `SFXRender.CalculateWidescreenOffsetX` centers them, and what covers
+    // the whole width (`FixWidescreenFace`'s full-width rectangles, the
+    // screen-sampling faces) stretches over it instead.
+    let psx_w = frame.psx_w;
+    let wide = psx_w / crate::battle_raster::PSX_WIDTH;
+    let offset = (psx_w - crate::battle_raster::PSX_WIDTH) / 2.0;
     // The screen the scene left, for the batches that sample it
     // (`PSXTextureMgr.blurTexture`, captured before the effects draw): taken
     // once, from the frame as it is now.
@@ -903,8 +910,27 @@ pub fn draw_list(
             (256.0, 256.0)
         };
         for triangle in &batch.triangles {
+            let full_width = triangle.iter().any(|corner| corner.xy[0] <= 0.0)
+                && triangle
+                    .iter()
+                    .any(|corner| corner.xy[0] >= crate::battle_raster::PSX_WIDTH);
+            let place = |x: f32| {
+                if batch.screen {
+                    x * wide
+                } else if full_width {
+                    if x <= 0.0 {
+                        0.0
+                    } else if x >= crate::battle_raster::PSX_WIDTH {
+                        psx_w
+                    } else {
+                        x + offset
+                    }
+                } else {
+                    x + offset
+                }
+            };
             let corners = triangle.map(|corner| ScreenCorner {
-                xy: [corner.xy[0] * sx, corner.xy[1] * sy],
+                xy: [place(corner.xy[0]) * sx, corner.xy[1] * sy],
                 // Page rows run top-down; a `Texture`'s `v = 0` is its last.
                 uv: [corner.uv[0] / tw, 1.0 - corner.uv[1] / th],
                 color: corner.color,

@@ -88,6 +88,7 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
         None => (640, 480),
         Some(size) => super::parse_size(Path::new(size)).ok_or("--size must be WxH")?,
     };
+    tantalus_client::widescreen::set_target(width, height);
     let times: Vec<f64> = values
         .get("--at")
         .map_or("1", String::as_str)
@@ -396,8 +397,12 @@ fn live_capture(
     use tantalus_client::battle_view::FightView;
     use tantalus_tools::battle_stage::StageEvent;
     let mut lines = Vec::new();
-    if size != tantalus_client::battle_view::LIVE_SIZE {
-        lines.push("live frames are 640x480; --size is ignored".to_owned());
+    let live = tantalus_client::widescreen::live_size();
+    if size != live {
+        lines.push(format!(
+            "live frames are {}x{}; --size is ignored",
+            live.0, live.1
+        ));
     }
     let mut assets = BattleAssets::new(Path::new(&values["--assets"]));
     let hud = match BattleHud::load(game.game_data()) {

@@ -429,8 +429,9 @@ fn draw_block(
     let gpu = frame.recording().is_some();
     // The GPU draws a block's static meshes through one transform.
     let matrix = gpu.then(|| {
-        (camera.clip_matrix() * bevy::math::Mat4::from_translation(Vec3::from_array(origin)))
-            .to_cols_array()
+        (camera.clip_matrix(frame.psx_w)
+            * bevy::math::Mat4::from_translation(Vec3::from_array(origin)))
+        .to_cols_array()
     });
     for (mesh_index, mesh) in block.meshes.iter().enumerate() {
         if !mesh_in_form(&mesh.name, item.form, item.key) {
@@ -707,6 +708,7 @@ pub struct LiveWorld {
 }
 
 /// Size of the CPU world frame in the window.
+/// The classic (4:3) size; see [`crate::widescreen::live_size`] for the one in use.
 pub const LIVE_SIZE: (u32, u32) = (640, 480);
 
 impl LiveWorld {
@@ -719,9 +721,11 @@ impl LiveWorld {
         use bevy::camera::{RenderTarget, ScalingMode};
         use bevy::prelude::*;
         let mut renderer = crate::live::bench::time("lw_new", || WorldRenderer::new(streaming));
-        let frame = crate::live::bench::time("lw_first_render", || {
-            renderer.render(play, LIVE_SIZE.0, LIVE_SIZE.1)
-        });
+        crate::widescreen::latch_live_size();
+        let size = crate::widescreen::live_size();
+        let frame =
+            crate::live::bench::time("lw_first_render", || renderer.render(play, size.0, size.1));
+        let frame_size = (frame.width, frame.height);
         let image = world
             .resource_mut::<Assets<Image>>()
             .add(crate::battle_view::frame_image(&frame));
@@ -730,7 +734,10 @@ impl LiveWorld {
         }
         let mut targets = world.query_filtered::<&RenderTarget, With<Camera2d>>();
         let target = targets.iter(world).next().cloned();
-        let (width, height) = crate::window::FIELD_FRAME;
+        let (width, height) = (
+            crate::widescreen::FRAME_HEIGHT * frame_size.0 as f32 / frame_size.1 as f32,
+            crate::widescreen::FRAME_HEIGHT,
+        );
         let camera = world
             .spawn((
                 Camera2d,
@@ -752,6 +759,7 @@ impl LiveWorld {
         if let Some(target) = target {
             world.entity_mut(camera).insert(target);
         }
+        crate::window::fit_frame_camera(world, camera, (frame_size.0, frame_size.1));
         let sprite = world
             .spawn((
                 Sprite {
@@ -773,7 +781,9 @@ impl LiveWorld {
 
     pub fn update(&mut self, world: &mut bevy::ecs::world::World, play: &WorldPlay) {
         use bevy::prelude::*;
-        let frame = self.renderer.render(play, LIVE_SIZE.0, LIVE_SIZE.1);
+        let size = crate::widescreen::live_size();
+        let frame = self.renderer.render(play, size.0, size.1);
+        crate::window::fit_frame_camera(world, self.camera, (frame.width, frame.height));
         crate::battle_view::show_frame(world, &self.image, frame);
         let at = world
             .get::<Transform>(self.camera)

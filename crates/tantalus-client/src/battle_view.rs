@@ -1491,6 +1491,7 @@ pub fn save_png(frame: &Frame, output: &Path) -> Result<(), String> {
 /// field's.
 pub const BATTLE_LAYER: usize = 7;
 /// Size of the CPU battle frame in the window.
+/// The classic (4:3) size; see [`crate::widescreen::live_size`] for the one in use.
 pub const LIVE_SIZE: (u32, u32) = (640, 480);
 /// Replay speed while confirm is held.
 pub const FAST_FORWARD: f64 = 4.0;
@@ -1518,7 +1519,10 @@ impl BattleWindow {
         // image in a capture).
         let mut targets = world.query_filtered::<&RenderTarget, With<Camera2d>>();
         let target = targets.iter(world).next().cloned();
-        let (width, height) = crate::window::FIELD_FRAME;
+        let (width, height) = (
+            crate::widescreen::FRAME_HEIGHT * frame.width as f32 / frame.height as f32,
+            crate::widescreen::FRAME_HEIGHT,
+        );
         let camera = world
             .spawn((
                 Camera2d,
@@ -1540,6 +1544,7 @@ impl BattleWindow {
         if let Some(target) = target {
             world.entity_mut(camera).insert(target);
         }
+        crate::window::fit_frame_camera(world, camera, (frame.width, frame.height));
         let sprite = world
             .spawn((
                 Sprite {
@@ -1561,6 +1566,7 @@ impl BattleWindow {
     /// Shows `frame`.
     pub fn show(&self, world: &mut bevy::ecs::world::World, frame: Frame) {
         use bevy::prelude::*;
+        crate::window::fit_frame_camera(world, self.camera, (frame.width, frame.height));
         show_frame(world, &self.image, frame);
         // Other code moves every 2D camera; keep the sprite in front of ours.
         let at = world
@@ -1600,7 +1606,9 @@ impl LiveBattle {
         for problem in assets.prepare(&stage) {
             println!("!! battle assets: {problem}");
         }
-        let playback = BattlePlayback::new(assets, stage, LIVE_SIZE.0, LIVE_SIZE.1);
+        crate::widescreen::latch_live_size();
+        let size = crate::widescreen::live_size();
+        let playback = BattlePlayback::new(assets, stage, size.0, size.1);
         let window = BattleWindow::open(world, &playback.render(assets));
         Self { playback, window }
     }
@@ -1682,7 +1690,9 @@ impl FightView {
         for problem in assets.prepare(stage) {
             println!("!! battle assets: {problem}");
         }
-        let scene = BattleScene::new(assets, stage, LIVE_SIZE.0, LIVE_SIZE.1);
+        crate::widescreen::latch_live_size();
+        let size = crate::widescreen::live_size();
+        let scene = BattleScene::new(assets, stage, size.0, size.1);
         let mut view = Self {
             scene,
             menu: crate::battle_menu::BattleMenu::default(),
@@ -1714,7 +1724,8 @@ impl FightView {
         if let Some(fight) = game.battle() {
             let mut stage = fight.stage().clone();
             stage.camera = camera;
-            self.scene = BattleScene::new(assets, &stage, LIVE_SIZE.0, LIVE_SIZE.1);
+            let size = crate::widescreen::live_size();
+            self.scene = BattleScene::new(assets, &stage, size.0, size.1);
             self.scene.fix_camera();
         }
     }
@@ -1830,7 +1841,8 @@ impl FightView {
                 .render_with(assets, stage, seconds, hud, &overlay);
         }
         let Some(fight) = game.battle() else {
-            return Frame::for_view(LIVE_SIZE.0, LIVE_SIZE.1, CLEAR);
+            let size = crate::widescreen::live_size();
+            return Frame::for_view(size.0, size.1, CLEAR);
         };
         let stage = fight.stage();
         let seconds = self.seconds(stage);

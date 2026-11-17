@@ -182,6 +182,16 @@ pub fn observe_view(view: &mut crate::view_scroll::ViewScroll, game: &PlayGame) 
 }
 
 /// Centers the 2D camera on `at`, when there is a place to look.
+/// Tells the widescreen view which field and camera is up (and the story
+/// state its narrow scenes read) before the scroll range is asked for.
+pub fn note_field_view(game: &PlayGame) {
+    crate::widescreen::set_field(
+        game.map().unwrap_or(-1),
+        i32::from(game.world().field_camera),
+        crate::widescreen::SceneState::from_globals(game.world().global_memory.bytes()),
+    );
+}
+
 pub fn place_camera(world: &mut World, at: Option<[f32; 2]>) {
     let Some([x, y]) = at else {
         return;
@@ -493,9 +503,19 @@ fn live_tick(world: &mut World) {
     }
 }
 
+/// The play window's pixel size, for the widescreen view (`--aspect auto`
+/// follows it).
+fn note_window_size(world: &mut World) {
+    let mut windows = world.query_filtered::<&Window, With<PrimaryWindow>>();
+    if let Ok(window) = windows.single(world) {
+        crate::widescreen::set_target(window.physical_width(), window.physical_height());
+    }
+}
+
 fn live_tick_inner(world: &mut World) {
     let delta = world.resource::<Time>().delta_secs_f64();
     let held = pad_bits(world.resource::<ButtonInput<KeyCode>>());
+    note_window_size(world);
     let mut live = world.remove_resource::<Live>().expect("live state");
     // The software-drawn views change at most 30 times a second, so a
     // faster display redraws them only that often: the redraw is the costly
@@ -759,6 +779,7 @@ fn live_tick_inner(world: &mut World) {
             player_position(&frame),
         );
         crate::scene_adapter::apply_tile_shade(world, &game.world().tile_shade);
+        note_field_view(&game);
         let at = live.view.view(
             &game.world().camera_log,
             &scene.camera,
@@ -767,6 +788,7 @@ fn live_tick_inner(world: &mut World) {
             game.ticks,
         );
         place_camera(world, at);
+        fit_field_frame(world);
         if let Some(motion) = &live.motion
             && !motion.is_idle()
         {
