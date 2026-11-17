@@ -691,6 +691,9 @@ impl FieldHost<'_> {
 impl LegacyEventHost for FieldHost<'_> {
     fn apply(&mut self, events: &[HostEvent]) -> Result<(), EngineError> {
         for event in events {
+            // Memoria's per-field script patches (`script_fixes.rs`).
+            let patched = self.world.script_fix(event);
+            let event = patched.as_ref().unwrap_or(event);
             // v1 member-target tracking: the reference resolves member
             // reads against the executing object; the closest observable
             // proxy at apply time is the actor an event operates on.

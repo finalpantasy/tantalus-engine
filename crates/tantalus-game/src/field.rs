@@ -4,6 +4,7 @@ pub mod host;
 pub mod item_use;
 pub mod party_menu;
 pub mod region;
+pub mod script_fixes;
 pub mod shop;
 pub mod snapshot;
 pub mod tile_animation;

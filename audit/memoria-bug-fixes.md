@@ -58,8 +58,8 @@ Owner decision: Tantalus includes every Memoria bug fix for the vanilla game. Op
 | G36 | Trance duplicated or glitched the command title (`SFXRework = 0`); summon-title mixups | CL 2024.12.04 #838, CL 2024.11.17 | text | cfg | n/a (SFXRework 0 only) |
 | G37 | Fix post-menu stats in battles (stats wrong after opening the menu mid-battle) | commit `45f4a5a`; CL 2025.07.04 | battle | always | todo (verify) |
 | G38 | Soft-lock after a soft reset in battle | CL 2024.12.04 #830 | battle | always | n/a: Tantalus has no soft reset |
-| G39 | Soft-lock when saving on the world map (introduced by the PC port) | CL 2025.07.04; commit `a741ff5` | world | always | todo (verify) |
-| G40 | Friendly Mu could still be met after giving it an ore (PC-port bug) | CL 2025.07.04; list at `btl_para.cs:402` | world | always | todo |
+| G39 | Soft-lock when saving on the world map (introduced by the PC port) | CL 2025.07.04; commit `a741ff5` | world | always | open, blocked: Tantalus has no world-map save or chocobo placement (`tantalus-legacy/src/world` ports on-foot movement only). Memoria a741ff5 replaces the nested-loop search in `w_movementChrVerifyValidCastPosition` with a square spiral (step 20, radius under 200) and verifies chocobo indexes 3-7 only; port with the world mode |
+| G40 | Friendly Mu could still be met after giving it an ore (PC-port bug) | CL 2025.07.04; list at `btl_para.cs:402` | world | always | open, blocked: no world-map Mu logic in Tantalus and no code location in Memoria (CL only) |
 | G41 | Soft-lock in the French ending cutscene | CL 2025.07.04 | field script | always | n/a (Unity text timing); verify the French ending runs |
 | G42 | Battle or naming screen soft-locks as the interface appears, on some PCs | CL 2025.07.04; commit `8c99665` | battle/menu | always | n/a (Unity UI) |
 | G43 | Cure/Heal of "permanent" statuses in menus: wrong statuses could stone characters | CL 2025.05.12 (mod case) | status | always | n/a: mod-only trigger |
@@ -67,23 +67,23 @@ Owner decision: Tantalus includes every Memoria bug fix for the vanilla game. Op
 | G45 | `GetUnitProperty` returns 0 for characters not in battle | CL 2025.05.12 | AI | always | n/a: modding formula API |
 | G46 | AI variables `GetAttackCommandId` / `GetAttackId` worked only in counters | CL 2024.11.17 | AI | always | n/a: Memoria AI extension |
 | G47 | `WhenGameOver` / `WhenDefeated` ignored death status, so no line played | CL 2025.05.12 | AI | always | todo (verify) |
-| G48 | Jump Rope: points reach the next vanilla reward (no skipped reward) | `EBin.cs:1942`; CL 2025.05.12 #1006 | field script | cfg (`RopeJumpingIncrement`, default 1) | todo: no Tantalus code found; vanilla Steam gives 1 point per jump, so the default only matters with the hack |
-| G49 | Blank swordfight controls fixed; Steam adds +30% score | `EMinigame.cs:19`; CL 2025.05.12 | field script | cfg (`SwordplayAssistance`, default 1) | todo: owner decision needed whether to keep the Steam +30% |
+| G48 | Jump Rope: points reach the next vanilla reward (no skipped reward) | `EBin.cs:1942`; CL 2025.05.12 #1006 | field script | cfg (`RopeJumpingIncrement`, default 1) | done by identity: Memoria's rope hack at increment 1 never changes a value (owner chose PS1 values); ledger `memoria-rope-jump-no-skip` |
+| G49 | Blank swordfight controls fixed; Steam adds +30% score | `EMinigame.cs:19`; CL 2025.05.12 | field script | cfg (`SwordplayAssistance`, default 1) | done: Tantalus has no +30% bonus (owner chose PS1 values); ledger `memoria-swordplay-no-steam-bonus` |
 | G50 | Cinna/Marcus/Blank heal; "The Ultimate Racket" achievement tied to the wrong item | CL 2024.04.28 | item/achievement | always | n/a (Steam achievement); heal part is G06 |
 | G51 | Key-item removal did not work | commit `c03cda6` (2023) | item | always | todo (verify) |
 | G52 | Revive worked on undead characters | commit `2012946` (#50) | battle formula | always | todo (verify): `tests/battle_formulas.rs` `s13_revive_refusals_and_zombie` |
 | G53 | Enemy attacking dead characters | commit `bac6b4a` | AI | always | todo (verify) |
 | G54 | Fast-battle Poison and Regen tick fix; ATB speed-up fix; Return of Cannon attack, ATB gauge color (gray/yellow) | commits `404d1f3`, `4196475`, `eeae897` | battle | always | todo (verify) |
 | G55 | Fixed Atomos, Demi, Aqua Breath, Demi Shock, Worm Hole data | commit `48bbec6` | ability | always (data) | todo (verify): only Thunder Slash is in the ledger |
-| G56 | Eiko summons Madeen in the scripted fight (#890) | CL 2024.12.04 | field/battle script | always | todo |
+| G56 | Eiko summons Madeen in the scripted fight (#890) | CL 2024.12.04 | field/battle script | always | open: Memoria code location not found (no `Madeen` special case in the C#; likely a battle-data change) |
 | G57 | Dialog: fast inputs applied the wrong cancel choice; French dialog lacked `[IMME]` (#1237) | `Dialog/Dialog.cs:777,799,824` | text | always | n/a (Unity dialog widget); verify choice cancel in the Tantalus dialog |
-| G58 | Mist Continent title stayed on screen if the player left the world map mid-fade (vanilla bug) | CL 2024.11.17; `FF9UIDataTool.cs:816` | world | always | todo |
-| G59 | Navi mode >= 2 reset on world map load (#697) | `ff9/ff9.cs:6785` | world | always | todo |
-| G60 | World map: minimap state left the map black; bugged minimap on the route to Oeilvert; 1-2 frame teleport before a battle | CL 2024.08.05; `WorldHUD.cs:1014` | world | always | todo |
-| G61 | World map auto-flight too fast and hit a wall when the path crosses a border; ship flapping animation; ship tilt direction | CL 2024.08.24, CL 2024.06.09, CL 2024.11.17 | world | always | todo |
-| G62 | Fossil Roo exit path unaligned (#486); field 1207 Garnet teleport; 768 teleport during fade; 1554 flash after FMV | CL 2024.06.09, CL 2024.08.05 | field script | always | todo |
-| G63 | Madain Sari soft-lock in a specific scenario | CL 2024.08.05 patch 08-10 | field script | always | todo |
-| G64 | Kuja appears early, spoiling Zidane's surprise (#860); Zidane breaks through Garnet (#892); Steiner transparent (#896) | CL 2024.11.17 | field script | always | todo |
+| G58 | Mist Continent title stayed on screen if the player left the world map mid-fade (vanilla bug) | CL 2024.11.17; `FF9UIDataTool.cs:816` | world | always | open, blocked: no world-map title UI in Tantalus |
+| G59 | Navi mode >= 2 reset on world map load (#697) | `ff9/ff9.cs:6785` | world | always | open, blocked: no world-map navi state in Tantalus |
+| G60 | World map: minimap state left the map black; bugged minimap on the route to Oeilvert; 1-2 frame teleport before a battle | CL 2024.08.05; `WorldHUD.cs:1014` | world | always | open, blocked: no world-map minimap or battle-entry frame in Tantalus |
+| G61 | World map auto-flight too fast and hit a wall when the path crosses a border; ship flapping animation; ship tilt direction | CL 2024.08.24, CL 2024.06.09, CL 2024.11.17 | world | always | open, blocked: world-map flight and ship are not ported (`FootWalker` rejects control types 1-3) |
+| G62 | Fossil Roo exit path unaligned (#486); field 1207 Garnet teleport; 768 teleport during fade; 1554 flash after FMV | CL 2024.06.09, CL 2024.08.05 | field script | always | partial: Fossil Roo worker position (1421) and Dagger height (1207) in `field/script_fixes.rs`, test `field_host.rs` `memoria_field_script_patches`; triangle 109/110 toggles, 768 post-battle placement and 1554 flash still open |
+| G63 | Madain Sari soft-lock in a specific scenario | CL 2024.08.05 patch 08-10 | field script | always | done: the soft-lock came from a Memoria hack (69ee7082, removed in patch 08-10); Tantalus has no such hack; ledger `memoria-madain-sari-softlock-hack-absent` |
+| G64 | Kuja appears early, spoiling Zidane's surprise (#860); Zidane breaks through Garnet (#892); Steiner transparent (#896) | CL 2024.11.17 | field script | always | partial: Kuja #860 (2209) and Steiner #892 (257) in `field/script_fixes.rs`, test `field_host.rs` `memoria_field_script_patches`; Steiner transparent #896 not located |
 | G65 | Hunt festival: unable to talk with turbo dialog | CL 2024.06.09 | field script | cfg (TurboDialog) | n/a (turbo dialog is an option) |
 | G66 | Tetra Master: analog stick disrupted card placement (#963); first-turn card placement minor issue | CL 2024.11.17; `QuadMistGame.cs:458` | cards | always / cfg | todo (verify) |
 | G67 | Items `OutOfBattle` on Death handled by revive items and abilities | CL 2026.11.09 | item | always | todo (verify) |
@@ -97,7 +97,7 @@ These are PSX-to-PC port glitches fixed in code or data. Several are only visibl
 
 | ID | Fix | Source | Area | Gating | Tantalus |
 |---|---|---|---|---|---|
-| V01 | Blank jumps into hole: position adjusted (field 53) | `DoEventCode.cs:641` | field script | always | todo |
+| V01 | Blank jumps into hole: position adjusted (field 53) | `DoEventCode.cs:641` | field script | always | done: `field/script_fixes.rs` (field 53 walk X 330; moves chain field 53 by 1 tick), test `field_host.rs` `memoria_field_script_patches` |
 | V02 | Chocobo dream title scrolling on screen (field 2953) | `DoEventCode.cs:1670` | field script | always | todo |
 | V03 | Anim and chest visible (field 352, counter 2540) | `DoEventCode.cs:1690` | field script | always | todo |
 | V04 | Ending: camera moves instantly (fields 3000-3008, #677) | `DoEventCode.cs:1837` | field | always | todo |

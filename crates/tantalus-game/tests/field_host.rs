@@ -735,3 +735,82 @@ fn quina_walks_slower_in_the_marsh() {
     assert_eq!(set(658, 5), 30);
     assert_eq!(set(659, 18), 30);
 }
+
+/// Memoria's per-field script patches (`EventEngine.DoEventCode.cs`).
+#[test]
+fn memoria_field_script_patches() {
+    use tantalus_legacy::HostEvent;
+    let place = |map: i32, sc: u16, who: u64, event: HostEvent| {
+        let mut world = FieldWorld::new();
+        world.field_map_no = map;
+        world
+            .global_memory
+            .set(0, tantalus_legacy::VariableType::UInt16, i32::from(sc));
+        world.add_actor(actor(who), [0.0; 3]);
+        apply_events(&mut world, &[event]);
+        world.actors[&actor(who)].clone()
+    };
+    // V01: field 53 walk X 250 -> 330.
+    let walk = |map| {
+        place(
+            map,
+            0,
+            3,
+            HostEvent::WalkActor {
+                actor: actor(3),
+                destination: [250, 1200],
+            },
+        )
+        .movement
+        .map(|m| m.destination)
+    };
+    assert_eq!(walk(53), Some([330.0, 1200.0]));
+    assert_eq!(walk(54), Some([250.0, 1200.0]));
+    // G64: Kuja (2209, entry 4, scenario 9520) moves right; other scenarios do not.
+    let kuja = |sc| {
+        place(
+            2209,
+            sc,
+            4,
+            HostEvent::SetActorPosition {
+                actor: actor(4),
+                position: [1123, 98, 1067],
+            },
+        )
+        .position[0]
+    };
+    assert_eq!(kuja(9520), 1323.0);
+    assert_eq!(kuja(9500), 1123.0);
+    // G64: Steiner in the Evil Forest nest (#892).
+    let steiner = place(
+        257,
+        2300,
+        8,
+        HostEvent::SetActorPosition {
+            actor: actor(8),
+            position: [96, 32768, -736],
+        },
+    );
+    assert_eq!((steiner.position[0], steiner.position[2]), (30.0, -716.0));
+    // G62: Fossil Roo worker, Garnet's room Dagger height.
+    let worker = place(
+        1421,
+        0,
+        5,
+        HostEvent::SetActorPosition {
+            actor: actor(5),
+            position: [1510, 32768, -2331],
+        },
+    );
+    assert_eq!(worker.position[2], -2231.0);
+    let dagger = place(
+        1207,
+        0,
+        9,
+        HostEvent::SetActorPosition {
+            actor: actor(9),
+            position: [10, 20, 30],
+        },
+    );
+    assert_eq!(dagger.position[2], 1274.0);
+}
