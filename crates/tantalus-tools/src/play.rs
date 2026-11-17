@@ -1702,6 +1702,15 @@ impl PlayGame {
                 bits | (u64::from(value as u16) << (16 * word))
             });
         play.set_progress(scenario, visited);
+        // The world script runs beside the walk and picks the place under
+        // the actor from the story state, as the original does.
+        let mut script_world = self.world.clone();
+        script_world.global_memory = globals.clone();
+        if let Ok(script) =
+            crate::world_script::WorldScript::start(&self.data.bundle, &name, 9000, script_world)
+        {
+            play.set_script(script);
+        }
         play.set_forms(&crate::world_data::alternate_form_blocks(
             scenario, discovered,
         ));

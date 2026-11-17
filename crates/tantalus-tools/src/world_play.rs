@@ -81,6 +81,9 @@ pub struct WorldPlay {
     pub visited: u64,
     pub walker: FootWalker,
     events: BTreeMap<u16, i32>,
+    /// The world script, run every frame; when present its place handlers
+    /// decide the place under the actor (`events` is the fallback).
+    script: Option<crate::world_script::WorldScript>,
     friendly: BTreeSet<u16>,
     /// The place under the actor, if any.
     pub place: Option<i32>,
@@ -115,6 +118,17 @@ fn wrap_position_keep_y(pos: Vec3) -> Vec3 {
 }
 
 impl WorldPlay {
+    /// Runs the world script alongside the walk: each frame it ticks, and a
+    /// place cell requests the cell's handler (`ff9.WorldEvent`).
+    pub fn set_script(&mut self, script: crate::world_script::WorldScript) {
+        self.script = Some(script);
+    }
+
+    /// The running world script, if any.
+    pub fn script(&self) -> Option<&crate::world_script::WorldScript> {
+        self.script.as_ref()
+    }
+
     /// Starts at world `(x, z)` facing north.
     pub fn new(
         assets: Arc<WorldAssets>,
@@ -140,6 +154,7 @@ impl WorldPlay {
             visited: 0,
             walker,
             events,
+            script: None,
             friendly,
             place: None,
             frames: 0,
@@ -504,13 +519,11 @@ impl WorldPlay {
         }
         let mut tick = WorldTick::default();
 
-        self.place = report
+        let hit_code = report
             .world_event
-            .and_then(|hit| {
-                self.events
-                    .get(&event_code(hit.cell_x, hit.cell_z, hit.event))
-            })
-            .copied();
+            .map(|hit| event_code(hit.cell_x, hit.cell_z, hit.event));
+        let scripted = self.script_place(hit_code);
+        self.place = scripted.or_else(|| hit_code.and_then(|code| self.events.get(&code)).copied());
         if pressed & confirm != 0
             && let Some(place) = self.place
         {
@@ -543,6 +556,32 @@ impl WorldPlay {
             }
         }
         tick
+    }
+
+    /// One frame of the world script: when the actor stands on a place cell
+    /// its handler runs and the place it chose (map variable 39) is
+    /// returned; `None` without a script, off a place, or when the handler
+    /// declines (a story or Chocograph condition is not met).
+    fn script_place(&mut self, code: Option<u16>) -> Option<i32> {
+        let script = self.script.as_mut()?;
+        if let Some(code) = code {
+            let _ = script
+                .world_mut()
+                .map_memory
+                .set(39, tantalus_legacy::VariableType::Byte, 0);
+            if script.request_event(code).unwrap_or(false) {
+                // The handler is short and has no waits before it picks.
+                for _ in 0..2 {
+                    if script.tick(0).is_err() {
+                        break;
+                    }
+                }
+                let place = script.place();
+                return (place != 0).then_some(place);
+            }
+        }
+        let _ = script.tick(0);
+        None
     }
 
     /// `w_cameraSetEyeAim` for the default camera.

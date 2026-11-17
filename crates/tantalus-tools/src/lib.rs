@@ -32,4 +32,5 @@ pub mod system_menu;
 pub mod world_data;
 pub mod world_places;
 pub mod world_play;
+pub mod world_script;
 pub mod world_walk_cli;

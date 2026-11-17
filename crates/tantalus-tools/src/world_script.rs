@@ -1,0 +1,138 @@
+//! The world map's event script, run by the field VM.
+//!
+//! `EVT_WORLD_WORLD00` (map 9000, and the other world scripts) is an ordinary
+//! event binary: its first object holds the place handlers (functions
+//! `0x8000 | z << 8 & 0x3F00 | x << 2 & 0xFC | id & 3`, requested by
+//! `ff9.WorldEvent`), its other objects run the weather, music and story
+//! logic. The world-only opcode is `RunWorldCode` (`WPRM`, 0xC4), which calls
+//! `ff9.w_frameSetParameter(code, value)`; the VM raises it as an event and
+//! [`WorldEffects`] applies the codes the walking world reads.
+//!
+//! Stubs, kept in [`WorldEffects::unhandled`] so a run lists them: the
+//! effect registry (code 10), music and sound-effect codes (20 to 24, 32,
+//! 33), the camera smoothing (25), the get-off search (28), the movement
+//! changes (1, 30, 31) and the autopilot (34 and up). They change no state
+//! here; the walking world has no ship, airship or chocobo script yet.
+
+use std::path::Path;
+
+use tantalus_game::FieldWorld;
+use tantalus_legacy::VariableType;
+
+use crate::field_session::{FieldSession, decode_pool, load_event, prepare_field_world, rerun};
+
+/// What the world script has set through `RunWorldCode`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct WorldEffects {
+    /// `w_frameScriptParam`: the four argument registers (codes 6 to 9, 14
+    /// and 16 to 19 write them).
+    pub params: [i32; 4],
+    /// `w_frameEventBattleProb` (code 26).
+    pub battle_probability: Option<i32>,
+    /// The weather the script asked for (code 0, value other than 4), and
+    /// its fade time (the first parameter register at that moment).
+    pub weather: Option<(i32, i32)>,
+    /// `w_weatherAutoChange` (codes 0 with value 4, and 15).
+    pub weather_auto: bool,
+    /// `w_naviActive` (code 2): the minimap shows.
+    pub navi_active: bool,
+    /// `w_naviMode` (code 4).
+    pub navi_mode: i32,
+    /// `w_cameraFixModeY` (code 5).
+    pub camera_fix_y: bool,
+    /// `w_naviCursolMove` (code 27).
+    pub navi_cursor: bool,
+    /// Times the script called the chocobo (code 29).
+    pub chocobo_calls: u32,
+    /// `w_naviFadeInTime` (code 11).
+    pub navi_fade_in: Option<i32>,
+    /// Calls this module does not act on, in order.
+    pub unhandled: Vec<(i32, i32)>,
+}
+
+impl WorldEffects {
+    /// `ff9.w_frameSetParameter`.
+    pub fn apply(&mut self, code: i32, value: i32) {
+        let flag = value == 1;
+        match code {
+            0 if value == 4 => self.weather_auto = true,
+            0 => {
+                self.weather_auto = false;
+                self.weather = Some((value, self.params[0]));
+            }
+            2 => self.navi_active = flag,
+            4 => self.navi_mode = value,
+            5 => self.camera_fix_y = flag,
+            6 | 14 | 16 => self.params[0] = value,
+            7 | 17 => self.params[1] = value,
+            8 | 18 => self.params[2] = value,
+            9 | 19 => self.params[3] = value,
+            11 => self.navi_fade_in = Some(value + 5),
+            15 => self.weather_auto = flag,
+            26 => self.battle_probability = Some(value),
+            27 => self.navi_cursor = flag,
+            29 => self.chocobo_calls += 1,
+            3 => {}
+            _ => self.unhandled.push((code, value)),
+        }
+    }
+}
+
+/// The world script, live.
+pub struct WorldScript {
+    session: FieldSession,
+    pub effects: WorldEffects,
+}
+
+impl WorldScript {
+    /// Starts world script `name` (`EVT_WORLD_WORLD00`) for world map `map`
+    /// over `world`, whose global state (story counter, found Chocographs)
+    /// the script reads.
+    pub fn start(
+        bundle: &Path,
+        name: &str,
+        map: i32,
+        mut world: FieldWorld,
+    ) -> Result<Self, String> {
+        let binary = load_event(bundle, &format!("{name}.eb"))?;
+        let (pool, _) = decode_pool(&binary)?;
+        prepare_field_world(&mut world, map);
+        Ok(Self {
+            session: FieldSession::start(map, world, pool)?,
+            effects: WorldEffects::default(),
+        })
+    }
+
+    /// One frame of the script. Returns the field the script changed to.
+    pub fn tick(&mut self, input: i32) -> Result<Option<i32>, String> {
+        let tick = self.session.tick(input)?;
+        for (code, value) in self.session.director.world_mut().take_world_codes() {
+            self.effects.apply(code, value);
+        }
+        Ok(tick.next_field)
+    }
+
+    /// `ff9.WorldEvent`: asks the first object to run place handler `code`
+    /// (see `world_places::event_code`). False when the script has none.
+    pub fn request_event(&mut self, code: u16) -> Result<bool, String> {
+        rerun(&mut self.session.director, &self.session.pool, 0, code)
+    }
+
+    /// The place the last handler chose (map variable 39).
+    pub fn place(&self) -> i32 {
+        self.session
+            .director
+            .world()
+            .map_memory
+            .get(39, VariableType::Byte)
+            .unwrap_or(0)
+    }
+
+    pub fn world(&self) -> &FieldWorld {
+        self.session.director.world()
+    }
+
+    pub fn world_mut(&mut self) -> &mut FieldWorld {
+        self.session.director.world_mut()
+    }
+}

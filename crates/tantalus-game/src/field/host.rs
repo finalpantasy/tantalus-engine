@@ -1205,6 +1205,10 @@ impl LegacyEventHost for FieldHost<'_> {
                 HostEvent::ChangeField { field } => {
                     self.world.field_transitions.push(*field);
                 }
+                HostEvent::RunWorldCode { code, value } => {
+                    // `WPRM`: `ff9.w_frameSetParameter(code, value)`.
+                    self.world.world_codes.push((*code, *value));
+                }
                 HostEvent::ChangeWorldMap { destination } => {
                     self.world.push_world_transition(*destination);
                 }

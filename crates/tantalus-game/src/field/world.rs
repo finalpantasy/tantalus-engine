@@ -850,6 +850,11 @@ pub struct FieldWorld {
     /// (runtime-only).
     #[serde(skip)]
     pub shop_requested: Option<i32>,
+    /// `RunWorldCode` calls (`ff9.w_frameSetParameter(code, value)`) the
+    /// world script made since the last [`FieldWorld::take_world_codes`]
+    /// (runtime-only).
+    #[serde(skip)]
+    pub world_codes: Vec<(i32, i32)>,
     /// Enabled support abilities per character, in the order they were
     /// switched on (reference `player.saExtended`).
     #[serde(default)]
@@ -1100,6 +1105,7 @@ impl FieldWorld {
             save_point: false,
             save_requested: false,
             shop_requested: None,
+            world_codes: Vec::new(),
             support_enabled: BTreeMap::new(),
             actor_shadows: BTreeMap::new(),
             light_changes: Vec::new(),
@@ -1473,6 +1479,11 @@ impl FieldWorld {
 
     pub fn take_field_transitions(&mut self) -> Vec<i16> {
         std::mem::take(&mut self.field_transitions)
+    }
+
+    /// The `RunWorldCode` calls since the last take, as `(code, value)`.
+    pub fn take_world_codes(&mut self) -> Vec<(i32, i32)> {
+        std::mem::take(&mut self.world_codes)
     }
 
     pub fn take_world_transitions(&mut self) -> Vec<i16> {
