@@ -80,7 +80,6 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut save_at: BTreeMap<i32, PathBuf> = BTreeMap::new();
     let mut load_world: Option<PathBuf> = None;
     let mut animation_frames: Option<PathBuf> = None;
-    let mut reference_requests = false;
     let mut give_items: Vec<(i32, i32)> = Vec::new();
     while let Some(flag) = iter.next() {
         let mut value = || {
@@ -178,7 +177,6 @@ fn run(args: Vec<String>) -> Result<(), String> {
             "--load-world" => load_world = Some(PathBuf::from(value()?)),
             // Real animation lengths (`animation-frames` writes the table).
             "--animation-frames" => animation_frames = Some(PathBuf::from(value()?)),
-            "--reference-requests" => reference_requests = true,
             "--give-items" => {
                 for pair in value()?.split(',').filter(|part| !part.is_empty()) {
                     let (item, count) = pair
@@ -459,7 +457,6 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     save_at,
                     load_world,
                     animation_frames,
-                    reference_requests,
                     give_items,
                     battles: match battle_ids {
                         Some(ids) => Some(tantalus_tools::field_battle::FieldBattles::load(
@@ -961,7 +958,6 @@ struct ChainOptions {
     load_world: Option<PathBuf>,
     /// Animation id to frame count table (`--animation-frames`).
     animation_frames: Option<PathBuf>,
-    reference_requests: bool,
     give_items: Vec<(i32, i32)>,
     /// Fight each encounter on the legacy battle machine (`--battles`).
     battles: Option<tantalus_tools::field_battle::FieldBattles>,
@@ -1049,7 +1045,6 @@ fn chain(
         save_at,
         load_world,
         animation_frames,
-        reference_requests,
         give_items,
         battles: field_battles,
     } = options;
@@ -1124,12 +1119,13 @@ fn chain(
             resolved
         }));
     }
-    world.reference_requests = reference_requests;
     if let Some(path) = &animation_frames {
         let text = std::fs::read_to_string(path)
             .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
         let table = tantalus_tools::animation_frames::read_csv(&text);
         world.animation_frame_counts = Some(std::sync::Arc::new(move |id| table.get(&id).copied()));
+    } else {
+        tantalus_tools::animation_frames::install(&mut world);
     }
     // FF9Play_Init: every character has a player record from new game on.
     world.character_stats = stats;

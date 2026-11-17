@@ -2740,6 +2740,25 @@ impl EventVm {
                         target,
                         speed,
                     });
+                    // `TURNA` (DoEventCode.cs:1604): `StartTurn` toward the target
+                    // object's position, when the object exists.
+                    if let Ok(object) = host.resolve_object_uid(target)
+                        && let Ok(to) = host.read_object_position(object)
+                        && let Ok(from) = host.read_object_position(actor)
+                    {
+                        let angle = angle2(
+                            host,
+                            (to[0] - from[0]) as i32,
+                            (to[2] - from[2]) as i32,
+                            instruction.offset,
+                            opcode,
+                        )?;
+                        events.push(HostEvent::StartActorTurn {
+                            actor,
+                            angle: angle.wrapping_shl(4) as i16,
+                            speed,
+                        });
+                    }
                 }
                 InstructionKind::ShowBubbleIcon { icon } => {
                     let icon = self.evaluate(host, &icon, instruction.offset, opcode)?;

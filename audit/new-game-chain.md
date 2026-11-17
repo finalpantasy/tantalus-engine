@@ -510,40 +510,51 @@ The three Evil Forest fights take the party to level 2, and the Plant Brain
 falls. Every battle in the Alexandria to Evil Forest slice is now a victory
 (337 is the scripted result 5).
 
-## Story route: field 301 to the Dali airport
+## Story route: field 301 to the cargo ship
 
 `audit/story-route.sh` is a second regression beside the chain99 run. It
 runs chain99 with `--save-at 301:<file>` (the output stays identical), then
-loads that world and walks on to the first visit of field 455 (about 3.5
-minutes in all). `audit/story-route-expected.json` holds the field
+loads that world and walks on to the cargo ship's engine room (field 504,
+about 4 minutes in all). `audit/story-route-expected.json` holds the field
 sequence, ticks and scenario counters it must reproduce; the script prints
 `STORY-ROUTE-SAME` or `STORY-ROUTE-DIFFERENT`.
 
 The route goes Ice Cavern (301 to 312), the world exit to Dali Village
-(`--world-exits 9011:14`), the inns (351, 352), the windmill errands, the
-underground ladder (404) and the cargo-ship tunnels (406 to 400), and ends
-at Steiner in the Dali airport (455, scenario 2800 to 2805).
+(`--world-exits 9011:14`), the inns, the windmill errands, the underground
+ladder (404) and the cargo-ship tunnels (406 to 400), the Dali airport (455
+to 452, scenario 2800 to 2840), the airship (451, 453, 450), and the cargo
+ship (454, 505, 504).
 
-Engine gaps this route closed, all behind opt-in switches so the chain99
-output stays byte-identical:
+The reference behavior is now the default for the trace tool, the play
+window and the game. The chain baseline moved with it (chainNNN, 150
+records, same map sequence and same end, field 301). Engine gaps this route
+closed:
 
-- `--animation-frames audit/animation-frames.csv`: real clip lengths
-  (`GetCharAnimFrame`, round(length * frameRate) + 1). Field 301 waits for
-  frame 34 of a clip the default 32 ticks never reach.
-  `tantalus-trace animation-frames --bundle <p0data7.bin>` writes the table.
-- `--reference-requests`: a script request names a uid (`FindObjByUID`),
-  so `InitObject` with an explicit uid (Dali inn, uid 128) works; and an
-  asynchronous request at a level not below the object's current one is
-  dropped (`EventEngine.Request`) instead of pending forever (Dali inn 2).
-- `--hold 307:16` and `--hold 404:96`: the Ice Cavern slide and the Dali
-  ladder poll `KeyState(Held)`.
-- `--save-at MAP:PATH`, `--load-world PATH`, `--give-items ID:COUNT`:
-  shards and probes.
+- Real clip lengths (`GetCharAnimFrame`, round(length * frameRate) + 1) come
+  from `audit/animation-frames.csv`, embedded in the tools. Field 301 waits
+  for frame 34 of a clip the default 32 ticks never reach.
+- A script request names a uid (`FindObjByUID`), and an asynchronous request
+  at a level not below the object's current one is dropped
+  (`EventEngine.Request`).
+- `InitObject` of one entry with two uids makes two objects that run the
+  same code (the Dali inn 128 and 129, the airship 128 and 129).
+- The uid table is cleared when a field starts, as `InitEvents` does; a stale
+  uid kept the airship guards in one object.
+- `TurnTowardObject` turns the object, and a long turn ends a leftover
+  animation loop (`StartTurn` sets `animFlag = 0`), which freed the airship
+  scene.
+- `--hold 307:16`, `--hold 404:96` and `--hold 504:16`: the slide and the
+  ladders poll `KeyState(Held)`. `--skip-talk 455:1,455:2,455:4` skips the
+  Dali airport talks the route does not need.
 
-Next blocker: Steiner must bring the Dali airport's Morrid his coffee
-(key items 285 to 287 and a cutscene driven by map variable 28 in
-`EVT_DALI_A_AP_WTI_0`); the explorer leaves before the cutscene ends. Past it
-lie the cargo ship, Lindblum, Burmecia and Cleyra; disc 1 ends at
+The Dali airport errand needed no engine change: with the three talks
+skipped, scenario 2810 follows.
+
+Open: after the 8e00983 rebase the engine room scene stalls early (entry 7
+waits on an animation, entry 8 on a walk), where it ran through to the deck
+(field 507) before. Before the rebase the deck scene (507) also left the
+player locked: region 10 re-fires `Map28 = 6` while the player stands in it.
+Past that lie Lindblum, Burmecia and Cleyra; disc 1 ends at
 `EVT_ALEX3_AC_OHAKA` (field 1800), whose `DISCCHANGE` goes to disc 2, field
 1812.
 

@@ -326,6 +326,9 @@ pub struct ActorLook {
     pub idle: Option<u16>,
     pub walk: Option<u16>,
     pub run: Option<u16>,
+    /// The left and right turn animations (`SetLeftTurnAnimation`, `SetRightTurnAnimation`).
+    pub turn_left: Option<u16>,
+    pub turn_right: Option<u16>,
     /// The animation `PlayAnimation` started, until `StopAnimation`.
     pub playing: Option<u16>,
     /// `meshflags`: bit i set hides the model's `mesh<i>` child
@@ -607,6 +610,17 @@ pub struct FieldWorld {
     /// Requested functions still running, per target object: the script
     /// level of each call (`Obj.level` is the lowest, the running one).
     pending_requests: BTreeMap<EntityId, Vec<i32>>,
+    /// Entries `InitObject` created an object for this field (runtime-only).
+    #[serde(skip)]
+    object_inits: BTreeSet<u8>,
+    /// Extra objects of an entry (`InitObject` again with another uid): the
+    /// reference makes one `Obj` per call, all running the same code.
+    /// Runtime-only: object entity to its entry.
+    #[serde(skip)]
+    instance_sources: BTreeMap<EntityId, u8>,
+    /// Instances created since the director last took them.
+    #[serde(skip)]
+    new_instances: Vec<(EntityId, u8)>,
     pending_callers: BTreeSet<i32>,
     shared_scripts: BTreeSet<EntityId>,
     party_menu_open: bool,
@@ -673,11 +687,6 @@ pub struct FieldWorld {
     /// `animation_default_ticks`.
     #[serde(skip)]
     pub animation_frame_counts: Option<AnimationFrameCounts>,
-    /// Reference request semantics (runtime-only, opt-in): a request names a
-    /// uid (`FindObjByUID`), and an asynchronous request at a level not below
-    /// the object's current one is dropped (`EventEngine.Request`).
-    #[serde(skip)]
-    pub reference_requests: bool,
     /// Reward-item identity to legacy inventory id mapping (runtime-only).
     #[serde(skip)]
     pub item_id_map: Option<ItemIdMap>,
@@ -929,6 +938,9 @@ impl FieldWorld {
             dialog_signals: BTreeMap::new(),
             pending_signals: std::collections::VecDeque::new(),
             pending_requests: BTreeMap::new(),
+            object_inits: BTreeSet::new(),
+            instance_sources: BTreeMap::new(),
+            new_instances: Vec::new(),
             pending_callers: BTreeSet::new(),
             shared_scripts: BTreeSet::new(),
             party_menu_open: false,
@@ -958,7 +970,6 @@ impl FieldWorld {
             player_facing_polls: 0,
             fmv_frame_counts: None,
             animation_frame_counts: None,
-            reference_requests: false,
             item_id_map: None,
             character_exp: BTreeMap::new(),
             ability_pa: BTreeMap::new(),
@@ -1001,6 +1012,39 @@ impl FieldWorld {
         self.actors.insert(actor, ActorState::new(position));
     }
 
+    /// `NEW3` for entry `source` with `uid`: the entry's own object when it
+    /// has none yet (or `uid` is already its), a second object running the
+    /// same code otherwise. Returns the object.
+    pub fn init_object(&mut self, source: u8, uid: u8) -> EntityId {
+        let base = EntityId::new(u64::from(source));
+        let first = self.object_inits.insert(source);
+        let already = self.uid_map.get(&i32::from(uid)).copied();
+        if first || already == Some(base) || self.is_object_deleted(base) {
+            self.map_uid(i32::from(uid), base);
+            self.restore_object(base);
+            return base;
+        }
+        if let Some(existing) = already {
+            return existing;
+        }
+        let entity =
+            EntityId::new(((self.instance_sources.len() as u64 + 1) << 16) | u64::from(source));
+        self.add_actor(entity, [0.0; 3]);
+        self.map_uid(i32::from(uid), entity);
+        self.instance_sources.insert(entity, source);
+        self.new_instances.push((entity, source));
+        entity
+    }
+
+    /// The entry an instance object runs, when `entity` is one.
+    pub fn instance_source(&self, entity: EntityId) -> Option<u8> {
+        self.instance_sources.get(&entity).copied()
+    }
+
+    pub fn take_new_instances(&mut self) -> Vec<(EntityId, u8)> {
+        std::mem::take(&mut self.new_instances)
+    }
+
     pub fn map_uid(&mut self, uid: i32, entity: EntityId) {
         self.uid_map.insert(uid, entity);
     }
@@ -1040,6 +1084,10 @@ impl FieldWorld {
         self.window_texts.clear();
         self.window_speakers.clear();
         self.pending_requests.clear();
+        self.object_inits.clear();
+        self.uid_map.clear();
+        self.instance_sources.clear();
+        self.new_instances.clear();
         self.pending_callers.clear();
         self.shared_scripts.clear();
         self.object_members.clear();
@@ -1781,7 +1829,6 @@ impl FieldWorld {
         self.level_growth = template.level_growth.clone();
         self.fmv_frame_counts = template.fmv_frame_counts.clone();
         self.animation_frame_counts = template.animation_frame_counts.clone();
-        self.reference_requests = template.reference_requests;
         self.item_id_map = template.item_id_map.clone();
     }
 

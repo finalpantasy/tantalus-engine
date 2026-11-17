@@ -507,6 +507,12 @@ impl FieldHost<'_> {
             HostEvent::SetRunAnimation { actor, animation } => {
                 (*actor, &|state| state.look.run = Some(*animation))
             }
+            HostEvent::SetLeftTurnAnimation { actor, animation } => {
+                (*actor, &|state| state.look.turn_left = Some(*animation))
+            }
+            HostEvent::SetRightTurnAnimation { actor, animation } => {
+                (*actor, &|state| state.look.turn_right = Some(*animation))
+            }
             HostEvent::PlayAnimation { actor, animation } => {
                 (*actor, &|state| state.look.playing = Some(*animation))
             }
@@ -768,7 +774,44 @@ impl LegacyEventHost for FieldHost<'_> {
                     speed,
                 } => {
                     let ticks = 1 + ((*speed).max(1) as u32);
+                    let turn_frames = |left: bool, world: &super::world::FieldWorld| {
+                        let state = world.actors.get(actor)?;
+                        let id = if left {
+                            state.look.turn_left
+                        } else {
+                            state.look.turn_right
+                        }?;
+                        world.animation_frame_counts.as_ref().and_then(|c| c(id))
+                    };
+                    // `StartTurn` (DoEventCode.cs:3340): a turn long enough to need its
+                    // turn animation (more than 5 frames) restarts the animation flags
+                    // (`animFlag = 0`), so a leftover loop or hold ends with it.
+                    let previous = self.world.actors.get(actor).map(|state| state.facing);
+                    let target = facing_from_fixed_point(*angle);
+                    let long_turn = previous.is_some_and(|previous| {
+                        let mut delta = f32::from((target - previous) & 0xFF) * 360.0 / 256.0;
+                        if delta > 180.0 {
+                            delta -= 360.0;
+                        }
+                        if delta.abs() < 0.01 {
+                            return false;
+                        }
+                        let Some(frames) = turn_frames(delta < 0.0, self.world) else {
+                            return false;
+                        };
+                        let speed = if *speed == 0 { 16 } else { *speed };
+                        let mut count = (i32::from(frames) << 4) / speed;
+                        if delta.abs() < 90.0 {
+                            count = (count as f32 * delta.abs() / 90.0) as i32;
+                        }
+                        count > 5
+                    });
                     let state = self.actor_mut(*actor, "turn")?;
+                    if long_turn {
+                        state.anim_hold = false;
+                        state.anim_loop = false;
+                        state.anim_loops = 0;
+                    }
                     // `StartTurn` (DoEventCode.cs:3356) clears the `AFRAME` range.
                     state.in_frame = 0;
                     state.out_frame = u8::MAX;
@@ -1066,9 +1109,7 @@ impl LegacyEventHost for FieldHost<'_> {
                     // defaults to the entry's own id; the object is the entry.
                     if let Some(source) = self.world.object_source(*source) {
                         let uid = if *unique_id == 0 { source } else { *unique_id };
-                        let entity = EntityId::new(u64::from(source));
-                        self.world.map_uid(i32::from(uid), entity);
-                        self.world.restore_object(entity);
+                        self.world.init_object(source, uid);
                     }
                 }
                 HostEvent::SyncPartyUid => self.world.setup_party_uid(),
@@ -1530,7 +1571,7 @@ impl LegacyEventHost for FieldHost<'_> {
     }
 
     fn async_request_accepted(&mut self, target: EntityId, level: i32) -> bool {
-        !self.world.reference_requests || self.world.request_acceptable(target, level)
+        self.world.request_acceptable(target, level)
     }
 
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError> {

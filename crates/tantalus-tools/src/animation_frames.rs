@@ -102,3 +102,20 @@ pub fn read_csv(text: &str) -> BTreeMap<u16, u16> {
         })
         .collect()
 }
+/// The table shipped with the engine (`audit/animation-frames.csv`, written
+/// by `tantalus-trace animation-frames`).
+const EMBEDDED: &str = include_str!("../../../audit/animation-frames.csv");
+
+/// Gives `world` the real clip lengths unless it already has a provider
+/// (`ExecAnim` waits `GetCharAnimFrame` frames, not a fixed 32).
+pub fn install(world: &mut tantalus_game::FieldWorld) {
+    if world.animation_frame_counts.is_some() {
+        return;
+    }
+    static TABLE: std::sync::OnceLock<std::sync::Arc<BTreeMap<u16, u16>>> =
+        std::sync::OnceLock::new();
+    let table = TABLE
+        .get_or_init(|| std::sync::Arc::new(read_csv(EMBEDDED)))
+        .clone();
+    world.animation_frame_counts = Some(std::sync::Arc::new(move |id| table.get(&id).copied()));
+}

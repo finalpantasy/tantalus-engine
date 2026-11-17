@@ -52,6 +52,10 @@ pub struct DirectorStep {
     /// `new Quad`, `new Actor`, EventEngine.DoEventCode.cs:114-140).
     #[serde(default)]
     pub initialized: Vec<u8>,
+    /// Second and later objects of an entry created this tick (`InitObject`
+    /// with another uid): `(object, entry)`.
+    #[serde(default)]
+    pub instances: Vec<(EntityId, u8)>,
     /// `DRET` (ReturnEntryFunctions) targets this tick: every function the
     /// object is running returns and it restarts its loop at the idle
     /// level (`EventEngine.Return` with `sx = 0`, `state = stateInit`).
@@ -241,6 +245,7 @@ impl FieldDirector {
                 initialized.push(source);
             }
         }
+        let instances = self.world.take_new_instances();
         self.world.advance();
         self.world.advance_animations();
         // `FieldMap.HonoUpdate` runs `BgAnimationService` every tick.
@@ -318,6 +323,7 @@ impl FieldDirector {
             region_occupancy,
             shared_scripts,
             initialized,
+            instances,
             returned,
         })
     }

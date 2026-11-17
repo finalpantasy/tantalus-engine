@@ -90,6 +90,29 @@ pub fn register(
     entry: usize,
     tag: Option<u16>,
 ) -> Result<Option<EntityId>, String> {
+    register_on(director, pool, entry, tag, EntityId::new(entry as u64))
+}
+
+/// The director key of `object`'s function at `position` in `entry`: the
+/// entry's own object uses `entry * 256 + position`; an extra object of the
+/// same entry (`InitObject` with another uid) has its own keys.
+fn function_key(entry: usize, position: usize, object: EntityId) -> EntityId {
+    let base = entry as u64 * 256 + position as u64;
+    if object.get() == entry as u64 {
+        EntityId::new(base)
+    } else {
+        EntityId::new((object.get() << 16) | base)
+    }
+}
+
+/// [`register`] for a given object of the entry.
+pub fn register_on(
+    director: &mut FieldDirector,
+    pool: &Pool,
+    entry: usize,
+    tag: Option<u16>,
+    object: EntityId,
+) -> Result<Option<EntityId>, String> {
     let functions = &pool[entry];
     let position = match tag {
         Some(tag) => functions.iter().position(|(t, _)| *t == tag),
@@ -98,7 +121,7 @@ pub fn register(
     let Some(position) = position else {
         return Ok(None);
     };
-    let entity = EntityId::new(entry as u64 * 256 + position as u64);
+    let entity = function_key(entry, position, object);
     if director
         .entry_states()
         .iter()
@@ -110,11 +133,7 @@ pub fn register(
     // the reference), registered per field as `EntityId(entry)` with uid
     // `entry`.
     director
-        .add_object_function(
-            entity,
-            EntityId::new(entry as u64),
-            functions[position].1.clone(),
-        )
+        .add_object_function(entity, object, functions[position].1.clone())
         .map_err(|error| error.to_string())?;
     Ok(Some(entity))
 }
@@ -205,6 +224,8 @@ pub struct EntryScheduler {
     /// `EventEngine.Return` (EventEngine.cs:1178) moves the object to
     /// stateRunning and starts its loop function (tag 1) at level 7.
     initializing: Vec<(EntityId, usize)>,
+    /// Function key to its object, for the extra objects of an entry.
+    object_of: BTreeMap<EntityId, EntityId>,
     /// Shared script key -> the object it runs for.
     shared_running: BTreeMap<EntityId, EntityId>,
     /// Requested functions still running, with the target entry.
@@ -262,6 +283,26 @@ impl EntryScheduler {
                 }
             }
         }
+        // A second object of an entry runs the same code on its own.
+        for (object, source) in &step.instances {
+            let entry = usize::from(*source);
+            if entry >= pool.len() {
+                continue;
+            }
+            let first = if pool[entry].iter().any(|(tag, _)| *tag == 0) {
+                0
+            } else {
+                1
+            };
+            if let Some(entity) = register_on(director, pool, entry, Some(first), *object)? {
+                self.object_of.insert(entity, *object);
+                if first == 0 {
+                    self.initializing.push((entity, entry));
+                } else {
+                    self.loops_started += 1;
+                }
+            }
+        }
         Ok(())
     }
 
@@ -303,13 +344,14 @@ impl EntryScheduler {
             // The request names a uid (`FindObjByUID`); an object created
             // with `InitObject` and an explicit uid runs its entry's code.
             let uid = request.target.get();
-            let resolved = director
-                .world()
-                .reference_requests
-                .then(|| i32::try_from(uid).ok())
-                .flatten()
+            let resolved = i32::try_from(uid)
+                .ok()
                 .and_then(|uid| director.world().resolve_uid(uid));
-            let target = resolved.map_or(uid, |entity| entity.get()) as usize;
+            let object = resolved.unwrap_or(request.target);
+            let target = match director.world().instance_source(object) {
+                Some(source) => usize::from(source),
+                None => object.get() as usize,
+            };
             if target >= pool.len() {
                 self.unspawned += 1;
                 continue;
@@ -318,13 +360,22 @@ impl EntryScheduler {
             let tag = pool[target].iter().any(|(t, _)| *t == tag).then_some(tag);
             // A function that already ran to its end runs again from its
             // start (each request is a fresh call).
-            if let Some(entity) = tag.and_then(|tag| function_entity(pool, target, tag))
+            let key = tag.and_then(|tag| {
+                let position = pool[target].iter().position(|(t, _)| *t == tag)?;
+                Some(function_key(target, position, object))
+            });
+            if let Some(entity) = key
                 && is_completed(director, entity)
             {
                 director.remove_entry(entity);
             }
-            match register(director, pool, target, tag)? {
-                Some(entity) => self.spawned.push((entity, uid)),
+            match register_on(director, pool, target, tag, object)? {
+                Some(entity) => {
+                    if object.get() != target as u64 {
+                        self.object_of.insert(entity, object);
+                    }
+                    self.spawned.push((entity, uid));
+                }
                 None => {
                     // Nothing will run, so nothing would ever clear the
                     // pend: release a waiting caller.
@@ -367,7 +418,7 @@ impl EntryScheduler {
         self.initializing.retain(|(entity, entry)| {
             let complete = done_entity(entity);
             if complete {
-                ready.push(*entry);
+                ready.push((*entity, *entry));
             }
             !complete
         });
@@ -377,10 +428,18 @@ impl EntryScheduler {
         for base in done {
             director.world_mut().complete_request(EntityId::new(base));
         }
-        for entry in ready {
+        for (entity, entry) in ready {
+            let object = self
+                .object_of
+                .get(&entity)
+                .copied()
+                .unwrap_or_else(|| EntityId::new(entry as u64));
             if pool[entry].iter().any(|(tag, _)| *tag == 1)
-                && register(director, pool, entry, Some(1))?.is_some()
+                && let Some(loop_entity) = register_on(director, pool, entry, Some(1), object)?
             {
+                if object.get() != entry as u64 {
+                    self.object_of.insert(loop_entity, object);
+                }
                 self.loops_started += 1;
             }
         }
@@ -546,6 +605,7 @@ pub fn prepare_field_world(world: &mut FieldWorld, map: i32) {
     world.field_map_no = map;
     world.map_memory.clear();
     world.begin_field();
+    crate::animation_frames::install(world);
 }
 
 /// The world map stand-in. The world script (`EVT_WORLD_WORLD00` for map

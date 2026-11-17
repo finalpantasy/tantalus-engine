@@ -255,6 +255,7 @@ pub fn new_game_world(
         tantalus_game::new_game::build_stats(*base, &levels, level)
     }));
     world.provide_atan_table(atan);
+    crate::animation_frames::install(&mut world);
     world
 }
 
