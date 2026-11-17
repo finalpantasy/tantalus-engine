@@ -2371,6 +2371,8 @@ fn comet_misses_on_a_high_roll_and_meteor_never_misses_by_itself() {
     ]);
     assert!(!miss(&o), "{o:?}");
     assert!(o.target.hp_damage > 0, "{o:?}");
+}
+
 // ---------------------------------------------------------------------------
 // Attack support abilities (`AbilityFeatures.txt` SA 12, 13-20, 24, 25)
 // ---------------------------------------------------------------------------
