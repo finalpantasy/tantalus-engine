@@ -1,5 +1,6 @@
 use crate::scene_adapter::{ClientError, ClientSceneAdapter, ResolvedAssets};
 use bevy::asset::RenderAssetUsages;
+use bevy::image::ImageSampler;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use tantalus_assets::pc::bundled_field::BundledField;
@@ -44,7 +45,7 @@ fn rgba_image(width: i32, height: i32, rgba: Vec<u8>) -> Result<Image, ClientErr
             rgba.len()
         )));
     }
-    Ok(Image::new(
+    let mut image = Image::new(
         Extent3d {
             width,
             height,
@@ -54,7 +55,12 @@ fn rgba_image(width: i32, height: i32, rgba: Vec<u8>) -> Result<Image, ClientErr
         rgba,
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::default(),
-    ))
+    );
+    // `BGSCENE_DEF.InitPSXTextureAtlas` makes the atlas point-filtered, but the field materials
+    // then set `ModelFactory.SetMatFilter(material, Configuration.Graphics.FieldSmoothTexture)`
+    // (Memoria.ini default 1): bilinear.
+    image.sampler = ImageSampler::linear();
+    Ok(image)
 }
 
 #[cfg(test)]

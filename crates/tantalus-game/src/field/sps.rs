@@ -190,7 +190,9 @@ impl super::world::FieldWorld {
                     slot.loaded = false;
                 }
             }
-            // `OPERATION_ATTR`
+            // `OPERATION_ATTR`. Memoria also keeps the mesh of an effect without a file off after an
+            // attribute op on fields 1206, 1223 and 2928 (`if (sps.spsBin != null)`); a slot with no
+            // file is never drawn here (`SpsSlot::loaded`), so that tweak changes nothing.
             131 => {
                 let slot = &mut self.sps.slots[index];
                 if arg1 == 0 {
@@ -215,7 +217,16 @@ impl super::world::FieldWorld {
                 self.sps.slots[index].rot = [degrees(arg0), degrees(arg1), degrees(arg2)];
             }
             // `OPERATION_SCALE`
-            145 => self.sps.slots[index].scale = arg0,
+            145 => {
+                // Memoria: the candle lights of fields 50 (SPS_0001) and 51 (SPS_0000) are made
+                // a bit bigger (`(Int32)(Arg0 * 1.30)`).
+                let candle = matches!((field, index), (50, 1) | (51, 0));
+                self.sps.slots[index].scale = if candle {
+                    (f64::from(arg0) * 1.30) as i32
+                } else {
+                    arg0
+                };
+            }
             // `OPERATION_CHAR`: follow bone `arg1` of object `arg0`
             150 => {
                 let slot = &mut self.sps.slots[index];
@@ -375,5 +386,20 @@ mod tests {
         world.field_map_no = 911;
         world.sps_op(2, 135, [5, 5, 5]);
         assert_eq!(world.sps.slots[2].pos, [0.0; 3]);
+    }
+
+    #[test]
+    fn memoria_enlarges_the_candle_lights_of_fields_50_and_51() {
+        let mut world = world();
+        world.sps_op(1, 145, [4096, 0, 0]);
+        assert_eq!(world.sps.slots[1].scale, 5324, "(int)(4096 * 1.3)");
+        world.sps_op(0, 145, [4096, 0, 0]);
+        assert_eq!(world.sps.slots[0].scale, 4096, "only slot 1 of field 50");
+        world.field_map_no = 51;
+        world.sps_op(0, 145, [1000, 0, 0]);
+        assert_eq!(world.sps.slots[0].scale, 1300);
+        world.field_map_no = 52;
+        world.sps_op(0, 145, [1000, 0, 0]);
+        assert_eq!(world.sps.slots[0].scale, 1000);
     }
 }

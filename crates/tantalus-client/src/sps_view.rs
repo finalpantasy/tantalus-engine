@@ -8,6 +8,7 @@
 
 use crate::actor_models::ActorModels;
 use crate::projection::{layer_z, project_field_point_depth};
+use crate::smooth::{ACTOR_MOVE_MAX, Pair, lerp, lerp_angle, lerp3, shortest_delta};
 use crate::track::TrackFrame;
 use bevy::asset::{AssetPath, RenderAssetUsages, embedded_asset, embedded_path};
 use bevy::image::ImageSampler;
@@ -171,6 +172,69 @@ pub fn build_sprites(
     angle: f32,
     colors: impl Fn([u8; 3]) -> [f32; 3],
 ) -> Option<Mesh> {
+    let (sin, cos) = angle.sin_cos();
+    build_sprites_with(
+        file,
+        frame,
+        |cx, cy| {
+            let (sx, sy) = (cx * scale, -cy * scale);
+            Some([
+                center[0] + sx * cos - sy * sin,
+                center[1] + sx * sin + sy * cos,
+            ])
+        },
+        colors,
+    )
+}
+
+/// `Quaternion.Euler(x, y, z)` as a matrix (Unity applies z, then x, then y), degrees in.
+fn euler_matrix(degrees: [f32; 3]) -> [[f32; 3]; 3] {
+    let [x, y, z] = degrees.map(f32::to_radians);
+    let (sx, cx) = x.sin_cos();
+    let (sy, cy) = y.sin_cos();
+    let (sz, cz) = z.sin_cos();
+    let rz = [[cz, -sz, 0.0], [sz, cz, 0.0], [0.0, 0.0, 1.0]];
+    let rx = [[1.0, 0.0, 0.0], [0.0, cx, -sx], [0.0, sx, cx]];
+    let ry = [[cy, 0.0, sy], [0.0, 1.0, 0.0], [-sy, 0.0, cy]];
+    let mul = |a: [[f32; 3]; 3], b: [[f32; 3]; 3]| {
+        let mut out = [[0.0f32; 3]; 3];
+        for (row, out_row) in out.iter_mut().enumerate() {
+            for (column, value) in out_row.iter_mut().enumerate() {
+                *value = (0..3).map(|k| a[row][k] * b[k][column]).sum();
+            }
+        }
+        out
+    };
+    mul(ry, mul(rx, rz))
+}
+
+/// Where the Crystal World teleport effect (field 2929) puts a sprite corner
+/// (`SPSEffect._GenerateSPSMesh`, `useScreenPositionHack`): the corner `(cx, cy)` goes through
+/// `TRS(pos * 0.9925, Euler(-rot.x / 2, -rot.y / 2, rot.z / 2), (scale, -scale, 1))` and then
+/// straight through the field camera, with no per-sprite depth division of the size.
+pub fn screen_hack_corner(
+    camera: &LegacyFieldCamera,
+    pos: [f32; 3],
+    scale: f32,
+    rot: [f32; 3],
+    corner: [f32; 2],
+) -> Option<[f32; 2]> {
+    let matrix = euler_matrix([-rot[0] / 2.0, -rot[1] / 2.0, rot[2] / 2.0]);
+    let local = [corner[0] * scale, -corner[1] * scale, 0.0];
+    let point: [f32; 3] = std::array::from_fn(|row| {
+        pos[row] * 0.9925 + (0..3).map(|k| matrix[row][k] * local[k]).sum::<f32>()
+    });
+    project_field_point_depth(camera, point).map(|(screen, _)| screen)
+}
+
+/// [`build_sprites`] with the corner placement left to `place(x, y)`, which gets the corner's
+/// sprite-space offset and returns its screen position (`None` drops the effect).
+pub fn build_sprites_with(
+    file: &SpsFile,
+    frame: usize,
+    place: impl Fn(f32, f32) -> Option<[f32; 2]>,
+    colors: impl Fn([u8; 3]) -> [f32; 3],
+) -> Option<Mesh> {
     let prims = file.frames.get(frame)?;
     if prims.is_empty() {
         return None;
@@ -178,7 +242,6 @@ pub fn build_sprites(
     let (texel_w, texel_h) = file.texel_size();
     // `uvShrink`: field effects sample half a texel in from each edge.
     let (w, h) = (texel_w as f32, texel_h as f32);
-    let (sin, cos) = angle.sin_cos();
     let mut positions = Vec::with_capacity(prims.len() * 4);
     let mut uvs = Vec::with_capacity(prims.len() * 4);
     let mut colored = Vec::with_capacity(prims.len() * 4);
@@ -198,12 +261,8 @@ pub fn build_sprites(
         // Later sprites draw over earlier ones: a hair nearer for each.
         let z = index as f32 * 0.0005;
         for (cx, cy, du, dv) in corners {
-            let (sx, sy) = (cx * scale, -cy * scale);
-            positions.push([
-                center[0] + sx * cos - sy * sin,
-                center[1] + sx * sin + sy * cos,
-                z,
-            ]);
+            let [px, py] = place(cx, cy)?;
+            positions.push([px, py, z]);
             uvs.push([
                 (f32::from(prim.u) + du) / 256.0,
                 (f32::from(prim.v) + dv) / 256.0,
@@ -236,7 +295,10 @@ fn page_image(file: &SpsFile, vram: &tantalus_assets::pc::field_sps::Vram) -> Im
         TextureFormat::Rgba8Unorm,
         RenderAssetUsages::default(),
     );
-    image.sampler = ImageSampler::nearest();
+    // `CommonSPSSystem` and `SPSEffect` set the page's filter with
+    // `ModelFactory.GetFilterMode(SFXSmoothTexture, 1)`: bilinear unless the player asks for
+    // point sampling (the background atlas, `BGSCENE_DEF`, is the one set to point).
+    image.sampler = ImageSampler::linear();
     image
 }
 
@@ -303,7 +365,14 @@ pub fn sync_sps(
             pos[1] + slot.pos_offset[1],
             pos[2] + slot.pos_offset[2],
         ];
-        let Some(([x, y], depth)) = project_field_point_depth(camera, at) else {
+        // `useScreenPositionHack`: the Crystal World teleport effect (field 2929, `gMode` 1).
+        let hack = source.field.0 == 2929;
+        let depth_at = if hack {
+            at.map(|value| value * 0.9925)
+        } else {
+            at
+        };
+        let Some(([x, y], depth)) = project_field_point_depth(camera, depth_at) else {
             continue;
         };
         // `localPos.z < 0`: behind the camera.
@@ -318,14 +387,25 @@ pub fn sync_sps(
             layer_z((depth / 4.0).trunc() + camera.depth_offset as f32 + slot.depth_offset as f32)
                 + 0.015;
         let (field_id, id, fade) = (source.field.0, slot.id, slot.fade);
-        let Some(mesh) = build_sprites(
-            file,
-            frame_index,
-            [x, y],
-            scale,
-            (-slot.rot[2]).to_radians(),
-            |color| sprite_color(color, fade, field_id, id),
-        ) else {
+        let mesh = if hack {
+            let size = slot.scale as f32 / 4096.0;
+            build_sprites_with(
+                file,
+                frame_index,
+                |cx, cy| screen_hack_corner(camera, at, size, slot.rot, [cx, cy]),
+                |color| sprite_color(color, fade, field_id, id),
+            )
+        } else {
+            build_sprites(
+                file,
+                frame_index,
+                [x, y],
+                scale,
+                (-slot.rot[2]).to_radians(),
+                |color| sprite_color(color, fade, field_id, id),
+            )
+        };
+        let Some(mesh) = mesh else {
             continue;
         };
         let mode = blend_mode(slot.abr);
@@ -377,6 +457,56 @@ pub fn sync_sps(
     drawn
 }
 
+/// The slots `t` of the way from the previous logic tick to this one. A slot that holds the same
+/// effect on both ticks moves its position, offset, size and turn smoothly; a new or changed
+/// effect, a move past [`ACTOR_MOVE_MAX`] (the actors' cut) or a turn past 45 degrees is drawn
+/// as it is. The frame counter, fade and blend mode are never blended.
+/// (Memoria itself leaves SPS unsmoothed: `SmoothFrameUpdater_Field`'s TODO.)
+pub fn blend_slots(prev: &[SpsSlot], cur: &[SpsSlot], t: f32) -> Vec<SpsSlot> {
+    cur.iter()
+        .enumerate()
+        .map(|(index, now)| {
+            let Some(before) = prev.get(index) else {
+                return now.clone();
+            };
+            let same = before.loaded
+                && now.loaded
+                && before.id == now.id
+                && before.origin == now.origin
+                && before.char_uid == now.char_uid
+                && before.bone == now.bone;
+            let step = |a: [f32; 3], b: [f32; 3]| {
+                ((b[0] - a[0]).powi(2) + (b[1] - a[1]).powi(2) + (b[2] - a[2]).powi(2)).sqrt()
+            };
+            let turn = (0..3)
+                .any(|axis| shortest_delta(before.rot[axis], now.rot[axis], 360.0).abs() > 45.0);
+            if !same || step(before.pos, now.pos) > ACTOR_MOVE_MAX || turn {
+                return now.clone();
+            }
+            let mut slot = now.clone();
+            slot.pos = lerp3(before.pos, now.pos, t);
+            slot.pos_offset = lerp3(before.pos_offset, now.pos_offset, t);
+            slot.scale = lerp(before.scale as f32, now.scale as f32, t).round() as i32;
+            slot.rot =
+                std::array::from_fn(|axis| lerp_angle(before.rot[axis], now.rot[axis], t, 360.0));
+            slot
+        })
+        .collect()
+}
+
+impl Pair<Vec<SpsSlot>> {
+    /// The effects drawn `t` into the tick.
+    pub fn slots(&self, t: f32) -> Vec<SpsSlot> {
+        let Some(cur) = self.current() else {
+            return Vec::new();
+        };
+        match self.previous() {
+            Some(prev) => blend_slots(prev, cur, t),
+            None => cur.clone(),
+        }
+    }
+}
+
 /// The library of the field bundles under `streaming_assets` (`p0data11.bin`-`p0data19.bin`).
 pub fn library(streaming_assets: &std::path::Path) -> FieldSpsLibrary {
     FieldSpsLibrary::new(
@@ -394,6 +524,7 @@ pub fn sync_game_sps(
     frame: &TrackFrame,
     models: Option<&ActorModels>,
     library: &FieldSpsLibrary,
+    slots: &[SpsSlot],
 ) -> usize {
     let (Some(map), Some(background)) = (game.map(), game.background()) else {
         return 0;
@@ -404,7 +535,7 @@ pub fn sync_game_sps(
     sync_sps(
         world,
         &SpsSource {
-            slots: &state.sps.slots,
+            slots,
             field: (map, background),
             background_of: &background_of,
             actor_of: &actor_of,
@@ -419,7 +550,9 @@ pub fn sync_game_sps(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::projection::projection_offset;
     use tantalus_assets::pc::field_sps::SpsPrim;
+    use tantalus_contracts::Point3;
 
     fn file() -> SpsFile {
         SpsFile {
@@ -471,6 +604,67 @@ mod tests {
         // Texels are (w >> 1, h >> 1) = (8, 4): corners at 0.5 and size - 0.5.
         assert_eq!(uvs[0], [32.5 / 256.0, 64.5 / 256.0]);
         assert_eq!(uvs[3], [(32.0 + 7.5) / 256.0, (64.0 + 3.5) / 256.0]);
+    }
+
+    #[test]
+    fn screen_hack_projects_the_quad_corners_through_the_camera() {
+        // Identity rotation, a camera 1000 units from the origin, view distance 500.
+        let camera = LegacyFieldCamera {
+            projection: 500,
+            rotation: [4096, 0, 0, 0, 4096, 0, 0, 0, 4096],
+            translation: Point3 {
+                x: 0,
+                y: 0,
+                z: 1000,
+            },
+            center_offset: [0, 0],
+            size: [320, 224],
+            viewport_x: [0, 0],
+            viewport_y: [0, 0],
+            depth_offset: 0,
+        };
+        let at = [0.0, 0.0, 0.0];
+        let center = screen_hack_corner(&camera, at, 1.0, [0.0; 3], [0.0, 0.0]).unwrap();
+        let off = projection_offset(&camera);
+        assert!((center[0] - off[0]).abs() < 1e-3 && (center[1] - off[1]).abs() < 1e-3);
+        // A corner 100 units right and 100 down in sprite space: x grows, y shrinks, with the
+        // plain 500 / 1000 perspective division (no per-sprite scale change).
+        let corner = screen_hack_corner(&camera, at, 1.0, [0.0; 3], [100.0, 100.0]).unwrap();
+        assert!((corner[0] - off[0] - 50.0).abs() < 1e-3);
+        assert!((corner[1] - off[1] + 50.0).abs() < 1e-3);
+        // The rotation is half the script's: 180 degrees about z turns the corner to 90.
+        let turned = screen_hack_corner(&camera, at, 1.0, [0.0, 0.0, 180.0], [100.0, 0.0]).unwrap();
+        assert!(turned[1] - off[1] > 49.0 && (turned[0] - off[0]).abs() < 1e-2);
+    }
+
+    #[test]
+    fn effects_blend_between_ticks_and_cut_on_change() {
+        let slot = |id: i32, x: f32, scale: i32| SpsSlot {
+            loaded: true,
+            id,
+            pos: [x, 0.0, 0.0],
+            scale,
+            ..SpsSlot::default()
+        };
+        let blended = blend_slots(&[slot(5, 0.0, 4096)], &[slot(5, 100.0, 8192)], 0.5);
+        assert_eq!(blended[0].pos[0], 50.0);
+        assert_eq!(blended[0].scale, 6144);
+        // Another effect in the slot, or a jump past the cut, is drawn at once.
+        assert_eq!(
+            blend_slots(&[slot(5, 0.0, 4096)], &[slot(6, 100.0, 4096)], 0.5)[0].pos[0],
+            100.0
+        );
+        assert_eq!(
+            blend_slots(&[slot(5, 0.0, 4096)], &[slot(5, 500.0, 4096)], 0.5)[0].pos[0],
+            500.0
+        );
+        // A turn the short way round 0 degrees is blended across it.
+        let mut a = slot(5, 0.0, 4096);
+        let mut b = slot(5, 0.0, 4096);
+        a.rot[2] = 350.0;
+        b.rot[2] = 10.0;
+        let turned = blend_slots(&[a], &[b], 0.5)[0].rot[2];
+        assert!(turned.abs() < 1e-3 || (turned - 360.0).abs() < 1e-3);
     }
 
     #[test]

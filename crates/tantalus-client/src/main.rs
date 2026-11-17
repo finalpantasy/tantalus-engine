@@ -970,6 +970,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                 &frame,
                 Some(&models),
                 &sps_library,
+                &game.world().sps.slots,
             );
             tantalus_client::scene_adapter::apply_overlay_changes(
                 world,
@@ -988,8 +989,8 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
             );
             tantalus_client::live::place_camera(world, at);
             tantalus_client::window::fit_field_frame(world);
-            if let Some((_, state, _)) = &motion {
-                state.place_sprites(world, &field.scene);
+            if let Some((_, state, _)) = &mut motion {
+                state.place_sprites(world, &field.scene, 1.0);
             }
             // `TANTALUS_BENCH_FRAMES=N --bench-hz H`: N display frames at H Hz
             // of the field's loop (logic at 30 Hz, the markers drawn between
@@ -1035,6 +1036,14 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
             .filter(|slot| slot.loaded)
             .count()
     );
+    // `TANTALUS_SPS_LOG=1`: one line per loaded effect.
+    if std::env::var_os("TANTALUS_SPS_LOG").is_some() {
+        for (index, slot) in game.world().sps.slots.iter().enumerate() {
+            if slot.loaded {
+                println!("sps slot {index}: {slot:?}");
+            }
+        }
+    }
     Ok(format!(
         "saved field {} ({}) after {} ticks with {} actors ({} as models), player at {player:?}, bubble {:?} here {} fade {:?}, {} attached, to {}",
         game.map().unwrap_or(-1),

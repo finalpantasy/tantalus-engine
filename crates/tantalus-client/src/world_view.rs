@@ -850,9 +850,7 @@ impl LiveWorld {
             (self.image, self.camera, self.sprite) = Self::open_window(world, frame);
         }
         let size = crate::widescreen::live_size();
-        let frame = self
-            .renderer
-            .render_blended(play, size.0, size.1, pose);
+        let frame = self.renderer.render_blended(play, size.0, size.1, pose);
         crate::window::fit_frame_camera(world, self.camera, (frame.width, frame.height));
         crate::battle_view::show_frame(world, &self.image, frame);
         let at = world

@@ -297,6 +297,8 @@ struct Live {
     placed: BTreeSet<u64>,
     /// The last two logic positions of the field view's center.
     views: crate::smooth::Pair<[f32; 2]>,
+    /// The field's SPS effects on the last two logic ticks.
+    sps_slots: crate::smooth::Pair<Vec<tantalus_game::field::sps::SpsSlot>>,
     /// Share of the tick the field markers were last drawn at.
     drawn_alpha: f32,
     /// The last two logic poses of the world map's player and camera.
@@ -368,6 +370,7 @@ pub fn play(
             frames: crate::smooth::Pair::default(),
             placed: BTreeSet::new(),
             views: crate::smooth::Pair::default(),
+            sps_slots: crate::smooth::Pair::default(),
             drawn_alpha: -1.0,
             world_poses: crate::smooth::Pair::default(),
             world_pose_at: None,
@@ -840,6 +843,7 @@ fn live_tick_inner(world: &mut World) {
                 live.views.push(at, snap);
             }
             live.frames.push(frame, snap);
+            live.sps_slots.push(game.world().sps.slots.clone(), snap);
             live.placed = placed;
             live.markers_at = Some(game.ticks);
         }
@@ -858,6 +862,18 @@ fn live_tick_inner(world: &mut World) {
                     Some(&live.models),
                 )
             });
+            let sps_slots = live.sps_slots.slots(t);
+            bench::time("sps", || {
+                crate::sps_view::sync_game_sps(
+                    world,
+                    &game,
+                    &scene.camera,
+                    &frame,
+                    Some(&live.models),
+                    &live.sps,
+                    &sps_slots,
+                )
+            });
             live.drawn_alpha = t;
         }
         crate::scene_adapter::apply_overlay_changes(
@@ -870,10 +886,10 @@ fn live_tick_inner(world: &mut World) {
         note_field_view(&game);
         place_camera(world, live.views.view(t));
         fit_field_frame(world);
-        if let Some(motion) = &live.motion
+        if let Some(motion) = &mut live.motion
             && !motion.is_idle()
         {
-            motion.place_sprites(world, scene);
+            motion.place_sprites(world, scene, t);
         }
         bench::time("dialogs", || {
             crate::dialog_view::sync_dialogs(world, &game, &scene.camera, &frame)
