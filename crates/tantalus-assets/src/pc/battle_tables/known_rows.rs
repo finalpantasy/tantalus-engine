@@ -1615,4 +1615,28 @@ pub(super) fn run(t: &BattleTables, checks: &mut Vec<KnownRowCheck>) {
                 .collect::<Vec<i64>>()
         }),
     );
+    // G08: Esuna cures Blind (Memoria CL 2024.11.17 restored it): action 10
+    // adds status set 5, and Set 5 holds Silence, Blind, Confuse, Poison,
+    // Sleep, Heat, Freeze, Mini and GradualPetrify.
+    push(
+        checks,
+        "actions",
+        10,
+        "Data/Battle/Actions.csv Esuna AddStatus",
+        "5".to_owned(),
+        t.actions[10].add_no.to_string(),
+    );
+    push(
+        checks,
+        "status_sets",
+        5,
+        "Data/Battle/StatusSets.csv Set 5 (Esuna)",
+        format!(
+            "{}",
+            [3u32, 4, 10, 16, 17, 24, 25, 28, 31]
+                .iter()
+                .fold(0u32, |m, b| m | 1 << b)
+        ),
+        t.status_sets[5].to_string(),
+    );
 }

@@ -41,6 +41,9 @@ pub struct BattleCommand {
     /// `tar_id`.
     pub target_id: u16,
     pub script_id: i32,
+    /// `AbilityId` (`CMD_DATA.sub_no`, the `Actions.csv` id; 176 is Attack).
+    /// 0 when the caller does not know it.
+    pub ability_id: i32,
     pub power: i32,
     pub hit_rate: i32,
     pub element: Elements,
@@ -86,6 +89,7 @@ impl BattleCommand {
             command_id: 0,
             target_id: 0,
             script_id,
+            ability_id: 0,
             power: 0,
             hit_rate: 0,
             element: Elements::NONE,

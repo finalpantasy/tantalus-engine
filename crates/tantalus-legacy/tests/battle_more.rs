@@ -27,7 +27,9 @@ use tantalus_legacy::battle::rng::BattleRandom;
 use tantalus_legacy::battle::status as st;
 use tantalus_legacy::battle::targeting::target_type;
 use tantalus_legacy::battle::unit::{CATEGORY_FEMALE, default_player_category};
-use tantalus_legacy::battle::{BattleCommand, BattleUnit, ItemEffect, StatusDataRow, StatusTable};
+use tantalus_legacy::battle::{
+    BattleCommand, BattleUnit, Elements, ItemEffect, StatusDataRow, StatusTable,
+};
 
 // ---------------------------------------------------------------------------
 // Rig
@@ -214,6 +216,14 @@ impl BattleHooks for Hooks {
         let single = target_type::SINGLE_ENEMY;
         match (cmd_no, sub) {
             (cmd::ENEMY_ATK, 0) => Some(spell(25, 7, 8, single)),
+            // Fire magic (script 9) and a Cure (script 10) cast by an enemy.
+            (cmd::ENEMY_ATK, 1) => {
+                let mut s = spell(9, 20, 16, single);
+                s.command.element = Elements(Elements::FIRE);
+                Some(s)
+            }
+            (cmd::ENEMY_ATK, 2) => Some(spell(10, 10, 16, single)),
+            (cmd::ENEMY_ATK, 3) => Some(spell(8, 20, 8, single)),
             (cmd::ATTACK, 176) => Some(spell(25, 5, 8, single)),
             (cmd::ATTACK, 177) => Some(spell(25, 0, 8, single)),
             (cmd::ATTACK, 200) => Some(spell(10, 10, 16, target_type::SINGLE_ALLY)),
@@ -1039,6 +1049,95 @@ fn auto_potion_drinks_a_potion_else_a_hi_potion() {
     run_idle(&mut b, &mut h, &mut r);
     assert!(queued(&b, cmd::AUTO_POTION).is_empty());
     assert_eq!(b.units[1].cur_hp, 7);
+}
+
+/// G13 (Memoria 2025.07.04, `FF9/btl_abil.cs:74-93`, `AbilityFeatures.txt:831`):
+/// the condition needs `HPDamage != 0` with HpAlteration and no HpRecovery, so
+/// a Fire hit that P2 absorbs (HP recovery) and a Cure cast by the enemy on P2
+/// never queue Auto-Potion; a plain Fire hit still does.
+#[test]
+fn auto_potion_ignores_absorbed_and_healed_hits() {
+    let mut r = Rng::default();
+    // Absorbed Fire: P2 heals, no Auto-Potion.
+    let (mut b, mut h) = auto_potion_battle(&[], &[(ITEM_POTION, 1)]);
+    b.units[1].absorb_elements = Elements(Elements::FIRE);
+    b.units[1].cur_hp = 50;
+    enemy_cast(&mut b, &mut h, 2, 1, P2);
+    run_idle(&mut b, &mut h, &mut r);
+    assert!(queued(&b, cmd::AUTO_POTION).is_empty());
+    assert!(b.units[1].cur_hp > 50);
+    assert_eq!(b.inventory[&ITEM_POTION], 1);
+    // Enemy Cure on P2: no Auto-Potion.
+    let (mut b, mut h) = auto_potion_battle(&[], &[(ITEM_POTION, 1)]);
+    b.units[1].cur_hp = 50;
+    enemy_cast(&mut b, &mut h, 2, 2, P2);
+    run_idle(&mut b, &mut h, &mut r);
+    assert!(queued(&b, cmd::AUTO_POTION).is_empty());
+    assert_eq!(b.inventory[&ITEM_POTION], 1);
+    // Control: the same Fire hit without absorption does trigger it.
+    let (mut b, mut h) = auto_potion_battle(&[], &[(ITEM_POTION, 1)]);
+    enemy_cast(&mut b, &mut h, 2, 1, P2);
+    run_idle(&mut b, &mut h, &mut r);
+    assert_eq!(queued(&b, cmd::AUTO_POTION), vec![(1, P2)]);
+}
+
+/// G10 (Memoria 2024.08.05 patch 08-18; `TroubleStatusScript.OnFigurePoint`,
+/// `BattleCalculator.RaiseTrouble`): a physical hit on a Troubled P2 deals half
+/// its damage to P1, also when the blow kills P2 (Death clears Trouble). A hit
+/// that misses or a heal does not spread.
+#[test]
+fn trouble_spreads_half_the_damage_also_on_a_lethal_blow() {
+    let spread = |p2_hp: u32| {
+        let mut b = battle(vec![
+            unit(P1, true, 1000),
+            with_status(unit(P2, true, p2_hp), st::TROUBLE),
+            unit(E1, false, 500),
+        ]);
+        let mut h = Hooks::new();
+        let mut r = Rng::default();
+        enemy_cast(&mut b, &mut h, 2, 3, P2);
+        run_idle(&mut b, &mut h, &mut r);
+        let dealt = events(&b)
+            .into_iter()
+            .find_map(|e| match e {
+                BattleEvent::TroubleSpread {
+                    unit: 0, damage, ..
+                } => Some(damage),
+                _ => None,
+            })
+            .expect("trouble spread to P1");
+        (1000 - b.units[0].cur_hp, dealt, b.units[1].cur_hp)
+    };
+    let (lost, dealt, hp) = spread(1000);
+    assert!(dealt > 0 && lost == dealt as u32, "{lost} {dealt}");
+    assert!(hp > 0);
+    let (lost2, dealt2, hp2) = spread(5);
+    assert_eq!((lost2, dealt2), (lost, dealt));
+    assert_eq!(hp2, 0);
+}
+
+/// G33 (Memoria 2024.12.04, #835; `btl_cmd.cs:530-557`): a Heated unit that is
+/// also Easy Kill (the "Easy Kill Proof" boss case) still burns up when its
+/// command comes up: HP drops to 0 and the command never starts. A Heated
+/// unit without Easy Kill dies through the Death status instead.
+#[test]
+fn heat_kills_an_easy_kill_unit_when_its_command_runs() {
+    let mut r = Rng::default();
+    let mut b = battle(vec![
+        unit(P1, true, 500),
+        with_status(unit(E1, false, 500), st::HEAT | st::EASY_KILL),
+    ]);
+    let mut h = Hooks::new();
+    enemy_cast(&mut b, &mut h, 1, 0, P1);
+    run_idle(&mut b, &mut h, &mut r);
+    assert_eq!(b.units[1].cur_hp, 0);
+    assert_eq!(b.units[0].cur_hp, 500);
+    assert!(queued(&b, cmd::ENEMY_ATK).len() <= 1);
+    assert!(
+        !events(&b)
+            .iter()
+            .any(|e| matches!(e, BattleEvent::CommandStarted { unit: 1, .. }))
+    );
 }
 
 /// Derivation (`DisableSA 36 54 56`, `CharacterAbilityGems.cs:548`): the

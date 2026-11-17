@@ -26,14 +26,14 @@ Owner decision: Tantalus includes every Memoria bug fix for the vanilla game. Op
 | G04 | Life / Full-Life camera data | `Actions.csv` rows 5, 6 | ability | always (data) | done: ledger `memoria-actions-life-default-camera` |
 | G05 | `GetCardAmount` fix, generic card ids 512-611 unclamped | commit `5d73810` | item/cards | always | done: ledger `memoria-card-amount-unclamped` |
 | G06 | Field heals (tent, inn, springs, beach) reach Cinna, Marcus, Blank and Beatrix; non-main characters are healed and cured in every situation, including World Map tents | `EventEngine.DoEventCode.cs:2748-2840`; CL 2024.04.28 "scripted heal", CL 2025.05.12 #1028 | field script | always | done: `tantalus-game/src/field/host.rs:2000` (Beatrix and old-index spread, test at `:2231`); verify the World Map tent branch (gMode 3) |
-| G07 | "Clear all statuses" (mask 0x7F) also clears extra `OutOfBattle` statuses; items and revive abilities clear them too | `DoEventCode.cs:2830`; CL 2026.11.09 | status | always | todo (verify): `tantalus-legacy/src/shop/field_item.rs:16` has the mask for items; the field-script cure path is not checked |
-| G08 | Esuna cures Blind again (regression in v2024.08.05, restored) | CL 2024.11.17 | ability | always (data) | todo (verify): row `Actions.csv:19`; confirm the status set includes Blind in the table Tantalus loads |
-| G09 | Back-row resistance and elemental equipment resistance were ignored | CL 2024.08.05 patch 08-18 | battle formula | always | todo (verify): needs a formula test against `btl_calc`/`BattleCalculator` |
-| G10 | Trouble now spreads damage on lethal blows | CL 2024.08.05 patch 08-18; `BattleCalculator.cs:811`, `SBattleCalculator.cs:194` | status | always | todo (verify): `tantalus-legacy/src/battle/calc.rs:1061` has `RaiseTrouble`; lethal-blow case unchecked |
-| G11 | Weapon statuses are applied before damage, like spell statuses (the vanilla order differed) | `SBattleCalculator.cs:188` | battle formula | always | todo (verify) |
-| G12 | Accuracy+ support ability worked wrongly with Distract | CL 2024.04.28; `BattleTarget.cs:87` `PenaltyDistractHitRate` | battle formula | always | todo: no `Distract` handling found in Tantalus |
-| G13 | Auto-Potion fired when the character absorbed an element or was healed by an enemy attack | CL 2025.07.04 (v2025 list); `FF9/btl_abil.cs:74-93` | AI/ability | always | todo (verify): `tantalus-legacy/src/battle/reactions.rs:457` has the counter; the absorb case is not tested |
-| G14 | Double-cast effect 80 targets the same single target when both abilities are single-target | CL 2025.07.04 | ability | always | todo (verify): `reactions.rs:803` `queue_double_cast` |
+| G07 | "Clear all statuses" (mask 0x7F) also clears extra `OutOfBattle` statuses; items and revive abilities clear them too | `DoEventCode.cs:2830`; CL 2026.11.09 | status | always | done: field host maps 0x7F to every status (`field/host.rs` ClearPartyStatus, `FF9BattleDB.AllStatuses`); test `tantalus-game/tests/field_host.rs` `party_and_flow_ops_are_recorded` |
+| G08 | Esuna cures Blind again (regression in v2024.08.05, restored) | CL 2024.11.17 | ability | always (data) | done: Esuna (action 10) adds set 5 which holds Blind in the loaded PC tables, identical to Memoria; `known_rows.rs` checks (ignored test `real_install_matches_known_rows`) |
+| G09 | Back-row resistance and elemental equipment resistance were ignored | CL 2024.08.05 patch 08-18 | battle formula | always | done (verify): Back-row halving and element guard/half/weak/absorb are ported in `calc.rs`; tests `s1_defend_and_back_row_halve_twice`, `s9_element_modifiers`, `s1_guarded_weapon_element`. Equipment-to-element wiring belongs to the battle6 work |
+| G10 | Trouble now spreads damage on lethal blows | CL 2024.08.05 patch 08-18; `BattleCalculator.cs:811`, `SBattleCalculator.cs:194` | status | always | done: `Battle::spread_trouble` in `machine.rs` (`TroubleStatusScript.OnFigurePoint`); test `battle_more.rs` `trouble_spreads_half_the_damage_also_on_a_lethal_blow` |
+| G11 | Weapon statuses are applied before damage, like spell statuses (the vanilla order differed) | `SBattleCalculator.cs:188` | battle formula | always | done (verify): `calc_result` applies the weapon status before damage (`SBattleCalculator.cs:188`). Open: SA 25 Add Status (the feature that sets `AddStat`) is not modeled, so weapon statuses never proc yet |
+| G12 | Accuracy+ support ability worked wrongly with Distract | CL 2024.04.28; `BattleTarget.cs:87` `PenaltyDistractHitRate` | battle formula | always | done: `Calculator::hit_rate_setup_features` (SA 9 Accuracy+ sets rate 100, evade 0, `DisableSA 10`; SA 10 Distract halves); test `battle_formulas.rs` `g12_accuracy_plus_overrides_distract` |
+| G13 | Auto-Potion fired when the character absorbed an element or was healed by an enemy attack | CL 2025.07.04 (v2025 list); `FF9/btl_abil.cs:74-93` | AI/ability | always | done: Auto-Potion condition matches `AbilityFeatures.txt` SA 56 (no absorb or heal); test `battle_more.rs` `auto_potion_ignores_absorbed_and_healed_hits` |
+| G14 | Double-cast effect 80 targets the same single target when both abilities are single-target | CL 2025.07.04 | ability | always | done (verify): tests `double_cast_queues_two_spells_and_charges_once`, `double_cast_all_enemy_first_spell_takes_the_whole_side` |
 | G15 | `AutoAttack` ignored a replaced Attack command | CL 2025.07.04 | ability | always | todo (verify) |
 | G16 | Default targeting of spells usable on single and multiple targets | CL 2025.07.04 | ability | always | todo (verify) |
 | G17 | Death-dealing attack commands (Avenger with Add Status) showed "Miss" instead of "Death" | CL 2025.07.04 | battle text | always | todo (verify) |
@@ -52,7 +52,7 @@ Owner decision: Tantalus includes every Memoria bug fix for the vanilla game. Op
 | G30 | Fleeing command with no caster raised an unhandled exception | CL 2024.12.04 | battle | always | todo (verify) |
 | G31 | Garnet's Eidolon replica mixed two Eidolons when a second was queued | CL 2024.12.04 | ability | always | todo (verify) |
 | G32 | Hidden in-battle characters showed in the battle menu | CL 2024.12.04 | battle UI | always | todo (verify) |
-| G33 | Heat effect now works on enemies with Easy Kill Proof (#835) | CL 2024.12.04 | status | always | todo (verify) |
+| G33 | Heat effect now works on enemies with Easy Kill Proof (#835) | CL 2024.12.04 | status | always | done: `machine.rs` Heat branch (`btl_cmd.cs:530`); test `battle_more.rs` `heat_kills_an_easy_kill_unit_when_its_command_runs` |
 | G34 | Frozen boss with Easy Kill Proof cannot be killed by Freeze (no vanilla change) | `BattleTarget.cs:367` | status | always | n/a: no vanilla effect |
 | G35 | Cover: monster position corrected | CL 2025.07.04; commit `be8d87a` | battle visual | always | todo (verify): `machine.rs:2025` emits `Covered` |
 | G36 | Trance duplicated or glitched the command title (`SFXRework = 0`); summon-title mixups | CL 2024.12.04 #838, CL 2024.11.17 | text | cfg | n/a (SFXRework 0 only) |
@@ -63,18 +63,18 @@ Owner decision: Tantalus includes every Memoria bug fix for the vanilla game. Op
 | G41 | Soft-lock in the French ending cutscene | CL 2025.07.04 | field script | always | n/a (Unity text timing); verify the French ending runs |
 | G42 | Battle or naming screen soft-locks as the interface appears, on some PCs | CL 2025.07.04; commit `8c99665` | battle/menu | always | n/a (Unity UI) |
 | G43 | Cure/Heal of "permanent" statuses in menus: wrong statuses could stone characters | CL 2025.05.12 (mod case) | status | always | n/a: mod-only trigger |
-| G44 | Esuna, Dispel and other data-table fixes inherited from `Data/Battle/*.csv` | `Memoria.Patcher/StreamingAssets/Data/Battle` | ability | always (data) | todo (verify): diff Memoria's `Actions.csv`, `StatusData.csv`, `StatusSets.csv` against the PC game tables; only 4 rows are in the ledger |
+| G44 | Esuna, Dispel and other data-table fixes inherited from `Data/Battle/*.csv` | `Memoria.Patcher/StreamingAssets/Data/Battle` | ability | always (data) | done: all 192 actions and 39 status sets of the PC tables diffed against Memoria `Actions.csv`/`StatusSets.csv`; only rows 5, 6, 149 differ and all three are in the ledger |
 | G45 | `GetUnitProperty` returns 0 for characters not in battle | CL 2025.05.12 | AI | always | n/a: modding formula API |
 | G46 | AI variables `GetAttackCommandId` / `GetAttackId` worked only in counters | CL 2024.11.17 | AI | always | n/a: Memoria AI extension |
 | G47 | `WhenGameOver` / `WhenDefeated` ignored death status, so no line played | CL 2025.05.12 | AI | always | todo (verify) |
 | G48 | Jump Rope: points reach the next vanilla reward (no skipped reward) | `EBin.cs:1942`; CL 2025.05.12 #1006 | field script | cfg (`RopeJumpingIncrement`, default 1) | done by identity: Memoria's rope hack at increment 1 never changes a value (owner chose PS1 values); ledger `memoria-rope-jump-no-skip` |
 | G49 | Blank swordfight controls fixed; Steam adds +30% score | `EMinigame.cs:19`; CL 2025.05.12 | field script | cfg (`SwordplayAssistance`, default 1) | done: Tantalus has no +30% bonus (owner chose PS1 values); ledger `memoria-swordplay-no-steam-bonus` |
 | G50 | Cinna/Marcus/Blank heal; "The Ultimate Racket" achievement tied to the wrong item | CL 2024.04.28 | item/achievement | always | n/a (Steam achievement); heal part is G06 |
-| G51 | Key-item removal did not work | commit `c03cda6` (2023) | item | always | todo (verify) |
-| G52 | Revive worked on undead characters | commit `2012946` (#50) | battle formula | always | todo (verify): `tests/battle_formulas.rs` `s13_revive_refusals_and_zombie` |
+| G51 | Key-item removal did not work | commit `c03cda6` (2023) | item | always | done: `Inventory::remove_generic` uses the important id; test `shop.rs` `key_items_use_the_generic_ids` |
+| G52 | Revive worked on undead characters | commit `2012946` (#50) | battle formula | always | done (verify): test `battle_formulas.rs` `s13_revive_refusals_and_zombie` |
 | G53 | Enemy attacking dead characters | commit `bac6b4a` | AI | always | todo (verify) |
 | G54 | Fast-battle Poison and Regen tick fix; ATB speed-up fix; Return of Cannon attack, ATB gauge color (gray/yellow) | commits `404d1f3`, `4196475`, `eeae897` | battle | always | todo (verify) |
-| G55 | Fixed Atomos, Demi, Aqua Breath, Demi Shock, Worm Hole data | commit `48bbec6` | ability | always (data) | todo (verify): only Thunder Slash is in the ledger |
+| G55 | Fixed Atomos, Demi, Aqua Breath, Demi Shock, Worm Hole data | commit `48bbec6` | ability | always (data) | done: same table diff as G44, no other row differs from Memoria (Atomos, Demi, Aqua Breath, Demi Shock, Worm Hole identical) |
 | G56 | Eiko summons Madeen in the scripted fight (#890) | CL 2024.12.04 | field/battle script | always | open: Memoria code location not found (no `Madeen` special case in the C#; likely a battle-data change) |
 | G57 | Dialog: fast inputs applied the wrong cancel choice; French dialog lacked `[IMME]` (#1237) | `Dialog/Dialog.cs:777,799,824` | text | always | n/a (Unity dialog widget); verify choice cancel in the Tantalus dialog |
 | G58 | Mist Continent title stayed on screen if the player left the world map mid-fade (vanilla bug) | CL 2024.11.17; `FF9UIDataTool.cs:816` | world | always | open, blocked: no world-map title UI in Tantalus |
@@ -86,8 +86,8 @@ Owner decision: Tantalus includes every Memoria bug fix for the vanilla game. Op
 | G64 | Kuja appears early, spoiling Zidane's surprise (#860); Zidane breaks through Garnet (#892); Steiner transparent (#896) | CL 2024.11.17 | field script | always | partial: Kuja #860 (2209) and Steiner #892 (257) in `field/script_fixes.rs`, test `field_host.rs` `memoria_field_script_patches`; Steiner transparent #896 not located |
 | G65 | Hunt festival: unable to talk with turbo dialog | CL 2024.06.09 | field script | cfg (TurboDialog) | n/a (turbo dialog is an option) |
 | G66 | Tetra Master: analog stick disrupted card placement (#963); first-turn card placement minor issue | CL 2024.11.17; `QuadMistGame.cs:458` | cards | always / cfg | todo (verify) |
-| G67 | Items `OutOfBattle` on Death handled by revive items and abilities | CL 2026.11.09 | item | always | todo (verify) |
-| G68 | Dialog text appearance speed set to PSX timing (about 14 s vs 23 s Steam) | CL 2025.05.12 | text | always | todo: owner decision (a Steam/PSX timing difference) |
+| G67 | Items `OutOfBattle` on Death handled by revive items and abilities | CL 2026.11.09 | item | always | done: vanilla `OutOfBattle` excludes Death so the Memoria branch is inert; `field_item.rs` revive script 72 tested by `ether_elixir_tent_and_phoenix` |
+| G68 | Dialog text appearance speed set to PSX timing (about 14 s vs 23 s Steam) | CL 2025.05.12 | text | always | done (owner call): keep vanilla dialog speed (`TurboDialog` off) |
 | G69 | Moogle animation restored when reading mognet letters | CL 2025.05.12 | field | always | todo |
 | G70 | Text opcode fixes: `[u][/u]` alignment, `[XTAB=0]`, negative `[FEED]` offsets blocked | CL 2024.11.17; `FFIXTextTag.cs:203`, `TextOpCodeModifier.cs:101` | text | always | todo (verify) |
 
@@ -128,7 +128,7 @@ Crash and leak fixes in the launcher, Mod Manager, Model Viewer, SaXAudio and So
 
 ## Differences between vanilla Steam and Memoria
 
-- Memoria's defaults that change behavior without being fixes: `KeepRestTimeInBattle = 1` (Tantalus sets `keep_rest_time: false`, `machine.rs:238`), `SelectBestTarget = 1`, `SwordplayAssistance = 1`, `TurboDialog = 1`, `PSXMovementMethod = 1`. None are bug fixes; each needs an owner call before it ships as a default.
+- Memoria's defaults that change behavior without being fixes: `KeepRestTimeInBattle = 1` (Tantalus sets `keep_rest_time: false`, `machine.rs:238`), `SelectBestTarget = 1`, `SwordplayAssistance = 1`, `TurboDialog = 1`, `PSXMovementMethod = 1`. None are bug fixes. Owner call: `SelectBestTarget`, `SwordplayAssistance`, `TurboDialog` and `PSXMovementMethod` stay vanilla; `KeepRestTimeInBattle` stays off by default and is an opt-in (`--keep-rest-time` flag or `TANTALUS_KEEP_REST_TIME=1`, `battle::machine::set_keep_rest_time_default`; test `keep_rest_option.rs`).
 - Fixes are always-on in Memoria unless a row says `cfg`. Rows marked `cfg` with default 1 (G48, G49) are opt-in hacks, not the fix itself.
 - The owner gets, by default, every `always` row plus the `cfg` rows whose default fixes the behavior. Everything marked `todo (verify)` rides on the claim that the battle port copies Memoria's logic; confirm each with a test before closing it.
 

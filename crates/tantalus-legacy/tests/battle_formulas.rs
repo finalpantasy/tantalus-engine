@@ -273,6 +273,42 @@ fn s1_blind_miss() {
     assert_eq!(o.target.hp_damage, 0);
 }
 
+/// G12 (Memoria CL 2024.04.28; `AbilityFeatures.txt` SA 9 and SA 10).
+/// Distract on the target halves the Attack hit rate for scripts <= 8: rate
+/// 50 <= draw 1260 % 100 = 60, so it misses after two draws. Accuracy+ on the
+/// caster sets rate 100 and evade 0 and disables Distract for the effect: the
+/// same draw hits and the target's evade 99 is ignored.
+#[test]
+fn g12_accuracy_plus_overrides_distract() {
+    let attack = |accuracy: bool, distract: bool, hit_draw: i32| {
+        let mut r = Rig::new(1);
+        r.cmd.ability_category = 8;
+        r.cmd.ability_id = 176;
+        r.t().physical_evade = 99;
+        if accuracy {
+            r.c().support_abilities.insert(9);
+        }
+        if distract {
+            r.t().support_abilities.insert(10);
+        }
+        // ctor, hit, then (if the hit passes) evade draw 98: evade 99 > 98
+        // dodges unless Accuracy+ zeroed it.
+        let draws: Vec<i32> = if hit_draw % 100 >= 50 && distract && !accuracy {
+            vec![7, hit_draw]
+        } else {
+            vec![7, hit_draw, 98, 9999, 7, 50]
+        };
+        let o = r.run(&draws);
+        miss(&o)
+    };
+    // Distract alone: rate 50, draw 60 misses at the hit roll (two draws).
+    assert!(attack(false, true, 1260));
+    // Accuracy+ and Distract together: rate 100, evade 0, so the hit lands.
+    assert!(!attack(true, true, 1260));
+    // Accuracy+ alone behaves the same.
+    assert!(!attack(true, false, 1260));
+}
+
 /// Derivation: target evade 30. Hit draw 1234 % 100 = 34 < 100 passes; evade
 /// draw 12: 30 <= 12 is false, so Miss; the target is not covering, so it
 /// also sets Dodge.

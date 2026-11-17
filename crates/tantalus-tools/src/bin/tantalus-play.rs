@@ -15,7 +15,13 @@ use tantalus_tools::play::{PlayData, PlayGame, PlayPaths, pad};
 const USAGE: &str = "usage: tantalus-play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <root> --atan <ratan_tbl.bin> [--battles <tsv>] [--start 70] [--ticks N] [--auto-confirm N] [--hold FROM-TO:MASK,...] [--world-exits LOCATION,...]";
 
 fn main() -> ExitCode {
-    match run(std::env::args().skip(1).collect()) {
+    // Opt-in Memoria `KeepRestTimeInBattle` (default off, vanilla).
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    let flag = args.iter().any(|a| a == "--keep-rest-time");
+    args.retain(|a| a != "--keep-rest-time");
+    let env_on = std::env::var("TANTALUS_KEEP_REST_TIME").is_ok_and(|v| v == "1");
+    tantalus_legacy::battle::machine::set_keep_rest_time_default(flag || env_on);
+    match run(args) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("tantalus-play: {error}");

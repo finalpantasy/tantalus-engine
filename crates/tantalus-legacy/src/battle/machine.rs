@@ -27,7 +27,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use super::atb::{self, GaugeInput, GaugeStep, StartType};
-use super::calc::{CalcEnv, CalcError, calc_main};
+use super::calc::{CalcEnv, CalcError, CalcFlags, CalcOutcome, UnitFlags, calc_main};
 use super::command::{BattleCommand, ItemData};
 use super::cost;
 use super::flee::{self, EscapeSides};
@@ -199,6 +199,18 @@ pub const TRACKED_SUMMONS: [i32; 16] = [
     49, 51, 53, 55, 58, 60, 62, 64, 66, 67, 68, 69, 70, 71, 72, 74,
 ];
 
+static KEEP_REST_TIME_DEFAULT: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Opt-in for Memoria's `KeepRestTimeInBattle` (`Configuration.Battle.
+/// IsKeepRestTimeInBattle`, `Memoria.ini` default 1): the ATB gauge overflow
+/// is kept after a command. Off by default (vanilla). Set from the
+/// `--keep-rest-time` flag or the `TANTALUS_KEEP_REST_TIME=1` environment
+/// entry; every `BattleConfig::default()` after the call picks it up.
+pub fn set_keep_rest_time_default(on: bool) {
+    KEEP_REST_TIME_DEFAULT.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct BattleConfig {
     /// `Configuration.Battle.ATBSpeedFactor` as configured (clamped at use).
@@ -235,7 +247,7 @@ impl Default for BattleConfig {
         Self {
             atb_speed_factor: atb::DEFAULT_ATB_SPEED_FACTOR,
             btl_speed_config: atb::DEFAULT_BTL_SPEED_CONFIG,
-            keep_rest_time: false,
+            keep_rest_time: KEEP_REST_TIME_DEFAULT.load(std::sync::atomic::Ordering::Relaxed),
             runaway: true,
             timing: Timing::default(),
             command_timing: std::sync::Arc::new(CommandTimings::new()),
@@ -463,6 +475,12 @@ pub enum BattleEvent {
         caster: usize,
         target: usize,
         item: Option<u32>,
+    },
+    /// Trouble: `unit` took `damage` because `from` was hit.
+    TroubleSpread {
+        from: usize,
+        unit: usize,
+        damage: i32,
     },
     /// Jump: `unit` left the field.
     Jumped {
@@ -2421,6 +2439,7 @@ impl Battle {
             }
             let mut command: BattleCommand = spec.command.clone();
             command.command_id = cmd_no;
+            command.ability_id = sub_no;
             command.target_id = tar;
             if self.cmds.slots[id].reflec_mode == 1 {
                 command.reflect_target_ids = Some(self.cmds.slots[id].reflec_targets);
@@ -2438,6 +2457,7 @@ impl Battle {
             };
             let prev = self.snapshot();
             let outcome = calc_main(&mut self.units, caster, t, command, env, &self.table, rng)?;
+            self.spread_trouble(t, &outcome);
             self.sync(&prev);
             if let Some(item) = outcome.stolen {
                 if let Some(item) = item {
@@ -2473,6 +2493,53 @@ impl Battle {
             )?;
         }
         Ok(())
+    }
+
+    /// `TroubleStatusScript.OnFigurePoint` (`Scripts/DefaultStatus/
+    /// TroubleStatusScript.cs:21-37`): a damaging hit on a Troubled target
+    /// (`RaiseTrouble` set the flag before the blow) hurts every other
+    /// targetable unit of its side for half the damage. A recovery, Guard,
+    /// Miss or the Death figure skips it. The flag comes from the calculation,
+    /// not from the status still being on the target afterwards, so a lethal
+    /// blow that clears Trouble with Death spreads too (Memoria 2024.08.05
+    /// patch 08-18: "Trouble not spreading damage on lethal blows").
+    fn spread_trouble(&mut self, target: usize, outcome: &CalcOutcome) {
+        let t = outcome.target;
+        if !outcome.trouble
+            || t.flags.0 & UnitFlags::HP_ALTERATION == 0
+            || t.flags.0 & UnitFlags::HP_RECOVERY != 0
+            || outcome.flags.has(CalcFlags::GUARD)
+            || outcome.flags.has(CalcFlags::MISS)
+        {
+            return;
+        }
+        let damage = t.hp_damage >> 1;
+        let side = self.units[target].is_player;
+        for j in 0..self.units.len() {
+            if j == target
+                || self.units[j].is_player != side
+                || !self.sched[j].targetable
+                || !self.sched[j].in_list
+            {
+                continue;
+            }
+            let unit = &mut self.units[j];
+            // `btl_para.SetDamage`: Death and Petrify take nothing.
+            if unit.is_under_any_status(st::DEATH) || unit.is_under_any_status(st::PETRIFY) {
+                continue;
+            }
+            let hp = i64::from(unit.cur_hp) - i64::from(damage);
+            if hp > 0 {
+                unit.set_current_hp(hp as u32);
+            } else {
+                unit.kill();
+            }
+            self.emit(BattleEvent::TroubleSpread {
+                from: target,
+                unit: j,
+                damage,
+            });
+        }
     }
 
     /// Jump (`btl_cmd.cs:1025`, `JumpStatusScript.Apply` and

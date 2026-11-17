@@ -10,6 +10,10 @@ use tantalus_contracts::ScenePresentationMode;
 
 fn main() -> ExitCode {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
+    // Opt-in Memoria `KeepRestTimeInBattle` (default off, vanilla).
+    let (keep_rest, args) = take_switch(&args, "--keep-rest-time");
+    let env_on = std::env::var("TANTALUS_KEEP_REST_TIME").is_ok_and(|v| v == "1");
+    tantalus_legacy::battle::machine::set_keep_rest_time_default(keep_rest || env_on);
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
             "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--load SLOT|menu] [--save-dir DIR] [--load-save SavedData_ww.dat [--slot auto|N|SLOT:SAVE|list] [--save-to FILE]] [--scale N] [--mute]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] [--party 0,1,2,3] [--hurt 1] [--give 2,3] [--presentation BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE[:ATE]]] [--audio-log] [--audio-wav FILE] --output <png> [--size WxH]

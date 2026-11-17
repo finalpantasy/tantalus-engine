@@ -165,6 +165,9 @@ pub struct Calculator<'a> {
     pub trance_increase: i16,
     pub is_drain: bool,
     damage_modifier_count: i32,
+    /// `CalcContext.DisabledSA`: support abilities switched off for the rest of
+    /// this effect by `DisableSA` (bit n = SA n).
+    disabled_sa: u64,
     // `BattleCaster` / `BattleTarget` wrapper state
     pub caster_calc: UnitCalc,
     pub target_calc: UnitCalc,
@@ -214,6 +217,7 @@ impl<'a> Calculator<'a> {
             trance_increase: 0,
             is_drain: false,
             damage_modifier_count: 0,
+            disabled_sa: 0,
             caster_calc: UnitCalc::default(),
             target_calc: UnitCalc::default(),
             initial_check_point: 0,
@@ -754,6 +758,7 @@ impl<'a> Calculator<'a> {
         self.target_penalty_banish_hit_rate();
         // `Target` under Float adds `Configuration.Battle.FloatEvadeBonus`
         // (`BattleCalculator.cs:396`); the shipped default is 0, so no change.
+        self.hit_rate_setup_features();
         if self.hit_rate <= rng.random16() % 100 {
             self.flags.0 |= CalcFlags::MISS;
             return false;
@@ -768,8 +773,40 @@ impl<'a> Calculator<'a> {
         false
     }
 
+    /// The `"HitRateSetup"` pass over the caster's and then the target's
+    /// support abilities (`BattleCalculator.cs:398-402`), for the two
+    /// `AbilityFeatures.txt` entries that use it:
+    ///
+    /// * SA 9 Accuracy+ (caster; `AbilityId == Attack`): hit rate 100, evade 0,
+    ///   and `DisableSA 10`.
+    /// * SA 10 Distract (`AsTarget`; script id <= 8 or 101): hit rate halved,
+    ///   unless Accuracy+ disabled it. Memoria 2024.04.28 fixed Accuracy+ working
+    ///   wrongly with Distract: the Attack of an Accuracy+ wearer is no longer
+    ///   halved by the target's Distract.
+    fn hit_rate_setup_features(&mut self) {
+        const SA_ACCURACY_PLUS: u8 = 9;
+        const SA_DISTRACT: u8 = 10;
+        const ABILITY_ATTACK: i32 = 176;
+        if self.c().has_support_ability(SA_ACCURACY_PLUS)
+            && self.disabled_sa & (1 << SA_ACCURACY_PLUS) == 0
+            && self.command.ability_id == ABILITY_ATTACK
+        {
+            self.hit_rate = 100;
+            self.evade = 0;
+            self.disabled_sa |= 1 << SA_DISTRACT;
+        }
+        let script = self.command.script_id;
+        if self.t().has_support_ability(SA_DISTRACT)
+            && self.disabled_sa & (1 << SA_DISTRACT) == 0
+            && (script <= 8 || script == 101)
+        {
+            self.hit_rate /= 2;
+        }
+    }
+
     /// `TryMagicHit` (`BattleCalculator.cs:419`).
     pub fn try_magic_hit(&mut self, rng: Rng<'_>) -> bool {
+        self.hit_rate_setup_features();
         if self.hit_rate <= rng.random16() % 100 {
             self.flags.0 |= CalcFlags::MISS;
             return false;
