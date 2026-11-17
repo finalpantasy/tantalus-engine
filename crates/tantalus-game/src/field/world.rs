@@ -588,6 +588,10 @@ pub struct FieldWorld {
     /// The save screen was asked for and is not open yet (runtime-only).
     #[serde(skip)]
     pub save_requested: bool,
+    /// A script ran `MENU(2, shop)`: the shop to open, not open yet
+    /// (runtime-only).
+    #[serde(skip)]
+    pub shop_requested: Option<i32>,
     /// Enabled support abilities per character, in the order they were
     /// switched on (reference `player.saExtended`).
     #[serde(default)]
@@ -780,6 +784,7 @@ impl FieldWorld {
             menu_disabled: false,
             save_point: false,
             save_requested: false,
+            shop_requested: None,
             support_enabled: BTreeMap::new(),
             actor_shadows: BTreeMap::new(),
             light_changes: Vec::new(),
@@ -836,6 +841,7 @@ impl FieldWorld {
         self.light_changes.clear();
         self.save_point = false;
         self.save_requested = false;
+        self.shop_requested = None;
         self.clear_tile_animations();
         self.control_actor = None;
         self.exit_arrivals.clear();

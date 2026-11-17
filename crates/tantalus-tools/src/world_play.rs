@@ -75,6 +75,8 @@ pub struct WorldPlay {
     pub ride: u8,
     /// Speed and heading while `ride` is 6 or 7.
     air: VehicleMotion,
+    /// Where the Blue Narciss lies at anchor after the player left it.
+    pub moored: Option<Vec3>,
     /// Places visited, bit `n` for place `n + 1` (`gEventGlobal` 92 to 99).
     pub visited: u64,
     pub walker: FootWalker,
@@ -95,6 +97,12 @@ pub struct WorldPlay {
 /// Height above the ground a flight starts at, the lowest it may go and
 /// the ceiling, in world units.
 const AIR_START_HEIGHT: f32 = 12.0;
+/// Shortest ray the get-off search probes, and how close the player has
+/// to be to board the anchored ship, in world units.
+const GET_OFF_REACH: f32 = 3.0;
+const BOARD_REACH: f32 = 8.0;
+/// The topograph a ship may be left at (`w_movementGetGetoff`, case 7).
+const PORT_TOPOGRAPH: i32 = 53;
 const AIR_MIN_HEIGHT: f32 = 6.0;
 const AIR_MAX_HEIGHT: f32 = 140.0;
 /// How much of the turn toward the heading the camera takes each frame.
@@ -128,6 +136,7 @@ impl WorldPlay {
             navi_map: 0,
             ride: 0,
             air: VehicleMotion::default(),
+            moored: None,
             visited: 0,
             walker,
             events,
@@ -201,6 +210,98 @@ impl WorldPlay {
         }
         self.walker = walker;
         self.ride = control;
+    }
+
+    /// Gets off the vehicle (`w_movementGetGetoff`, `ff9.cs:5464`): the
+    /// player lands on the first spot around the vehicle where every probe
+    /// of a short ray, from the vehicle outward, is ground an on-foot player
+    /// may stand on. The air chocobo has to be low, the ship has to be at
+    /// the shore. The ship stays anchored where it was. False when there is
+    /// no spot, and nothing changes.
+    pub fn get_off(&mut self) -> bool {
+        if self.ride == 0 {
+            return false;
+        }
+        let (Some(foot), Some(spec)) = (
+            VehicleSpec::get(0),
+            VehicleSpec::get(usize::from(self.ride)),
+        ) else {
+            return false;
+        };
+        let origin = self.walker.pos;
+        let mode = RaycastMode {
+            cast_from_sky: true,
+            ignore_exceptions: true,
+            control_type: 0,
+        };
+        if self.flying() {
+            let ground = self.walk.nwp_hit(origin, &mode, None);
+            if ground.pno != 1000 || origin.y - ground.height > AIR_START_HEIGHT * 2.0 {
+                return false;
+            }
+        }
+        let sea = self.sailing();
+        if sea {
+            // Only at a port: topograph 53 under the ship (`case 7`).
+            let here = self.walk.nwp_hit(origin, &mode, None);
+            if here.pno != 1000 || (here.id & 0xFC) >> 2 != PORT_TOPOGRAPH {
+                return false;
+            }
+        }
+        let reach = (f32::from(spec.radius) / 256.0).clamp(GET_OFF_REACH, 12.0);
+        let heading = self.walker.rot_true;
+        let mut landing = None;
+        'sweep: for step in 0..8 {
+            for sign in [1.0_f32, -1.0] {
+                // The sweep starts behind the vehicle (`PsxRot(3072)`).
+                let angle = heading + 180.0 + sign * step as f32 * 22.5;
+                let mut spot = origin;
+                let mut clear = true;
+                for probe in 1..=8 {
+                    spot = advance_xz(origin, angle, reach * probe as f32 / 8.0);
+                    let hit = self.walk.nwp_hit(spot, &mode, None);
+                    // The pier the ship lies at counts as ground on the way.
+                    let pier = sea && (hit.id & 0xFC) >> 2 == PORT_TOPOGRAPH;
+                    if hit.pno != 1000 || !(pier || foot.can_enter(hit.id)) {
+                        clear = false;
+                        break;
+                    }
+                }
+                if clear {
+                    landing = Some(wrap_position_keep_y(spot));
+                    break 'sweep;
+                }
+            }
+        }
+        let Some(spot) = landing else {
+            return false;
+        };
+        if self.sailing() {
+            self.moored = Some(origin);
+        }
+        self.walker.pos = spot;
+        self.set_ride(0);
+        true
+    }
+
+    /// Boards the anchored Blue Narciss when the player stands next to it.
+    pub fn board(&mut self) -> bool {
+        let Some(ship) = self.moored else {
+            return false;
+        };
+        let pos = self.walker.pos;
+        if self.ride != 0 || (pos.x - ship.x).hypot(pos.z - ship.z) > BOARD_REACH {
+            return false;
+        }
+        self.walker.pos = ship;
+        self.set_ride(7);
+        if self.ride == 7 {
+            self.moored = None;
+            true
+        } else {
+            self.walker.pos = pos;
+            false
+        }
     }
 
     /// Whether the player is in the air.

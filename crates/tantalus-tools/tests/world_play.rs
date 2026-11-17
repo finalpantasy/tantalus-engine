@@ -191,6 +191,40 @@ fn chocobos_and_the_airship_move_the_player() {
     let moved = (ship.walker.pos.z - start.z).hypot(ship.walker.pos.x - start.x);
     assert!(moved > 5.0, "the ship sails {moved}");
     let play = &mut play;
+    // Getting off: from a chocobo onto the ground, from the open sea not at
+    // all, and from the ship at the shore onto land; the ship stays anchored.
+    let mut rider = WorldPlay::new(
+        std::sync::Arc::clone(&ship.assets),
+        BTreeMap::new(),
+        1100.0,
+        -800.0,
+        1,
+    )
+    .unwrap();
+    rider.set_ride(1);
+    assert!(rider.get_off(), "off the chocobo");
+    assert_eq!(rider.ride, 0);
+    assert!(!rider.get_off(), "nothing to get off");
+    assert!(!ship.get_off(), "no shore in the open sea");
+    assert!(ship.sailing());
+    let mut landed = false;
+    for x in (0..1500).step_by(4) {
+        ship.walker.pos.x = x as f32;
+        ship.walker.pos.z = -400.0;
+        ship.set_ride(0);
+        ship.set_ride(7);
+        if ship.sailing() && ship.get_off() {
+            assert!(ship.moored.is_some());
+            assert!(!ship.sailing());
+            let anchor = ship.moored.unwrap();
+            ship.walker.pos = anchor;
+            assert!(ship.board(), "back on board");
+            assert!(ship.sailing());
+            landed = true;
+            break;
+        }
+    }
+    assert!(landed, "the ship finds a shore");
     // Wrapping keeps the flight inside the world.
     play.set_ride(0);
     assert!(!play.flying());

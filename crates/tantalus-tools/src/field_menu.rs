@@ -599,7 +599,9 @@ impl FieldMenu {
                     self.message = None;
                     self.screen = Screen::Main;
                 } else if confirm && let Some((item, _)) = list.get(cursor) {
-                    if usable(tables, *item) && party > 0 {
+                    // A Tent (script 76) is for save points only.
+                    let tent = tables.effects.get(item).is_some_and(|e| e.script_id == 76);
+                    if usable(tables, *item) && party > 0 && (world.save_point || !tent) {
                         self.message = None;
                         self.screen = Screen::ItemTarget {
                             item: *item,
@@ -1291,6 +1293,29 @@ mod tests {
         assert_eq!(world.equipped(0)[0], Some(2));
         assert_eq!(world.items.get(&1), Some(&1));
         assert_eq!(world.items.get(&2), None);
+    }
+
+    #[test]
+    fn a_tent_works_only_at_a_save_point() {
+        let (mut tables, mut world) = (tables(), world());
+        tables.effects.insert(
+            236,
+            FieldEffect {
+                script_id: 76,
+                power: 0,
+                status: 0,
+            },
+        );
+        let mut menu = FieldMenu::new();
+        menu.press(pad::CONFIRM, &mut world, &tables);
+        menu.press(pad::CONFIRM, &mut world, &tables);
+        assert!(menu.refused, "no tent away from a save point");
+        assert_eq!(world.items[&236], 2);
+        world.save_point = true;
+        menu.press(pad::CONFIRM, &mut world, &tables);
+        menu.press(pad::CONFIRM, &mut world, &tables);
+        assert_eq!(world.items[&236], 1);
+        assert_eq!(world.character_stats[&0].current_hp, 75 + 10);
     }
 
     #[test]

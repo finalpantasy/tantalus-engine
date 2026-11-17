@@ -507,6 +507,9 @@ fn run_play_capture(args: &[std::ffi::OsString]) -> ExitCode {
         "--give",
         "--learn",
         "--save-point",
+        "--shop",
+        "--moogle-save",
+        "--gil",
         "--audio-wav",
     ]);
     let Some(mut values) = flag_values(args, &allowed) else {
@@ -552,6 +555,13 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     if values.contains_key("--save-point") {
         game.set_save_point();
     }
+    if let Some(gil) = values.get("--gil") {
+        game.set_gil(gil.parse().map_err(|_| "bad --gil")?);
+    }
+    let shop: Option<i32> = match values.get("--shop") {
+        Some(shop) => Some(shop.parse().map_err(|_| "bad --shop")?),
+        None => None,
+    };
     if let Some(list) = values.get("--learn") {
         for pair in list.split(',') {
             let parsed = pair
@@ -600,6 +610,15 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
             open_for = 0;
         }
         last_confirm = held & pad::CONFIRM != 0;
+        // The scripts of a shop or a moogle run once the field is up.
+        if tick == 10 {
+            if let Some(shop) = shop {
+                game.open_shop(shop);
+            }
+            if values.contains_key("--moogle-save") {
+                game.request_save();
+            }
+        }
         for event in game.tick(held)? {
             println!("{}", tantalus_client::live::describe(&event));
         }

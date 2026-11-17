@@ -20,6 +20,7 @@ pub mod play;
 pub mod play_audio;
 pub mod play_save;
 pub mod scenario;
+pub mod shop_menu;
 pub mod sound_bank;
 pub mod sound_view;
 pub mod special_effects_cli;

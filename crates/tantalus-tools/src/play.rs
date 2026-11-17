@@ -27,6 +27,7 @@ use crate::field_session::{
 };
 use crate::play_audio::{AudioCue, menu_sound};
 use crate::play_save::{self, PlaySave, SAVE_FORMAT, SLOTS};
+use crate::shop_menu::ShopMenu;
 use crate::world_data::WorldAssets;
 use crate::world_play::WorldPlay;
 use tantalus_game::battle::BattleCommand;
@@ -96,6 +97,7 @@ pub struct PlayData {
     battle_base: BTreeMap<i32, BaseStats>,
     new_game: FieldWorld,
     menu: crate::field_menu::MenuTables,
+    shops: crate::shop_menu::ShopTables,
     streaming_assets: PathBuf,
     /// `Actions.csv`, for the ability to effect map of the spell sounds.
     actions_csv: PathBuf,
@@ -148,6 +150,7 @@ impl PlayData {
         menu.card_names = text.names("etc/minista").unwrap_or_default();
         menu.card_levels = text.names("etc/card").unwrap_or_default();
         menu.seed_equipment(&mut new_game);
+        let shops = crate::shop_menu::ShopTables::load(memoria)?;
         new_game.items = tantalus_game::new_game::parse_initial_items(&read_text(
             &characters.join("../Items/InitialItems.csv"),
         )?)?;
@@ -173,6 +176,7 @@ impl PlayData {
             battle_base: base,
             new_game,
             menu,
+            shops,
             streaming_assets: sa.clone(),
             actions_csv: memoria.join("Memoria.Patcher/StreamingAssets/Data/Battle/Actions.csv"),
             effect_sounds: std::sync::OnceLock::new(),
@@ -367,6 +371,8 @@ pub struct PlayGame {
     pub last_results: Option<BattleResults>,
     /// The open main menu; the field does not run while it is open.
     menu: Option<FieldMenu>,
+    /// The open shop; the field does not run while it is open.
+    shop: Option<ShopMenu>,
     save_dir: PathBuf,
     /// Where to put the player after a load, once their actor exists.
     pending_position: Option<[f32; 3]>,
@@ -428,6 +434,7 @@ impl PlayGame {
             last_battle: None,
             last_results: None,
             menu: None,
+            shop: None,
             save_dir: play_save::default_dir(),
             pending_position: None,
             live_battles: false,
@@ -676,6 +683,37 @@ impl PlayGame {
         pressed: i32,
         events: &mut Vec<PlayEvent>,
     ) -> Result<bool, String> {
+        if let Some(mut shop) = self.shop.take() {
+            let mut open = true;
+            if pressed != 0 {
+                let world = match self.session.as_mut() {
+                    Some(session) => session.director.world_mut(),
+                    None => &mut self.world,
+                };
+                let before = shop.revision;
+                open = shop.press(pressed, world, &self.data.menu, &self.data.shops);
+                let sound = if std::mem::take(&mut shop.refused) {
+                    Some(menu_sound::REFUSE)
+                } else if pressed & (CONFIRM | pad::CIRCLE) != 0 {
+                    Some(menu_sound::CONFIRM)
+                } else if pressed & (pad::CANCEL | pad::CROSS) != 0 {
+                    Some(menu_sound::CANCEL)
+                } else if pressed & (pad::UP | pad::DOWN | pad::LEFT | pad::RIGHT) != 0
+                    && shop.revision != before
+                {
+                    Some(menu_sound::CURSOR)
+                } else {
+                    None
+                };
+                if let Some(id) = sound {
+                    self.audio.push((self.ticks, AudioCue::Effect { id }));
+                }
+            }
+            if open {
+                self.shop = Some(shop);
+            }
+            return Ok(true);
+        }
         if let Some(mut menu) = self.menu.take() {
             let mut open = true;
             if pressed != 0 {
@@ -736,6 +774,14 @@ impl PlayGame {
         let world = session.director.world_mut();
         let allowed =
             world.user_control && !world.menu_disabled && !world.windows.values().any(|open| *open);
+        if let Some(id) = world.shop_requested
+            && !world.windows.values().any(|open| *open)
+        {
+            // A shop script ran `MENU(2, shop)`.
+            world.shop_requested = None;
+            self.shop = Some(ShopMenu::new(id, &self.data.menu, &self.data.shops));
+            return Ok(true);
+        }
         if world.save_requested && allowed {
             // A moogle asked for the save screen.
             world.save_requested = false;
@@ -781,6 +827,7 @@ impl PlayGame {
         self.world = world;
         self.session = None;
         self.menu = None;
+        self.shop = None;
         self.stopped = None;
         self.ticks = save.ticks;
         self.pending_position = save.position;
@@ -853,6 +900,32 @@ impl PlayGame {
         self.world.save_point = true;
         if let Some(session) = self.session.as_mut() {
             session.director.world_mut().save_point = true;
+        }
+    }
+
+    /// Asks for shop `id` as a field script's `MENU(2, id)` does (a test
+    /// aid).
+    pub fn open_shop(&mut self, id: i32) {
+        self.world_mut_any().shop_requested = Some(id);
+    }
+
+    /// Asks for the save screen as a moogle's `MENU(4, 0)` does (a test aid).
+    pub fn request_save(&mut self) {
+        let world = self.world_mut_any();
+        world.save_point = true;
+        world.save_requested = true;
+        world.user_control = true;
+    }
+
+    /// Sets the gil the party holds (a test aid).
+    pub fn set_gil(&mut self, gil: u32) {
+        self.world_mut_any().gil = gil;
+    }
+
+    fn world_mut_any(&mut self) -> &mut FieldWorld {
+        match self.session.as_mut() {
+            Some(session) => session.director.world_mut(),
+            None => &mut self.world,
         }
     }
 
@@ -1006,6 +1079,12 @@ impl PlayGame {
 
     /// The main menu to draw, with a number that changes when it does.
     pub fn menu_frame(&self) -> Option<(u64, crate::field_menu::MenuFrame)> {
+        if let Some(shop) = &self.shop {
+            return Some((
+                shop.revision,
+                shop.frame(self.world(), &self.data.menu, &self.data.shops),
+            ));
+        }
         let menu = self.menu.as_ref()?;
         Some((menu.revision, menu.frame(self.world(), &self.data.menu)))
     }
@@ -1566,9 +1645,20 @@ impl PlayGame {
             return Ok(());
         };
         if pressed & pad::SQUARE != 0 {
-            // Square steps through the rides: on foot, the five chocobos,
-            // the gold chocobo in the air, the Blue Narciss, on foot.
-            play.set_ride((play.ride + 1) % 8);
+            // Square gets off whatever the player rides, or else boards the
+            // anchored Blue Narciss, or calls the yellow chocobo.
+            if play.ride != 0 {
+                if !play.get_off() {
+                    self.audio.push((
+                        self.ticks,
+                        AudioCue::Effect {
+                            id: menu_sound::REFUSE,
+                        },
+                    ));
+                }
+            } else if !play.board() {
+                play.set_ride(1);
+            }
         }
         let tick = play.tick(held, pressed, CONFIRM, false);
         if let Some(scene) = tick.battle {
