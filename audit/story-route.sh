@@ -37,7 +37,7 @@ COMMON=(--bundle "$G/StreamingAssets/p0data7.bin"
   --character-data "$M/Memoria.Patcher/StreamingAssets/Data/Characters"
   --game-data "$G/x64/FF9_Data"
   --mes-map "$M/Assembly-CSharp/Global/Event/Engine/EventEngineUtils.cs"
-  --explore --confirm-after 30 --battles audit/battle-scene-ids.tsv)
+  --explore --confirm-after 30 --battles audit/battle-scene-ids.tsv --stub-objects)
 CHOICES="52:66=1,64:127=1,202:242=1,202:242=0@2100,202:242=1@2200,652:90=11,*:3=6,*:4=1"
 # Part 2 adds the Lindblum air cab (563 text 99 choice 3 flies to the Theater District station exit to 566)
 CHOICES2="$CHOICES,563:99=3"

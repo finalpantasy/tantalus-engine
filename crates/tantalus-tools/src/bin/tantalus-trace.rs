@@ -39,7 +39,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--level N] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--wall-regions MAP,...] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--wall-regions MAP,...] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--stub-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -84,7 +84,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut settle_ticks: u64 = CONTROL_SETTLE;
     let mut talk_grace: u64 = 0;
     let mut heal_after_battle = false;
-    let mut live_objects = false;
+    let mut live_objects = true;
     let mut win_battles: BTreeSet<i32> = BTreeSet::new();
     let mut fight_battle: Option<i32> = None;
     let mut fight_party: Vec<i32> = vec![0];
@@ -315,6 +315,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
             }
             "--heal-after-battle" => heal_after_battle = true,
             "--live-objects" => live_objects = true,
+            "--stub-objects" => live_objects = false,
             "--talk-grace" => talk_grace = parse_number(&value()?, "--talk-grace")?,
             "--waypoint-objects" => {
                 for part in value()?.split(',') {
@@ -2000,6 +2001,12 @@ fn chain(
                                     if *other != entry {
                                         talked.remove(other);
                                         talk_dwell.remove(other);
+                                        // A region entry listed here is tried again
+                                        // too (Iifa Tree 1755: the region that
+                                        // continues the scene tests a flag the
+                                        // talks set).
+                                        triggered.remove(other);
+                                        dwell_ticks.remove(other);
                                     }
                                 }
                                 talks.push((ticks_run, entry));
@@ -2233,39 +2240,52 @@ fn chain(
                 } else if let Some((actor, position)) = controlled {
                     // The one exit the explorer heads for: the routed
                     // destination, else the least visited one.
-                    let chosen_exit = world
-                        .regions
-                        .keys()
-                        .map(|region| region.get() as usize)
-                        .filter(|entry| !triggered.contains(entry))
-                        .filter_map(|entry| {
-                            let observed = observed_exits.get(&(map, entry));
-                            let dests: Vec<i32> = match observed {
-                                Some(seen) if !seen.is_empty() => seen.iter().copied().collect(),
-                                _ => exit_choices.get(&entry)?.clone(),
-                            };
-                            Some((entry, dests))
-                        })
-                        .filter(|(entry, dests)| {
-                            // An exit seen to lead elsewhere can still lead to the
-                            // route target from another floor (map 1215 region 5
-                            // tests the player's height), as its script says.
-                            route_target.is_none_or(|target| {
-                                dests.contains(&target)
-                                    || exit_choices
-                                        .get(entry)
-                                        .is_some_and(|choices| choices.contains(&target))
+                    // An exit that leads to the route target wins; when no exit of the
+                    // field does (a maze such as the Iifa Tree roots, 1651, where the
+                    // exit regions only change the maze state and the way on opens
+                    // after a few of them), the least visited exit is a step.
+                    let pick_exit = |strict: bool| {
+                        world
+                            .regions
+                            .keys()
+                            .map(|region| region.get() as usize)
+                            .filter(|entry| !triggered.contains(entry))
+                            .filter_map(|entry| {
+                                let observed = observed_exits.get(&(map, entry));
+                                let dests: Vec<i32> = match observed {
+                                    Some(seen) if !seen.is_empty() => {
+                                        seen.iter().copied().collect()
+                                    }
+                                    _ => exit_choices.get(&entry)?.clone(),
+                                };
+                                Some((entry, dests))
                             })
-                        })
-                        .min_by_key(|(entry, dests)| {
-                            let least = dests
-                                .iter()
-                                .map(|dest| visits.get(dest).copied().unwrap_or(0))
-                                .min()
-                                .unwrap_or(0);
-                            (least, *entry)
-                        })
-                        .map(|(entry, _)| entry);
+                            .filter(|(entry, dests)| {
+                                // An exit seen to lead elsewhere can still lead to the
+                                // route target from another floor (map 1215 region 5
+                                // tests the player's height), as its script says.
+                                !strict
+                                    || route_target.is_none_or(|target| {
+                                        dests.contains(&target)
+                                            || exit_choices
+                                                .get(entry)
+                                                .is_some_and(|choices| choices.contains(&target))
+                                    })
+                            })
+                            .min_by_key(|(entry, dests)| {
+                                let least = dests
+                                    .iter()
+                                    .map(|dest| visits.get(dest).copied().unwrap_or(0))
+                                    .min()
+                                    .unwrap_or(0);
+                                // A maze step (an exit back into this field) comes before an
+                                // exit that leaves it, when no exit leads to the target.
+                                let leaves = !strict && dests.iter().all(|dest| *dest != map);
+                                (leaves, least, *entry)
+                            })
+                            .map(|(entry, _)| entry)
+                    };
+                    let chosen_exit = pick_exit(true).or_else(|| pick_exit(false));
                     let has_tag2 = |region: &EntityId| {
                         let entry = region.get() as usize;
                         let routed = !exits.contains_key(&entry) || chosen_exit == Some(entry);
@@ -2524,11 +2544,18 @@ fn chain(
             if let Some(next) = transitions.first() {
                 transition = Some(i32::from(*next));
                 if let Some(entry) = last_exit_region {
-                    if route_target.is_some_and(|target| target != i32::from(*next))
-                        && let Some(state) = director
-                            .world()
-                            .control_actor
-                            .and_then(|actor| director.world().actors.get(&actor))
+                    // Only an exit whose script can lead to the target counts as one
+                    // that led away from another floor; a maze exit taken as a step
+                    // (Iifa Tree 1758) is not retried by height.
+                    if route_target.is_some_and(|target| {
+                        target != i32::from(*next)
+                            && exit_choices
+                                .get(&entry)
+                                .is_some_and(|choices| choices.contains(&target))
+                    }) && let Some(state) = director
+                        .world()
+                        .control_actor
+                        .and_then(|actor| director.world().actors.get(&actor))
                     {
                         bad_floors
                             .entry((map, entry))
