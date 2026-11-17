@@ -482,9 +482,37 @@ pub struct EncounterRequest {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct TimerState {
+    /// The value `SetTime` stored (seconds).
     pub seconds: i32,
     pub running: bool,
     pub displayed: bool,
+    /// Field ticks counted down since `SetTime` while `running`.
+    #[serde(default)]
+    pub elapsed_ticks: u32,
+}
+
+impl TimerState {
+    /// Field logic ticks per second (`FPS_FIELD`), the rate the countdown
+    /// runs at.
+    pub const TICKS_PER_SECOND: f32 = 30.0;
+
+    /// `TimerUI.SetTime`: the time is `second - 0.01`, never below zero.
+    pub fn set_time(&mut self, seconds: i32) {
+        self.seconds = seconds;
+        self.elapsed_ticks = 0;
+    }
+
+    /// `TimerUI.Time`: what is left, floored at zero (`TimerUI.Update`).
+    pub fn time(&self) -> f32 {
+        let start = (self.seconds as f32 - 0.01).max(0.0);
+        (start - self.elapsed_ticks as f32 / Self::TICKS_PER_SECOND).max(0.0)
+    }
+
+    /// `GetSysvar` 17 (`GetTimerTime`): `Convert.ToInt32(TimerUI.Time)`,
+    /// which rounds half to even.
+    pub fn time_int(&self) -> i32 {
+        self.time().round_ties_even() as i32
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -1486,6 +1514,10 @@ impl FieldWorld {
             self.fade_current[fade.slot()] = fade.color_now();
         }
         self.here_icon_timer = (self.here_icon_timer - 1).max(0);
+        // `TimerUI.Update` while `Play`: the countdown follows real time.
+        if self.timer.running {
+            self.timer.elapsed_ticks = self.timer.elapsed_ticks.saturating_add(1);
+        }
         for state in self.actors.values_mut() {
             if state.anim_frozen {
                 // `ProcessAnime` does nothing while `afFreeze` is set.
@@ -2146,4 +2178,23 @@ pub const PLAYER_WALK_SPEED: f32 = 30.0;
 
 fn is_zero(value: &u8) -> bool {
     *value == 0
+}
+
+#[cfg(test)]
+mod timer_tests {
+    use super::TimerState;
+
+    #[test]
+    fn timer_counts_down_while_running_and_rounds_like_convert_to_int32() {
+        let mut timer = TimerState::default();
+        timer.set_time(61);
+        // `SetTime` stores 60.99, which `Convert.ToInt32` reads as 61.
+        assert_eq!(timer.time_int(), 61);
+        timer.elapsed_ticks = 30;
+        assert_eq!(timer.time_int(), 60);
+        timer.elapsed_ticks = 61 * 30;
+        assert_eq!(timer.time_int(), 0);
+        timer.elapsed_ticks = 10_000;
+        assert_eq!(timer.time(), 0.0);
+    }
 }

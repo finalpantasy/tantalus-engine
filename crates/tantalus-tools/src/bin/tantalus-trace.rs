@@ -39,7 +39,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--gil N] [--settle TICKS] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -66,10 +66,15 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut choices: BTreeMap<(i32, u16, i32), i32> = BTreeMap::new();
     let mut route: Vec<(i32, i32, i32)> = Vec::new();
     let mut skip_talk: BTreeSet<(i32, usize)> = BTreeSet::new();
+    let mut retalk: BTreeSet<(i32, usize)> = BTreeSet::new();
     let mut hold: BTreeMap<i32, i32> = BTreeMap::new();
     let mut press_when: Vec<PressWhen> = Vec::new();
     let mut suspend_loops = false;
     let mut set_globals: Vec<(u16, i32)> = Vec::new();
+    let mut start_gil: u32 = 0;
+    let mut waypoint_dwell_ticks: u64 = WAYPOINT_DWELL;
+    let mut waypoint_objects: BTreeSet<(i32, i32)> = BTreeSet::new();
+    let mut settle_ticks: u64 = CONTROL_SETTLE;
     let mut fight_battle: Option<i32> = None;
     let mut fight_party: Vec<i32> = vec![0];
     let mut fight_globals = tantalus_tools::field_battle::PartyGlobals::default();
@@ -163,6 +168,19 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     })?);
                 }
             }
+            "--retalk" => {
+                for part in value()?.split(',') {
+                    let parsed = part
+                        .trim()
+                        .split_once(':')
+                        .and_then(|(map, entry)| Some((map.parse().ok()?, entry.parse().ok()?)));
+                    retalk.insert(
+                        parsed.ok_or_else(|| {
+                            format!("bad --retalk entry `{part}`, want MAP:ENTRY")
+                        })?,
+                    );
+                }
+            }
             "--battles" => battle_ids = Some(PathBuf::from(value()?)),
             // Shards of a long run: write the world as the chain enters MAP,
             // and start a later run from it (`--start MAP --load-world`).
@@ -210,6 +228,20 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     set_globals.push((index, byte));
                 }
             }
+            "--settle" => settle_ticks = parse_number(&value()?, "--settle")?,
+            "--waypoint-objects" => {
+                for part in value()?.split(',') {
+                    let parsed = part
+                        .trim()
+                        .split_once(':')
+                        .and_then(|(map, uid)| Some((map.parse().ok()?, uid.parse().ok()?)));
+                    waypoint_objects.insert(parsed.ok_or_else(|| {
+                        format!("bad --waypoint-objects entry `{part}`, want MAP:UID")
+                    })?);
+                }
+            }
+            "--dwell" => waypoint_dwell_ticks = parse_number(&value()?, "--dwell")?,
+            "--gil" => start_gil = parse_number(&value()?, "--gil")?,
             "--suspend-loops" => suspend_loops = true,
             "--press-when" => {
                 // MAP:INDEX:LO:HI:MASK[,...]: hold MASK while map byte INDEX is in LO..=HI.
@@ -448,10 +480,15 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     item_ids,
                     route,
                     skip_talk,
+                    retalk,
                     hold,
                     press_when,
                     suspend_loops,
                     set_globals,
+                    start_gil,
+                    waypoint_dwell_ticks,
+                    waypoint_objects,
+                    settle_ticks,
                     backgrounds,
                     waypoints,
                     save_at,
@@ -936,6 +973,9 @@ struct ChainOptions {
     /// Objects the explorer never talks to, by (field map, entry): optional
     /// minigames that hold the field until played (map 103 entry 8, jump rope).
     skip_talk: BTreeSet<(i32, usize)>,
+    /// Objects the explorer talks to again on a later visit at the same
+    /// story point (Chocobo Hot and Cold: Mene is revisited).
+    retalk: BTreeSet<(i32, usize)>,
     /// Pad bits held for a whole field, by field map (`KeyState(Held)`
     /// polls such as map 115's ladder climb, which reads up = 16).
     hold: BTreeMap<i32, i32>,
@@ -945,6 +985,16 @@ struct ChainOptions {
     suspend_loops: bool,
     /// Byte values written to global memory before the first field.
     set_globals: Vec<(u16, i32)>,
+    /// Gil the party starts with (`--gil`), for fees such as Hot and Cold's 60.
+    start_gil: u32,
+    /// Ticks the explorer stands on each waypoint (`--dwell`).
+    waypoint_dwell_ticks: u64,
+    /// Objects (by uid) the explorer visits after its `--waypoints`, at
+    /// their current position: Hot and Cold's hidden treasure spots.
+    waypoint_objects: BTreeSet<(i32, i32)>,
+    /// Ticks of continuous control before the explorer acts (`--settle`);
+    /// Hot and Cold gives control for about 24 ticks per dig.
+    settle_ticks: u64,
     /// `EventEngineUtils.eventIDToFBGID`: field map number to background
     /// name, whose `<name>.bgi` walkmesh backs `BGI` triangle queries.
     backgrounds: BTreeMap<i32, String>,
@@ -1036,10 +1086,15 @@ fn chain(
         item_ids,
         route,
         skip_talk,
+        retalk,
         hold,
         press_when,
         suspend_loops,
         set_globals,
+        start_gil,
+        waypoint_dwell_ticks,
+        waypoint_objects,
+        settle_ticks,
         backgrounds,
         waypoints,
         save_at,
@@ -1155,6 +1210,7 @@ fn chain(
             .global_memory
             .set(*index, tantalus_legacy::VariableType::Byte, *value);
     }
+    world.gil = world.gil.max(start_gil);
     if let Some(path) = &load_world {
         let text = std::fs::read_to_string(path)
             .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
@@ -1296,11 +1352,17 @@ fn chain(
                     .filter(|(talk_map, _, scenario)| {
                         *talk_map == map && *scenario == scenario_at_start
                     })
+                    .filter(|(_, entry, _)| !retalk.contains(&(map, *entry)))
                     .map(|(_, entry, _)| *entry),
             )
             .collect();
         let mut talk_dwell: BTreeMap<usize, u64> = BTreeMap::new();
         let field_waypoints = waypoints.get(&map).cloned().unwrap_or_default();
+        let object_waypoints: Vec<i32> = waypoint_objects
+            .iter()
+            .filter(|(object_map, _)| *object_map == map)
+            .map(|(_, uid)| *uid)
+            .collect();
         let mut floors_tried: BTreeMap<usize, Vec<f32>> = BTreeMap::new();
         let mut exit_runs: BTreeMap<usize, (u32, usize)> = BTreeMap::new();
         let mut waypoint_index = 0usize;
@@ -1609,9 +1671,9 @@ fn chain(
                 // ticks while they start. Act only once control has held
                 // for CONTROL_SETTLE ticks.
                 let settled = world.user_control
-                    && control_changes.last().is_none_or(|(tick, _, _)| {
-                        ticks_run.saturating_sub(*tick) >= CONTROL_SETTLE
-                    });
+                    && control_changes
+                        .last()
+                        .is_none_or(|(tick, _, _)| ticks_run.saturating_sub(*tick) >= settle_ticks);
                 let controlled = settled
                     .then_some(world.control_actor)
                     .flatten()
@@ -1687,7 +1749,14 @@ fn chain(
                     let talk_target = pending_talk.map(|(entry, _)| entry);
                     let waypoint = field_waypoints
                         .get(waypoint_index)
-                        .map(|point| snap_to_walkmesh(world.navigation(), *point));
+                        .map(|point| snap_to_walkmesh(world.navigation(), *point))
+                        .or_else(|| {
+                            let uid =
+                                object_waypoints.get(waypoint_index - field_waypoints.len())?;
+                            let entity = world.resolve_uid(*uid)?;
+                            let state = world.actors.get(&entity)?;
+                            Some([state.position[0], state.position[2]])
+                        });
                     let next = pending_region(false)
                         .or(pending_talk.map(|(_, at)| at))
                         .or(waypoint)
@@ -1816,7 +1885,7 @@ fn chain(
                             // range, hidden, or not placed yet).
                             if walking && arrived {
                                 waypoint_dwell += 1;
-                                if waypoint_dwell >= WAYPOINT_DWELL {
+                                if waypoint_dwell >= waypoint_dwell_ticks {
                                     waypoint_dwell = 0;
                                     waypoint_index += 1;
                                 }
@@ -1924,6 +1993,11 @@ fn chain(
             route_used[index] = true;
         }
         world = director.world().clone();
+        // Probe aid: items and gil after each field, on stderr, so a run's
+        // pickups show without changing the JSON records.
+        if std::env::var_os("TANTALUS_TRACE_ITEMS").is_some() {
+            eprintln!("map {map} items {:?} gil {}", world.items, world.gil);
+        }
         if transition.is_none()
             && let Some(world_map) = world_map
         {

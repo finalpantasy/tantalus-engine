@@ -1076,7 +1076,7 @@ impl LegacyEventHost for FieldHost<'_> {
                     self.world.field_name = None;
                 }
                 HostEvent::SetTimerTime { seconds } => {
-                    self.world.timer.seconds = *seconds;
+                    self.world.timer.set_time(*seconds);
                 }
                 HostEvent::SetTimerRunning { running } => {
                     self.world.timer.running = *running;
@@ -1365,6 +1365,11 @@ impl LegacyEventHost for FieldHost<'_> {
             8 => return Ok(self.world.mes_signal),
             // 9 GetDialogChoice: `ETb.GetChoose()`.
             9 => return Ok(self.world.dialog_choice),
+            // 6 GetGil: `party.gil`.
+            6 => return Ok(i32::try_from(self.world.gil).unwrap_or(i32::MAX)),
+            // 17 GetTimerTime, 21 IsTimerShown (`TimerUI.Enable`).
+            17 => return Ok(self.world.timer.time_int()),
+            21 => return Ok(i32::from(self.world.timer.displayed)),
             14 => return Ok(self.world.fmv.frame),
             15 => return Ok(self.world.fmv.sync()),
             // 18 GetTetraMasterResult, 19 GetCardAmount (`GetSysvar.cs`: scripts read at most
@@ -1405,10 +1410,17 @@ impl LegacyEventHost for FieldHost<'_> {
     }
 
     fn find_object_uid(&mut self, uid: u8) -> Result<Option<i32>, EngineError> {
-        Ok(self
-            .world
-            .resolve_uid(i32::from(uid))
-            .map(|entity| i32::try_from(entity.get()).unwrap_or(i32::MAX)))
+        // `B_PTR` pushes `obj.uid` (EBin.cs:1088): the uid a `NEW3` gave the
+        // object. An extra instance (Hot and Cold's dig holes, uids 128 and
+        // up) has an entity id that is not a uid, so push the uid itself;
+        // an entry's own object keeps its entry id.
+        Ok(self.world.resolve_uid(i32::from(uid)).map(|entity| {
+            if self.world.instance_source(entity).is_some() {
+                i32::from(uid)
+            } else {
+                i32::try_from(entity.get()).unwrap_or(i32::MAX)
+            }
+        }))
     }
 
     fn read_object_position(&mut self, object: EntityId) -> Result<[f32; 3], EngineError> {
