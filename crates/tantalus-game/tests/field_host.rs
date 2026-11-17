@@ -347,12 +347,12 @@ fn walking_faces_the_movement_direction_on_the_reference_scale() {
     use tantalus_game::field::world::Movement;
 
     let mut world = FieldWorld::new();
-    // North is -Z (facing 128), east is +X (192), south +Z (0), west -X (64).
+    // `angleAsm`: +Z is facing 128, east +X is 192, -Z is 0, west -X is 64.
     world.add_actor(actor(1), [0.0, 0.0, 0.0]);
     for (destination, expected) in [
-        ([0.0, -100.0], 128),
+        ([0.0, 100.0], 128),
         ([100.0, 0.0], 192),
-        ([0.0, 100.0], 0),
+        ([0.0, -100.0], 0),
         ([-100.0, 0.0], 64),
     ] {
         world.actors.get_mut(&actor(1)).unwrap().position = [0.0, 0.0, 0.0];

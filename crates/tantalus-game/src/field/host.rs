@@ -1953,9 +1953,7 @@ fn angle_toward(from: [f32; 3], to: [f32; 3]) -> i16 {
     if dx == 0.0 && dz == 0.0 {
         return 0;
     }
-    let degrees = dx.atan2(-dz).to_degrees();
-    let facing = (128.0 + degrees * 128.0 / 180.0).round().rem_euclid(256.0) as i16;
-    facing << 4
+    crate::field::world::facing_toward(dx, dz) << 4
 }
 
 /// `StartTurn` (DoEventCode.cs:3339): a turn onto the angle it already faces does nothing;

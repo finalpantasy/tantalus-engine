@@ -11,6 +11,18 @@ use std::collections::{BTreeMap, BTreeSet};
 use tantalus_contracts::{EntityId, FieldNavigationMesh, Point3};
 use tantalus_legacy::event::party::{EntryLink, PARTY_SLOT_FIRST, PARTY_SLOT_LAST, party_uid};
 
+/// Facing (0 south, 64 west, 128 north, 192 east, unrounded) of a move by
+/// `(dx, dz)`: `EventEngine.angleAsm` / `FieldMapActorController` use
+/// `atan2(-dx, -dz)` degrees, so moving toward -z is facing 0.
+pub(crate) fn facing_toward_exact(dx: f32, dz: f32) -> f32 {
+    ((-dx).atan2(-dz).to_degrees() * 256.0 / 360.0).rem_euclid(256.0)
+}
+
+/// `facing_toward_exact` rounded onto the integer facing scale.
+pub(crate) fn facing_toward(dx: f32, dz: f32) -> i16 {
+    facing_toward_exact(dx, dz).round().rem_euclid(256.0) as i16
+}
+
 fn all_choices() -> i32 {
     -1
 }
@@ -1413,8 +1425,7 @@ impl FieldWorld {
             if dx != 0.0 || dz != 0.0 {
                 // `MovePC` eases the turn: `Lerp(rotAngle, moveAngle, 0.4)`
                 // the short way round, each frame.
-                let degrees = dx.atan2(-dz).to_degrees();
-                let target = (128.0 + degrees * 128.0 / 180.0).rem_euclid(256.0);
+                let target = facing_toward_exact(dx, dz);
                 let current = f32::from(state.facing).rem_euclid(256.0);
                 let turn = (target - current + 128.0).rem_euclid(256.0) - 128.0;
                 // The reference turns in floats; on the integer scale the
@@ -1660,16 +1671,13 @@ impl FieldWorld {
                         }
                     }
                     // Walking faces the movement direction on the reference
-                    // facing scale (0 south, 64 west, 128 north, 192 east):
-                    // `128 + atan2_deg(dx, -dz) * 128 / 180`, mod 256.
+                    // facing scale (0 south, 64 west, 128 north, 192 east).
                     if !state
                         .movement
                         .as_ref()
                         .is_some_and(|movement| movement.keep_facing)
                     {
-                        let degrees = dx.atan2(-dz).to_degrees();
-                        state.facing =
-                            (128.0 + degrees * 128.0 / 180.0).round().rem_euclid(256.0) as i16;
+                        state.facing = facing_toward(dx, dz);
                     }
                 }
             }
@@ -2442,5 +2450,43 @@ mod instance_memory_tests {
         assert_eq!(world.instance_memory(a).get(4, VariableType::Byte), Some(9));
         // Another object does not.
         assert_eq!(world.instance_memory(b).get(4, VariableType::Byte), Some(0));
+    }
+}
+
+#[cfg(test)]
+mod facing_tests {
+    use super::{FieldWorld, facing_toward};
+    use tantalus_contracts::EntityId;
+
+    /// Pad input faces the movement direction (`FieldMapActorController`
+    /// `MovePC`: `atan2(-moveX, -moveZ)`), up +z -> 128, down -z -> 0.
+    #[test]
+    fn pad_input_faces_the_movement_direction() {
+        for (mask, expected) in [(1, 128), (2, 0), (4, 64), (8, 192)] {
+            let mut world = FieldWorld::new();
+            let actor = EntityId::new(1);
+            world.add_actor(actor, [0.0, 0.0, 0.0]);
+            world.set_player(actor);
+            world.user_control = true;
+            world.set_walk_bits(Some((1, 2, 4, 8)));
+            world.set_input(mask);
+            for _ in 0..40 {
+                world.apply_walk_input();
+            }
+            let state = &world.actors[&actor];
+            assert_eq!(state.facing, expected, "mask {mask}");
+            let (x, z) = (state.position[0], state.position[2]);
+            let moved = facing_toward(x, z);
+            assert_eq!(moved, expected, "movement ({x}, {z}) vs facing");
+        }
+    }
+
+    #[test]
+    fn facing_matches_movement_direction() {
+        // Reference scale: 0 south (-z), 64 west (-x), 128 north (+z), 192 east (+x).
+        assert_eq!(facing_toward(0.0, -1.0), 0);
+        assert_eq!(facing_toward(-1.0, 0.0), 64);
+        assert_eq!(facing_toward(0.0, 1.0), 128);
+        assert_eq!(facing_toward(1.0, 0.0), 192);
     }
 }
