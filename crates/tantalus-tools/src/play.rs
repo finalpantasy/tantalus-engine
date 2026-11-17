@@ -19,7 +19,8 @@ use crate::field_battle::{
     FieldBattles, FightControl, LiveFight, PartyFighter, PartyGlobals, pay_rewards, save_party,
 };
 use crate::field_data::{
-    FieldText, load_navigation, load_tile_animations, parse_background_map, parse_event_db,
+    FieldText, load_cameras, load_navigation, load_tile_animations, parse_background_map,
+    parse_event_db,
 };
 use crate::field_menu::{FieldMenu, MenuAction};
 use crate::field_session::{
@@ -210,6 +211,13 @@ impl PlayData {
         let (pool, _) = decode_pool(&binary)?;
         let mut world = self.new_game.clone();
         prepare_field_world(&mut world, map);
+        if let Some(Ok(cameras)) = self
+            .backgrounds
+            .get(&map)
+            .map(|background| load_cameras(&self.field_bundles, background))
+        {
+            world.provide_cameras(cameras);
+        }
         match self.backgrounds.get(&map) {
             Some(background) => match load_navigation(&self.field_bundles, background) {
                 Ok(mesh) => world.provide_navigation(mesh),
@@ -374,6 +382,8 @@ pub struct PlayGame {
     menu: Option<FieldMenu>,
     /// The open shop; the field does not run while it is open.
     shop: Option<ShopMenu>,
+    /// The cursor on the party screen a field script opened (`PARTYMENU`).
+    party_select: crate::party_select::PartySelect,
     save_dir: PathBuf,
     /// Where to put the player after a load, once their actor exists.
     pending_position: Option<[f32; 3]>,
@@ -436,6 +446,7 @@ impl PlayGame {
             last_results: None,
             menu: None,
             shop: None,
+            party_select: Default::default(),
             save_dir: play_save::default_dir(),
             pending_position: None,
             live_battles: false,
@@ -595,6 +606,14 @@ impl PlayGame {
                 Err(_) => world.clear_tile_animations(),
             },
             None => world.clear_tile_animations(),
+        }
+        if let Some(Ok(cameras)) = self
+            .data
+            .backgrounds
+            .get(&map)
+            .map(|background| load_cameras(&self.data.field_bundles, background))
+        {
+            world.provide_cameras(cameras);
         }
         let navigation = match self.data.backgrounds.get(&map) {
             Some(background) => match load_navigation(&self.data.field_bundles, background) {
@@ -911,6 +930,17 @@ impl PlayGame {
 
     /// Asks for shop `id` as a field script's `MENU(2, id)` does (a test
     /// aid).
+    /// The party screen a field script opened, and its cursor, for the client to draw.
+    pub fn party_screen(
+        &self,
+    ) -> Option<(
+        &tantalus_legacy::party_menu::party::PartyInfo,
+        crate::party_select::PartySelect,
+    )> {
+        let info = self.session.as_ref()?.director.world().party_menu_info()?;
+        Some((info, self.party_select))
+    }
+
     pub fn open_shop(&mut self, id: i32) {
         self.world_mut_any().shop_requested = Some(id);
     }
@@ -1146,8 +1176,27 @@ impl PlayGame {
         let Some(session) = self.session.as_mut() else {
             return Ok(events);
         };
-        // A confirm press lasts one tick; holding it does not repeat.
-        let mut input = held & !CONFIRM;
+        // The party screen (`PARTYMENU`) takes the pad while it is open; the waiting script goes
+        // on once it closes.
+        let party_screen = session.director.world().party_menu_open();
+        if party_screen {
+            let world = session.director.world_mut();
+            if world.party_menu_info().is_none() {
+                // Opened before this build kept the screen's state: leave with the party as is.
+                world.close_party_menu();
+            } else if let Some(event) = self.party_select.press(world, pressed) {
+                use crate::party_select::PartySelectEvent;
+                let id = match event {
+                    PartySelectEvent::Refused => menu_sound::REFUSE,
+                    PartySelectEvent::Moved => menu_sound::CURSOR,
+                    _ => menu_sound::CONFIRM,
+                };
+                self.audio.push((self.ticks, AudioCue::Effect { id }));
+            }
+        }
+        // A confirm press lasts one tick; holding it does not repeat. The party screen keeps
+        // the pad from the field.
+        let mut input = if party_screen { 0 } else { held & !CONFIRM };
         let world = session.director.world();
         let open: Vec<(u8, u16)> = world
             .windows
@@ -1175,7 +1224,7 @@ impl PlayGame {
                 ));
             }
         }
-        if pressed & CONFIRM != 0 {
+        if !party_screen && pressed & CONFIRM != 0 {
             input |= CONFIRM;
             for (window, text) in &open {
                 if PROMPT_KEYS

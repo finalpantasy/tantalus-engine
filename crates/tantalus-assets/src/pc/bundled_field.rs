@@ -137,6 +137,26 @@ pub fn load_field_animations(
     bundle_path: &Path,
     field_name: &str,
 ) -> Result<Option<(Vec<crate::pc::bgs::BgsAnimation>, usize)>, ImportError> {
+    Ok(load_field_scene(bundle_path, field_name)?
+        .map(|scene| (scene.animations, scene.cameras.len())))
+}
+
+/// The field's cameras (`BGSCENE_DEF.cameraList`) from a field bundle, or `Ok(None)` when this
+/// bundle does not register the field.
+pub fn load_field_cameras(
+    bundle_path: &Path,
+    field_name: &str,
+) -> Result<Option<Vec<tantalus_contracts::LegacyFieldCamera>>, ImportError> {
+    Ok(load_field_scene(bundle_path, field_name)?.map(|scene| {
+        scene
+            .cameras
+            .iter()
+            .map(crate::pc::bgs::BgsCamera::to_legacy)
+            .collect()
+    }))
+}
+
+fn load_field_scene(bundle_path: &Path, field_name: &str) -> Result<Option<BgsFile>, ImportError> {
     let source = bundle_path.display().to_string();
     let bundle = UnityRawBundle::open(bundle_path)?;
     let bytes = bundle.map_entry(0, 300 * 1024 * 1024)?;
@@ -157,8 +177,7 @@ pub fn load_field_animations(
         return Ok(None);
     }
     let asset = load_text_asset(&serialized, &scene_asset_candidates(field_name), &source)?;
-    let scene = BgsFile::parse(&asset.script, field_name)?;
-    Ok(Some((scene.animations, scene.cameras.len())))
+    Ok(Some(BgsFile::parse(&asset.script, field_name)?))
 }
 
 /// Loads only the walkmesh (`<field>.bgi`) of one field from a field bundle

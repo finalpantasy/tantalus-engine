@@ -14,6 +14,10 @@ use tantalus_legacy::event::party::{EntryLink, PARTY_SLOT_FIRST, PARTY_SLOT_LAST
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Movement {
     pub destination: [f32; 2],
+    /// `MoveToward_mixed` flag 1 (`MOVH`, `MOVE3H`): the actor slides without turning to
+    /// face the way it moves.
+    #[serde(default)]
+    pub keep_facing: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -821,6 +825,20 @@ pub struct FieldWorld {
     /// view (runtime-only: the view depends on the field projection).
     #[serde(skip)]
     pub camera_log: Vec<CameraRequest>,
+    /// The view position scripts read back with `CalculateScreenOrigin` (runtime-only: set up
+    /// per field from its cameras, see [`super::view`]).
+    #[serde(skip)]
+    pub view: super::view::FieldView,
+    /// `ff9.btlMapNo` and `ff9.btl_result` of the last battle (`GetSysvar` 24
+    /// `GetLastBattleId` and 27 `GetBattleResult`); the Festival of the Hunt fields read the
+    /// result when the party comes back (runtime-only).
+    /// The party screen a `PARTYMENU` opened (runtime-only, see [`super::party_menu`]).
+    #[serde(skip)]
+    pub party_menu: Option<tantalus_legacy::party_menu::party::PartyInfo>,
+    #[serde(skip)]
+    pub last_battle: i32,
+    #[serde(skip)]
+    pub battle_result: u8,
     /// A moogle or save point script ran `MENU(4, 0)` in this field
     /// (runtime-only): the main menu may save.
     #[serde(skip)]
@@ -1073,6 +1091,10 @@ impl FieldWorld {
             tile_camera_count: 0,
             field_camera: 0,
             camera_log: Vec::new(),
+            view: super::view::FieldView::default(),
+            party_menu: None,
+            last_battle: 0,
+            battle_result: 0,
             overlay_motion: Vec::new(),
             menu_disabled: false,
             save_point: false,
@@ -1189,6 +1211,7 @@ impl FieldWorld {
         self.actors.clear();
         self.overlays.clear();
         self.camera_log.clear();
+        self.view = super::view::FieldView::default();
         self.overlay_motion.clear();
         self.actor_shadows.clear();
         self.light_changes.clear();
@@ -1371,6 +1394,7 @@ impl FieldWorld {
 
     pub fn close_party_menu(&mut self) {
         self.party_menu_open = false;
+        self.party_menu = None;
     }
 
     pub fn party_menu_open(&self) -> bool {
@@ -1527,9 +1551,15 @@ impl FieldWorld {
                     // Walking faces the movement direction on the reference
                     // facing scale (0 south, 64 west, 128 north, 192 east):
                     // `128 + atan2_deg(dx, -dz) * 128 / 180`, mod 256.
-                    let degrees = dx.atan2(-dz).to_degrees();
-                    state.facing =
-                        (128.0 + degrees * 128.0 / 180.0).round().rem_euclid(256.0) as i16;
+                    if !state
+                        .movement
+                        .as_ref()
+                        .is_some_and(|movement| movement.keep_facing)
+                    {
+                        let degrees = dx.atan2(-dz).to_degrees();
+                        state.facing =
+                            (128.0 + degrees * 128.0 / 180.0).round().rem_euclid(256.0) as i16;
+                    }
                 }
             }
             if let Some(turn) = &mut state.turn {
@@ -1969,6 +1999,25 @@ impl FieldWorld {
         self.field_camera = 0;
     }
 
+    /// `BG_init` for the field's cameras (`BGSCENE_DEF.cameraList`): the view the scripts read
+    /// back starts centered in camera 0's range.
+    pub fn provide_cameras(&mut self, cameras: Vec<tantalus_contracts::LegacyFieldCamera>) {
+        self.view.reset(cameras);
+    }
+
+    /// `FieldMap.HonoLateUpdate`'s scroll services, once per field tick.
+    pub fn service_view(&mut self) {
+        let player = self.view_player();
+        self.view.service(player);
+    }
+
+    /// `FieldMap.playerController.curPos`: the actor `DefinePlayerControl` named.
+    pub(crate) fn view_player(&self) -> Option<[f32; 3]> {
+        self.control_actor
+            .and_then(|actor| self.actors.get(&actor))
+            .map(|state| state.position)
+    }
+
     pub fn clear_tile_animations(&mut self) {
         self.tile_animations.clear();
         self.tile_camera_count = 0;
@@ -2059,6 +2108,22 @@ impl FieldWorld {
             })
             .ok()?;
         Some(projection.triangle_index)
+    }
+
+    /// The walkmesh floor under `position`: the floor of the triangle that holds it, over every
+    /// floor (nearest in height when several do), as `FieldMapActorController.activeFloor` is
+    /// for an actor standing there (`BGI.BGI_charGetInfo`).
+    pub(crate) fn navigation_floor_at(&self, position: [f32; 3]) -> Option<i16> {
+        let mesh = self.navigation.as_ref()?;
+        let navigation = crate::navigation::FieldNavigation::new(mesh).ok()?;
+        let projection = navigation.snap_to_walkmesh(Point3 {
+            x: position[0].round() as i32,
+            y: position[1].round() as i32,
+            z: position[2].round() as i32,
+        })?;
+        mesh.triangles
+            .get(projection.triangle_index)
+            .map(|triangle| triangle.floor)
     }
 }
 

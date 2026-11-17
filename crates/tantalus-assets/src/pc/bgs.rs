@@ -14,6 +14,30 @@ pub struct BgsCamera {
     pub depth_offset: i32,
 }
 
+impl BgsCamera {
+    /// The camera as the field contracts carry it (`BGCAM_DEF`).
+    pub fn to_legacy(&self) -> tantalus_contracts::LegacyFieldCamera {
+        tantalus_contracts::LegacyFieldCamera {
+            projection: self.projection,
+            rotation: self
+                .rotation
+                .concat()
+                .try_into()
+                .expect("3x3 camera matrix"),
+            translation: tantalus_contracts::Point3 {
+                x: self.translation[0],
+                y: self.translation[1],
+                z: self.translation[2],
+            },
+            center_offset: self.center_offset,
+            size: [self.width as u16, self.height as u16],
+            viewport_x: self.viewport_x,
+            viewport_y: self.viewport_y,
+            depth_offset: self.depth_offset,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BgsSprite {
     pub clut_y: u16,

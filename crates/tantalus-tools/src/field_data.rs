@@ -397,6 +397,24 @@ pub fn load_navigation(
     Err(format!("no field bundle registers `{name}`"))
 }
 
+/// The field's cameras (`BGSCENE_DEF.cameraList`), from the first bundle that registers `name`.
+pub fn load_cameras(
+    bundles: &[PathBuf],
+    name: &str,
+) -> Result<Vec<tantalus_contracts::LegacyFieldCamera>, String> {
+    for bundle in bundles {
+        if !bundle.exists() {
+            continue;
+        }
+        match tantalus_assets::pc::bundled_field::load_field_cameras(bundle, name) {
+            Ok(Some(cameras)) => return Ok(cameras),
+            Ok(None) => {}
+            Err(error) => return Err(format!("{}: {error}", bundle.display())),
+        }
+    }
+    Err(format!("no field bundle registers `{name}`"))
+}
+
 /// The field's tile animations in their post-load state and its camera
 /// count, from the first bundle that registers `name`.
 pub fn load_tile_animations(

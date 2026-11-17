@@ -156,6 +156,8 @@ impl FieldHost<'_> {
             }
             _ => return,
         };
+        let player = self.world.view_player();
+        self.world.view.apply(request, player);
         // Scripts tween the aim height every frame; keep only changes.
         if self.world.camera_log.last() == Some(&request) {
             return;
@@ -583,6 +585,14 @@ impl LegacyEventHost for FieldHost<'_> {
             self.record_overlay(event);
             self.record_overlay_motion(event);
             self.record_light(event);
+            if let HostEvent::SetFieldCamera { camera } = event {
+                self.world.view.set_camera(*camera);
+            }
+            if let HostEvent::CalculateScreenOrigin = event {
+                // `VRP` (EventEngine.DoEventCode.cs): `EBG_sceneGetVRP` into
+                // `sSysX`/`sSysY`, read back as system variables 12 and 13.
+                self.world.view.screen = self.world.view.origin();
+            }
             if let HostEvent::SetMenuControl { enabled } = event {
                 self.world.menu_disabled = !*enabled;
             }
@@ -673,6 +683,24 @@ impl LegacyEventHost for FieldHost<'_> {
                     let state = self.actor_mut(*actor, "walk")?;
                     state.movement = Some(Movement {
                         destination: [destination[0] as f32, destination[1] as f32],
+                        keep_facing: false,
+                    });
+                    state.exit_walk = false;
+                }
+                HostEvent::WalkActorMixed {
+                    actor,
+                    destination,
+                    mode,
+                } => {
+                    // `MOVH` 0xA5 (slide), `MOVE3H` 0xE8 and 0xA2 all go through
+                    // `EventEngine.MoveToward_mixed` (EventEngine.MoveToward.cs): a walk to
+                    // (x, z) at the actor's speed, flag 1 keeping the facing. Field 1012 slides
+                    // Zidane back out of its entry-14 region with `MOVH`; without the walk he
+                    // stayed in the region and its scene replayed forever.
+                    let state = self.actor_mut(*actor, "mixed walk")?;
+                    state.movement = Some(Movement {
+                        destination: [destination[0] as f32, destination[2] as f32],
+                        keep_facing: mode & 1 != 0,
                     });
                     state.exit_walk = false;
                 }
@@ -696,6 +724,7 @@ impl LegacyEventHost for FieldHost<'_> {
                     if state.movement.is_none() {
                         state.movement = Some(Movement {
                             destination: [target_position[0], target_position[2]],
+                            keep_facing: false,
                         });
                     } else if let Some(movement) = &mut state.movement {
                         movement.destination = [target_position[0], target_position[2]];
@@ -1151,8 +1180,12 @@ impl LegacyEventHost for FieldHost<'_> {
                 HostEvent::StartCardGame { opponent } => {
                     self.world.pending_card_game = Some(*opponent);
                 }
-                HostEvent::OpenPartyMenu { .. } => {
-                    self.world.open_party_menu();
+                HostEvent::OpenPartyMenu {
+                    minimum_party_size,
+                    fixed_members,
+                } => {
+                    self.world
+                        .open_party_menu_for(*minimum_party_size, *fixed_members);
                 }
                 HostEvent::StartBattle {
                     rush,
@@ -1421,6 +1454,12 @@ impl LegacyEventHost for FieldHost<'_> {
             9 => return Ok(self.world.dialog_choice),
             // 6 GetGil: `party.gil`.
             6 => return Ok(i32::try_from(self.world.gil).unwrap_or(i32::MAX)),
+            // 24 GetLastBattleId (`ff9.btlMapNo`), 27 GetBattleResult (`ff9.btl_result`).
+            24 => return Ok(self.world.last_battle),
+            27 => return Ok(i32::from(self.world.battle_result)),
+            // 12 GetScreenCalculatedX, 13 GetScreenCalculatedY (`sSysX`/`sSysY`).
+            12 => return Ok(self.world.view.screen[0]),
+            13 => return Ok(self.world.view.screen[1]),
             // 17 GetTimerTime, 21 IsTimerShown (`TimerUI.Enable`).
             17 => return Ok(self.world.timer.time_int()),
             21 => return Ok(i32::from(self.world.timer.displayed)),
@@ -1466,8 +1505,14 @@ impl LegacyEventHost for FieldHost<'_> {
         // `B_PTR` pushes `obj.uid` (EBin.cs:1088): the uid a `NEW3` gave the
         // object. An extra instance (Hot and Cold's dig holes, uids 128 and
         // up) has an entity id that is not a uid, so push the uid itself;
-        // an entry's own object keeps its entry id.
-        Ok(self.world.resolve_uid(i32::from(uid)).map(|entity| {
+        // an entry's own object keeps its entry id. 250 is the controlled object
+        // (`EventEngine.GetUIDFromLocalUID`), as for object members.
+        let entity = if u64::from(uid) == CONTROL_OBJECT_UID {
+            self.world.control_actor.or(self.world.player())
+        } else {
+            self.world.resolve_uid(i32::from(uid))
+        };
+        Ok(entity.map(|entity| {
             if self.world.instance_source(entity).is_some() {
                 i32::from(uid)
             } else {
@@ -1516,15 +1561,15 @@ impl LegacyEventHost for FieldHost<'_> {
 
     fn read_bgi_character_floor(&mut self, character: i32) -> Result<i32, EngineError> {
         let actor = self.character_actor(character, "BGI character floor")?;
-        let _ = self.actor_position(actor, "BGI character floor")?;
-        // The reference reports the character's walkmesh floor; without
-        // per-actor floor tracking the active floor is the honest answer.
+        let position = self.actor_position(actor, "BGI character floor")?;
+        // `B_BGIFLOOR` (EventEngine.DoCalcOperationExt.cs) -> `BGI.BGI_charGetInfo`: the floor
+        // of the triangle the actor stands on (`FieldMapActorController.activeFloor`), not the
+        // mesh's start floor. Burmecia 755 only drops its floor when Zidane is on floor 3.
         let floor = self
             .world
-            .navigation()
-            .map(|mesh| i32::from(mesh.active_floor))
+            .navigation_floor_at(position)
             .ok_or_else(|| Self::unknown("BGI character floor without a navigation mesh"))?;
-        Ok(floor)
+        Ok(i32::from(floor))
     }
 
     fn read_character_max_mp(&mut self, character: i32) -> Result<i32, EngineError> {
@@ -1937,6 +1982,54 @@ mod tests {
         .unwrap();
         assert_eq!(world.actors[&shown].flags & 1, 1);
         assert_eq!(world.actors[&shown].look.hidden_meshes, 0);
+    }
+
+    #[test]
+    fn screen_origin_reads_the_scrolled_view() {
+        // Field 606 (Lindblum telescope): `SCROLL` by 3 pixels a frame, then `VRP` and
+        // `GetScreenCalculatedX/Y` (system variables 12 and 13) read the view back.
+        let mut world = FieldWorld::new();
+        world.provide_cameras(vec![tantalus_contracts::LegacyFieldCamera {
+            projection: 256,
+            rotation: [4096, 0, 0, 0, 4096, 0, 0, 0, 4096],
+            translation: tantalus_contracts::Point3 {
+                x: 0,
+                y: 0,
+                z: 1000,
+            },
+            center_offset: [0, 0],
+            size: [512, 336],
+            viewport_x: [100, 412],
+            viewport_y: [99, 238],
+            depth_offset: 0,
+        }]);
+        let mut host = FieldHost::new(&mut world);
+        assert_eq!(host.read_system_variable(12).unwrap(), 0);
+        host.apply(&[HostEvent::CalculateScreenOrigin]).unwrap();
+        assert_eq!(host.read_system_variable(12).unwrap(), 256);
+        assert_eq!(host.read_system_variable(13).unwrap(), 168);
+        host.apply(&[HostEvent::MoveCamera {
+            x: 253,
+            y: 171,
+            duration: 1,
+            mode: 8,
+        }])
+        .unwrap();
+        world.service_view();
+        let mut host = FieldHost::new(&mut world);
+        host.apply(&[HostEvent::CalculateScreenOrigin]).unwrap();
+        assert_eq!(host.read_system_variable(12).unwrap(), 253);
+        assert_eq!(host.read_system_variable(13).unwrap(), 171);
+    }
+
+    #[test]
+    fn the_last_battle_and_its_result_read_back() {
+        let mut world = FieldWorld::new();
+        world.last_battle = 35;
+        world.battle_result = 3;
+        let mut host = FieldHost::new(&mut world);
+        assert_eq!(host.read_system_variable(24).unwrap(), 35);
+        assert_eq!(host.read_system_variable(27).unwrap(), 3);
     }
 
     #[test]

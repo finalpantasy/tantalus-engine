@@ -18,6 +18,7 @@ pub mod field_models_cli;
 pub mod field_session;
 pub mod model_cli;
 pub mod movie;
+pub mod party_select;
 pub mod play;
 pub mod play_audio;
 pub mod play_save;

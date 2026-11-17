@@ -2185,6 +2185,20 @@ pub fn save_party(report: &FightReport, world: &mut FieldWorld) {
     if report.error.is_some() || report.outcome.is_none() {
         return;
     }
+    world.last_battle = report.battle;
+    world.battle_result = battle_result(report);
+    // `TimerUI.Update` follows real time and keeps running through the battle (the Festival
+    // of the Hunt clock): the fight's ticks run at `BATTLE_TPS`, the field's at 30.
+    if world.timer.running {
+        let field_ticks = report.ticks.saturating_mul(
+            u64::from(tantalus_game::field::TimerState::TICKS_PER_SECOND as u32)
+                / u64::from(tantalus_legacy::battle::atb::BATTLE_TPS),
+        );
+        world.timer.elapsed_ticks = world
+            .timer
+            .elapsed_ticks
+            .saturating_add(u32::try_from(field_ticks).unwrap_or(u32::MAX));
+    }
     for &(character, trance) in &report.party_trance {
         world.trance.insert(character, trance);
     }
@@ -2282,6 +2296,23 @@ pub fn pay_rewards(report: &FightReport, world: &mut FieldWorld) {
     }
     if let Some(card) = report.reward_card {
         world.add_card(card);
+    }
+}
+
+/// `ff9.btl_result` as the field reads it after the fight (`FF9StateGlobal.BTL_RESULT_*`):
+/// what a battle script's `End battle` code set, else the machine's outcome. A defeat reads 3
+/// (`BTL_RESULT_DEFEAT`): `btl_sys.ManageBattleEnd` turns it into a game over unless the scene
+/// has `NoGameOver` (the Festival of the Hunt), and only then does the field go on to read it.
+pub fn battle_result(report: &FightReport) -> u8 {
+    if let Some(code) = report.result_code {
+        return code;
+    }
+    match report.outcome.as_deref() {
+        Some("victory") => 1,
+        Some("defeat") => 3,
+        Some("escape") => 4,
+        Some("enemy_flee") => 7,
+        _ => 0,
     }
 }
 

@@ -21,7 +21,7 @@ use tantalus_legacy::{
     EventBinary, EventProgram, Expression, ExpressionOp, InstructionKind, VmStatus,
 };
 use tantalus_tools::field_data::{
-    FieldText, load_navigation, parse_background_map, parse_event_db,
+    FieldText, load_cameras, load_navigation, parse_background_map, parse_event_db,
 };
 use tantalus_tools::field_session::{
     EntryScheduler, decode_pool, function_entity, load_event, register,
@@ -39,7 +39,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--wall-regions MAP,...] [--gil N] [--settle TICKS] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--wall-regions MAP,...] [--gil N] [--settle TICKS] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -72,6 +72,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut wall_regions: BTreeSet<i32> = BTreeSet::new();
     let mut hold: BTreeMap<i32, i32> = BTreeMap::new();
     let mut press_when: Vec<PressWhen> = Vec::new();
+    let mut pan: BTreeMap<i32, Vec<[i32; 2]>> = BTreeMap::new();
     let mut suspend_loops = false;
     let mut set_globals: Vec<(u16, i32)> = Vec::new();
     let mut start_gil: u32 = 0;
@@ -322,6 +323,21 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     });
                 }
             }
+            "--pan" => {
+                // MAP@X:Y/X:Y,...: steer the view (`CalculateScreenOrigin`) to each point with the
+                // d-pad, then press Cancel/Special there (the Lindblum telescope, field 606).
+                for part in value()?.split(',') {
+                    let bad = || format!("bad --pan entry `{part}`, want MAP@X:Y/X:Y");
+                    let (map, points) = part.trim().split_once('@').ok_or_else(bad)?;
+                    let map: i32 = map.parse().map_err(|_| bad())?;
+                    for point in points.split('/') {
+                        let (x, y) = point.split_once(':').ok_or_else(bad)?;
+                        pan.entry(map)
+                            .or_default()
+                            .push([x.parse().map_err(|_| bad())?, y.parse().map_err(|_| bad())?]);
+                    }
+                }
+            }
             "--waypoints" => {
                 for part in value()?.split(',') {
                     let bad = || format!("bad --waypoints entry `{part}`, want MAP@X:Z/X:Z");
@@ -544,6 +560,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     wall_regions,
                     hold,
                     press_when,
+                    pan,
                     suspend_loops,
                     set_globals,
                     start_gil,
@@ -647,6 +664,14 @@ const CONFIRM: i32 = 0x20000;
 /// Japanese layout), so a few scenes wait on these (map 65 entry 3,
 /// `KeyOn(0x10000)` or `KeyOn(0x80000)` after text 241).
 const CANCEL_SPECIAL: i32 = 0x90000;
+/// `EventInput` d-pad bits (`KeyState(Held)` polls).
+const PAD_UP: i32 = 0x10;
+const PAD_RIGHT: i32 = 0x20;
+const PAD_DOWN: i32 = 0x40;
+const PAD_LEFT: i32 = 0x80;
+/// `--pan`: how near (in view pixels) counts as there, and ticks between presses.
+const PAN_SLACK: i32 = 2;
+const PAN_PRESS_GAP: u64 = 30;
 /// Ticks without control or new text before the cutscene taps add
 /// Cancel and Special to Confirm.
 const STALL_TICKS: u64 = 300;
@@ -1047,6 +1072,8 @@ struct ChainOptions {
     hold: BTreeMap<i32, i32>,
     /// Pad bits held while a map byte is in a range (jump rope: press while the rope is low).
     press_when: Vec<PressWhen>,
+    /// View points to steer to and press Cancel/Special at, by field map (`--pan`).
+    pan: BTreeMap<i32, Vec<[i32; 2]>>,
     /// Suspend an object's idle loop while its talk runs (`Obj.ip`); off keeps the chain101 traces.
     suspend_loops: bool,
     /// Byte values written to global memory before the first field.
@@ -1158,6 +1185,7 @@ fn chain(
         wall_regions,
         hold,
         press_when,
+        pan,
         suspend_loops,
         set_globals,
         start_gil,
@@ -1350,6 +1378,12 @@ fn chain(
         // EventEngine.InitEvents zeroes mapvar for every field (EventEngine.cs:556).
         world.map_memory.clear();
         world.begin_field();
+        if let Some(Ok(cameras)) = backgrounds
+            .get(&map)
+            .map(|name| load_cameras(&field_bundles, name))
+        {
+            world.provide_cameras(cameras);
+        }
         let navigation_status = match backgrounds.get(&map) {
             Some(name) => match load_navigation(&field_bundles, name) {
                 Ok(mesh) => {
@@ -1452,12 +1486,17 @@ fn chain(
         let mut presses = 0usize;
         let mut pressed = false;
         let mut ate_left = ate.get(&map).copied().unwrap_or(0);
+        let pan_points = pan.get(&map).cloned().unwrap_or_default();
+        let mut pan_index = 0usize;
+        let mut party_menu_since: Option<u64> = None;
+        let mut pan_last = 0u64;
         let mut ate_last = 0u64;
         let mut operations = 0u64;
         let mut ticks_run = 0u64;
         let mut error = None;
         let mut transition = None;
         let mut world_map: Option<i32> = None;
+        let mut disc_change: Option<(u16, u8)> = None;
         let mut encounters = 0usize;
         let mut battles: Vec<i32> = Vec::new();
         let mut fights: Vec<tantalus_tools::field_battle::FightReport> = Vec::new();
@@ -1678,6 +1717,26 @@ fn chain(
                     held |= rule.mask;
                 }
             }
+            // `--pan`: hold the d-pad toward the next view point (the telescope script moves the
+            // view 3 pixels a frame for each held direction).
+            let pan_target = pan_points.get(pan_index).copied();
+            let mut pan_arrived = false;
+            if let Some([x, y]) = pan_target {
+                let [ox, oy] = director.world().view.origin();
+                let (dx, dy) = (x - ox, y - oy);
+                pan_arrived = dx.abs() <= PAN_SLACK && dy.abs() <= PAN_SLACK;
+                if !pan_arrived {
+                    held |= match dx {
+                        dx if dx > PAN_SLACK => PAD_RIGHT,
+                        dx if dx < -PAN_SLACK => PAD_LEFT,
+                        _ => 0,
+                    } | match dy {
+                        dy if dy > PAN_SLACK => PAD_DOWN,
+                        dy if dy < -PAN_SLACK => PAD_UP,
+                        _ => 0,
+                    };
+                }
+            }
             if reset_choice_at.is_some_and(|at| ticks_run >= at) {
                 director.world_mut().dialog_choice = 0;
                 reset_choice_at = None;
@@ -1686,7 +1745,7 @@ fn chain(
             if pressed {
                 director.world_mut().set_input(held);
                 pressed = false;
-            } else if press_when.iter().any(|rule| rule.map == map) {
+            } else if press_when.iter().any(|rule| rule.map == map) || !pan_points.is_empty() {
                 director.world_mut().set_input(held);
             }
             // Through a cutscene the player keeps tapping confirm; scenes
@@ -1790,6 +1849,30 @@ fn chain(
                         pressed = true;
                     }
                 }
+            }
+            // The party screen (`PARTYMENU`): after `--confirm-after` ticks the player leaves it
+            // with the party as it stands, filled from the roster when it is too small.
+            if confirm_after > 0 && director.world().party_menu_open() {
+                let since = *party_menu_since.get_or_insert(ticks_run);
+                if ticks_run - since >= confirm_after {
+                    let world = director.world_mut();
+                    if !world.confirm_party_menu_default() && world.party_menu_info().is_none() {
+                        world.close_party_menu();
+                    }
+                    party_menu_since = None;
+                }
+            } else {
+                party_menu_since = None;
+            }
+            if pan_arrived
+                && !pressed
+                && !director.world().windows.values().any(|open| *open)
+                && ticks_run.saturating_sub(pan_last) >= PAN_PRESS_GAP
+            {
+                director.world_mut().set_input(CANCEL_SPECIAL | held);
+                pressed = true;
+                pan_index += 1;
+                pan_last = ticks_run;
             }
             if explore {
                 let world = director.world();
@@ -2064,6 +2147,14 @@ fn chain(
                 world_map = Some(i32::from(*destination));
                 break;
             }
+            // `DISCCHANGE` (EventEngine.DoEventCode.cs `case DISCCHANGE`): the script sets
+            // `FieldMapNo` to the low 14 bits and the game, after the save prompt, loads that
+            // field on the new disc. The chain records it and goes on into that field.
+            if let Some((field, disc)) = director.world_mut().disc_change.take() {
+                disc_change = Some((field, disc));
+                transition = Some(i32::from(field));
+                break;
+            }
             let transitions = director.world_mut().take_field_transitions();
             if let Some(next) = transitions.first() {
                 transition = Some(i32::from(*next));
@@ -2083,62 +2174,63 @@ fn chain(
             .map(|(entity, pc, status, wait)| format!("{}@{pc}:{status:?}:{wait:?}", entity.get()))
             .collect();
         let scenario_counter = scenario_counter(director.world());
-        println!(
-            "{}",
-            serde_json::json!({
-                "map": map,
-                "archive": archive,
-                "decode_errors": decode_errors,
-                "ticks": ticks_run,
-                "operations": operations,
-                "loops_started": scheduler.loops_started,
-                "map_memory": nonzero(director.world().map_memory.bytes()),
-                "global_memory": nonzero(director.world().global_memory.bytes()),
-                "confirms": confirms,
-                "field_text": text_status,
-                "navigation": navigation_status,
-                "mes_signal": director.world().mes_signal,
-                "choices_made": choices_made,
-                "battles_skipped": battles,
-                "battles_fought": fights,
-                "region_triggers": region_triggers,
-                "confirm_presses": presses,
-                "vms": states.len(),
-                "spawned_pending": scheduler.spawned_pending(),
-                "shared_scripts_run": scheduler.shared_scripts_run,
-                "unspawned_requests": scheduler.unspawned,
-                "encounters": encounters,
-                "not_completed": not_completed,
-                "error": error,
-                "next_map": transition,
-                "world_map": world_map,
-                "party": director.world().party,
-                "gil": director.world().gil,
-                "exits": exits,
-                "route_target": route_target,
-                "regions_defined": director.world().regions.keys().map(|region| region.get()).collect::<Vec<_>>(),
-                "user_control": director.world().user_control,
-                "control_changes": control_changes,
-                "talks": talks,
-                "texts_shown": texts_shown
-                    .iter()
-                    .map(|(tick, text)| {
-                        let line: String = plain_texts
-                            .get(text)
-                            .map(|plain| plain.chars().take(90).collect())
-                            .unwrap_or_default();
-                        serde_json::json!([tick, text, line])
-                    })
-                    .collect::<Vec<_>>(),
-                "control_actor": director.world().control_actor.map(|actor| actor.get()),
-                "control_state": director
-                    .world()
-                    .control_actor
-                    .and_then(|actor| director.world().actors.get(&actor))
-                    .map(|state| (state.position, state.animation_frame, state.animation_frames)),
-                "scenario_counter": scenario_counter,
-            })
-        );
+        let mut row = serde_json::json!({
+            "map": map,
+            "archive": archive,
+            "decode_errors": decode_errors,
+            "ticks": ticks_run,
+            "operations": operations,
+            "loops_started": scheduler.loops_started,
+            "map_memory": nonzero(director.world().map_memory.bytes()),
+            "global_memory": nonzero(director.world().global_memory.bytes()),
+            "confirms": confirms,
+            "field_text": text_status,
+            "navigation": navigation_status,
+            "mes_signal": director.world().mes_signal,
+            "choices_made": choices_made,
+            "battles_skipped": battles,
+            "battles_fought": fights,
+            "region_triggers": region_triggers,
+            "confirm_presses": presses,
+            "vms": states.len(),
+            "spawned_pending": scheduler.spawned_pending(),
+            "shared_scripts_run": scheduler.shared_scripts_run,
+            "unspawned_requests": scheduler.unspawned,
+            "encounters": encounters,
+            "not_completed": not_completed,
+            "error": error,
+            "next_map": transition,
+            "world_map": world_map,
+            "party": director.world().party,
+            "gil": director.world().gil,
+            "exits": exits,
+            "route_target": route_target,
+            "regions_defined": director.world().regions.keys().map(|region| region.get()).collect::<Vec<_>>(),
+            "user_control": director.world().user_control,
+            "control_changes": control_changes,
+            "talks": talks,
+            "texts_shown": texts_shown
+                .iter()
+                .map(|(tick, text)| {
+                    let line: String = plain_texts
+                        .get(text)
+                        .map(|plain| plain.chars().take(90).collect())
+                        .unwrap_or_default();
+                    serde_json::json!([tick, text, line])
+                })
+                .collect::<Vec<_>>(),
+            "control_actor": director.world().control_actor.map(|actor| actor.get()),
+            "control_state": director
+                .world()
+                .control_actor
+                .and_then(|actor| director.world().actors.get(&actor))
+                .map(|state| (state.position, state.animation_frame, state.animation_frames)),
+            "scenario_counter": scenario_counter,
+        });
+        if let Some((field, disc)) = disc_change {
+            row["disc_change"] = serde_json::json!({"field": field, "disc": disc});
+        }
+        println!("{row}");
         if let (Some(index), Some(next)) = (route_index, transition)
             && route[index].1 == next
         {

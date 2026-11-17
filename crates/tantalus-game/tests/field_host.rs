@@ -195,6 +195,55 @@ fn bgi_queries_resolve_through_the_navigation_mesh() {
 }
 
 #[test]
+fn bgi_floor_is_the_floor_the_actor_stands_on() {
+    // `B_BGIFLOOR` -> `BGI.BGI_charGetInfo` reads the actor's `activeFloor`, not the mesh's
+    // start floor (Burmecia 755 tests for floor 3 before its floor gives way).
+    use tantalus_contracts::{FieldNavigationMesh, NavigationTriangle, Point3};
+    use tantalus_game::field::world::FieldWorld as World;
+
+    let at = |x, z| Point3 { x, y: 0, z };
+    let mesh = FieldNavigationMesh {
+        vertices: vec![
+            at(0, 0),
+            at(100, 0),
+            at(0, 100),
+            at(200, 0),
+            at(300, 0),
+            at(200, 100),
+        ],
+        triangles: vec![
+            NavigationTriangle {
+                vertices: [0, 1, 2],
+                floor: 0,
+                offset: at(0, 0),
+            },
+            NavigationTriangle {
+                vertices: [3, 4, 5],
+                floor: 3,
+                offset: at(0, 0),
+            },
+        ],
+        active_floor: 0,
+        active_triangle: 0,
+        actor_anchor: at(10, 10),
+    };
+    let mut world = World::new();
+    world.add_actor(actor(1), [210.0, 0.0, 10.0]);
+    world.add_actor(actor(2), [10.0, 0.0, 10.0]);
+    world.map_uid(7, actor(1));
+    world.map_uid(8, actor(2));
+    world.provide_navigation(mesh);
+    world.control_actor = Some(actor(1));
+    let mut host = FieldHost::new(&mut world);
+    assert_eq!(host.read_bgi_character_floor(7).unwrap(), 3);
+    assert_eq!(host.read_bgi_character_floor(8).unwrap(), 0);
+    // `B_PTR 250` (`GetUIDFromLocalUID`) is the controlled object, so
+    // `ObjectPointer(250), BgiCharacterFloor` reads the player's floor.
+    let control = host.find_object_uid(250).unwrap().unwrap();
+    assert_eq!(control, 1);
+}
+
+#[test]
 fn object_member_reads_use_reference_member_semantics() {
     use tantalus_legacy::ObjectMemberRef;
 
@@ -307,7 +356,10 @@ fn walking_faces_the_movement_direction_on_the_reference_scale() {
         ([-100.0, 0.0], 64),
     ] {
         world.actors.get_mut(&actor(1)).unwrap().position = [0.0, 0.0, 0.0];
-        world.actors.get_mut(&actor(1)).unwrap().movement = Some(Movement { destination });
+        world.actors.get_mut(&actor(1)).unwrap().movement = Some(Movement {
+            destination,
+            keep_facing: false,
+        });
         world.advance();
         assert_eq!(
             world.actors[&actor(1)].facing,
@@ -315,6 +367,30 @@ fn walking_faces_the_movement_direction_on_the_reference_scale() {
             "destination {destination:?}"
         );
     }
+}
+
+#[test]
+fn a_slide_moves_the_actor_without_turning_it() {
+    // `MOVH` (0xA5) -> `MoveToward_mixed(x, 0, z, 1)`: the actor walks to (x, z) and keeps its
+    // facing (flag 1). Field 1012 slides Zidane out of the region that started the slide.
+    let mut world = FieldWorld::new();
+    world.add_actor(actor(1), [0.0, 0.0, 0.0]);
+    world.actors.get_mut(&actor(1)).unwrap().facing = 40;
+    apply_events(
+        &mut world,
+        &[tantalus_legacy::HostEvent::WalkActorMixed {
+            actor: actor(1),
+            destination: [0, 0, 300],
+            mode: 1,
+        }],
+    );
+    for _ in 0..200 {
+        world.advance();
+    }
+    let state = &world.actors[&actor(1)];
+    assert_eq!(state.position[2], 300.0);
+    assert_eq!(state.facing, 40);
+    assert!(state.movement.is_none());
 }
 
 #[test]
