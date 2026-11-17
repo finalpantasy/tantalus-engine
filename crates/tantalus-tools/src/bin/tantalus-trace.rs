@@ -76,6 +76,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut suspend_loops = false;
     let mut set_globals: Vec<(u16, i32)> = Vec::new();
     let mut start_gil: u32 = 0;
+    let mut start_party: Vec<i32> = Vec::new();
     let mut waypoint_dwell_ticks: u64 = WAYPOINT_DWELL;
     let mut waypoint_objects: BTreeSet<(i32, i32)> = BTreeSet::new();
     let mut settle_ticks: u64 = CONTROL_SETTLE;
@@ -300,6 +301,12 @@ fn run(args: Vec<String>) -> Result<(), String> {
             }
             "--dwell" => waypoint_dwell_ticks = parse_number(&value()?, "--dwell")?,
             "--gil" => start_gil = parse_number(&value()?, "--gil")?,
+            "--start-party" => {
+                start_party = value()?
+                    .split(',')
+                    .map(|id| parse_number(id.trim(), "--start-party"))
+                    .collect::<Result<_, _>>()?;
+            }
             "--suspend-loops" => suspend_loops = true,
             "--press-when" => {
                 // MAP:INDEX:LO:HI:MASK[,...]: hold MASK while map byte INDEX is in LO..=HI.
@@ -565,6 +572,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     suspend_loops,
                     set_globals,
                     start_gil,
+                    start_party,
                     waypoint_dwell_ticks,
                     waypoint_objects,
                     settle_ticks,
@@ -791,6 +799,37 @@ fn walkmesh_heights(
     heights
 }
 
+/// The centre of a walkmesh triangle inside `region` whose height `wanted` accepts: a spot of
+/// another floor under an exit region.
+fn floor_point_in_region(
+    mesh: Option<&tantalus_contracts::FieldNavigationMesh>,
+    region: &tantalus_game::field::region::Region,
+    wanted: &dyn Fn(&f32) -> bool,
+) -> Option<[f32; 2]> {
+    let mesh = mesh?;
+    mesh.triangles.iter().find_map(|triangle| {
+        let corners: Vec<[f32; 3]> = triangle
+            .vertices
+            .iter()
+            .filter_map(|index| mesh.vertices.get(*index as usize))
+            .map(|vertex| {
+                [
+                    (vertex.x + triangle.offset.x) as f32,
+                    -((vertex.y + triangle.offset.y) as f32),
+                    (vertex.z + triangle.offset.z) as f32,
+                ]
+            })
+            .collect();
+        let [a, b, c] = corners[..] else {
+            return None;
+        };
+        let x = (a[0] + b[0] + c[0]) / 3.0;
+        let z = (a[2] + b[2] + c[2]) / 3.0;
+        let height = (a[1] + b[1] + c[1]) / 3.0;
+        (region.contains(x, z) && wanted(&height)).then_some([x, z])
+    })
+}
+
 /// The walkmesh height under `point` nearest `current`, so a walk stays on
 /// its floor where floors overlap. With no height set yet (32768,
 /// `POS_COMMAND_DEFAULTY`), the first floor found.
@@ -819,6 +858,7 @@ fn walkmesh_step(
     mesh: Option<&tantalus_contracts::FieldNavigationMesh>,
     position: [f32; 3],
     target: [f32; 2],
+    wanted: &dyn Fn(&f32) -> bool,
 ) -> Option<([f32; 3], bool)> {
     const OFF_MESH: f32 = 300.0;
     type Corners = [[f32; 3]; 3];
@@ -939,7 +979,7 @@ fn walkmesh_step(
     let mut goal = None;
     let mut closest = (f32::MAX, start);
     while let Some(index) = queue.pop_front() {
-        if covers(&corners[index], target[0], target[1]).is_some() {
+        if covers(&corners[index], target[0], target[1]).is_some_and(|height| wanted(&height)) {
             goal = Some(index);
             break;
         }
@@ -1081,6 +1121,8 @@ struct ChainOptions {
     set_globals: Vec<(u16, i32)>,
     /// Gil the party starts with (`--gil`), for fees such as Hot and Cold's 60.
     start_gil: u32,
+    /// Party of a segment probe that starts on a fresh world (`--start-party`).
+    start_party: Vec<i32>,
     /// Ticks the explorer stands on each waypoint (`--dwell`).
     waypoint_dwell_ticks: u64,
     /// Objects (by uid) the explorer visits after its `--waypoints`, at
@@ -1190,6 +1232,7 @@ fn chain(
         suspend_loops,
         set_globals,
         start_gil,
+        start_party,
         waypoint_dwell_ticks,
         waypoint_objects,
         settle_ticks,
@@ -1223,6 +1266,8 @@ fn chain(
     // branches (map 153 region 25: 151 or 64 by height) is judged by what
     // it did, not by every destination in its code.
     let mut observed_exits: BTreeMap<(i32, usize), BTreeSet<i32>> = BTreeMap::new();
+    // Floor heights from which an exit region led away from the route target.
+    let mut bad_floors: BTreeMap<(i32, usize), Vec<f32>> = BTreeMap::new();
     // Talks across visits as (map, entry, scenario counter): talking to the
     // same object again at the same story point repeats what it said.
     let mut talked_before: BTreeSet<(i32, usize, i32)> = BTreeSet::new();
@@ -1309,6 +1354,9 @@ fn chain(
             .set(*index, tantalus_legacy::VariableType::Byte, *value);
     }
     world.gil = world.gil.max(start_gil);
+    if !start_party.is_empty() {
+        world.party = start_party;
+    }
     if let Some(path) = &load_world {
         let text = std::fs::read_to_string(path)
             .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
@@ -1951,8 +1999,16 @@ fn chain(
                             };
                             Some((entry, dests))
                         })
-                        .filter(|(_, dests)| {
-                            route_target.is_none_or(|target| dests.contains(&target))
+                        .filter(|(entry, dests)| {
+                            // An exit seen to lead elsewhere can still lead to the
+                            // route target from another floor (map 1215 region 5
+                            // tests the player's height), as its script says.
+                            route_target.is_none_or(|target| {
+                                dests.contains(&target)
+                                    || exit_choices
+                                        .get(entry)
+                                        .is_some_and(|choices| choices.contains(&target))
+                            })
                         })
                         .min_by_key(|(entry, dests)| {
                             let least = dests
@@ -1975,7 +2031,15 @@ fn chain(
                     )
                     .into_iter()
                     .find(|region| {
-                        has_tag2(region) && !triggered.contains(&(region.get() as usize))
+                        let entry = region.get() as usize;
+                        // An exit that led away from the route target from this
+                        // floor waits until the player is on another one.
+                        let leads_away = bad_floors.get(&(map, entry)).is_some_and(|floors| {
+                            floors
+                                .iter()
+                                .any(|floor| (floor - position[1]).abs() < 100.0)
+                        });
+                        has_tag2(region) && !triggered.contains(&entry) && !leads_away
                     })
                     .map(|region| region.get() as usize);
                     // Targets in order: regions that do not leave the field,
@@ -2022,9 +2086,28 @@ fn chain(
                             let state = world.actors.get(&entity)?;
                             Some([state.position[0], state.position[2]])
                         });
+                    // The routed exit that led away from another floor: head for
+                    // a floor under the exit at another height.
+                    let avoid_floor = (pending_region(false).is_none()
+                        && talk_target.is_none()
+                        && waypoint.is_none())
+                    .then_some(chosen_exit)
+                    .flatten()
+                    .and_then(|entry| bad_floors.get(&(map, entry)).map(|floors| (entry, floors)))
+                    .filter(|(_, floors)| !floors.is_empty());
+                    let apart = |height: &f32| {
+                        avoid_floor.is_none_or(|(_, floors)| {
+                            floors.iter().all(|floor| (floor - height).abs() >= 100.0)
+                        })
+                    };
+                    let avoid_target = avoid_floor.and_then(|(entry, _)| {
+                        let region = world.regions.get(&EntityId::new(entry as u64))?;
+                        floor_point_in_region(world.navigation(), region, &apart)
+                    });
                     let next = pending_region(false)
                         .or(pending_talk.map(|(_, at)| at))
                         .or(waypoint)
+                        .or(avoid_target)
                         .or_else(|| pending_region(true));
                     let talking = pending_region(false).is_none() && talk_target.is_some();
                     let walking = pending_region(false).is_none()
@@ -2123,7 +2206,7 @@ fn chain(
                                     on_mesh || (height - position[1]).abs() < 100.0
                                 })
                             };
-                            let direct = next.and_then(same_floor);
+                            let direct = next.and_then(same_floor).filter(apart);
                             // A target off the mesh (a talk spot, a region
                             // centre) keeps the plain jump.
                             let step = next
@@ -2131,7 +2214,7 @@ fn chain(
                                 .filter(|[x, z]| {
                                     walkmesh_height(mesh, [*x, *z], position[1]).is_some()
                                 })
-                                .and_then(|target| walkmesh_step(mesh, position, target));
+                                .and_then(|target| walkmesh_step(mesh, position, target, &apart));
                             let arrived = step.is_none_or(|(_, arrived)| arrived);
                             if let (Some([x, z]), Some(state)) =
                                 (next, director.world_mut().actors.get_mut(&actor))
@@ -2194,6 +2277,17 @@ fn chain(
             if let Some(next) = transitions.first() {
                 transition = Some(i32::from(*next));
                 if let Some(entry) = last_exit_region {
+                    if route_target.is_some_and(|target| target != i32::from(*next))
+                        && let Some(state) = director
+                            .world()
+                            .control_actor
+                            .and_then(|actor| director.world().actors.get(&actor))
+                    {
+                        bad_floors
+                            .entry((map, entry))
+                            .or_default()
+                            .push(state.position[1]);
+                    }
                     observed_exits
                         .entry((map, entry))
                         .or_default()
@@ -2322,7 +2416,83 @@ fn chain(
 
 #[cfg(test)]
 mod tests {
+    use super::{floor_point_in_region, walkmesh_step};
+    use tantalus_contracts::{FieldNavigationMesh, NavigationTriangle, Point3};
     use tantalus_tools::field_data::parse_event_db;
+
+    fn point(x: i32, y: i32, z: i32) -> Point3 {
+        Point3 { x, y, z }
+    }
+
+    /// Two stacked floors under one square (map 1215's exit region has the ground at height 5
+    /// and a gallery at 1716 over it, joined by a ramp).
+    fn two_floor_mesh() -> FieldNavigationMesh {
+        let tri = |vertices: [u32; 3], floor| NavigationTriangle {
+            vertices,
+            floor,
+            offset: point(0, 0, 0),
+        };
+        FieldNavigationMesh {
+            // Ground square (vertices 0 to 3) at engine height 5, a ramp out to x 200 and a
+            // gallery at 1716 back over the square (4 to 7).
+            vertices: vec![
+                point(0, -5, 0),
+                point(100, -5, 0),
+                point(100, -5, 100),
+                point(0, -5, 100),
+                point(200, -1716, 0),
+                point(200, -1716, 100),
+                point(0, -1716, 0),
+                point(0, -1716, 100),
+            ],
+            triangles: vec![
+                tri([0, 1, 2], 0),
+                tri([0, 2, 3], 0),
+                tri([1, 4, 2], 0),
+                tri([2, 4, 5], 0),
+                tri([4, 5, 6], 1),
+                tri([5, 6, 7], 1),
+            ],
+            active_floor: 0,
+            active_triangle: 0,
+            actor_anchor: point(0, 0, 0),
+        }
+    }
+
+    #[test]
+    fn a_floor_target_can_be_asked_for_another_height() {
+        let mesh = two_floor_mesh();
+        // Standing on the ground under the target, the plain walk is already there.
+        let (point, arrived) =
+            walkmesh_step(Some(&mesh), [10.0, 5.0, 10.0], [10.0, 10.0], &|_| true)
+                .expect("on the mesh");
+        assert!(arrived);
+        assert_eq!(point[1], 5.0);
+        // Asked for a floor apart from the ground, it walks the ramp first, one triangle a call.
+        let apart = |height: &f32| (height - 5.0).abs() >= 100.0;
+        let (_, arrived) =
+            walkmesh_step(Some(&mesh), [10.0, 5.0, 10.0], [10.0, 10.0], &apart).expect("step");
+        assert!(!arrived);
+        // From the gallery the same request has arrived, at the gallery height.
+        let (point, arrived) =
+            walkmesh_step(Some(&mesh), [10.0, 1716.0, 10.0], [10.0, 10.0], &apart).expect("step");
+        assert!(arrived);
+        assert_eq!(point[1], 1716.0);
+    }
+
+    #[test]
+    fn an_exit_region_offers_a_spot_on_the_other_floor() {
+        let mesh = two_floor_mesh();
+        let region = tantalus_game::field::region::Region {
+            vertices: vec![[-10, -10], [110, -10], [110, 110], [-10, 110]],
+        };
+        let apart = |height: &f32| (height - 5.0).abs() >= 100.0;
+        let spot = floor_point_in_region(Some(&mesh), &region, &apart).expect("gallery under it");
+        assert!(region.contains(spot[0], spot[1]));
+        assert!(
+            floor_point_in_region(Some(&mesh), &region, &|height: &f32| *height > 5000.0).is_none()
+        );
+    }
 
     #[test]
     fn event_db_rows_parse_and_other_lines_are_ignored() {
