@@ -362,7 +362,7 @@ fn run_track_capture(args: &[std::ffi::OsString]) -> ExitCode {
     }
 }
 
-const PLAY_FLAGS: [&str; 11] = [
+const PLAY_FLAGS: [&str; 12] = [
     "--world-map",
     "--assets",
     "--game-data",
@@ -374,6 +374,7 @@ const PLAY_FLAGS: [&str; 11] = [
     "--language",
     "--load",
     "--save-dir",
+    "--set-global",
 ];
 
 /// New game from the `play` flags, on its first field (events printed).
@@ -401,7 +402,36 @@ fn load_game(
         .get("--start")
         .map_or(Ok(70), |value| value.parse().map_err(|_| "bad --start"))?;
     let data = tantalus_tools::play::PlayData::load(&paths)?;
-    let (mut game, events) = tantalus_tools::play::PlayGame::new(data, start)?;
+    let globals = match values.get("--set-global") {
+        // INDEX:KIND:VALUE,... (KIND bit, byte, i16, u16), a test aid that starts a probe at a
+        // chosen story state: written before the field's scripts run.
+        Some(list) => list
+            .split(',')
+            .map(|entry| {
+                let parts: Vec<&str> = entry.split(':').collect();
+                let parsed = (
+                    parts.first().and_then(|v| v.parse::<u16>().ok()),
+                    parts.get(1).and_then(|kind| match *kind {
+                        "bit" => Some(tantalus_legacy::VariableType::Bit),
+                        "byte" => Some(tantalus_legacy::VariableType::Byte),
+                        "i16" => Some(tantalus_legacy::VariableType::Int16),
+                        "u16" => Some(tantalus_legacy::VariableType::UInt16),
+                        _ => None,
+                    }),
+                    parts.get(2).and_then(|v| v.parse::<i32>().ok()),
+                );
+                match parsed {
+                    (Some(index), Some(kind), Some(value)) => Ok((index, kind, value)),
+                    _ => Err(format!(
+                        "bad --set-global entry `{entry}`, want INDEX:KIND:VALUE"
+                    )),
+                }
+            })
+            .collect::<Result<Vec<_>, String>>()?,
+        None => Vec::new(),
+    };
+    let (mut game, events) =
+        tantalus_tools::play::PlayGame::new_with_globals(data, start, &globals)?;
     for event in &events {
         println!("{}", tantalus_client::live::describe(event));
     }

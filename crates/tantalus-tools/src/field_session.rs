@@ -27,6 +27,9 @@ pub const SHARED_SCRIPT_KEY: u64 = 1 << 48;
 /// `EventInput.Confirm`.
 pub const CONFIRM: i32 = 0x20000;
 
+/// `EventInput.Special`.
+pub const SPECIAL: i32 = 0x80000;
+
 /// Reads the `name` TextAsset (an `.eb` event script) from a Unity bundle.
 pub fn load_event(bundle_path: &Path, name: &str) -> Result<EventBinary, String> {
     let script = find_text_asset(bundle_path, name)?
@@ -543,6 +546,32 @@ impl FieldSession {
             if rerun(&mut self.director, &self.pool, entry, 3)? {
                 busy = true;
                 tick.started.push((entry, 3));
+            }
+        }
+        // `EventCollision.CheckQuadInput`: Confirm or Special (a field, `gMode == 1`) inside a
+        // region that has a talk function (tag 3) requests it, a Special press its tag 8 first.
+        // `TreadQuad(po, 4)` takes the first such region the player stands in. One request
+        // per press, and none while a talk is running or an object was just talked to.
+        let pressed = self.director.world().input_mask() & (CONFIRM | SPECIAL);
+        if pressed != 0 && !busy && tick.started.is_empty() {
+            let region = step
+                .region_occupancy
+                .iter()
+                .map(|id| id.get() as usize)
+                .find(|entry| {
+                    *entry < self.pool.len() && self.pool[*entry].iter().any(|(tag, _)| *tag == 3)
+                });
+            if let Some(entry) = region {
+                let special_tag = (pressed == SPECIAL)
+                    .then_some(8)
+                    .filter(|tag| self.pool[entry].iter().any(|(t, _)| t == tag));
+                let started = match special_tag {
+                    Some(tag) if rerun(&mut self.director, &self.pool, entry, tag)? => Some(tag),
+                    _ => rerun(&mut self.director, &self.pool, entry, 3)?.then_some(3),
+                };
+                if let Some(tag) = started {
+                    tick.started.push((entry, tag));
+                }
             }
         }
         self.scheduler

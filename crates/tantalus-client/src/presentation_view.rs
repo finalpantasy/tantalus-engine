@@ -13,6 +13,12 @@
 //! The fade filter is a full-screen quad that adds or subtracts the fade color per channel,
 //! as Memoria's shaders do with `_FadeColor_ABR1/2`. It sits behind the dialog windows.
 //!
+//! The field clock (`TimerUI`, the Hot and Cold countdown) is `MM:SS` in the `counter_N` and
+//! `counter_colon` sprites of `General Atlas` (`TimerUI.SetDisplayTime`), the leading minute
+//! digit hidden while it is 0, over a window-colored panel. The digits show while the clock
+//! runs and blink twice a second while it is stopped (`TimerUI.UpdateBlinkState`). Where the
+//! `Timer Container` prefab puts it is not in the data we read; the upper right stands in.
+//!
 //! Not matched: the bubble's pop-in animation and idle/act sprite swap, the exact on-screen
 //! place of the ATE prompt (its prefab is not in the data we read; the lower left stands in),
 //! and the here icon's confirm-button trigger.
@@ -59,6 +65,44 @@ const SPRITES: [&str; 8] = [
 pub struct PresentationView {
     root: Option<Entity>,
     icons: Option<Option<BTreeMap<String, SpriteImage>>>,
+    counters: Option<Option<BTreeMap<String, SpriteImage>>>,
+}
+
+const COUNTER_ATLAS: &str = "General Atlas";
+const COUNTER_SPRITES: [&str; 11] = [
+    "counter_0",
+    "counter_1",
+    "counter_2",
+    "counter_3",
+    "counter_4",
+    "counter_5",
+    "counter_6",
+    "counter_7",
+    "counter_8",
+    "counter_9",
+    "counter_colon",
+];
+
+/// What `TimerUI.SetDisplayTime` shows for `time` seconds: the four digits, minutes first,
+/// and whether the leading one is drawn (`digit3Enabled`).
+pub fn timer_digits(time: f32) -> ([u8; 4], bool) {
+    let whole = time.max(0.0) as u32;
+    let minutes = (whole / 60) % 100;
+    let seconds = whole % 60;
+    (
+        [
+            (minutes / 10) as u8,
+            (minutes % 10) as u8,
+            (seconds / 10) as u8,
+            (seconds % 10) as u8,
+        ],
+        minutes / 10 != 0,
+    )
+}
+
+/// `TimerUI.UpdateBlinkState`: a running clock always shows its digits, a stopped one blinks.
+pub fn timer_digits_visible(running: bool, tick: u64) -> bool {
+    running || (tick / 15) & 1 == 0
 }
 
 fn sprite_image(sprite: &SpriteImage) -> Image {
@@ -172,7 +216,10 @@ pub fn sync_presentation(
         }
         _ => None,
     };
-    if fade.is_none() && bubble.is_none() && !here && ate.is_none() {
+    let timer = Some(field.timer)
+        .filter(|timer| timer.displayed)
+        .map(|timer| (timer.time(), timer.running));
+    if fade.is_none() && bubble.is_none() && !here && ate.is_none() && timer.is_none() {
         world.insert_non_send(view);
         return;
     }
@@ -185,6 +232,17 @@ pub fn sync_presentation(
                 None
             }
         });
+    }
+    if timer.is_some() && view.counters.is_none() {
+        view.counters = Some(
+            match load_sprites(&game_data.join(ICON_FILE), COUNTER_ATLAS, &COUNTER_SPRITES) {
+                Ok(sprites) => Some(sprites),
+                Err(error) => {
+                    println!("!! field clock art: {error}");
+                    None
+                }
+            },
+        );
     }
     let root = world
         .spawn((
@@ -234,6 +292,15 @@ pub fn sync_presentation(
         let at = Vec3::new(-FRAME.x / 2.0 + 34.0, -FRAME.y / 2.0 + 22.0, 0.1);
         icon(world, "icon_ate_us_uk_jp", at, color);
     }
+    if let Some((time, running)) = timer {
+        draw_timer(
+            world,
+            root,
+            view.counters.as_ref().and_then(Option::as_ref),
+            time,
+            timer_digits_visible(running, tick),
+        );
+    }
     if let Some((mode, color)) = fade {
         let material = world
             .resource_mut::<Assets<FadeBlendMaterial>>()
@@ -255,9 +322,97 @@ pub fn sync_presentation(
     world.insert_non_send(view);
 }
 
+/// The clock: a panel and `MM:SS` in the upper right of the frame.
+fn draw_timer(
+    world: &mut World,
+    root: Entity,
+    counters: Option<&BTreeMap<String, SpriteImage>>,
+    time: f32,
+    visible: bool,
+) {
+    let Some(counters) = counters else {
+        return;
+    };
+    let (digits, leading) = timer_digits(time);
+    let size = |name: &str| {
+        counters.get(name).map_or(Vec2::ZERO, |art| {
+            Vec2::new(
+                art.width as f32 / RESOURCE_X_MULTIPLIER,
+                art.height as f32 / RESOURCE_Y_MULTIPLIER,
+            )
+        })
+    };
+    let digit = size("counter_0");
+    let colon = size("counter_colon");
+    let pad = Vec2::new(8.0, 5.0);
+    let width = digit.x * 4.0 + colon.x;
+    let panel = Vec2::new(width, digit.y) + pad * 2.0;
+    let center = Vec3::new(
+        FRAME.x / 2.0 - panel.x / 2.0 - 6.0,
+        FRAME.y / 2.0 - panel.y / 2.0 - 6.0,
+        0.15,
+    );
+    world.spawn((
+        Sprite {
+            color: Color::srgba(0.07, 0.1, 0.4, 0.9),
+            custom_size: Some(panel),
+            ..default()
+        },
+        Transform::from_translation(center),
+        ChildOf(root),
+    ));
+    if !visible {
+        return;
+    }
+    // Left edge of the digits, then minutes tens, ones, the colon, seconds tens, ones.
+    let mut x = center.x - width / 2.0;
+    let slots = [
+        Some(digits[0]).filter(|_| leading),
+        Some(digits[1]),
+        None,
+        Some(digits[2]),
+        Some(digits[3]),
+    ];
+    for (index, slot) in slots.iter().enumerate() {
+        let name = match (index, slot) {
+            (2, _) => "counter_colon".to_owned(),
+            (_, Some(value)) => format!("counter_{value}"),
+            (_, None) => {
+                x += digit.x;
+                continue;
+            }
+        };
+        let step = if index == 2 { colon.x } else { digit.x };
+        let Some(art) = counters.get(&name) else {
+            continue;
+        };
+        let handle = world.resource_mut::<Assets<Image>>().add(sprite_image(art));
+        world.spawn((
+            Sprite {
+                image: handle,
+                custom_size: Some(size(&name)),
+                ..default()
+            },
+            Transform::from_xyz(x + step / 2.0, center.y, center.z + 0.05),
+            ChildOf(root),
+        ));
+        x += step;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_clock_shows_minutes_and_seconds_and_hides_a_zero_tens_digit() {
+        assert_eq!(timer_digits(60.99), ([0, 1, 0, 0], false));
+        assert_eq!(timer_digits(5.0), ([0, 0, 0, 5], false));
+        assert_eq!(timer_digits(754.0), ([1, 2, 3, 4], true));
+        assert!(timer_digits_visible(true, 20));
+        assert!(!timer_digits_visible(false, 20));
+        assert!(timer_digits_visible(false, 5));
+    }
 
     #[test]
     fn each_icon_type_shows_the_flags_eicon_maps_it_to() {

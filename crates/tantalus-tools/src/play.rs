@@ -430,7 +430,20 @@ struct PendingBattles {
 impl PlayGame {
     /// New game, starting at field `start` (70 is the opening).
     pub fn new(data: PlayData, start: i32) -> Result<(Self, Vec<PlayEvent>), String> {
-        let world = data.new_game.clone();
+        Self::new_with_globals(data, start, &[])
+    }
+
+    /// [`PlayGame::new`] with script globals written before the field's scripts run, to start a
+    /// probe at a chosen story state (a save-like state): `(index, kind, value)`.
+    pub fn new_with_globals(
+        data: PlayData,
+        start: i32,
+        globals: &[(u16, tantalus_legacy::VariableType, i32)],
+    ) -> Result<(Self, Vec<PlayEvent>), String> {
+        let mut world = data.new_game.clone();
+        for &(index, kind, value) in globals {
+            world.global_memory.set(index, kind, value);
+        }
         let mut game = Self {
             data,
             session: None,
@@ -498,6 +511,11 @@ impl PlayGame {
             Some(session) => session.director.world(),
             None => &self.world,
         }
+    }
+
+    /// The running field's scripts, for probes and tests.
+    pub fn session(&self) -> Option<&FieldSession> {
+        self.session.as_ref()
     }
 
     /// Text of each open window, in window order.
