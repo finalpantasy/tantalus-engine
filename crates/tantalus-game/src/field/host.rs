@@ -172,6 +172,126 @@ impl FieldHost<'_> {
         self.world.camera_log.push(request);
     }
 
+    /// Texture animation commands (`GeoTexAnim.geoTexAnimPlay`, `PlayOnce`, `Stop`) per actor:
+    /// the opcodes `TEXPLAY` 0xC0, `TEXPLAY1` 0xC1, `TEXSTOP` 0xC2 and the commands the reference
+    /// engine adds to specific fields (`EventEngine.DoEventCode.cs`: `AIDLE`, `ANIM`/`DANIM`,
+    /// `REQSW`, `CHRSCALE`).
+    fn record_tex_anim(&mut self, event: &HostEvent) {
+        use super::world::{TexAnimCommand, TexAnimOp};
+        let map = self.world.field_map_no;
+        let mut commands: Vec<(EntityId, TexAnimOp, i32)> = Vec::new();
+        let uid_of = |world: &super::world::FieldWorld, actor: EntityId| world.uid_of(actor);
+        let opcode_call = match *event {
+            HostEvent::PlayTextureAnimation {
+                object,
+                actor,
+                animation,
+                once,
+            } => Some((
+                object,
+                actor,
+                animation,
+                if once {
+                    TexAnimOp::PlayOnce
+                } else {
+                    TexAnimOp::Play
+                },
+            )),
+            HostEvent::StopTextureAnimation {
+                object,
+                actor,
+                animation,
+            } => Some((object, actor, animation, TexAnimOp::Stop)),
+            _ => None,
+        };
+        match *event {
+            _ if opcode_call.is_some() => {
+                let (object, actor, animation, once_or_loop) = opcode_call.expect("checked");
+                let target = if object == 255 {
+                    actor
+                } else {
+                    self.world.resolve_uid(object)
+                };
+                if let Some(target) = target {
+                    let mut index = animation;
+                    // Fields whose model's animation 0 is its blink, played as 2.
+                    if index == 0
+                        && matches!(
+                            (map, uid_of(self.world, target)),
+                            (114, Some(2))
+                                | (450, Some(3))
+                                | (551, Some(10))
+                                | (555, Some(12))
+                                | (559, Some(17))
+                                | (2105, Some(2))
+                                | (2450, Some(8))
+                        )
+                    {
+                        index = 2;
+                    }
+                    commands.push((target, once_or_loop, index));
+                }
+            }
+            // `AIDLE`.
+            HostEvent::SetIdleAnimation { actor, animation } => {
+                match (map, uid_of(self.world, actor), animation) {
+                    (1605, Some(18), 7503) => commands.push((actor, TexAnimOp::Play, 2)),
+                    (2365, Some(14), 11611) | (2657, Some(7), 1044) => {
+                        commands.push((actor, TexAnimOp::Stop, 2));
+                        commands.push((actor, TexAnimOp::Play, 0));
+                    }
+                    (2657, Some(7), 816) => commands.push((actor, TexAnimOp::Play, 2)),
+                    _ => {}
+                }
+            }
+            // `ANIM` / `DANIM` (the field's `ExecAnim` branch).
+            HostEvent::PlayAnimation { actor, animation } => {
+                match (map, uid_of(self.world, actor), animation) {
+                    (307, Some(13), 10328) | (1605, Some(18), 11958) | (2934, Some(2), 12429) => {
+                        commands.push((actor, TexAnimOp::Stop, 2));
+                        commands.push((actor, TexAnimOp::Play, 0));
+                    }
+                    (561, Some(6), 351) => {
+                        commands.push((actor, TexAnimOp::Stop, 2));
+                        commands.push((actor, TexAnimOp::Play, 1));
+                    }
+                    _ => {}
+                }
+            }
+            // `CHRSCALE`: Lindblum/Festival's mini-models.
+            HostEvent::SetObjectScale { actor, .. } => {
+                if map == 576 && matches!(uid_of(self.world, actor), Some(4 | 8 | 9 | 10 | 11)) {
+                    commands.push((actor, TexAnimOp::Stop, 2));
+                    commands.push((actor, TexAnimOp::Play, 1));
+                }
+            }
+            // `REQSW` in Evil Forest/Exit: Zidane yawning (his entry 10, function 12) and Dagger
+            // awakening (her entry 12, function 20) change Dagger's (uid 12) animation.
+            HostEvent::RequestScriptSync { target, tag, .. } if map == 262 => {
+                let dagger = self.world.resolve_uid(12);
+                if let Some(dagger) = dagger {
+                    match (target.get(), tag) {
+                        (10, 12) => {
+                            commands.push((dagger, TexAnimOp::Stop, 2));
+                            commands.push((dagger, TexAnimOp::Play, 0));
+                        }
+                        (12, 20) => commands.push((dagger, TexAnimOp::Play, 2)),
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+        let tick = self.world.tex_anim_clock;
+        for (actor, op, index) in commands {
+            self.world
+                .tex_anims
+                .entry(actor)
+                .or_default()
+                .push(TexAnimCommand { tick, op, index });
+        }
+    }
+
     /// Keeps the light and shadow scripts for the renderer.
     fn record_light(&mut self, event: &HostEvent) {
         use super::world::{
@@ -592,6 +712,7 @@ impl LegacyEventHost for FieldHost<'_> {
             self.record_overlay(event);
             self.record_overlay_motion(event);
             self.record_light(event);
+            self.record_tex_anim(event);
             if let HostEvent::SetFieldCamera { camera } = event {
                 self.world.view.set_camera(*camera);
             }
@@ -1995,6 +2116,71 @@ mod tests {
         world.timer.displayed = true;
         FieldHost::new(&mut world).apply(&[start]).unwrap();
         assert_eq!(world.take_encounters()[0].timer, Some(world.timer));
+    }
+
+    /// `TEXPLAY`, `TEXPLAY1` and `TEXSTOP` (`EventEngine.DoEventCode.cs`) are kept per actor, with
+    /// the clock they ran at; entry 255 is the running object, and the listed fields play
+    /// animation 2 for 0.
+    #[test]
+    fn texture_animation_commands_are_kept_per_actor() {
+        use super::super::world::{TexAnimCommand, TexAnimOp};
+        let mut world = FieldWorld::new();
+        let first = world.init_object(3, 7);
+        let second = world.init_object(4, 8);
+        world.tex_anim_clock = 5;
+        let mut host = FieldHost::new(&mut world);
+        host.apply(&[
+            HostEvent::PlayTextureAnimation {
+                object: 255,
+                actor: Some(first),
+                animation: 1,
+                once: false,
+            },
+            HostEvent::PlayTextureAnimation {
+                object: 8,
+                actor: Some(first),
+                animation: 3,
+                once: true,
+            },
+            HostEvent::StopTextureAnimation {
+                object: 255,
+                actor: Some(first),
+                animation: 2,
+            },
+        ])
+        .unwrap();
+        let command = |op, index| TexAnimCommand { tick: 5, op, index };
+        assert_eq!(
+            world.tex_anims[&first],
+            [command(TexAnimOp::Play, 1), command(TexAnimOp::Stop, 2)]
+        );
+        assert_eq!(world.tex_anims[&second], [command(TexAnimOp::PlayOnce, 3)]);
+        // Mdn. Sari's Eiko, Hang_Look_Down_2: stop the blink, play 0.
+        world.field_map_no = 1605;
+        let eiko = world.init_object(5, 18);
+        world.add_actor(eiko, [0.0; 3]);
+        let mut host = FieldHost::new(&mut world);
+        host.apply(&[HostEvent::PlayAnimation {
+            actor: eiko,
+            animation: 11958,
+        }])
+        .unwrap();
+        assert_eq!(
+            world.tex_anims[&eiko],
+            [command(TexAnimOp::Stop, 2), command(TexAnimOp::Play, 0)]
+        );
+        // The listed fields play 2 where the script says 0.
+        world.field_map_no = 114;
+        let girl = world.init_object(6, 2);
+        let mut host = FieldHost::new(&mut world);
+        host.apply(&[HostEvent::PlayTextureAnimation {
+            object: 255,
+            actor: Some(girl),
+            animation: 0,
+            once: false,
+        }])
+        .unwrap();
+        assert_eq!(world.tex_anims[&girl], [command(TexAnimOp::Play, 2)]);
     }
 
     /// System variable 1 is `fieldmap.camIdx` (field 1206 waits on it).

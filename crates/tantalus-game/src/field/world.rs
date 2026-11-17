@@ -171,6 +171,23 @@ pub struct ActorShadowScript {
     pub rotation: Option<i32>,
 }
 
+/// A texture animation command for one model (`GeoTexAnim.geoTexAnimPlay`, `geoTexAnimPlayOnce`,
+/// `geoTexAnimStop`), with the field tick of `FieldWorld::tex_anim_clock` it ran on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TexAnimCommand {
+    pub tick: u64,
+    pub op: TexAnimOp,
+    pub index: i32,
+}
+
+/// What a [`TexAnimCommand`] does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TexAnimOp {
+    Play,
+    PlayOnce,
+    Stop,
+}
+
 /// `FF9Char.attr` bits the field scripts set.
 pub const CHAR_ATTR_LADDER: u32 = 4;
 pub const CHAR_ATTR_SHADOW_OFF: u32 = 16;
@@ -910,6 +927,13 @@ pub struct FieldWorld {
     /// The map config light changes this field made, in order (runtime-only).
     #[serde(skip)]
     pub light_changes: Vec<LightChange>,
+    /// Texture animation commands per actor, in order (runtime-only).
+    #[serde(skip)]
+    pub tex_anims: BTreeMap<EntityId, Vec<TexAnimCommand>>,
+    /// Field ticks run since the field started, the clock of [`TexAnimCommand::tick`]
+    /// (runtime-only).
+    #[serde(skip)]
+    pub tex_anim_clock: u64,
     /// Scale and head-focus a script set per actor (runtime-only).
     #[serde(skip)]
     pub actor_presentation: BTreeMap<EntityId, ActorPresentation>,
@@ -1152,6 +1176,8 @@ impl FieldWorld {
             support_enabled: BTreeMap::new(),
             actor_shadows: BTreeMap::new(),
             light_changes: Vec::new(),
+            tex_anims: BTreeMap::new(),
+            tex_anim_clock: 0,
             actor_presentation: BTreeMap::new(),
             bubble_icon: None,
             attachments: BTreeMap::new(),
@@ -1265,6 +1291,8 @@ impl FieldWorld {
         self.overlay_motion.clear();
         self.actor_shadows.clear();
         self.light_changes.clear();
+        self.tex_anims.clear();
+        self.tex_anim_clock = 0;
         self.save_point = false;
         self.save_requested = false;
         self.chocograph_requested = false;
@@ -1657,6 +1685,7 @@ impl FieldWorld {
     /// `ProcessAnime` for every actor. The reference runs it before the tick's scripts
     /// (`ProcessEvents`), so a script reads the frame the animation reached this tick.
     pub fn advance_animations(&mut self) {
+        self.tex_anim_clock += 1;
         if let Some(fade) = self.fade_filter.as_mut() {
             fade.elapsed = fade.elapsed.saturating_add(1);
             self.fade_current[fade.slot()] = fade.color_now();

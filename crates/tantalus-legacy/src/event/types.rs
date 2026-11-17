@@ -1223,6 +1223,8 @@ pub enum HostEvent {
     },
     PlayTextureAnimation {
         object: i32,
+        /// The running object, for the entry 255 ("this object").
+        actor: Option<EntityId>,
         animation: i32,
         once: bool,
     },
@@ -1808,6 +1810,8 @@ pub enum HostEvent {
     },
     StopTextureAnimation {
         object: i32,
+        /// The running object, for the entry 255 ("this object").
+        actor: Option<EntityId>,
         animation: i32,
     },
     RunBattleCode {

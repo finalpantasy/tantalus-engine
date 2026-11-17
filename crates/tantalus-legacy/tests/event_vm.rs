@@ -5142,11 +5142,13 @@ fn entry_addressed_turn_animation_and_texture_commands_decode_flag_bit_operands(
         [
             HostEvent::PlayTextureAnimation {
                 object: 9,
+                actor: None,
                 animation: 3,
                 once: false,
             },
             HostEvent::PlayTextureAnimation {
                 object: 9,
+                actor: None,
                 animation: 4,
                 once: true,
             },
@@ -7379,6 +7381,7 @@ fn texstop_emits_object_and_animation_identities() {
         report.events,
         [HostEvent::StopTextureAnimation {
             object: 2,
+            actor: None,
             animation: 3
         }]
     );
@@ -7395,6 +7398,7 @@ fn texstop_emits_object_and_animation_identities() {
         report.events,
         [HostEvent::StopTextureAnimation {
             object: 4,
+            actor: None,
             animation: 5
         }]
     );

@@ -287,6 +287,8 @@ impl WorldRenderer {
             }
         });
         let moving = play.walker.moved;
+        // The world characters blink too (`GeoTexAnim` runs on every model).
+        self.models.advance_tex_anims(play.frames);
         let time = play.frames as f32 / 30.0;
         let at = [pos.x, pos.y, pos.z];
         let place = |scale: [f32; 3], tint: (f32, f32)| Placement {
@@ -597,7 +599,7 @@ fn draw_character(
         depth_write: true,
         cull_back: true,
     };
-    for (part, vertices) in model.parts.iter().zip(&skinned) {
+    for (part_index, (part, vertices)) in model.parts.iter().zip(&skinned).enumerate() {
         let view: Vec<Vec3> = vertices
             .iter()
             .map(|vertex| {
@@ -606,11 +608,11 @@ fn draw_character(
                 camera.to_view(world.to_array())
             })
             .collect();
-        for submesh in &part.submeshes {
+        for (submesh_index, submesh) in part.submeshes.iter().enumerate() {
             if submesh.topology != 0 {
                 continue;
             }
-            let source = submesh.material.as_ref().and_then(|material| {
+            let mut source = submesh.material.as_ref().and_then(|material| {
                 material.textures.iter().find_map(|texture| {
                     let rgba = texture.rgba.as_deref()?;
                     let width = usize::try_from(texture.width).ok()?;
@@ -619,6 +621,13 @@ fn draw_character(
                         .then_some((width, height, rgba))
                 })
             });
+            // `GeoTexAnim`: the renderer's own material (its first) shows the redrawn texture.
+            if let (0, Some((width, height, rgba))) = (submesh_index, source.as_mut())
+                && let Some(canvas) = models.model_canvas(clip.0, part_index)
+                && canvas.len() >= *width * *height * 4
+            {
+                *rgba = canvas;
+            }
             let recolored = source
                 .filter(|_| place.tint != (0.0, 1.0))
                 .map(|(_, _, rgba)| tinted(rgba, place.tint));

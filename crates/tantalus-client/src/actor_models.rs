@@ -37,6 +37,8 @@ const TOPOLOGY_TRIANGLES: i32 = 0;
 /// What one actor shows this frame.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct ActorPose {
+    /// The field object's id, the key of its texture animation state (0 when it has none).
+    pub actor: u64,
     /// 0..=255, 0 south, 64 west.
     pub facing: u8,
     pub model: Option<u16>,
@@ -325,6 +327,16 @@ pub struct ActorModels {
     shadow_plate: Option<crate::field_light::ShadowPlate>,
     /// The texture animations (blinking eyes) of each loaded model, one state per model.
     tex_anims: HashMap<u16, tantalus_assets::pc::geo_tex_anim::TexAnimPlayer>,
+    /// The texture animations of each field actor (`GeoTexAnim` is a component of the actor's
+    /// own model object): the model it was made for, its state, and how many of the actor's
+    /// script commands it has run.
+    actor_tex_anims: HashMap<u64, ActorTexAnim>,
+}
+
+struct ActorTexAnim {
+    model: u16,
+    player: tantalus_assets::pc::geo_tex_anim::TexAnimPlayer,
+    applied: usize,
 }
 
 impl ActorModels {
@@ -341,6 +353,76 @@ impl ActorModels {
             config: None,
             shadow_plate: None,
             tex_anims: HashMap::new(),
+            actor_tex_anims: HashMap::new(),
+        }
+    }
+
+    /// The redrawn main texture of material `part` of `model`, when a world model's animation
+    /// has drawn on it.
+    pub fn model_canvas(&self, model: u16, part: usize) -> Option<&[u8]> {
+        self.tex_anims.get(&model)?.canvas(part)
+    }
+
+    /// Runs each field actor's texture animations up to game tick `tick`, with the commands its
+    /// scripts gave (`EventEngine.DoEventCode` `TEXPLAY`, `TEXPLAY1`, `TEXSTOP`; the blink
+    /// restarts itself as `FieldMap.Update` does). `clock` is the field's own tick count,
+    /// `commands` are stamped with it.
+    pub fn advance_actor_tex_anims(
+        &mut self,
+        tick: u64,
+        poses: &std::collections::BTreeMap<u64, ActorPose>,
+        commands: &std::collections::BTreeMap<
+            tantalus_contracts::EntityId,
+            Vec<tantalus_game::field::world::TexAnimCommand>,
+        >,
+        clock: u64,
+    ) {
+        use tantalus_assets::pc::geo_tex_anim::{TexAnimPlayer, material_textures};
+        use tantalus_game::field::world::TexAnimOp;
+        self.actor_tex_anims.retain(|id, _| poses.contains_key(id));
+        for (id, pose) in poses {
+            let Some(model_id) = pose.model else {
+                continue;
+            };
+            let Some(Some(model)) = self.models.get(&model_id) else {
+                continue;
+            };
+            let Some(table) = &model.tex_anim else {
+                continue;
+            };
+            let fresh = || {
+                let mut player = TexAnimPlayer::new(table.clone());
+                player.field_blink = true;
+                ActorTexAnim {
+                    model: model_id,
+                    player,
+                    applied: 0,
+                }
+            };
+            let state = self.actor_tex_anims.entry(*id).or_insert_with(fresh);
+            if state.model != model_id {
+                *state = fresh();
+            }
+            let textures = material_textures(model);
+            let own = commands
+                .get(&tantalus_contracts::EntityId::new(*id))
+                .map_or(&[][..], Vec::as_slice);
+            // A field that restarted its clock starts the list over.
+            if state.applied > own.len() {
+                state.applied = 0;
+            }
+            for command in &own[state.applied..] {
+                let at = (command.tick + tick).saturating_sub(clock);
+                state.player.advance_to(at.min(tick), &textures);
+                let index = usize::try_from(command.index).unwrap_or(usize::MAX);
+                match command.op {
+                    TexAnimOp::Play => state.player.anim.play(index),
+                    TexAnimOp::PlayOnce => state.player.anim.play_once(index),
+                    TexAnimOp::Stop => state.player.anim.stop(index),
+                }
+            }
+            state.applied = own.len();
+            state.player.advance_to(tick, &textures);
         }
     }
 
@@ -748,9 +830,11 @@ impl ActorModels {
                 });
                 // `GeoTexAnim`: the renderer's own material (its first) shows the redrawn texture.
                 if let (0, Some(texels)) = (submesh_index, texels.as_mut())
-                    && let Some(canvas) = pose
-                        .model
-                        .and_then(|id| self.tex_anims.get(&id)?.canvas(part_index))
+                    && let Some(canvas) = self
+                        .actor_tex_anims
+                        .get(&pose.actor)
+                        .filter(|state| Some(state.model) == pose.model)
+                        .and_then(|state| state.player.canvas(part_index))
                     && canvas.len() >= texels.width * texels.height * 4
                 {
                     texels.rgba = canvas;

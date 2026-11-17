@@ -95,6 +95,7 @@ pub fn world_frame(world: &FieldWorld, tick: u64) -> (TrackFrame, BTreeSet<u64>)
             (
                 id.get(),
                 crate::actor_models::ActorPose {
+                    actor: id.get(),
                     facing: actor.facing.rem_euclid(256) as u8,
                     model: actor.look.model,
                     animation: actor.look.current_moving(
@@ -726,7 +727,12 @@ fn live_tick_inner(world: &mut World) {
             for problem in live.models.prepare(frame.poses.values()) {
                 println!("!! actor models: {problem}");
             }
-            live.models.advance_tex_anims(game.ticks);
+            live.models.advance_actor_tex_anims(
+                game.ticks,
+                &frame.poses,
+                &game.world().tex_anims,
+                game.world().tex_anim_clock,
+            );
             bench::time("markers", || {
                 spawn_frame_markers(world, &scene.camera, &frame, &placed, Some(&live.models))
             });

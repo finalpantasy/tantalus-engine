@@ -1237,6 +1237,7 @@ impl EventVm {
                     self.pc = next;
                     events.push(HostEvent::PlayTextureAnimation {
                         object,
+                        actor: self.entity,
                         animation,
                         once,
                     });
@@ -2906,7 +2907,11 @@ impl EventVm {
                     let object = self.evaluate(host, &object, instruction.offset, opcode)?;
                     let animation = self.evaluate(host, &animation, instruction.offset, opcode)?;
                     self.pc = next;
-                    events.push(HostEvent::StopTextureAnimation { object, animation });
+                    events.push(HostEvent::StopTextureAnimation {
+                        object,
+                        actor: self.entity,
+                        animation,
+                    });
                 }
                 InstructionKind::RunBattleCode { code, value } => {
                     let code = self.evaluate(host, &code, instruction.offset, opcode)? as u32;

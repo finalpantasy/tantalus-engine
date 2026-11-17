@@ -595,6 +595,7 @@ fn run_play_capture(args: &[std::ffi::OsString]) -> ExitCode {
         "--ticks",
         "--hold",
         "--auto-confirm",
+        "--place",
         "--output",
         "--size",
         "--party",
@@ -644,6 +645,16 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         Some(size) => parse_size(std::path::Path::new(size)).ok_or("--size must be WxH")?,
     };
     let holds = parse_holds(values.get("--hold"))?;
+    // `--place TICK:X,Y,Z`: a test aid, moves the player there on that tick.
+    let place: Option<(u64, [f32; 3])> = match values.get("--place") {
+        Some(spec) => {
+            let (tick, at) = spec.split_once(':').ok_or("--place wants TICK:X,Y,Z")?;
+            let at: Vec<f32> = at.split(',').filter_map(|v| v.parse().ok()).collect();
+            let at: [f32; 3] = at.try_into().map_err(|_| "--place wants TICK:X,Y,Z")?;
+            Some((tick.parse().map_err(|_| "bad --place tick")?, at))
+        }
+        None => None,
+    };
     let mut game = load_game(values)?;
     if let Some(party) = values.get("--party") {
         let ids: Vec<i32> = party.split(',').filter_map(|id| id.parse().ok()).collect();
@@ -718,6 +729,11 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
             open_for = 0;
         }
         last_confirm = held & pad::CONFIRM != 0;
+        if let Some((at_tick, at)) = place
+            && tick == at_tick
+        {
+            game.place_player(at);
+        }
         // The scripts of a shop or a moogle run once the field is up.
         if tick == 10 {
             if let Some(shop) = shop {
@@ -847,7 +863,12 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     for problem in models.prepare(frame.poses.values()) {
         println!("!! actor models: {problem}");
     }
-    models.advance_tex_anims(game.ticks);
+    models.advance_actor_tex_anims(
+        game.ticks,
+        &frame.poses,
+        &game.world().tex_anims,
+        game.world().tex_anim_clock,
+    );
     if std::env::var_os("TANTALUS_PERF").is_some() {
         play_perf(&game, &models, &field.scene.camera);
     }
