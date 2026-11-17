@@ -18,7 +18,8 @@ use tantalus_legacy::sound::PcmClip;
 use tantalus_psxaudio::akao::{SampleBank, Song, read_songs};
 use tantalus_psxaudio::disc::{Disc, find_discs};
 use tantalus_psxaudio::img::Img;
-use tantalus_psxaudio::render::{Rendered, render_song};
+use tantalus_psxaudio::render::{Rendered, render_capped, render_song};
+use tantalus_psxaudio::sfx::{SfxEntry, read_sfx_entries};
 
 use crate::sound_bank::SoundBank;
 
@@ -218,12 +219,200 @@ pub fn encode_ogg(samples: &[f32], path: &Path) -> Result<(), String> {
     out.flush().map_err(|e| e.to_string())
 }
 
+/// Minimal 16-bit PCM WAV writer for the analysis dump.
+fn write_wav(path: &Path, rate: u32, channels: u16, samples: &[i16]) -> Result<(), String> {
+    let data_len = (samples.len() * 2) as u32;
+    let mut out = Vec::with_capacity(44 + samples.len() * 2);
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&(36 + data_len).to_le_bytes());
+    out.extend_from_slice(b"WAVEfmt ");
+    out.extend_from_slice(&16u32.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&channels.to_le_bytes());
+    out.extend_from_slice(&rate.to_le_bytes());
+    out.extend_from_slice(&(rate * u32::from(channels) * 2).to_le_bytes());
+    out.extend_from_slice(&(channels * 2).to_le_bytes());
+    out.extend_from_slice(&16u16.to_le_bytes());
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&data_len.to_le_bytes());
+    for s in samples {
+        out.extend_from_slice(&s.to_le_bytes());
+    }
+    std::fs::write(path, out).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Every sample collection of the discs' `SfxBanks` groups, by collection id.
+pub fn read_sfx_banks(disc_dir: &Path) -> Result<BTreeMap<u16, SampleBank>, String> {
+    let mut banks = BTreeMap::new();
+    for (_, path) in find_discs(disc_dir) {
+        let mut disc = Disc::open(&path)?;
+        let img = Img::open(&mut disc)?;
+        for g in img.groups_of(&mut disc, tantalus_psxaudio::img::GroupKind::SfxBanks)? {
+            for f in img.group(g) {
+                let data = img.read(&mut disc, f)?;
+                if let Ok(bank) = SampleBank::parse(&data, 64) {
+                    banks.entry(bank.id).or_insert(bank);
+                }
+            }
+        }
+    }
+    Ok(banks)
+}
+
+/// Every distinct sound-effect script with the collection it plays: `(entry, script, bank id)`.
+pub fn read_sfx_units(
+    disc_dir: &Path,
+    banks: &BTreeMap<u16, SampleBank>,
+) -> Result<Vec<(SfxEntry, usize, u16)>, String> {
+    let ids: std::collections::BTreeSet<u16> = banks.keys().copied().collect();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut out = Vec::new();
+    for (n, path) in find_discs(disc_dir) {
+        let mut disc = Disc::open(&path)?;
+        let img = Img::open(&mut disc)?;
+        for entry in read_sfx_entries(n, &mut disc, &img, &ids) {
+            for script in 0..entry.scripts.len() {
+                let bank = match entry.bank_hint {
+                    Some(b) => b,
+                    None => {
+                        let Some(art) = entry.first_articulation(script) else {
+                            continue;
+                        };
+                        let Some(b) = entry
+                            .file_banks
+                            .iter()
+                            .copied()
+                            .find(|b| banks.get(b).is_some_and(|bank| bank.art(art).is_some()))
+                        else {
+                            continue;
+                        };
+                        b
+                    }
+                };
+                // The same script on the same collection is one effect, wherever it is stored.
+                let body = &entry.data[entry.scripts[script]..];
+                let body = &body[..body.len().min(512)];
+                if seen.insert((bank, body.to_vec())) {
+                    out.push((entry.clone(), script, bank));
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Mono 16-bit WAV at `rate` from interleaved samples (linear resample), for analysis dumps.
+fn mono_wav(
+    path: &Path,
+    samples: &[f32],
+    channels: usize,
+    rate: u32,
+    out_rate: u32,
+) -> Result<(), String> {
+    let frames = samples.len() / channels;
+    let mono: Vec<f32> = (0..frames)
+        .map(|f| {
+            samples[f * channels..(f + 1) * channels]
+                .iter()
+                .sum::<f32>()
+                / channels as f32
+        })
+        .collect();
+    let n = (frames as u64 * u64::from(out_rate) / u64::from(rate)) as usize;
+    let pcm: Vec<i16> = (0..n)
+        .map(|i| {
+            let x = i as f64 * f64::from(rate) / f64::from(out_rate);
+            let a = x as usize;
+            let t = (x - a as f64) as f32;
+            let v = mono[a.min(frames - 1)] * (1.0 - t) + mono[(a + 1).min(frames - 1)] * t;
+            (v * 32767.0).clamp(-32768.0, 32767.0) as i16
+        })
+        .collect();
+    write_wav(path, out_rate, 1, &pcm)
+}
+
+fn sfx_dump(a: &Args) -> Result<(), String> {
+    let dir = a.dump.clone().ok_or("sfx-dump needs --dump <dir>")?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let banks = read_sfx_banks(&a.disc_dir)?;
+    let units = read_sfx_units(&a.disc_dir, &banks)?;
+    println!("{} banks, {} distinct scripts", banks.len(), units.len());
+    let mut tsv = String::new();
+    for (i, (entry, script, bank)) in units.iter().enumerate() {
+        let seq = entry.sequence(*script);
+        let r = render_capped(&seq, &banks[bank], 10);
+        mono_wav(
+            &dir.join(format!("ps1_{i}.wav")),
+            &r.samples,
+            2,
+            44_100,
+            22_050,
+        )?;
+        tsv.push_str(&format!(
+            "{i}	{}	{}	{}	{}	{}	{script}	{bank}	{:.3}	{:.3}	{:?}
+",
+            entry.disc,
+            entry.group,
+            entry.file_id,
+            entry.offset,
+            entry.kind,
+            r.seconds(),
+            r.peak,
+            r.loop_frames
+        ));
+    }
+    std::fs::write(dir.join("ps1_units.tsv"), tsv).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn sfx_dump_steam(a: &Args, mut steam: SoundBank) -> Result<(), String> {
+    let dir = a.dump.clone().ok_or("needs --dump <dir>")?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let mut tsv = String::new();
+    for (id, resource) in steam.metadata.sound_effect.clone() {
+        let path = dir.join(format!("steam_{id}.wav"));
+        if path.exists() {
+            continue;
+        }
+        let Ok(clip) = steam.load_clip(&resource) else {
+            continue;
+        };
+        let f: Vec<f32> = clip
+            .samples
+            .iter()
+            .map(|s| f32::from(*s) / 32768.0)
+            .collect();
+        if f.len() < usize::from(clip.channels) {
+            continue;
+        }
+        mono_wav(
+            &path,
+            &f,
+            usize::from(clip.channels),
+            clip.sample_rate,
+            22_050,
+        )?;
+        tsv.push_str(&format!(
+            "{id}	{resource}	{}	{}	{}	{}
+",
+            clip.sample_rate,
+            clip.channels,
+            clip.frames(),
+            clip.loop_end
+        ));
+    }
+    std::fs::write(dir.join("steam_sfx.tsv"), tsv).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 struct Args {
     command: String,
     disc_dir: PathBuf,
     out: PathBuf,
     steam: PathBuf,
     ids: Option<Vec<i32>>,
+    /// `compare --dump <dir>`: also write both renders as 16-bit WAV for external analysis.
+    dump: Option<PathBuf>,
 }
 
 fn parse(args: &[String]) -> Result<Args, String> {
@@ -233,6 +422,7 @@ fn parse(args: &[String]) -> Result<Args, String> {
         out: default_dir(),
         steam: PathBuf::from("E:/SteamLibrary/steamapps/common/FINAL FANTASY IX"),
         ids: None,
+        dump: None,
     };
     let mut it = args.iter();
     while let Some(arg) = it.next() {
@@ -240,6 +430,7 @@ fn parse(args: &[String]) -> Result<Args, String> {
         match arg.as_str() {
             "--disc-dir" => a.disc_dir = PathBuf::from(value("--disc-dir")?),
             "--out" => a.out = PathBuf::from(value("--out")?),
+            "--dump" => a.dump = Some(PathBuf::from(value("--dump")?)),
             "--steam" => a.steam = PathBuf::from(value("--steam")?),
             "--ids" => {
                 a.ids = Some(
@@ -249,7 +440,9 @@ fn parse(args: &[String]) -> Result<Args, String> {
                         .collect::<Result<_, _>>()?,
                 )
             }
-            "render" | "compare" | "coverage" | "verify" => a.command = arg.clone(),
+            "render" | "compare" | "coverage" | "verify" | "sfx-dump" | "sfx-dump-steam" => {
+                a.command = arg.clone()
+            }
             other => return Err(format!("unknown argument `{other}`")),
         }
     }
@@ -268,6 +461,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
         &a.steam.join("StreamingAssets"),
         &a.steam.join("x64/FF9_Data"),
     )?;
+    if a.command == "sfx-dump" {
+        return sfx_dump(&a);
+    }
+    if a.command == "sfx-dump-steam" {
+        return sfx_dump_steam(&a, steam);
+    }
     let discs = read_discs(&a.disc_dir)?;
     for p in &discs.problems {
         eprintln!("note: {p}");
@@ -316,6 +515,21 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 };
                 let r = render_song(&song.sequence, bank);
                 let clip = steam.load_clip(&resource)?;
+                if let Some(dir) = &a.dump {
+                    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+                    let ps1: Vec<i16> = r
+                        .samples
+                        .iter()
+                        .map(|s| (s * 32767.0).round() as i16)
+                        .collect();
+                    write_wav(&dir.join(format!("ps1_{id}.wav")), 44_100, 2, &ps1)?;
+                    write_wav(
+                        &dir.join(format!("steam_{id}.wav")),
+                        clip.sample_rate,
+                        clip.channels,
+                        &clip.samples,
+                    )?;
+                }
                 println!(
                     "music {id} {resource}: ps1 {:.2}s loop {:?} peak {:.3} | steam {:.2}s ({} Hz) loop {}..{} peak {:.3} | {:?}",
                     r.seconds(),

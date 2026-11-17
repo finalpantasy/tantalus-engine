@@ -16,5 +16,6 @@ pub mod disc;
 pub mod img;
 pub mod render;
 pub mod sequencer;
+pub mod sfx;
 pub mod spu;
 pub mod tables;

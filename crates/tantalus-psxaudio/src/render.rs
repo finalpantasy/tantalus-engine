@@ -37,10 +37,15 @@ impl Rendered {
 
 /// Renders one song. `bank` is the sample collection the sequence plays on.
 pub fn render_song(seq: &Sequence, bank: &SampleBank) -> Rendered {
+    render_capped(seq, bank, MAX_SECONDS)
+}
+
+/// [`render_song`] with its own length cap in seconds (sound effects use a short one).
+pub fn render_capped(seq: &Sequence, bank: &SampleBank, max_seconds: u64) -> Rendered {
     let mut player = Player::new(seq, bank);
     let mut out: Vec<f32> = Vec::new();
     let chunk = (SAMPLE_RATE / 20) as usize;
-    let max_frames = MAX_SECONDS * u64::from(SAMPLE_RATE);
+    let max_frames = max_seconds * u64::from(SAMPLE_RATE);
     let mut loop_plan: Option<(u64, u64)> = None;
     let mut quiet_frames = 0usize;
     loop {
@@ -229,6 +234,19 @@ mod tests {
         let jump_at_u = jump_at as usize;
         data[jump_at_u..].copy_from_slice(&(rel as i16).to_le_bytes());
         (Sequence::parse(&data, 0).expect("parse"), bank)
+    }
+
+    /// The tempo word is added to an accumulator by a 240 Hz timer and a sequencer tick happens
+    /// on each 16-bit overflow, so `0x4000` (75 BPM at 48 ticks per quarter note) is 60 ticks per
+    /// second. Checked against the discs: renders aligned to the Steam clips at time scale 1.000
+    /// (see the sequencer module docs), so the 240 Hz rate is right.
+    #[test]
+    fn tempo_word_is_ticks_per_second_over_240() {
+        let (seq, bank) = tiny_song();
+        let mut player = Player::new(&seq, &bank);
+        let mut out = Vec::new();
+        player.render(SAMPLE_RATE as usize, &mut out);
+        assert!((59..=61).contains(&player.tick), "{} ticks", player.tick);
     }
 
     #[test]

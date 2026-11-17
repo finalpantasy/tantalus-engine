@@ -6,6 +6,16 @@
 //! each 16-bit overflow, so a tick lasts `65536 / (240 * tempo)` seconds (48 ticks per quarter
 //! note).
 //!
+//! Tempo check (2026-11): the word is a whole number of BPM times 65536/300 in every song (for
+//! example 20753 is 95.0 BPM, 19661 is 90.0), which is what the composers' sequencer wrote, so
+//! the formula and the 240 Hz rate are right. Onset-envelope alignment of renders against the
+//! Steam clips gives a time scale of 1.000 (+-0.001) on every non-looping or long track tried
+//! (ids 1, 5, 7, 10, 83, 125, 142, 145). The Steam loop bodies are shorter (median 0.949) because
+//! Square cut different loop points, not because the render is slow.
+//!
+//! Noise and frequency-modulation opcodes never occur in any of the 106 songs (the `Stats`
+//! counters are 0 for all of them), so leaving them unmodelled changes no music render.
+//!
 //! Known approximations, all of them listed in `Stats`: noise and frequency-modulation voices
 //! are ignored, LFO shapes are sines, unknown opcodes (`0xE0..0xE2`, `0xFE 0x0B/0x1A..0x1C`)
 //! are skipped by length, and volume/pan curves are linear/equal-power rather than the
