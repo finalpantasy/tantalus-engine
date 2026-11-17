@@ -1829,6 +1829,19 @@ fn chain(
                             if register(&mut director, &pool, entry, Some(3))?.is_some() {
                                 talk_busy = true;
                                 talked.insert(entry);
+                                last_talk_press = Some(ticks_run);
+                                // A talk that starts a scene can change what a
+                                // `--retalk` entry of this field answers (Fossil
+                                // Roo 1405: the first gargant ride sets map bit
+                                // 311 and the second region then starts the next
+                                // one), so a new talk makes those entries
+                                // talkable again.
+                                for (_, other) in retalk.range((map, 0)..=(map, usize::MAX)) {
+                                    if *other != entry {
+                                        talked.remove(other);
+                                        talk_dwell.remove(other);
+                                    }
+                                }
                                 talks.push((ticks_run, entry));
                                 talked_before.insert((
                                     map,
@@ -2316,9 +2329,6 @@ fn chain(
                                     waypoint_dwell = 0;
                                     waypoint_index += 1;
                                 }
-                            }
-                            if talking {
-                                last_talk_press = Some(ticks_run);
                             }
                             if let (true, Some(entry)) = (talking, talk_target) {
                                 let dwell = talk_dwell.entry(entry).or_insert(0);

@@ -237,6 +237,8 @@ pub struct EntryScheduler {
     shared_running: BTreeMap<EntityId, EntityId>,
     /// Requested functions still running, with the target entry.
     spawned: Vec<(EntityId, u64)>,
+    /// The level each requested function was requested at.
+    spawned_level: BTreeMap<EntityId, i32>,
     pub loops_started: usize,
     /// Keep every object's idle loop running while its talk function runs (the engine's
     /// original behavior, kept for regression traces); off by default, as in the reference.
@@ -382,6 +384,7 @@ impl EntryScheduler {
                         self.object_of.insert(entity, object);
                     }
                     self.spawned.push((entity, uid));
+                    self.spawned_level.insert(entity, request.level);
                 }
                 None => {
                     // Nothing will run, so nothing would ever clear the
@@ -450,10 +453,32 @@ impl EntryScheduler {
                 self.loops_started += 1;
             }
         }
+        self.nest_requests(director);
         if !self.loops_run_during_talks {
             suspend_idle_loops(director, pool);
         }
         Ok(())
+    }
+
+    /// `EventEngine.Request` / `Call` / `Return`: an object runs one function at a time. A
+    /// request at a lower level than the one running pushes the running function (with its wait
+    /// counter) and runs the new one; the older function carries on when the new one returns.
+    /// Of an object's requested functions only the lowest level advances (Fossil Roo 1405: the
+    /// gargant ride's level 6 function waits while its level 4 one runs, so global byte 408
+    /// reaches the values the main script waits for in order).
+    fn nest_requests(&mut self, director: &mut FieldDirector) {
+        let live: BTreeSet<EntityId> = self.spawned.iter().map(|(entity, _)| *entity).collect();
+        self.spawned_level.retain(|entity, _| live.contains(entity));
+        let mut lowest: BTreeMap<u64, i32> = BTreeMap::new();
+        for (entity, base) in &self.spawned {
+            let level = self.spawned_level.get(entity).copied().unwrap_or(i32::MAX);
+            let slot = lowest.entry(*base).or_insert(level);
+            *slot = (*slot).min(level);
+        }
+        for (entity, base) in &self.spawned {
+            let level = self.spawned_level.get(entity).copied().unwrap_or(i32::MAX);
+            director.set_suspended(*entity, level > lowest[base]);
+        }
     }
 }
 
@@ -890,6 +915,54 @@ mod tests {
         assert!(
             idle_done_at > talk_done_at,
             "idle loop finished at {idle_done_at} before the talk at {talk_done_at}"
+        );
+    }
+
+    /// `EventEngine.Request` pushes the running function when a request has a lower level: an
+    /// object's level 6 function waits while its level 4 function runs (Fossil Roo 1405, the
+    /// gargant ride), however long the level 4 one takes.
+    #[test]
+    fn a_lower_level_request_holds_the_object_s_older_function() {
+        let pool: Pool = vec![vec![(18, wait_program(3)), (19, wait_program(12))]];
+        let mut director = new_director(FieldWorld::new(), &pool, 0);
+        let mut scheduler = EntryScheduler::default();
+        let mut step = director.step().unwrap();
+        step.requests = vec![
+            tantalus_game::RequestedScript {
+                level: 6,
+                target: EntityId::new(0),
+                tag: 18,
+                synchronous: false,
+            },
+            tantalus_game::RequestedScript {
+                level: 4,
+                target: EntityId::new(0),
+                tag: 19,
+                synchronous: false,
+            },
+        ];
+        scheduler
+            .run_step_scripts(&mut director, &pool, &step)
+            .unwrap();
+        let older = function_entity(&pool, 0, 18).unwrap();
+        let newer = function_entity(&pool, 0, 19).unwrap();
+        let mut older_done_at = None;
+        let mut newer_done_at = None;
+        for tick in 0..60 {
+            scheduler.settle(&mut director, &pool).unwrap();
+            director.step().unwrap();
+            if newer_done_at.is_none() && status(&director, newer) == VmStatus::Completed {
+                newer_done_at = Some(tick);
+            }
+            if older_done_at.is_none() && status(&director, older) == VmStatus::Completed {
+                older_done_at = Some(tick);
+            }
+        }
+        let newer_done_at = newer_done_at.expect("the level 4 function finishes");
+        let older_done_at = older_done_at.expect("the level 6 function finishes afterwards");
+        assert!(
+            older_done_at > newer_done_at,
+            "level 6 finished at {older_done_at} before level 4 at {newer_done_at}"
         );
     }
 
