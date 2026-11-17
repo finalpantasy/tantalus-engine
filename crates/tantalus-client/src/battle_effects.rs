@@ -1,34 +1,42 @@
-//! Stand-in spell effects on the original timing: Fire, Blizzard, Thunder
-//! and Cure (also the Potion, which plays Cure), single and multi.
+//! The party's spell and item effects, played by the special-effect
+//! plugin ([`tantalus_sfx`], the translated `FF9SpecialEffectPlugin`) on
+//! the original timing.
 //!
-//! The real effects are scripts for the special-effect plugin (PSX MIPS
-//! code with their own textures) and are not run. What is data here is
-//! when each part happens ([`tantalus_tools::battle_effects`], Memoria's
-//! `Sequence.seq`): the effect starts `hit` frames before the machine's
-//! `EffectApplied` (the HP change), the damage numbers wait for the
-//! `Figure` point and Thunder dims the scene for its `HoldDuration`. The
-//! shapes are drawn: flames that burst on the target, ice shards that
-//! gather and shatter, a bolt from above, rising green sparkles.
+//! When each part happens is data ([`tantalus_tools::battle_effects`],
+//! Memoria's `Sequence.seq`): the effect starts `hit` frames before the
+//! machine's `EffectApplied` (the HP change), the damage numbers wait for
+//! the `Figure` point and Thunder dims the scene for its `HoldDuration`.
+//! What is drawn is the plugin's: each effect gets a fresh plugin
+//! (`SFX_Play` with the battle's units as `SFX.InitBattleParty` gives
+//! them), steps one battle frame at a time (`SFX.UpdatePlugin` runs once
+//! per `BattleSubSystem`) under the view's camera, and its packets are
+//! drawn as `SFXRender` batches them, over the scene.
 //!
-//! Garnet's first summons (Shiva, Ifrit, Ramuh, full and short) draw the
-//! same shapes larger over every target. Their effects run far longer than
-//! the 40 frames the battle machine gives a command before its HP change,
-//! so an effect never starts before its command: it then lands after the
-//! HP change, and its numbers wait for its own `Figure` point.
+//! Garnet's summons run far longer than the 40 frames the battle machine
+//! gives a command before its HP change, so an effect never starts before
+//! its command: it then lands after the HP change, and its numbers wait
+//! for its own `Figure` point.
 //!
 //! The spells' own cameras ([`EffectLibrary`], `PLAY_CAMERA` in the
-//! effect's sequence stream) are played by `battle_camera_play`; a summon
-//! keeps the scene's camera, as its models are not drawn.
+//! effect's sequence stream) are played by `battle_camera_play` for the
+//! effects in [`EffectKind`]; a summon keeps the scene's camera.
 //!
-//! Other spells are not drawn.
+//! Effects that do not match the player's DLL are not drawn ([`is_drawn`]):
+//! 212 to 224, which the DLL itself does not play the same way twice, and
+//! eleven sword skills still to fix.
 
-use bevy::math::Vec3;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, PoisonError};
+
+use tantalus_assets::pc::battle_camera::PsxCamera;
+use tantalus_sfx::player::{Setup, Unit};
 use tantalus_tools::battle_effects::{EffectCameraPlay, EffectTiming, effect_camera_plays};
-use tantalus_tools::battle_stage::{BATTLE_TICKS_PER_SECOND, BattleStage, StageEvent};
+use tantalus_tools::battle_stage::{BATTLE_TICKS_PER_SECOND, BattleStage, StageEvent, StageModel};
 
-use crate::battle_raster::{BattleCamera, Blend, DrawState, Frame, Texture, ViewVertex};
+use crate::battle_raster::{BattleCamera, Blend, Frame, ScreenCorner, Texture};
 
-/// Which stand-in an effect id draws (`SpecialEffect` ids).
+/// The effects whose own cameras play (`SpecialEffect` ids): the first
+/// spells and summons, until the rest are checked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffectKind {
     Fire,
@@ -41,8 +49,7 @@ pub enum EffectKind {
     Ifrit,
     /// `Ramuh__Full` 186 / `__Short` 415.
     Ramuh,
-    /// `Special_Trance_Activate` 257 / `Special_Trance_End` 489: a stand-in
-    /// glow on the member until the effect scripts run.
+    /// `Special_Trance_Activate` 257 / `Special_Trance_End` 489.
     Trance,
 }
 
@@ -74,6 +81,8 @@ pub struct StageEffect {
     pub id: i32,
     pub caster: usize,
     pub targets: Vec<usize>,
+    /// An `Item` or `AutoPotion` command (`BTL_VFX_REQ.flgs` bit 2).
+    pub item: bool,
     pub timing: EffectTiming,
     /// Stage tick of the machine's `EffectApplied`.
     pub applied: f64,
@@ -90,13 +99,30 @@ impl StageEffect {
 }
 
 /// The effects' data (`ef<id>` TextAssets of `resources.assets`), read
-/// when first asked for: the cameras each effect plays.
+/// when first asked for: the cameras each effect plays, and the effects
+/// playing now.
 #[derive(Debug)]
 pub struct EffectLibrary {
     resources: std::path::PathBuf,
     cache: std::sync::Mutex<std::collections::HashMap<i32, std::sync::Arc<EffectCameras>>>,
     /// The plugin's per-effect flag words, read once.
     flags: std::sync::OnceLock<Vec<u16>>,
+    /// The plugin's data from the player's DLL, read once.
+    runtime: std::sync::OnceLock<Option<tantalus_sfx::SfxRuntime>>,
+    packages: Mutex<HashMap<i32, Option<Arc<Vec<u8>>>>>,
+    playing: Mutex<HashMap<PlayKey, Playing>>,
+    timings: Mutex<HashMap<(i32, bool), Option<EffectTiming>>>,
+}
+
+/// An effect on the stage: its id, caster and start tick.
+type PlayKey = (i32, usize, u64);
+
+/// One effect's plugin, `played` frames in, and its last frame.
+#[derive(Debug)]
+struct Playing {
+    run: Option<tantalus_sfx::player::EffectRun>,
+    played: u32,
+    list: Option<tantalus_sfx::render::RenderList>,
 }
 
 /// An effect's own cameras.
@@ -115,18 +141,99 @@ impl EffectLibrary {
             resources,
             cache: std::sync::Mutex::new(std::collections::HashMap::new()),
             flags: std::sync::OnceLock::new(),
+            runtime: std::sync::OnceLock::new(),
+            packages: Mutex::new(HashMap::new()),
+            playing: Mutex::new(HashMap::new()),
+            timings: Mutex::new(HashMap::new()),
         }
+    }
+
+    fn dll(&self) -> std::path::PathBuf {
+        self.resources
+            .with_file_name("Plugins")
+            .join("FF9SpecialEffectPlugin.dll")
+    }
+
+    fn runtime(&self) -> Option<&tantalus_sfx::SfxRuntime> {
+        self.runtime
+            .get_or_init(|| {
+                std::fs::read(self.dll())
+                    .ok()
+                    .and_then(tantalus_sfx::SfxRuntime::new)
+            })
+            .as_ref()
+    }
+
+    /// When the plugin's effect `id` reaches its first `Effect` and
+    /// `Figure` points and its end, in frames from `SFX_Play` (`None` when
+    /// it cannot play or has no `Effect` point). Played once per effect,
+    /// one player on one enemy.
+    pub fn plugin_timing(&self, id: i32, item: bool) -> Option<EffectTiming> {
+        if !is_drawn(id) {
+            return None;
+        }
+        let mut timings = self.timings.lock().unwrap_or_else(PoisonError::into_inner);
+        *timings.entry((id, item)).or_insert_with(|| {
+            let unit = |btl_id: u16, player: bool, z: i16| Unit {
+                btl_id,
+                player,
+                slot: 0,
+                serial: 0,
+                position: [0, 0, z],
+                base: [0, 0, z],
+                yaw: if player { 2048 } else { 0 },
+                height: 512,
+                radius: 256,
+                geo_radius: 256,
+                tar_bone: 0,
+            };
+            let setup = Setup {
+                units: vec![unit(1, true, -1500), unit(0x10, false, 500)],
+                caster: 0,
+                targets: vec![1],
+                item,
+                put: [0, 0],
+            };
+            let package = self.package(id)?;
+            let mut run = self.runtime()?.play(id, &package, &setup)?;
+            let camera = psx_camera(&BattleCamera::preset(0));
+            while run.frame() < MAX_FRAMES && run.step(&camera).is_some() {}
+            let events = run.events();
+            let hit = events.effect_points.first()?.0;
+            let figure = events.figure_points.first().map_or(hit, |point| point.0);
+            Some(EffectTiming {
+                hit,
+                figure: figure.max(hit),
+                length: run.frame().max(hit),
+                dim: None,
+            })
+        })
+    }
+
+    /// Effect `id`'s package (`None` when it cannot be read).
+    pub fn package(&self, id: i32) -> Option<Arc<Vec<u8>>> {
+        let mut packages = self.packages.lock().unwrap_or_else(PoisonError::into_inner);
+        packages
+            .entry(id)
+            .or_insert_with(|| {
+                use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
+                let name = format!("ef{id:03}");
+                let mut file = StandaloneSerialized::open(&self.resources).ok()?;
+                let (_, object) = file
+                    .text_assets()
+                    .ok()?
+                    .into_iter()
+                    .find(|(asset, _)| *asset == name)?;
+                Some(Arc::new(file.read_text_asset(&object).ok()?.script))
+            })
+            .clone()
     }
 
     /// Effect `id`'s flag word from `Plugins/FF9SpecialEffectPlugin.dll`
     /// beside `resources.assets` (0 when it cannot be read).
     pub fn flags(&self, id: i32) -> u16 {
         let flags = self.flags.get_or_init(|| {
-            let dll = self
-                .resources
-                .with_file_name("Plugins")
-                .join("FF9SpecialEffectPlugin.dll");
-            std::fs::read(dll)
+            std::fs::read(self.dll())
                 .ok()
                 .and_then(|bytes| tantalus_assets::pc::special_effect::plugin_effect_flags(&bytes))
                 .unwrap_or_default()
@@ -151,17 +258,9 @@ impl EffectLibrary {
     }
 
     fn read(&self, id: i32) -> Option<EffectCameras> {
-        use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
         use tantalus_assets::pc::special_effect::EffectFile;
-        let name = format!("ef{id:03}");
-        let mut file = StandaloneSerialized::open(&self.resources).ok()?;
-        let (_, object) = file
-            .text_assets()
-            .ok()?
-            .into_iter()
-            .find(|(asset, _)| *asset == name)?;
-        let bytes = file.read_text_asset(&object).ok()?.script;
-        let effect = EffectFile::parse(&bytes, &name).ok()?;
+        let bytes = self.package(id)?;
+        let effect = EffectFile::parse(&bytes, &format!("ef{id:03}")).ok()?;
         Some(EffectCameras {
             plays: effect_camera_plays(&effect, &bytes),
             forced: self.flags(id) & 8 != 0,
@@ -169,17 +268,26 @@ impl EffectLibrary {
     }
 }
 
-/// Every party command with a known effect, in stage order.
+/// Every party command with a known effect, in stage order, on the
+/// sequence timing ([`stage_effects_with`] without the plugin).
 pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
+    stage_effects_with(stage, None)
+}
+
+/// Every party command with a known effect, in stage order. With the
+/// plugin (`library`), a spell's HP change and numbers wait for the
+/// plugin's own `Effect` and `Figure` points (callbacks 23 and 24,
+/// `SFX.BattleCallback`), as in the Steam game, where `ExecVfxCommand`
+/// runs from the plugin; Memoria's `Sequence.seq` timing is for its
+/// rewritten effects and is kept only when the plugin cannot play one.
+pub fn stage_effects_with(
+    stage: &BattleStage,
+    library: Option<&EffectLibrary>,
+) -> Vec<StageEffect> {
     let party = stage
         .units
         .iter()
-        .take_while(|unit| {
-            matches!(
-                unit.model,
-                tantalus_tools::battle_stage::StageModel::Player { .. }
-            )
-        })
+        .take_while(|unit| matches!(unit.model, StageModel::Player { .. }))
         .count();
     let mut out = Vec::new();
     for (tick, frame) in stage.frames.iter().enumerate() {
@@ -211,6 +319,7 @@ pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
                         id,
                         caster: *unit,
                         targets: vec![*unit],
+                        item: false,
                         timing: *timing,
                         applied: (tick + timing.hit as usize) as f64,
                         start: tick as f64,
@@ -218,13 +327,23 @@ pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
                 }
                 continue;
             }
-            let Some((id, timing)) =
+            let Some((id, mut timing)) =
                 stage
                     .effects
                     .effect_of(*cmd_no, *sub_no, targets.len(), *short_summon)
             else {
                 continue;
             };
+            let item = matches!(
+                *cmd_no,
+                tantalus_legacy::battle::queue::cmd::ITEM
+                    | tantalus_legacy::battle::queue::cmd::AUTO_POTION
+            );
+            if let Some(points) = library.and_then(|library| library.plugin_timing(id, item)) {
+                timing.hit = points.hit;
+                timing.figure = points.figure;
+                timing.length = points.length;
+            }
             let applied = stage.frames[tick..]
                 .iter()
                 .enumerate()
@@ -240,6 +359,7 @@ pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
                 id,
                 caster: *unit,
                 targets: targets.clone(),
+                item,
                 timing,
                 applied: applied as f64,
                 start: (applied as f64 - f64::from(timing.hit)).max(tick as f64),
@@ -299,368 +419,276 @@ pub fn dim(frame: &mut Frame, intensity: f32) {
     frame.rect(0, 0, width, height, [0, 0, 0], 1.0 - intensity.max(0.0));
 }
 
-/// Where a unit is now: its feet and height (world, y up).
+/// Where a unit is now: its feet, height and facing (world, y up).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct UnitSpot {
     pub feet: [f32; 3],
     pub height: f32,
+    /// Degrees about y.
+    pub turn: f32,
+}
+
+/// Effects whose plugin run does not match the player's DLL
+/// (`tantalus-sfx` `--test plugin sweep`): 212 to 224, where the DLL does
+/// not repeat itself, and the sword skills Darkside, Minus Strike, Iai
+/// Strike, Thunder Slash (both levels), Bio Sword, Lancer and Photon, where
+/// the port opens one PSX address window more than the DLL from frame 57.
+const NOT_MATCHING: [i32; 11] = [188, 189, 190, 191, 221, 299, 401, 409, 410, 411, 412];
+
+/// The effects the plugin draws: those that match the DLL.
+pub fn is_drawn(id: i32) -> bool {
+    !(212..=224).contains(&id) && !NOT_MATCHING.contains(&id)
+}
+
+/// Frames an effect may play before it is cut off.
+const MAX_FRAMES: u32 = 3000;
+
+/// PSX battle space (y down) from the view's world (y up).
+fn psx(point: [f32; 3]) -> [i16; 3] {
+    let clamp = |value: f32| value.round().clamp(-32768.0, 32767.0) as i16;
+    [clamp(point[0]), clamp(-point[1]), clamp(point[2])]
+}
+
+/// The plugin's units (`btl_list` order: the party, then the enemies,
+/// eight at most) from the stage and where they are now.
+pub fn plugin_units(stage: &BattleStage, spots: &[Option<UnitSpot>]) -> Vec<Unit> {
+    let party = stage
+        .units
+        .iter()
+        .take_while(|unit| matches!(unit.model, StageModel::Player { .. }))
+        .count();
+    stage
+        .units
+        .iter()
+        .enumerate()
+        .take(8)
+        .map(|(index, unit)| {
+            let player = index < party;
+            let (slot, serial) = match unit.model {
+                StageModel::Player { character, serial } => (character, serial),
+                _ => (index.saturating_sub(party) as u8, 0),
+            };
+            let spot = spots.get(index).copied().flatten();
+            let base = psx(unit.position);
+            Unit {
+                btl_id: if player {
+                    1 << index
+                } else {
+                    0x10 << index.saturating_sub(party).min(11)
+                },
+                player,
+                slot,
+                serial,
+                position: spot.map_or(base, |spot| psx(spot.feet)),
+                base,
+                // `rot.eulerAngles.y * 11.38`, 4096 to a turn.
+                yaw: (spot.map_or(unit.turn, |spot| spot.turn) * 4096.0 / 360.0).round() as i16,
+                height: spot.map_or(0, |spot| spot.height.round().clamp(0.0, 32767.0) as i16),
+                // `SFX.InitBtlData`: `radius_collision` (256 for a player),
+                // and an enemy's `geo_radius` the first enemy's
+                // `radius_effect`.
+                radius: if player {
+                    256
+                } else {
+                    stage.radii.get(index).copied().unwrap_or(0.0) as i32
+                },
+                geo_radius: if player { 256 } else { stage.enemy_radius },
+                tar_bone: stage.tar_bones.get(index).copied().flatten().unwrap_or(0),
+            }
+        })
+        .collect()
+}
+
+/// The PSX camera the view's camera is (`battle_camera_play::unity_camera`
+/// undone): what the plugin projects with.
+pub fn psx_camera(camera: &BattleCamera) -> PsxCamera {
+    let v = |row: usize, column: usize| camera.view.row(row)[column];
+    let r = |value: f32| (value * 4096.0).round() as i32;
+    let t = |value: f32| value.round() as i32;
+    PsxCamera {
+        rotation: [
+            [r(v(0, 0)), r(-v(0, 1)), r(v(0, 2))],
+            [r(-v(1, 0)), r(v(1, 1)), r(-v(1, 2))],
+            [r(-v(2, 0)), r(v(2, 1)), r(-v(2, 2))],
+        ],
+        translation: [t(v(0, 3)), t(-v(1, 3)), t(-v(2, 3))],
+        h: camera.near.round() as i32,
+    }
 }
 
 /// Draws the effects running at `seconds`. `spots` are the units' places
 /// this frame (`None` for units not drawn).
+///
+/// Each effect's plugin is stepped up to the frame `seconds` is in, and
+/// played again from its start when the view goes back.
 pub fn draw_effects(
     frame: &mut Frame,
     camera: &BattleCamera,
+    library: &EffectLibrary,
+    stage: &BattleStage,
     effects: &[StageEffect],
     spots: &[Option<UnitSpot>],
     seconds: f64,
 ) {
+    let units = plugin_units(stage, spots);
+    let psx_camera = psx_camera(camera);
+    let mut playing = library
+        .playing
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
     for effect in effects {
-        let Some(kind) = EffectKind::of(effect.id) else {
+        let age = effect.age(seconds);
+        let key = (effect.id, effect.caster, effect.start.to_bits());
+        if age < 0.0 || !is_drawn(effect.id) {
+            playing.remove(&key);
             continue;
+        }
+        let target = (age.floor() as u32).saturating_add(1).min(MAX_FRAMES);
+        if playing.get(&key).is_some_and(|play| play.played > target) {
+            playing.remove(&key);
+        }
+        let play = playing.entry(key).or_insert_with(|| Playing {
+            run: start(library, effect, &units, stage.put),
+            played: 0,
+            list: None,
+        });
+        if play.played < target
+            && let Some(run) = play.run.as_mut()
+        {
+            run.set_units(&units);
+        }
+        while play.played < target {
+            let Some(run) = play.run.as_mut() else {
+                play.list = None;
+                break;
+            };
+            match run.step(&psx_camera) {
+                Some(list) => {
+                    play.list = Some(list);
+                    play.played += 1;
+                    dump(effect, play.played, &units, &psx_camera, stage.put);
+                }
+                None => {
+                    play.run = None;
+                    play.list = None;
+                }
+            }
+        }
+        if let Some(list) = &play.list {
+            draw_list(frame, list);
+        }
+    }
+}
+
+/// `TANTALUS_SFX_DUMP=<file>`: appends each played frame's input (the
+/// effect, the units and the camera) as a JSON line, for the DLL
+/// comparison (`tests::the_battle_frames_match_the_dll`).
+fn dump(effect: &StageEffect, frame: u32, units: &[Unit], camera: &PsxCamera, put: [i16; 2]) {
+    static FILE: std::sync::OnceLock<Option<Mutex<std::fs::File>>> = std::sync::OnceLock::new();
+    let Some(file) = FILE.get_or_init(|| {
+        let path = std::env::var_os("TANTALUS_SFX_DUMP")?;
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .ok()
+            .map(Mutex::new)
+    }) else {
+        return;
+    };
+    let units: Vec<_> = units
+        .iter()
+        .map(|unit| {
+            serde_json::json!([
+                unit.btl_id,
+                unit.player,
+                unit.slot,
+                unit.serial,
+                unit.position,
+                unit.base,
+                unit.yaw,
+                unit.height,
+                unit.radius,
+                unit.tar_bone,
+                unit.geo_radius
+            ])
+        })
+        .collect();
+    let line = serde_json::json!({
+        "id": effect.id,
+        "caster": effect.caster,
+        "targets": effect.targets,
+        "item": effect.item,
+        "start": effect.start,
+        "frame": frame,
+        "put": put,
+        "units": units,
+        "camera": [camera.rotation, camera.translation, camera.h],
+    });
+    use std::io::Write;
+    let mut file = file.lock().unwrap_or_else(PoisonError::into_inner);
+    let _ = writeln!(file, "{line}");
+}
+
+/// A fresh plugin playing `effect` (`None` without the plugin or its
+/// package, or when it faults).
+fn start(
+    library: &EffectLibrary,
+    effect: &StageEffect,
+    units: &[Unit],
+    put: [i16; 2],
+) -> Option<tantalus_sfx::player::EffectRun> {
+    if effect.caster >= units.len() {
+        return None;
+    }
+    let setup = Setup {
+        units: units.to_vec(),
+        caster: effect.caster,
+        targets: effect
+            .targets
+            .iter()
+            .copied()
+            .filter(|target| *target < units.len())
+            .collect(),
+        item: effect.item,
+        put,
+    };
+    let package = library.package(effect.id)?;
+    library.runtime()?.play(effect.id, &package, &setup)
+}
+
+/// One frame's packets, in `SFXRender`'s order, over the frame (PSX screen
+/// 320 x 220 around 160, 120, as [`Frame::project`] places points).
+pub fn draw_list(frame: &mut Frame, list: &tantalus_sfx::render::RenderList) {
+    use tantalus_sfx::render::Blend as PsxBlend;
+    let (sx, sy) = (
+        frame.width as f32 / crate::battle_raster::PSX_WIDTH,
+        frame.height as f32 / crate::battle_raster::PSX_HEIGHT,
+    );
+    for batch in &list.batches {
+        let blend = match batch.blend {
+            PsxBlend::Opaque => Blend::Opaque,
+            PsxBlend::Add => Blend::Add,
+            PsxBlend::Subtract => Blend::Subtract,
         };
-        let age = effect.age(seconds) as f32;
-        let length = effect.timing.length.max(effect.timing.hit + 1) as f32;
-        if !(0.0..length).contains(&age) {
-            continue;
-        }
-        let hit = effect.timing.hit as f32;
-        for (order, target) in effect.targets.iter().enumerate() {
-            let Some(spot) = spots.get(*target).copied().flatten() else {
-                continue;
-            };
-            let mut sprites = Vec::new();
-            let seed = (*target as u32).wrapping_mul(2_654_435_761) ^ (order as u32);
-            // A summon: the same shapes, larger.
-            let big = UnitSpot {
-                feet: spot.feet,
-                height: spot.height.max(400.0) * 2.0,
-            };
-            match kind {
-                EffectKind::Fire => fire(&mut sprites, spot, age, hit, length, seed),
-                EffectKind::Blizzard => blizzard(&mut sprites, spot, age, hit, length, seed),
-                EffectKind::Thunder => thunder(&mut sprites, spot, age, hit, length, seed),
-                EffectKind::Cure => cure(&mut sprites, spot, age, hit, length, seed),
-                EffectKind::Shiva => blizzard(&mut sprites, big, age, hit, length, seed),
-                EffectKind::Ifrit => fire(&mut sprites, big, age, hit, length, seed),
-                EffectKind::Ramuh => thunder(&mut sprites, big, age, hit, length, seed),
-                EffectKind::Trance => trance(&mut sprites, spot, age, hit, length, seed),
-            }
-            for sprite in sprites {
-                draw_sprite(frame, camera, &sprite);
-            }
-        }
-    }
-}
-
-/// A camera-facing quad.
-#[derive(Debug, Clone, Copy)]
-struct Sprite {
-    center: Vec3,
-    /// Half width and half height (world units).
-    size: [f32; 2],
-    /// Rotation about the view axis (radians).
-    roll: f32,
-    shape: Shape,
-    /// Peak color (0 to 1), already scaled by its fade.
-    color: [f32; 3],
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Shape {
-    /// Soft round glow.
-    Glow,
-    /// Four-pointed star.
-    Star,
-    /// Long thin diamond.
-    Shard,
-}
-
-const TEXTURE_SIZE: usize = 32;
-
-/// The shape's coverage at texel `(x, y)`, 0 to 1.
-fn coverage(shape: Shape, x: usize, y: usize) -> f32 {
-    let half = TEXTURE_SIZE as f32 / 2.0;
-    let u = (x as f32 + 0.5 - half) / half;
-    let v = (y as f32 + 0.5 - half) / half;
-    match shape {
-        Shape::Glow => (1.0 - (u * u + v * v).sqrt()).max(0.0).powf(1.5),
-        Shape::Star => {
-            let core = (1.0 - (u * u + v * v).sqrt() * 2.0).max(0.0);
-            let arms = (1.0 - u.abs() * 8.0).max(0.0) * (1.0 - v.abs())
-                + (1.0 - v.abs() * 8.0).max(0.0) * (1.0 - u.abs());
-            (core + arms).min(1.0)
-        }
-        Shape::Shard => (1.0 - u.abs() * 3.0 - v.abs()).clamp(0.0, 0.5) * 2.0,
-    }
-}
-
-fn draw_sprite(frame: &mut Frame, camera: &BattleCamera, sprite: &Sprite) {
-    let peak = sprite.color.map(|channel| channel.clamp(0.0, 1.0));
-    if peak.iter().all(|channel| *channel < 0.01) {
-        return;
-    }
-    let mut rgba = vec![0u8; TEXTURE_SIZE * TEXTURE_SIZE * 4];
-    for y in 0..TEXTURE_SIZE {
-        for x in 0..TEXTURE_SIZE {
-            let amount = coverage(sprite.shape, x, y);
-            let at = (y * TEXTURE_SIZE + x) * 4;
-            for channel in 0..3 {
-                rgba[at + channel] = (peak[channel] * amount * 255.0) as u8;
-            }
-            rgba[at + 3] = 255;
-        }
-    }
-    let texture = Texture {
-        width: TEXTURE_SIZE,
-        height: TEXTURE_SIZE,
-        rgba: &rgba,
-        clamp: true,
-    };
-    let center = camera.to_view(sprite.center.to_array());
-    let (sin, cos) = sprite.roll.sin_cos();
-    let right = Vec3::new(cos, sin, 0.0) * sprite.size[0];
-    let up = Vec3::new(-sin, cos, 0.0) * sprite.size[1];
-    let corner = |sx: f32, sy: f32, uv: [f32; 2]| ViewVertex {
-        position: center + right * sx + up * sy,
-        uv,
-    };
-    let quad = [
-        corner(-1.0, -1.0, [0.0, 0.0]),
-        corner(1.0, -1.0, [1.0, 0.0]),
-        corner(1.0, 1.0, [1.0, 1.0]),
-        corner(-1.0, 1.0, [0.0, 1.0]),
-    ];
-    let state = DrawState {
-        blend: Blend::Screen,
-        depth_test: true,
-        depth_write: false,
-        cull_back: false,
-    };
-    frame.draw(camera, [quad[0], quad[1], quad[2]], Some(texture), state);
-    frame.draw(camera, [quad[0], quad[2], quad[3]], Some(texture), state);
-}
-
-/// A small deterministic hash to scatter the sprites.
-fn scatter(seed: u32, index: u32) -> f32 {
-    let mut value = seed ^ index.wrapping_mul(0x9E37_79B9);
-    value ^= value >> 15;
-    value = value.wrapping_mul(0x2C1B_3C6D);
-    value ^= value >> 12;
-    value = value.wrapping_mul(0x297A_2D39);
-    value ^= value >> 15;
-    (value & 0xFFFF) as f32 / 65535.0
-}
-
-/// 0 to 1 over `[from, to]`, clamped.
-fn ramp(value: f32, from: f32, to: f32) -> f32 {
-    ((value - from) / (to - from).max(1e-3)).clamp(0.0, 1.0)
-}
-
-fn scale(color: [f32; 3], amount: f32) -> [f32; 3] {
-    color.map(|channel| channel * amount)
-}
-
-/// Sparks gather on the target, then flames burst up and out and fade.
-fn fire(out: &mut Vec<Sprite>, spot: UnitSpot, age: f32, hit: f32, length: f32, seed: u32) {
-    let middle = Vec3::from_array(spot.feet) + Vec3::Y * spot.height * 0.45;
-    let radius = (spot.height * 0.6).max(180.0);
-    if age < hit {
-        let gather = ramp(age, 0.0, hit);
-        for index in 0..6 {
-            let angle = scatter(seed, index) * std::f32::consts::TAU;
-            let away = radius * 1.4 * (1.0 - gather);
-            out.push(Sprite {
-                center: middle + Vec3::new(angle.cos() * away, 0.0, angle.sin() * away),
-                size: [60.0; 2],
-                roll: 0.0,
-                shape: Shape::Glow,
-                color: scale([1.0, 0.55, 0.15], 0.6 + 0.4 * gather),
+        let texture = batch
+            .page
+            .and_then(|page| list.pages.get(page))
+            .map(|page| Texture {
+                width: 256,
+                height: 256,
+                rgba: &page.rgba,
+                clamp: true,
             });
-        }
-        return;
-    }
-    let burst = age - hit;
-    let fade = 1.0 - ramp(age, hit + (length - hit) * 0.4, length);
-    let grow = ramp(burst, 0.0, 6.0);
-    out.push(Sprite {
-        center: middle,
-        size: [radius * (0.6 + 0.8 * grow); 2],
-        roll: 0.0,
-        shape: Shape::Glow,
-        color: scale(
-            [1.0, 0.75, 0.35],
-            fade * (1.0 - 0.5 * ramp(burst, 4.0, 14.0)),
-        ),
-    });
-    for index in 0..14 {
-        let angle = scatter(seed, index) * std::f32::consts::TAU;
-        let speed = 0.5 + scatter(seed, index + 40);
-        let spread = radius * grow * speed;
-        let rise = burst * (12.0 + 18.0 * scatter(seed, index + 80));
-        let size = radius
-            * (0.35 + 0.25 * scatter(seed, index + 120))
-            * (1.0 - 0.4 * ramp(burst, 0.0, length - hit));
-        out.push(Sprite {
-            center: middle
-                + Vec3::new(
-                    angle.cos() * spread,
-                    rise - radius * 0.3,
-                    angle.sin() * spread,
-                ),
-            size: [size, size * 1.3],
-            roll: 0.0,
-            shape: Shape::Glow,
-            color: scale([1.0, 0.35 + 0.3 * scatter(seed, index + 160), 0.08], fade),
-        });
-    }
-}
-
-/// Shards form in a ring above the target and close in, then shatter out
-/// with a white flash.
-fn blizzard(out: &mut Vec<Sprite>, spot: UnitSpot, age: f32, hit: f32, length: f32, seed: u32) {
-    let middle = Vec3::from_array(spot.feet) + Vec3::Y * spot.height * 0.5;
-    let radius = (spot.height * 0.7).max(200.0);
-    let count = 10;
-    if age < hit {
-        let form = ramp(age, 0.0, hit * 0.4);
-        let close = ramp(age, hit * 0.4, hit);
-        for index in 0..count {
-            let angle = index as f32 / count as f32 * std::f32::consts::TAU + age * 0.05;
-            let away = radius * (1.5 - 1.1 * close);
-            let lift = radius * 0.8 * (1.0 - close) + (scatter(seed, index) - 0.5) * radius * 0.6;
-            out.push(Sprite {
-                center: middle + Vec3::new(angle.cos() * away, lift, angle.sin() * away),
-                size: [45.0 * form, 130.0 * form],
-                roll: angle,
-                shape: Shape::Shard,
-                color: scale([0.6, 0.85, 1.0], 0.5 + 0.5 * close),
+        for triangle in &batch.triangles {
+            let corners = triangle.map(|corner| ScreenCorner {
+                xy: [corner.xy[0] * sx, corner.xy[1] * sy],
+                // Page rows run top-down; a `Texture`'s `v = 0` is its last.
+                uv: [corner.uv[0] / 256.0, 1.0 - corner.uv[1] / 256.0],
+                color: corner.color,
             });
+            frame.draw_screen(corners, texture, blend);
         }
-        return;
-    }
-    let burst = age - hit;
-    let fade = 1.0 - ramp(burst, 0.0, length - hit);
-    out.push(Sprite {
-        center: middle,
-        size: [radius * (1.0 + 0.3 * ramp(burst, 0.0, 4.0)); 2],
-        roll: 0.0,
-        shape: Shape::Glow,
-        color: scale([0.85, 0.95, 1.0], 1.0 - ramp(burst, 0.0, 8.0)),
-    });
-    for index in 0..count * 2 {
-        let angle = scatter(seed, index + 200) * std::f32::consts::TAU;
-        let away = radius * 0.4 + burst * (25.0 + 20.0 * scatter(seed, index + 240));
-        let lift = (scatter(seed, index + 280) - 0.4) * radius - burst * burst * 0.8;
-        out.push(Sprite {
-            center: middle + Vec3::new(angle.cos() * away, lift, angle.sin() * away),
-            size: [30.0, 90.0],
-            roll: angle + burst * 0.3,
-            shape: Shape::Shard,
-            color: scale([0.6, 0.85, 1.0], fade),
-        });
-    }
-}
-
-/// A charge above the target, then a jagged bolt down onto it and a flash.
-fn thunder(out: &mut Vec<Sprite>, spot: UnitSpot, age: f32, hit: f32, length: f32, seed: u32) {
-    let feet = Vec3::from_array(spot.feet);
-    let middle = feet + Vec3::Y * spot.height * 0.5;
-    let sky = feet + Vec3::Y * (spot.height + 1600.0);
-    if age < hit {
-        let charge = ramp(age, 0.0, hit);
-        out.push(Sprite {
-            center: sky - Vec3::Y * 600.0,
-            size: [200.0 * charge; 2],
-            roll: 0.0,
-            shape: Shape::Star,
-            color: scale([0.85, 0.85, 1.0], charge),
-        });
-        return;
-    }
-    let burst = age - hit;
-    let fade = 1.0 - ramp(burst, 0.0, length - hit);
-    // Strikes: on for two frames out of three for the first 9 frames.
-    let striking = burst < 9.0 && (burst as u32) % 3 != 2;
-    if striking {
-        let steps = 9;
-        let mut previous = sky;
-        let flicker = burst as u32;
-        for step in 1..=steps {
-            let t = step as f32 / steps as f32;
-            let jitter = if step == steps { 0.0 } else { 160.0 };
-            let point = sky.lerp(middle, t)
-                + Vec3::new(
-                    (scatter(seed ^ flicker, step) - 0.5) * jitter * 2.0,
-                    0.0,
-                    (scatter(seed ^ flicker, step + 30) - 0.5) * jitter,
-                );
-            let mid = (previous + point) * 0.5;
-            let along = point - previous;
-            for (width, color) in [(70.0, [0.35, 0.4, 1.0]), (28.0, [1.0, 1.0, 1.0])] {
-                out.push(Sprite {
-                    center: mid,
-                    size: [width, along.length() * 0.6],
-                    roll: -along.x.atan2(along.y),
-                    shape: Shape::Glow,
-                    color,
-                });
-            }
-            previous = point;
-        }
-    }
-    out.push(Sprite {
-        center: middle,
-        size: [spot.height.max(300.0) * (0.8 + 0.4 * ramp(burst, 0.0, 6.0)); 2],
-        roll: 0.0,
-        shape: Shape::Star,
-        color: scale(
-            [0.8, 0.85, 1.0],
-            fade * (1.0 - 0.6 * ramp(burst, 2.0, 10.0)),
-        ),
-    });
-}
-
-/// Green-white sparkles rise around the target inside a soft glow.
-fn cure(out: &mut Vec<Sprite>, spot: UnitSpot, age: f32, hit: f32, length: f32, seed: u32) {
-    let feet = Vec3::from_array(spot.feet);
-    let radius = (spot.height * 0.5).max(160.0);
-    let fade_in = ramp(age, 0.0, hit.max(4.0));
-    let fade = fade_in * (1.0 - ramp(age, length * 0.6, length));
-    out.push(Sprite {
-        center: feet + Vec3::Y * spot.height * 0.5,
-        size: [radius * 1.4, spot.height.max(300.0) * 0.8],
-        roll: 0.0,
-        shape: Shape::Glow,
-        color: scale([0.35, 0.8, 0.45], fade * 0.8),
-    });
-    for index in 0..16 {
-        let angle = scatter(seed, index) * std::f32::consts::TAU + age * 0.12;
-        let cycle = (age / 24.0 + scatter(seed, index + 50)).fract();
-        let away = radius * (0.5 + 0.5 * scatter(seed, index + 90));
-        out.push(Sprite {
-            center: feet
-                + Vec3::new(
-                    angle.cos() * away,
-                    cycle * spot.height.max(300.0) * 1.3,
-                    angle.sin() * away,
-                ),
-            size: [70.0; 2],
-            roll: 0.0,
-            shape: Shape::Star,
-            color: scale([0.75, 1.0, 0.8], fade * (1.0 - cycle)),
-        });
-    }
-}
-
-/// [`cure`]'s rising glow in the Trance gauge's pink.
-fn trance(out: &mut Vec<Sprite>, spot: UnitSpot, age: f32, hit: f32, length: f32, seed: u32) {
-    let start = out.len();
-    cure(out, spot, age, hit, length, seed);
-    for sprite in &mut out[start..] {
-        let [r, g, b] = sprite.color;
-        let level = r.max(g).max(b);
-        sprite.color = [level, level * 0.45, level * 0.75];
     }
 }
 
@@ -744,6 +772,7 @@ mod tests {
             id: 3,
             caster: 0,
             targets: vec![1],
+            item: false,
             timing: EffectTiming {
                 hit: 11,
                 figure: 25,
@@ -767,31 +796,261 @@ mod tests {
     }
 
     #[test]
-    fn a_fire_burst_lights_the_target() {
-        let stage = fire_stage();
+    fn the_psx_camera_round_trips() {
+        for preset in 0..3 {
+            let camera = BattleCamera::preset(preset);
+            let back = crate::battle_camera_play::unity_camera(&psx_camera(&camera));
+            let (a, b) = (camera.view.to_cols_array(), back.view.to_cols_array());
+            for (a, b) in a.iter().zip(b) {
+                assert!((a - b).abs() < 1.0, "{a} {b}");
+            }
+            assert_eq!(back.near, camera.near);
+        }
+    }
+
+    /// The player's game (`TANTALUS_FF9`, or the Steam install).
+    fn install() -> std::path::PathBuf {
+        std::env::var_os("TANTALUS_FF9").map_or_else(
+            || std::path::PathBuf::from("E:/SteamLibrary/steamapps/common/FINAL FANTASY IX"),
+            std::path::PathBuf::from,
+        )
+    }
+
+    #[test]
+    fn the_plugin_draws_fire_on_the_target() {
+        let resources = install().join("x64/FF9_Data/resources.assets");
+        if !resources.exists() {
+            eprintln!("skipped: no game data");
+            return;
+        }
+        let library = EffectLibrary::new(resources);
+        let mut stage = fire_stage();
+        stage.units[0].position = [0.0, 0.0, 1000.0];
+        stage.units[1] = unit(StageModel::Enemy {
+            geo: 0,
+            idle: 0,
+            hit: 0,
+            death: 0,
+        });
+        stage.units[1].position = [0.0, 0.0, -1000.0];
         let effects = stage_effects(&stage);
         let camera = BattleCamera::preset(0);
-        let spots = vec![
-            None,
-            Some(UnitSpot {
-                feet: [0.0, 0.0, 400.0],
-                height: 600.0,
-            }),
-        ];
-        let blank = Frame::new(160, 110, [0, 0, 0, 255]);
-        let mut frame = blank.clone();
-        draw_effects(
-            &mut frame,
-            &camera,
-            &effects,
-            &spots,
-            44.0 / BATTLE_TICKS_PER_SECOND,
-        );
+        let spots: Vec<_> = stage
+            .units
+            .iter()
+            .map(|unit| {
+                Some(UnitSpot {
+                    feet: unit.position,
+                    height: 600.0,
+                    turn: 0.0,
+                })
+            })
+            .collect();
+        let blank = Frame::new(320, 220, [0, 0, 0, 255]);
         let lit = |frame: &Frame| frame.rgba.chunks(4).filter(|pixel| pixel[0] > 40).count();
-        assert!(lit(&frame) > 100, "lit {}", lit(&frame));
+        let at = |frame: f64| (effects[0].start + frame) / BATTLE_TICKS_PER_SECOND;
+        let draw = |seconds: f64| {
+            let mut frame = blank.clone();
+            draw_effects(
+                &mut frame, &camera, &library, &stage, &effects, &spots, seconds,
+            );
+            frame
+        };
         // Before the cast nothing is drawn.
-        let mut early = blank.clone();
-        draw_effects(&mut early, &camera, &effects, &spots, 1.0);
-        assert_eq!(lit(&early), 0);
+        assert_eq!(lit(&draw(at(-1.0))), 0);
+        let most = (0..120)
+            .step_by(4)
+            .map(|frame| lit(&draw(at(f64::from(frame)))))
+            .max()
+            .unwrap_or(0);
+        assert!(most > 500, "lit {most}");
+    }
+
+    /// A battle's effect frames (`TANTALUS_SFX_DUMP`, written by a
+    /// capture) replayed on the player's own DLL and on the plugin, with
+    /// the same units and camera each frame: the render lists must match,
+    /// and the frames in `TANTALUS_SFX_FRAMES` are drawn side by side
+    /// (plugin left, DLL right) into `TANTALUS_SFX_OUT`.
+    #[cfg(feature = "dll-oracle")]
+    #[test]
+    #[ignore = "needs the player's FF9SpecialEffectPlugin.dll and a dump"]
+    fn the_battle_frames_match_the_dll() {
+        use tantalus_sfx::oracle::{INIT_PARAM_SIZE, Oracle, REQUEST_SIZE};
+        let var = |name: &str| std::env::var(name).unwrap_or_default();
+        let wanted: i32 = var("TANTALUS_SFX_EFFECT").parse().unwrap_or(0);
+        let shots: Vec<u32> = var("TANTALUS_SFX_FRAMES")
+            .split(',')
+            .filter_map(|frame| frame.parse().ok())
+            .collect();
+        let out = std::path::PathBuf::from(var("TANTALUS_SFX_OUT"));
+        let lines: Vec<serde_json::Value> = std::fs::read_to_string(var("TANTALUS_SFX_DUMP"))
+            .expect("dump")
+            .lines()
+            .filter_map(|line| serde_json::from_str(line).ok())
+            .filter(|line: &serde_json::Value| line["id"] == wanted)
+            .collect();
+        assert!(!lines.is_empty(), "no frames of effect {wanted}");
+        // The first play of the effect only.
+        let start = lines[0]["start"].clone();
+        let lines: Vec<_> = lines
+            .into_iter()
+            .filter(|line| line["start"] == start)
+            .collect();
+        let int = |value: &serde_json::Value| value.as_i64().unwrap_or(0);
+        let units = |line: &serde_json::Value| -> Vec<Unit> {
+            line["units"]
+                .as_array()
+                .expect("units")
+                .iter()
+                .map(|unit| {
+                    let v3 = |value: &serde_json::Value| {
+                        [0, 1, 2].map(|index| int(&value[index]) as i16)
+                    };
+                    Unit {
+                        btl_id: int(&unit[0]) as u16,
+                        player: unit[1].as_bool().unwrap_or(false),
+                        slot: int(&unit[2]) as u8,
+                        serial: int(&unit[3]) as u8,
+                        position: v3(&unit[4]),
+                        base: v3(&unit[5]),
+                        yaw: int(&unit[6]) as i16,
+                        height: int(&unit[7]) as i16,
+                        radius: int(&unit[8]) as i32,
+                        geo_radius: int(&unit[10]) as i32,
+                        tar_bone: int(&unit[9]) as u8,
+                    }
+                })
+                .collect()
+        };
+        let camera = |line: &serde_json::Value| {
+            let camera = &line["camera"];
+            PsxCamera {
+                rotation: [0, 1, 2]
+                    .map(|row| [0, 1, 2].map(|column| int(&camera[0][row][column]) as i32)),
+                translation: [0, 1, 2].map(|index| int(&camera[1][index]) as i32),
+                h: int(&camera[2]) as i32,
+            }
+        };
+        let first = &lines[0];
+        let setup = Setup {
+            units: units(first),
+            caster: int(&first["caster"]) as usize,
+            targets: first["targets"]
+                .as_array()
+                .expect("targets")
+                .iter()
+                .map(|target| int(target) as usize)
+                .collect(),
+            item: first["item"].as_bool().unwrap_or(false),
+            put: [int(&first["put"][0]) as i16, int(&first["put"][1]) as i16],
+        };
+        let library = EffectLibrary::new(install().join("x64/FF9_Data/resources.assets"));
+        let package = library.package(wanted).expect("package");
+        let mut ours = library
+            .runtime()
+            .expect("plugin")
+            .play(wanted, &package, &setup)
+            .expect("start");
+        let mut theirs = Oracle::load(&library.dll()).expect("dll");
+        theirs.use_battle_host(&setup.units);
+        let param: [u8; INIT_PARAM_SIZE] = tantalus_sfx::player::init_param(&setup)
+            .try_into()
+            .expect("param");
+        let request: [u8; REQUEST_SIZE] = tantalus_sfx::player::request(&setup)
+            .try_into()
+            .expect("request");
+        theirs.init_battle(&param).expect("init");
+        theirs.play(wanted, &package, &request).expect("play");
+        let mut same = 0;
+        for line in &lines {
+            let frame = int(&line["frame"]) as u32;
+            let (units, camera) = (units(line), camera(line));
+            ours.set_units(&units);
+            theirs.set_units(&units);
+            theirs.set_camera(&camera);
+            let mine = ours.step(&camera);
+            let dll = theirs
+                .frame()
+                .expect("frame")
+                .and_then(|prims| theirs.render(wanted, &prims));
+            if mine != dll {
+                let describe = |list: &Option<tantalus_sfx::render::RenderList>| {
+                    list.as_ref().map(|list| {
+                        list.batches
+                            .iter()
+                            .map(|batch| {
+                                let first = batch.triangles.first().map(|t| t[0]);
+                                format!(
+                                    "{:?}/{:?}/{} {:?}",
+                                    batch.blend,
+                                    batch.page,
+                                    batch.triangles.len(),
+                                    first
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                };
+                if let (Some(a), Some(b)) = (&mine, &dll) {
+                    for (index, (x, y)) in a.pages.iter().zip(&b.pages).enumerate() {
+                        let differ = x.rgba.iter().zip(&y.rgba).filter(|(p, q)| p != q).count();
+                        let first = x.rgba.iter().zip(&y.rgba).position(|(p, q)| p != q);
+                        println!("page {index}: {differ} bytes differ, first {first:?}");
+                    }
+                    for (x, y) in a.batches.iter().zip(&b.batches) {
+                        let at = x
+                            .triangles
+                            .iter()
+                            .zip(&y.triangles)
+                            .position(|(p, q)| p != q);
+                        if let Some(at) = at {
+                            println!("tri {at}: {:?} vs {:?}", x.triangles[at], y.triangles[at]);
+                        }
+                    }
+                }
+                panic!(
+                    "frame {frame}: the render lists differ
+port {:#?}
+dll  {:#?}",
+                    describe(&mine),
+                    describe(&dll)
+                );
+            }
+            same += 1;
+            if std::env::var_os("TANTALUS_SFX_VERBOSE").is_some() {
+                println!(
+                    "frame {frame}: {} triangles",
+                    mine.as_ref().map_or(0, |list| list.triangles())
+                );
+            }
+            if shots.contains(&frame) {
+                let draw = |list: &Option<tantalus_sfx::render::RenderList>| {
+                    let mut frame = Frame::new(640, 480, [0, 0, 0, 255]);
+                    if let Some(list) = list {
+                        draw_list(&mut frame, list);
+                    }
+                    frame
+                };
+                let (left, right) = (draw(&mine), draw(&dll));
+                let mut sheet = image::RgbaImage::new(1280, 480);
+                for (offset, frame) in [(0, &left), (640, &right)] {
+                    for y in 0..480u32 {
+                        for x in 0..640u32 {
+                            let at = ((y * 640 + x) * 4) as usize;
+                            let pixel = &frame.rgba[at..at + 4];
+                            sheet.put_pixel(
+                                x + offset,
+                                y,
+                                image::Rgba([pixel[0], pixel[1], pixel[2], 255]),
+                            );
+                        }
+                    }
+                }
+                sheet
+                    .save(out.join(format!("ef{wanted:03}-frame{frame:03}-port-vs-dll.png")))
+                    .expect("png");
+            }
+        }
+        println!("effect {wanted}: {same} frames match the DLL");
     }
 }

@@ -607,8 +607,11 @@ fn command_segments(
 /// Damage numbers up at `seconds`: target, amount (negative heals, 0 a
 /// miss) and seconds since it landed. A spell's numbers show at its
 /// effect's `Figure` point ([`crate::battle_effects::figure_delay`]).
-pub fn damage_numbers(stage: &BattleStage, seconds: f64) -> Vec<(usize, i64, f64)> {
-    let effects = crate::battle_effects::stage_effects(stage);
+pub fn damage_numbers(
+    stage: &BattleStage,
+    effects: &[crate::battle_effects::StageEffect],
+    seconds: f64,
+) -> Vec<(usize, i64, f64)> {
     let last = ((seconds.max(0.0) * BATTLE_TICKS_PER_SECOND) as usize + 1).min(stage.frames.len());
     let first = last.saturating_sub(
         ((NUMBER_SECONDS + MAX_FIGURE_DELAY) * BATTLE_TICKS_PER_SECOND) as usize + 1,
@@ -642,7 +645,7 @@ pub fn damage_numbers(stage: &BattleStage, seconds: f64) -> Vec<(usize, i64, f64
                 && !(*damage == 0 && silent(*caster, *target))
             {
                 let since =
-                    landed - crate::battle_effects::figure_delay(&effects, *caster, first + index);
+                    landed - crate::battle_effects::figure_delay(effects, *caster, first + index);
                 if (0.0..NUMBER_SECONDS).contains(&since) {
                     out.push((*target, *damage, since));
                 }
@@ -758,9 +761,10 @@ mod tests {
         // The target flinches right after the effect.
         let hit = unit_motion(&stage, 1, 55.0 / 15.0 + 0.1, &enemy, &length);
         assert_eq!(hit.clip, Some((2, 2)));
-        let numbers = damage_numbers(&stage, 55.0 / 15.0 + 0.1);
+        let effects = crate::battle_effects::stage_effects(&stage);
+        let numbers = damage_numbers(&stage, &effects, 55.0 / 15.0 + 0.1);
         assert_eq!(numbers.len(), 1);
         assert_eq!((numbers[0].0, numbers[0].1), (1, 30));
-        assert!(damage_numbers(&stage, 55.0 / 15.0 + 2.0).is_empty());
+        assert!(damage_numbers(&stage, &effects, 55.0 / 15.0 + 2.0).is_empty());
     }
 }

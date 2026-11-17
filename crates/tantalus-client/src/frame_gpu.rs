@@ -55,6 +55,10 @@ pub enum BlendKind {
     Multiply,
     /// Straight alpha.
     Over,
+    /// `Blend SrcAlpha One` (the effects' `SFX_ADD_*` shaders).
+    Add,
+    /// `Blend One One`, `BlendOp RevSub` (`SFX_SUB_*`).
+    Subtract,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1129,6 +1133,16 @@ fn blend_state(blend: BlendKind) -> wgpu::BlendState {
             src_factor: BlendFactor::SrcAlpha,
             dst_factor: BlendFactor::OneMinusSrcAlpha,
             operation: BlendOperation::Add,
+        },
+        BlendKind::Add => BlendComponent {
+            src_factor: BlendFactor::SrcAlpha,
+            dst_factor: BlendFactor::One,
+            operation: BlendOperation::Add,
+        },
+        BlendKind::Subtract => BlendComponent {
+            src_factor: BlendFactor::One,
+            dst_factor: BlendFactor::One,
+            operation: BlendOperation::ReverseSubtract,
         },
     };
     wgpu::BlendState {

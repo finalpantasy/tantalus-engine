@@ -130,6 +130,21 @@ pub enum Blend {
     /// Straight alpha: texel alpha times this opacity (0 to 255) over the
     /// pixel (the world's water).
     Alpha(u8),
+    /// `Blend SrcAlpha One`: the pixel plus the color times texel alpha
+    /// (the special effects' additive meshes).
+    Add,
+    /// `Blend One One`, `BlendOp RevSub`: the pixel less the color.
+    Subtract,
+}
+
+/// A corner of a screen-space triangle ([`Frame::draw_screen`]): frame
+/// pixels, texture coordinate (as [`Texture`] reads it: `v = 0` is the
+/// last row) and the color the texel is multiplied by.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScreenCorner {
+    pub xy: [f32; 2],
+    pub uv: [f32; 2],
+    pub color: [f32; 3],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -443,9 +458,131 @@ impl Frame {
                                 (u32::from(pixel[channel]) * u32::from(texel[channel]) / 255) as u8;
                         }
                     }
+                    Blend::Add => {
+                        for channel in 0..3 {
+                            let (src, dst) = (u32::from(texel[channel]), u32::from(pixel[channel]));
+                            pixel[channel] = (dst + src * u32::from(texel[3]) / 255).min(255) as u8;
+                        }
+                    }
+                    Blend::Subtract => {
+                        for channel in 0..3 {
+                            pixel[channel] = pixel[channel].saturating_sub(texel[channel]);
+                        }
+                    }
                 }
                 if state.depth_write {
                     self.depth[at] = distance;
+                }
+            }
+        }
+    }
+
+    /// A triangle already on screen (the special effects' packets), drawn
+    /// over everything: no depth, no culling, affine texture coordinates.
+    /// Without a texture the color itself is drawn. `Blend::Opaque` cuts
+    /// out texels under alpha 0.5.
+    pub fn draw_screen(
+        &mut self,
+        corners: [ScreenCorner; 3],
+        texture: Option<Texture<'_>>,
+        blend: Blend,
+    ) {
+        let area = edge(corners[0].xy, corners[1].xy, corners[2].xy);
+        if area.abs() < 1e-6 {
+            return;
+        }
+        if let Some(recording) = self.recording.as_deref_mut() {
+            use crate::frame_gpu::{BlendKind, PipelineKey, Sampling};
+            let index = recording.texture(texture.map(|t| (t.rgba, t.width, t.height)));
+            let kind = match blend {
+                Blend::Opaque => BlendKind::Replace,
+                Blend::Screen => BlendKind::Screen,
+                Blend::Multiply => BlendKind::Multiply,
+                Blend::Alpha(_) => BlendKind::Over,
+                Blend::Add => BlendKind::Add,
+                Blend::Subtract => BlendKind::Subtract,
+            };
+            let alpha = match blend {
+                Blend::Alpha(opacity) => f32::from(opacity) / 255.0,
+                _ => 1.0,
+            };
+            let key = PipelineKey {
+                blend: kind,
+                depth_test: false,
+                depth_write: false,
+                cull_back: false,
+            };
+            let vertices = corners.map(|corner| {
+                let [r, g, b] = corner.color;
+                // Texel rows run top-down on the GPU; `v = 0` is the last.
+                recording.flat(
+                    corner.xy[0],
+                    corner.xy[1],
+                    [corner.uv[0], 1.0 - corner.uv[1]],
+                    [r, g, b, alpha],
+                    [0.0, 0.0],
+                )
+            });
+            recording.push(key, index, Sampling::Clamp, &vertices);
+            return;
+        }
+        let xs = corners.map(|corner| corner.xy[0]);
+        let ys = corners.map(|corner| corner.xy[1]);
+        let x0 = xs
+            .iter()
+            .copied()
+            .fold(f32::INFINITY, f32::min)
+            .floor()
+            .max(0.0) as i64;
+        let x1 = (xs.iter().copied().fold(f32::NEG_INFINITY, f32::max).ceil() as i64)
+            .min(i64::from(self.width) - 1);
+        let y0 = ys
+            .iter()
+            .copied()
+            .fold(f32::INFINITY, f32::min)
+            .floor()
+            .max(0.0) as i64;
+        let y1 = (ys.iter().copied().fold(f32::NEG_INFINITY, f32::max).ceil() as i64)
+            .min(i64::from(self.height) - 1);
+        let [a, b, c] = corners;
+        for y in y0..=y1 {
+            for x in x0..=x1 {
+                let p = [x as f32 + 0.5, y as f32 + 0.5];
+                let b0 = edge(b.xy, c.xy, p) / area;
+                let b1 = edge(c.xy, a.xy, p) / area;
+                let b2 = 1.0 - b0 - b1;
+                if b0 < 0.0 || b1 < 0.0 || b2 < 0.0 {
+                    continue;
+                }
+                let texel = match texture {
+                    Some(texture) => texture.sample([
+                        b0 * a.uv[0] + b1 * b.uv[0] + b2 * c.uv[0],
+                        b0 * a.uv[1] + b1 * b.uv[1] + b2 * c.uv[1],
+                    ]),
+                    None => [255, 255, 255, 255],
+                };
+                if blend == Blend::Opaque && texel[3] < 128 {
+                    continue;
+                }
+                let at = ((y as usize) * self.width as usize + x as usize) * 4;
+                let pixel = &mut self.rgba[at..at + 4];
+                for channel in 0..3 {
+                    let shade =
+                        b0 * a.color[channel] + b1 * b.color[channel] + b2 * c.color[channel];
+                    let src = (f32::from(texel[channel]) * shade).clamp(0.0, 255.0);
+                    let dst = f32::from(pixel[channel]);
+                    let value = match blend {
+                        Blend::Add => dst + src * f32::from(texel[3]) / 255.0,
+                        Blend::Subtract => dst - src,
+                        Blend::Alpha(opacity) => {
+                            let alpha = f32::from(texel[3]) * f32::from(opacity) / (255.0 * 255.0);
+                            src * alpha + dst * (1.0 - alpha)
+                        }
+                        Blend::Multiply => dst * src / 255.0,
+                        Blend::Screen => src + dst * (255.0 - src) / 255.0,
+                        Blend::Opaque => src,
+                    };
+                    pixel[channel] = value.round().clamp(0.0, 255.0) as u8;
                 }
             }
         }
@@ -523,6 +660,8 @@ pub fn gpu_state(state: DrawState) -> (crate::frame_gpu::PipelineKey, f32) {
         Blend::Screen => (BlendKind::Screen, 1.0),
         Blend::Multiply => (BlendKind::Multiply, 1.0),
         Blend::Alpha(opacity) => (BlendKind::Over, f32::from(opacity) / 255.0),
+        Blend::Add => (BlendKind::Add, 1.0),
+        Blend::Subtract => (BlendKind::Subtract, 1.0),
     };
     (
         PipelineKey {

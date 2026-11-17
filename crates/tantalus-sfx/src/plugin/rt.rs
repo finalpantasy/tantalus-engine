@@ -12,7 +12,7 @@ pub const HOST_CALLBACK: u64 = 0xFFFF_0000_0000_0001;
 
 /// Unity's side of the plugin: `SFX.Callback` (`SFX.cs:2537`), `Int32 (Int32
 /// code, Int32, Int32, Int32, Int32, void* p)`. `p` is an address in `memory`.
-pub trait Host {
+pub trait Host: Send {
     #[allow(clippy::too_many_arguments)]
     fn callback(
         &mut self,

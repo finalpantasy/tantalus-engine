@@ -257,7 +257,9 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
         playback.stage.frames.len(),
         playback.stage.outcome.as_deref().unwrap_or("-"),
     ));
-    for effect in tantalus_client::battle_effects::stage_effects(&playback.stage) {
+    for effect in
+        tantalus_client::battle_effects::stage_effects_with(&playback.stage, Some(assets.effects()))
+    {
         lines.push(format!(
             "effect {} by unit {} on {:?}: starts at {:.2}s, hits at {:.2}s, numbers at {:.2}s",
             effect.id,

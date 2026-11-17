@@ -7,6 +7,10 @@ license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[features]
+# Test-only: compares the battle's effects with the player's own DLL.
+dll-oracle = ["tantalus-sfx/dll-oracle"]
+
 [dependencies]
 bevy = { version = "=0.19.1", default-features = false, features = ["default_app", "default_platform", "2d_bevy_render", "3d_bevy_render", "bevy_text", "png", "multi_threaded"] }
 bytemuck = "1"
@@ -19,6 +23,7 @@ tantalus-core = { path = "../tantalus-core" }
 tantalus-game = { path = "../tantalus-game" }
 tantalus-tools = { path = "../tantalus-tools" }
 tantalus-legacy = { path = "../tantalus-legacy" }
+tantalus-sfx = { path = "../tantalus-sfx" }
 # The battle and world frames draw through Bevy's own wgpu (same version, no extra features).
 wgpu = { version = "29.0.4", default-features = false }
 

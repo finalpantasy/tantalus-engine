@@ -152,6 +152,11 @@ pub struct BattleAssets {
 }
 
 impl BattleAssets {
+    /// The special effects' data and the effects playing.
+    pub fn effects(&self) -> &crate::battle_effects::EffectLibrary {
+        &self.effects
+    }
+
     /// `streaming_assets` holds `p0data2.bin`, `p0data4.bin` and
     /// `p0data5.bin`.
     pub fn new(streaming_assets: &Path) -> Self {
@@ -817,7 +822,7 @@ impl BattleScene {
                 .and_then(Option::as_ref)
                 .map_or(0.0, clip_length)
         };
-        let effects = crate::battle_effects::stage_effects(stage);
+        let effects = crate::battle_effects::stage_effects_with(stage, Some(&assets.effects));
         time("b_dim", || {
             crate::battle_effects::dim(
                 &mut frame,
@@ -880,6 +885,7 @@ impl BattleScene {
                 spots[index] = Some(crate::battle_effects::UnitSpot {
                     feet: feet.to_array(),
                     height: top,
+                    turn: motion.facing.unwrap_or(unit.turn),
                 });
             }
         }
@@ -889,12 +895,20 @@ impl BattleScene {
             }
         });
         time("b_effects", || {
-            crate::battle_effects::draw_effects(&mut frame, &camera, &effects, &spots, seconds)
+            crate::battle_effects::draw_effects(
+                &mut frame,
+                &camera,
+                &assets.effects,
+                stage,
+                &effects,
+                &spots,
+                seconds,
+            )
         });
         match hud {
             Some(hud) => {
                 time("b_hud", || {
-                    let draw = hud_draw(stage, seconds, overlay, &heads);
+                    let draw = hud_draw(stage, &effects, seconds, overlay, &heads);
                     hud.draw(&mut frame, &draw);
                 });
             }
@@ -908,6 +922,7 @@ impl BattleScene {
 /// frame (`Frame::project`).
 fn hud_draw(
     stage: &BattleStage,
+    effects: &[crate::battle_effects::StageEffect],
     seconds: f64,
     overlay: &Overlay,
     heads: &[Option<[f32; 2]>],
@@ -960,7 +975,7 @@ fn hud_draw(
         })
         .map(|(index, unit)| display_name(unit, index - players))
         .collect();
-    let numbers = damage_numbers(stage, seconds)
+    let numbers = damage_numbers(stage, effects, seconds)
         .into_iter()
         .filter_map(|(target, amount, since)| {
             Some((heads.get(target).copied().flatten()?, amount, since))

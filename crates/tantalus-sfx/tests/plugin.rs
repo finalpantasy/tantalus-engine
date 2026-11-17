@@ -6,13 +6,12 @@
 mod common;
 
 use common::{dll, effect_bytes, init_param, request};
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use tantalus_sfx::oracle::Oracle;
 use tantalus_sfx::plugin::debug_host::{Call, DebugHost};
 use tantalus_sfx::plugin::{Host, Plugin};
 
-struct Shared(Rc<RefCell<DebugHost>>);
+struct Shared(Arc<Mutex<DebugHost>>);
 
 impl Host for Shared {
     fn callback(
@@ -26,7 +25,8 @@ impl Host for Shared {
         p: u64,
     ) -> i32 {
         self.0
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .callback(memory, code, a0, a1, a2, a3, p)
     }
 }
@@ -72,7 +72,7 @@ pub fn run_port(id: i32, limit: usize, module_base: u64) -> Run {
     let bytes = effect_bytes(id);
     let image =
         tantalus_sfx::image::PluginImage::parse(std::fs::read(dll()).expect("dll")).expect("pe");
-    let host = Rc::new(RefCell::new(DebugHost::default()));
+    let host = Arc::new(Mutex::new(DebugHost::default()));
     let mut plugin = Plugin::load(&image, Box::new(Shared(host.clone()))).expect("image");
     plugin.module_base = module_base;
     plugin.init_system();
@@ -80,13 +80,13 @@ pub fn run_port(id: i32, limit: usize, module_base: u64) -> Run {
     plugin.play(id, &bytes, &request());
     let mut frames = Vec::new();
     while frames.len() < limit {
-        host.borrow_mut().frame += 1;
+        host.lock().unwrap().frame += 1;
         match plugin.frame() {
             Some(prims) => frames.push(mask(prims)),
             None => break,
         }
     }
-    let calls = std::mem::take(&mut host.borrow_mut().calls);
+    let calls = std::mem::take(&mut host.lock().unwrap().calls);
     Run {
         frames,
         calls,
@@ -251,7 +251,7 @@ fn probe_fault() {
     let bytes = effect_bytes(id);
     let image =
         tantalus_sfx::image::PluginImage::parse(std::fs::read(dll()).expect("dll")).expect("pe");
-    let host = Rc::new(RefCell::new(DebugHost::default()));
+    let host = Arc::new(Mutex::new(DebugHost::default()));
     let mut plugin = Plugin::load(&image, Box::new(Shared(host.clone()))).expect("image");
     plugin.init_system();
     plugin.init_battle(&init_param());
@@ -341,7 +341,7 @@ fn probe_lockstep() {
     oracle.init_battle(&init_param()).expect("init");
     let image =
         tantalus_sfx::image::PluginImage::parse(std::fs::read(dll()).expect("dll")).expect("pe");
-    let host = Rc::new(RefCell::new(DebugHost::default()));
+    let host = Arc::new(Mutex::new(DebugHost::default()));
     let mut plugin = Plugin::load(&image, Box::new(Shared(host.clone()))).expect("image");
     plugin.module_base = oracle.base() as u64;
     plugin.init_system();
@@ -419,7 +419,7 @@ fn probe_lockstep() {
                 return;
             }
         }
-        host.borrow_mut().frame += 1;
+        host.lock().unwrap().frame += 1;
         plugin.tracing = std::env::var_os("TANTALUS_SFX_TRACE").is_some();
         let a = oracle.frame().expect("frame");
         let b = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| plugin.frame()));
@@ -457,7 +457,8 @@ fn probe_lockstep() {
                 );
                 println!(
                     "port calls: {:?}",
-                    host.borrow()
+                    host.lock()
+                        .unwrap()
                         .calls
                         .iter()
                         .filter(|c| c.frame == f)

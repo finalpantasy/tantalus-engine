@@ -253,7 +253,7 @@ test-only and never a runtime fallback; CI builds neither the feature nor the te
 | `PsxInterpreterRun` | `interp` | unit tests only; frame-level checks need the native calls |
 | Flat memory (module image at 0x180000000, heap), PSX address mapper | `mem` | unit tests only |
 
-| The whole plugin, translated from Memoria's rewrite | `plugin` | 359 of 372 effects give the same primitives, frame for frame, and the same host calls (`--test plugin sweep`) |
+| The whole plugin, translated from Memoria's rewrite | `plugin` | 349 of 372 effects give the same primitives, frame for frame, and the same host calls (`--test plugin sweep`) |
 
 The `plugin` module is generated: `crates/tantalus-sfx/cs2rs` is a Roslyn translator that reads
 Memoria's C# rewrite (`.reference/Memoria/FF9SpecialEffectPlugin`) and writes
@@ -267,11 +267,17 @@ disagree (`Patches` in `Program.cs`, each logged in `audit/approved-differences.
 
 Checks (`cargo test -p tantalus-sfx --features dll-oracle --test plugin -- --ignored`):
 
-- Fire (ef000): 126 frames, 28,906 primitives and 190 host calls, all identical.
-- Cure (ef008, also Potion): 121 frames, 24,872 primitives and 172 host calls, all identical.
-- `sweep` over effects 0-511: 359 of 372 match. 212-224 differ from frame 60 on, and the DLL
+- Fire (ef000): 126 frames, 28,858 primitives and 208 host calls, all identical.
+- Cure (ef008, also Potion): 121 frames, 24,185 primitives and 191 host calls, all identical.
+- `sweep` over effects 0-511: 349 of 372 match. 212-224 differ from frame 60 on, and the DLL
   does not repeat itself there (two runs of 212 give different primitives), so they need a
-  deterministic reference first.
+  deterministic reference first. Darkside, Minus Strike, Iai Strike and Thunder Slash (188-191,
+  409-412), Bio Sword (221), Photon (299) and Lancer (401) differ from frame 57 or so:
+  `probe_lockstep` shows the port opening one PSX address window more than the DLL (entry 5 of
+  the mapper at 0x180576AB0), most likely a stack address that the DLL's stack window covers
+  and the port's does not.
+- Until the 32-byte `BTL_DATA_INIT` fix (the harness wrote 36-byte records), no effect found
+  its target and every one played on the caster; the earlier 359 of 372 was for that case.
 
 Memory layout matters for matching: the PSX address mapper opens 3 MB windows over host
 blocks, so heap blocks start 4 MB apart and the stack grows down, as on Windows, or the port
@@ -302,3 +308,44 @@ Harness notes:
   DLL is relocated at load, so the original result changes from launch to launch. Tantalus
   uses the preferred-base address; see `sfx-gte-rtps-dqa-address` in
   `audit/approved-differences.csv`.
+
+## In the battle view (tantalus-client)
+
+`battle_effects` plays every party spell and item effect through the translated plugin
+(`tantalus_sfx::SfxRuntime::play`, a fresh plugin per effect), except the ones that do not
+match the DLL (`battle_effects::is_drawn`: 212-224 and the eleven sword skills above):
+
+- Units: `SFX.InitBattleParty` from the stage (`btl_list` order, party then enemies, eight at
+  most). `BTL_DATA_INIT` is 32 bytes (`SFX_INIT_PARAM` is 300); the plugin looks targets up by
+  `btl_id` in those records and falls back to slot 0, the caster, when it finds none.
+- The host (`tantalus_sfx::player::BattleHost`) answers `SFX.BattleCallback` from the units'
+  places this frame: positions, angles, sizes, the party member flags, the background
+  intensity, and records the Effect and Figure points and the sounds. Bones are not modeled
+  (`sfx-battle-bones`).
+- Camera: the view's camera, converted back to the PSX camera
+  (`battle_effects::psx_camera`, the inverse of `battle_camera_play::unity_camera`), is
+  written where `SFX_Update` reads it before every frame, so the packets line up with the
+  models. The plugin's own camera script is not run.
+- Timing: one plugin frame per battle frame (`SFX.UpdatePlugin` runs once per
+  `BattleSubSystem`). The plugin is started so its own Effect point (callback 23) falls on the
+  machine's HP change, never before the command, and the damage numbers wait for its Figure
+  point (callback 24). The machine still uses the `Sequence.seq` timing
+  (`sfx-battle-hp-change-timing`).
+- Drawing: `tantalus_sfx::render::render_list` turns each frame's packets into the batches
+  `SFXRender` draws (opaque, additive and subtractive lists keyed by page, CLUT and filter,
+  in `PushCommandBuffer` order, with `playParam` color strength) and the view draws them over
+  the scene with `Frame::draw_screen` (`Blend::Add`, `Blend::Subtract` on the CPU and the GPU).
+  Packets that copy the screen are not drawn (`sfx-battle-screen-copy`).
+
+`SfxRuntime::load_effect` runs the translated plugin to the effect's end and returns its
+`LoadImage` uploads; `loader::effect_uploads` stays for the oracle tests.
+
+Checks:
+
+- `battle_effects::tests::the_plugin_draws_fire_on_the_target` (needs the game data).
+- `capture-battle` with `TANTALUS_SFX_DUMP=<file>` writes each played frame's units and camera;
+  `cargo test -p tantalus-client --features dll-oracle the_battle_frames_match_the_dll --
+  --ignored` replays them on the DLL and on the plugin and compares the render lists frame by
+  frame (`TANTALUS_SFX_EFFECT`, `TANTALUS_SFX_FRAMES`, `TANTALUS_SFX_OUT` for side-by-side
+  PNGs). In the first battle (336, Fire, Cure and Potion recast onto Zidane's first command, on
+  Baku) all 90 frames of each match.

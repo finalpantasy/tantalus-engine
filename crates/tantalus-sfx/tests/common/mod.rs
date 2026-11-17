@@ -30,7 +30,7 @@ pub fn effect_bytes(id: i32) -> Vec<u8> {
 pub fn init_param() -> [u8; INIT_PARAM_SIZE] {
     let mut param = [0u8; INIT_PARAM_SIZE];
     for (slot, (player, btl_id)) in [(0usize, (1u8, 1u16)), (4, (0, 0x10))] {
-        let at = 8 + slot * 36;
+        let at = 8 + slot * tantalus_sfx::BTL_DATA_INIT_SIZE;
         param[at] = player;
         param[at + 1] = slot as u8 & 3;
         param[at + 8..at + 12].copy_from_slice(&200i32.to_le_bytes());
@@ -39,7 +39,7 @@ pub fn init_param() -> [u8; INIT_PARAM_SIZE] {
         param[at + 20..at + 22].copy_from_slice(&btl_id.to_le_bytes());
     }
     // Identity camera.
-    let cam = 8 + 8 * 36;
+    let cam = 8 + 8 * tantalus_sfx::BTL_DATA_INIT_SIZE;
     for i in [0usize, 4, 8] {
         param[cam + 2 * i..cam + 2 * i + 2].copy_from_slice(&4096i16.to_le_bytes());
     }

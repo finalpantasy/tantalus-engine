@@ -19,6 +19,25 @@ struct HostState {
     vram: Vram,
     calls: Vec<Call>,
     frame: u32,
+    /// Answers as the battle view's host does, when set.
+    battle: Option<crate::player::BattleHost>,
+}
+
+/// The process's own memory, for [`crate::player::BattleHost::answer`].
+struct Native;
+
+impl crate::player::Access for Native {
+    fn read(&self, at: u64, len: usize) -> Option<Vec<u8>> {
+        // SAFETY: test-only; `at` is a pointer the DLL handed its callback.
+        (at != 0).then(|| unsafe { std::slice::from_raw_parts(at as *const u8, len) }.to_vec())
+    }
+
+    fn write(&mut self, at: u64, bytes: &[u8]) {
+        if at != 0 {
+            // SAFETY: as above, a buffer the DLL passed to be filled.
+            unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), at as *mut u8, bytes.len()) };
+        }
+    }
 }
 
 static HOST: Mutex<Option<HostState>> = Mutex::new(None);
@@ -52,6 +71,10 @@ unsafe extern "C" fn callback(code: i32, a0: i32, a1: i32, a2: i32, a3: i32, p: 
     let Some(host) = guard.as_mut() else {
         return 0;
     };
+    if let Some(battle) = host.battle.as_mut() {
+        battle.frame = host.frame;
+        return battle.answer(&mut Native, code, [a0, a1, a2, a3], p as u64);
+    }
     let command = (code as u32 >> 24) as u8;
     let rect = Rect {
         x: a0 as i16,
@@ -162,11 +185,7 @@ pub struct Oracle {
     frame: i32,
 }
 
-/// `SFX_INIT_PARAM` (`SFX_INIT_PARAM.cs`): 8 header bytes, eight 36-byte
-/// `BTL_DATA_INIT`, `camMat[9]`, `camTrans[3]`, `camProj`, pad.
-pub const INIT_PARAM_SIZE: usize = 8 + 8 * 36 + 18 + 12 + 4;
-/// `S_Eff_Req_Org` (`S_Eff_Req_Org.cs`): 14 `BTL_DATA_REQ` then 16 bytes.
-pub const REQUEST_SIZE: usize = 72;
+pub use crate::{INIT_PARAM_SIZE, REQUEST_SIZE};
 
 impl Oracle {
     /// Loads `dll` (with its directory on the search path for its CRT) and
@@ -277,6 +296,56 @@ impl Oracle {
                 .map(|symbol| *symbol)
                 .map_err(|e| e.to_string())
         }
+    }
+
+    /// Answers callbacks as the battle view's host does, over `units`.
+    pub fn use_battle_host(&mut self, units: &[crate::player::Unit]) {
+        if let Some(host) = HOST
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_mut()
+        {
+            // `SFX_InitSystem`'s uploads went to the plain host.
+            host.battle = Some(crate::player::BattleHost {
+                vram: host.vram.clone(),
+                units: units.to_vec(),
+                intensity: 128,
+                ..Default::default()
+            });
+        }
+    }
+
+    /// Moves the battle host's units.
+    pub fn set_units(&mut self, units: &[crate::player::Unit]) {
+        if let Some(battle) = HOST
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_mut()
+            .and_then(|host| host.battle.as_mut())
+        {
+            battle.units = units.to_vec();
+        }
+    }
+
+    /// A frame's packets drawn as the player draws them, over the battle
+    /// host's VRAM (`None` without the battle host).
+    pub fn render(&self, effect: i32, prims: &[Prim]) -> Option<crate::render::RenderList> {
+        HOST.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_mut()
+            .and_then(|host| host.battle.as_mut())
+            .map(|battle| crate::render::render_list(effect, prims, &mut battle.vram))
+    }
+
+    /// Writes `camera` where `SFX_Update` reads it, as the player does.
+    pub fn set_camera(&mut self, camera: &tantalus_assets::pc::battle_camera::PsxCamera) {
+        const IMAGE_BASE: u64 = 0x1_8000_0000;
+        let (matrix, distance) = crate::player::camera_bytes(camera);
+        self.write_module_bytes((crate::player::CAMERA_MATRIX - IMAGE_BASE) as u32, &matrix);
+        self.write_module_bytes(
+            (crate::player::CAMERA_DISTANCE - IMAGE_BASE) as u32,
+            &distance,
+        );
     }
 
     /// `SFX_InitBattle` with `param` (see [`INIT_PARAM_SIZE`]).

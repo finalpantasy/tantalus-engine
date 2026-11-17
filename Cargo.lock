@@ -5940,6 +5940,7 @@ dependencies = [
  "tantalus-core",
  "tantalus-game",
  "tantalus-legacy",
+ "tantalus-sfx",
  "tantalus-tools",
  "tempfile",
  "wgpu",
