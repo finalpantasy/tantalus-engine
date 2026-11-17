@@ -140,8 +140,11 @@ pub struct UnitChange {
     pub scale: Option<[f32; 3]>,
     /// `bi.disappear`: not drawn when non-zero.
     pub disappear: u8,
-    /// Every mesh hidden (`HideMesh(65535)`).
+    /// Every mesh and the weapon hidden (`HideMesh(65535)`).
     pub meshes_hidden: bool,
+    /// The unit's `mesh_banish` meshes hidden, not its weapon
+    /// (`HideMesh(mesh_banish, isVanish: true)`, Vanish).
+    pub vanished: bool,
     /// The "semi-transparent fade" color (`SFX.fade`) and whether it also
     /// makes the model translucent (`GEO_POLYFLAGS_TRANS_100_PLUS_25`).
     pub fade: Option<(i32, bool)>,
@@ -414,11 +417,15 @@ impl BattleHost {
                 match a0 {
                     // `HideMesh(65535)`.
                     0 => entry.meshes_hidden = true,
-                    // `HideMesh(mesh_banish, isVanish)`: a party member's mask is 65535
-                    // (`btl_init.cs:415`) and an enemy used as a character hides all too; an
-                    // enemy's own `Mesh[1]` mask is not modeled, so it hides all as well.
-                    1 => entry.meshes_hidden = true,
-                    2 => entry.meshes_hidden = false,
+                    // `HideMesh(mesh_banish, isVanish)`: the view applies the unit's mask (a
+                    // party member's is 65535, `btl_init.cs:415`; an enemy's is its type's
+                    // `Mesh[1]`); the weapon stays.
+                    1 => entry.vanished = true,
+                    // `ShowMesh(65535)`.
+                    2 => {
+                        entry.meshes_hidden = false;
+                        entry.vanished = false;
+                    }
                     3 => entry.fade = Some((a1, false)),
                     4 => {
                         let value = if a1 >= 256 { a1 - 256 } else { a1 };
@@ -824,6 +831,10 @@ mod tests {
         assert!(host.changes[&1].meshes_hidden);
         host.answer(&mut memory, code(25, 1), [2, 0, 0, 0], 0);
         assert!(!host.changes[&1].meshes_hidden);
+        host.answer(&mut memory, code(25, 1), [1, 0, 0, 0], 0);
+        assert!(host.changes[&1].vanished && !host.changes[&1].meshes_hidden);
+        host.answer(&mut memory, code(25, 1), [2, 0, 0, 0], 0);
+        assert!(!host.changes[&1].vanished);
         // Set Angles to a value: Euler (0, v - 180, 180 + v).
         let mut angles = Block(vec![0; 64]);
         angles.write(8, &1024i16.to_le_bytes());

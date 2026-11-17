@@ -578,6 +578,23 @@ pub fn capture_ground(background: &BattleBackground, params: [i32; 7]) -> Frame 
 
 /// `ModelFactory.CreateModel(isBattle)` turns off every renderer under the
 /// `field_model` child.
+/// The model's `mesh<N>` object a node is under (`BTL_DATA.SetIsEnabledMeshRenderer`).
+fn mesh_of(model: &AssembledModel, node: usize) -> Option<u32> {
+    let mut at = Some(node);
+    while let Some(index) = at {
+        let node = model.nodes.get(index)?;
+        if let Some(number) = node
+            .name
+            .strip_prefix("mesh")
+            .and_then(|number| number.parse::<u32>().ok())
+        {
+            return Some(number);
+        }
+        at = node.parent;
+    }
+    None
+}
+
 fn under_field_model(model: &AssembledModel, node: usize) -> bool {
     let mut at = Some(node);
     while let Some(index) = at {
@@ -602,6 +619,9 @@ struct Staging<'a> {
     change: Option<&'a tantalus_sfx::player::UnitChange>,
     /// The background's character color (`BBGINFO.chr_r/g/b`), which a fade adds to.
     chr: [u8; 3],
+    /// `meshflags`: bit `i` hides the model's `mesh<i>` subtree
+    /// (`geo.geoMeshHide`).
+    hidden_meshes: u16,
 }
 
 impl Staging<'_> {
@@ -609,6 +629,7 @@ impl Staging<'_> {
         draw: true,
         change: None,
         chr: [128; 3],
+        hidden_meshes: 0,
     };
 }
 
@@ -778,6 +799,12 @@ fn draw_unit(
             })
             .collect();
         if !staging.draw || faded_out {
+            continue;
+        }
+        if staging.hidden_meshes != 0
+            && mesh_of(model, part.node)
+                .is_some_and(|mesh| mesh < 16 && staging.hidden_meshes & (1 << mesh) != 0)
+        {
             continue;
         }
         for (submesh_index, submesh) in part.submeshes.iter().enumerate() {
@@ -1103,8 +1130,16 @@ impl BattleScene {
                     _ => None,
                 };
                 let change = staged.get(&index);
-                let hidden =
-                    change.is_some_and(|change| change.disappear != 0 || change.meshes_hidden);
+                // Vanish (`HideMesh(mesh_banish, true)`): the unit's `Mesh[1]` mask hides some
+                // of its meshes; the full mask of a party member hides it all. The weapon
+                // stays, which the view does not draw apart from the model.
+                let banish = stage.banish_meshes.get(index).copied().unwrap_or(u16::MAX);
+                let vanished = change.is_some_and(|change| change.vanished);
+                let hidden = change.is_some_and(|change| {
+                    change.disappear != 0
+                        || change.meshes_hidden
+                        || (change.vanished && banish == u16::MAX)
+                });
                 if let Some((top, bone, bones)) = time("b_unit", || {
                     draw_unit(
                         frame,
@@ -1121,6 +1156,7 @@ impl BattleScene {
                             draw: draw && !hidden,
                             change,
                             chr: assets.chr(stage),
+                            hidden_meshes: if vanished { banish } else { 0 },
                         },
                     )
                 }) {

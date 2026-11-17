@@ -329,6 +329,9 @@ pub struct BattleStage {
     /// the bone its damage numbers and the target cursor sit on
     /// (`btl2d.GetFreeEntry`); `None` for the party.
     pub tar_bones: Vec<Option<u8>>,
+    /// Each unit's `mesh_banish` (`btl_init.cs:162`: `Mesh[1]` of an enemy's
+    /// type, 65535 for the party), the meshes Vanish hides.
+    pub banish_meshes: Vec<u16>,
     pub frames: Vec<StageFrame>,
     pub outcome: Option<String>,
     /// [`attack_animations`] of the scene's sequence file, by enemy attack
@@ -496,6 +499,7 @@ impl BattleStage {
         // monster type's `Radius` for enemies.
         let mut radii = vec![256.0; units.len()];
         let mut tar_bones = vec![None; units.len()];
+        let mut banish_meshes = vec![u16::MAX; units.len()];
         if let Some(row) = scene.patterns.get(pattern) {
             let placements = row
                 .monsters
@@ -508,6 +512,12 @@ impl BattleStage {
                         .monster_types
                         .get(usize::from(placement.type_no))
                         .map(|kind| kind.bone[3]),
+                );
+                banish_meshes.push(
+                    scene
+                        .monster_types
+                        .get(usize::from(placement.type_no))
+                        .map_or(u16::MAX, |kind| kind.mesh[1]),
                 );
                 radii.push(
                     scene
@@ -525,6 +535,7 @@ impl BattleStage {
             units,
             radii,
             tar_bones,
+            banish_meshes,
             frames: Vec::new(),
             outcome: None,
             attack_anims: Vec::new(),

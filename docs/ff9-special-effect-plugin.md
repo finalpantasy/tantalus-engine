@@ -328,7 +328,10 @@ Harness notes:
   it (`Source::Background`) draw from that texture, as `SFXMesh.GetTexture` does.
 - Unit staging (commands 2-6, 17, 18, 25, 27): `UnitChange` records hide, move, turn, scale
   and fade per unit; the view applies it when it draws the units, so summons hide the party,
-  Mini scales and Jump moves. Vanish's mesh mask and the exact fade curves are approximate.
+  Mini scales and Jump moves. Vanish (command 25, mode 1) hides the unit's `mesh_banish` meshes
+  (`BattleStage::banish_meshes`: the enemy type's `Mesh[1]`, 65535 for the party) by the model's
+  `mesh<N>` objects, and leaves the weapon (`btl_mot.HideMesh`); the exact fade curves are approximate.
+  Mini's glow on the caster is its charge phase; the ring on the target follows about 2.5 s later.
 - Slow's clock and Stop's black sprite: `SFXMesh.End` swaps Slow's subtractive mesh for the
   clock texture (`slowClockUV`) and draws Stop's sprite subtractively, twice; both are drawn.
 - Sounds (command 32): the plugin's sound calls keep their frame and fall due that many ticks

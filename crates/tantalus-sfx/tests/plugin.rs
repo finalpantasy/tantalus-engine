@@ -640,7 +640,7 @@ fn probe_commands() {
     for call in &run.calls {
         let entry = seen
             .entry(call.command as u32)
-            .or_insert((0, call.frame as u32, call.args));
+            .or_insert((0, call.frame, call.args));
         entry.0 += 1;
     }
     println!("effect {id}: {} frames", run.frames.len());

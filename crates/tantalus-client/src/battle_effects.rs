@@ -625,6 +625,7 @@ pub fn advance_effects(
             entry.scale = change.scale.or(entry.scale);
             entry.disappear = entry.disappear.max(change.disappear);
             entry.meshes_hidden |= change.meshes_hidden;
+            entry.vanished |= change.vanished;
             entry.fade = change.fade.or(entry.fade);
         }
     }
