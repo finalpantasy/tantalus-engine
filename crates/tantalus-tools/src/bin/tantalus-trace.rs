@@ -39,7 +39,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--gil N] [--settle TICKS] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--gil N] [--settle TICKS] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -67,6 +67,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut route: Vec<(i32, i32, i32)> = Vec::new();
     let mut skip_talk: BTreeSet<(i32, usize)> = BTreeSet::new();
     let mut retalk: BTreeSet<(i32, usize)> = BTreeSet::new();
+    let mut ate: BTreeMap<i32, u32> = BTreeMap::new();
+    let mut region_talks: BTreeSet<i32> = BTreeSet::new();
     let mut hold: BTreeMap<i32, i32> = BTreeMap::new();
     let mut press_when: Vec<PressWhen> = Vec::new();
     let mut suspend_loops = false;
@@ -185,6 +187,30 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     skip_talk.insert(parsed.ok_or_else(|| {
                         format!("bad --skip-talk entry `{part}`, want MAP:ENTRY")
                     })?);
+                }
+            }
+            // Fields where the explorer also walks into regions that have a
+            // tag 3 and presses Confirm there (`CheckQuadInput`).
+            "--region-talks" => {
+                for part in value()?.split(',') {
+                    region_talks.insert(
+                        part.trim()
+                            .parse()
+                            .map_err(|_| format!("bad --region-talks entry `{part}`, want MAP"))?,
+                    );
+                }
+            }
+            "--ate" => {
+                // Press Select (up to PRESSES times on MAP) while the
+                // Active Time Event prompt is up and the player has control.
+                for part in value()?.split(',') {
+                    let parsed = part
+                        .trim()
+                        .split_once(':')
+                        .and_then(|(map, count)| Some((map.parse().ok()?, count.parse().ok()?)));
+                    let (map, count) = parsed
+                        .ok_or_else(|| format!("bad --ate entry `{part}`, want MAP:PRESSES"))?;
+                    ate.insert(map, count);
                 }
             }
             "--retalk" => {
@@ -501,6 +527,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     route,
                     skip_talk,
                     retalk,
+                    ate,
+                    region_talks,
                     hold,
                     press_when,
                     suspend_loops,
@@ -597,6 +625,8 @@ struct PressWhen {
     mask: i32,
 }
 
+/// `EventInput.Select`.
+const SELECT: i32 = 0x1;
 /// `EventInput.Confirm`.
 const CONFIRM: i32 = 0x20000;
 /// `EventInput.Cancel | EventInput.Special`. Western builds test script
@@ -996,6 +1026,8 @@ struct ChainOptions {
     /// Objects the explorer talks to again on a later visit at the same
     /// story point (Chocobo Hot and Cold: Mene is revisited).
     retalk: BTreeSet<(i32, usize)>,
+    ate: BTreeMap<i32, u32>,
+    region_talks: BTreeSet<i32>,
     /// Pad bits held for a whole field, by field map (`KeyState(Held)`
     /// polls such as map 115's ladder climb, which reads up = 16).
     hold: BTreeMap<i32, i32>,
@@ -1107,6 +1139,8 @@ fn chain(
         route,
         skip_talk,
         retalk,
+        ate,
+        region_talks,
         hold,
         press_when,
         suspend_loops,
@@ -1402,6 +1436,8 @@ fn chain(
         let mut dwell_ticks: BTreeMap<usize, u64> = BTreeMap::new();
         let mut presses = 0usize;
         let mut pressed = false;
+        let mut ate_left = ate.get(&map).copied().unwrap_or(0);
+        let mut ate_last = 0u64;
         let mut operations = 0u64;
         let mut ticks_run = 0u64;
         let mut error = None;
@@ -1577,7 +1613,17 @@ fn chain(
                                 })
                             })
                         });
-                        for trigger in &step.talk_triggers {
+                        // `CheckQuadInput`: confirm inside a region that has a
+                        // tag 3 requests it (the Lindblum temple's offering
+                        // spots, 557 entries 11 and 12).
+                        let confirm_down = director.world().input_mask() & CONFIRM != 0;
+                        let region_hits: Vec<EntityId> =
+                            if confirm_down && region_talks.contains(&map) {
+                                step.region_occupancy.clone()
+                            } else {
+                                Vec::new()
+                            };
+                        for trigger in step.talk_triggers.iter().chain(region_hits.iter()) {
                             let entry = trigger.get() as usize;
                             if talk_busy || entry >= pool.len() || talked.contains(&entry) {
                                 continue;
@@ -1744,7 +1790,19 @@ fn chain(
                     .then_some(world.control_actor)
                     .flatten()
                     .and_then(|actor| Some((actor, world.actors.get(&actor)?.position)));
-                if let Some((actor, position)) = controlled {
+                // The Active Time Event prompt (`SetActiveTimeEventIcon` 1):
+                // Select opens the ATE menu its scripts poll `KeyOn(1)` for.
+                let ate_press = ate_left > 0
+                    && settled
+                    && world.ate_icon_mode == 1
+                    && !world.windows.values().any(|open| *open)
+                    && ticks_run.saturating_sub(ate_last) >= 90;
+                if ate_press {
+                    ate_left -= 1;
+                    ate_last = ticks_run;
+                    director.world_mut().set_input(SELECT | held);
+                    pressed = true;
+                } else if let Some((actor, position)) = controlled {
                     // The one exit the explorer heads for: the routed
                     // destination, else the least visited one.
                     let chosen_exit = world
@@ -1809,7 +1867,15 @@ fn chain(
                                 && pool[*entry].iter().any(|(tag, _)| *tag == 3)
                         })
                         .find_map(|entry| {
-                            let state = world.actors.get(&EntityId::new(entry as u64))?;
+                            let id = EntityId::new(entry as u64);
+                            if let Some(region) = world
+                                .regions
+                                .get(&id)
+                                .filter(|_| region_talks.contains(&map))
+                            {
+                                return Some((entry, inside_point(region)));
+                            }
+                            let state = world.actors.get(&id)?;
                             Some((entry, [state.position[0] + TALK_OFFSET, state.position[2]]))
                         });
                     let talk_target = pending_talk.map(|(entry, _)| entry);

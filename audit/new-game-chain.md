@@ -568,10 +568,54 @@ Later engine fixes took the route through the cargo ship to Lindblum:
 
 The region 10 re-fire on the deck (507) is the reference rule (a region's
 tag 2 is requested every frame while the player stands in it with control);
-the lock came from the slow walk speed and is gone. The route now ends in
-Lindblum (field 611, scenario 3000). Past it, with the explorer and
-`--route 611>612,612>613,613>614,614>610`, the story reaches the hunting
-festival fields (555, scenario 3110); the step to 565 (scenario 3115) is
-gated by a field 555 cutscene (Map var 57) not yet reached. Burmecia, Cleyra
-and Alexandria remain; disc 1 ends at `EVT_ALEX3_AC_OHAKA` (field 1800),
-whose `DISCCHANGE` goes to disc 2, field 1812.
+the lock came from the slow walk speed and is gone. The route reaches
+Lindblum (field 611, scenario 3000) and goes on to the festival fields.
+
+### Lindblum route (fields 550 to 573, 600 to 614, 850), scenario 3000 to 3118
+
+How a fresh worker gets from the arrival to field 565 and what to read.
+
+1. Arrival: 614 (3000), 600 (3050), 571 (3100), 607 (3105), 554 (3110).
+   Each field sets the next scenario value near its end.
+2. Active Time Events (ATE). Lindblum fields 550 to 573 and 611/850 show
+   the ATE icon (`SetActiveTimeEventIcon(1)`, Map155, Global238 = 1).
+   `Global236` is a bitmask of the ATEs on offer; Global241 is the choice
+   mask. The menu is entry 3 of field 611 (text 125; text 116 in 555): it
+   needs SysVar2 (`IsMovementEnabled`) == 1, Global238 == 1 and
+   `KeyOn(1)`. `KeyOn(1)` is `EventInput.Select`, so the player opens it
+   with Select, never Confirm. It then does `ChangeField` to 555, 561, 609
+   or 850 by SysVar9 (the dialog choice). At 3110 Global236 is 1 (field 553
+   region 7 sets it once), so only the first ATE exists: it goes to 555 with
+   Global2 = 1 (Map var 57 = 1), a long cutscene (texts 619 to 640) that
+   clears bit 0 of Global236 at its end and then returns to the field the
+   player came from (a switch on Global239 = the previous field, base 550).
+   The `ChangeField(567)`, `(566)`, `(565)` branches in 555 are only these
+   return targets. Region 23 in 555 is a guard dialog (object 12, tag 39).
+3. After that no ATE is on offer; the way on is a normal exit. Field 563
+   (Theater District air cab station) shows text 99, a destination menu.
+   Choice 3 flies to the exit that leads to 566; then 566 -> 567 (region
+   11/12 of 567, Global2 = 19) -> 565. Entering 565 with scenario < 3115
+   sets 3115 (a debug-skip window assigns it); 565 -> 611 (the air cab cutscene
+   at 3115, `JumpSwitchEx` on the scenario in 611 entry 0) -> 565 at 3118.
+   Fields 565, 567, 566, 568, 576, 609 and 850 form an island entered only
+   from ATE destinations and these exits; the explorer circles them at 3118.
+4. The explorer options added for this: `--ate MAP:N` presses Select (up to
+   N times, 90 ticks apart) while the ATE icon is up; `--region-talks MAP`
+   presses Confirm inside regions that carry tag 3 (reference
+   `EventCollision.CheckQuadInput`: Confirm in a region requests tag 3);
+   `--hold 557:16,565:16` holds Up for the temple climb (entry 13 polls
+   `KeyState(Held)` and the climb loop waits on `WaitAnimation` between
+   steps); `--choices 563:99=3` picks the air cab destination. All are
+   opt-in, so the chain runs are unchanged.
+5. Open: at 3118 field 565 (the festival hall) talks to entity 11 and then
+   loops over the island fields; the next gate is not found yet. Look at
+   565 entry 0 function 1 (scenario 3118 branch, Global236 |= 8 at pc 946),
+   the hunt registration, and field 850. The festival points minigame is
+   not reached. Burmecia, Gizamaluke's Grotto, South Gate, Cleyra and
+   Alexandria remain; disc 1 ends at `EVT_ALEX3_AC_OHAKA` (field 1800),
+   whose `DISCCHANGE` goes to disc 2, field 1812.
+
+`audit/story-route.sh` now ends at field 565, scenario 3118 (97 fields,
+`MAX_FIELDS`); probe with
+`tantalus-trace chain --start 301 --load-world <w301.json>` plus the
+options above.
