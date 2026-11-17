@@ -77,6 +77,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut set_globals: Vec<(u16, i32)> = Vec::new();
     let mut start_gil: u32 = 0;
     let mut start_party: Vec<i32> = Vec::new();
+    let mut start_cards: u32 = 0;
     let mut waypoint_dwell_ticks: u64 = WAYPOINT_DWELL;
     let mut waypoint_objects: BTreeSet<(i32, i32)> = BTreeSet::new();
     let mut settle_ticks: u64 = CONTROL_SETTLE;
@@ -301,6 +302,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
             }
             "--dwell" => waypoint_dwell_ticks = parse_number(&value()?, "--dwell")?,
             "--gil" => start_gil = parse_number(&value()?, "--gil")?,
+            "--cards" => start_cards = parse_number(&value()?, "--cards")?,
             "--start-party" => {
                 start_party = value()?
                     .split(',')
@@ -573,6 +575,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     set_globals,
                     start_gil,
                     start_party,
+                    start_cards,
                     waypoint_dwell_ticks,
                     waypoint_objects,
                     settle_ticks,
@@ -1123,6 +1126,8 @@ struct ChainOptions {
     start_gil: u32,
     /// Party of a segment probe that starts on a fresh world (`--start-party`).
     start_party: Vec<i32>,
+    /// Tetra Master cards a fresh-world probe starts with (`--cards`), ids 0 up.
+    start_cards: u32,
     /// Ticks the explorer stands on each waypoint (`--dwell`).
     waypoint_dwell_ticks: u64,
     /// Objects (by uid) the explorer visits after its `--waypoints`, at
@@ -1233,6 +1238,7 @@ fn chain(
         set_globals,
         start_gil,
         start_party,
+        start_cards,
         waypoint_dwell_ticks,
         waypoint_objects,
         settle_ticks,
@@ -1357,6 +1363,7 @@ fn chain(
     if !start_party.is_empty() {
         world.party = start_party;
     }
+    world.cards = (0..start_cards).collect();
     if let Some(path) = &load_world {
         let text = std::fs::read_to_string(path)
             .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
@@ -1413,13 +1420,13 @@ fn chain(
                 .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
         }
         let scenario_now = scenario_counter(&world);
-        let route_index = route
+        let mut route_index = route
             .iter()
             .enumerate()
             .position(|(index, (from, _, after))| {
                 *from == map && !route_used[index] && scenario_now >= *after
             });
-        let route_target = route_index.map(|index| route[index].1);
+        let mut route_target = route_index.map(|index| route[index].1);
         *visits.entry(map).or_default() += 1;
         world.field_map_no = map;
         let base_held = hold.get(&map).copied().unwrap_or(0);
@@ -1956,6 +1963,18 @@ fn chain(
                 pressed = true;
                 pan_index += 1;
                 pan_last = ticks_run;
+            }
+            // A route entry waiting for a scenario (`@N`) takes effect when a story step inside
+            // the field reaches it (Cleyra 1059: the priests set 4720, then the way is 1055).
+            if explore && !route.is_empty() {
+                let now = scenario_counter(director.world());
+                route_index = route
+                    .iter()
+                    .enumerate()
+                    .position(|(index, (from, _, after))| {
+                        *from == map && !route_used[index] && now >= *after
+                    });
+                route_target = route_index.map(|index| route[index].1);
             }
             if explore {
                 let world = director.world();
