@@ -59,19 +59,23 @@ const RIDER_FLY: u16 = 1143;
 /// clip; `WMActor.SetScale(106, 106, 106)`.
 const NARCISS_MODEL: u16 = 321;
 const NARCISS_IDLE: u16 = 5144;
-const NARCISS_SCALE: f32 = 106.0 / 64.0 / 256.0;
+const NARCISS_SCALE: [f32; 3] = [106.0 / 64.0 / 256.0; 3];
 /// `GEO_SUB_W0_009`, Hilda Garde III (`ANH_SUB_W0_009_IDLE1_H3`,
-/// `WMActor.SetScale(110, 95, 110)`: drawn at the width scale), and
+/// `WMActor.SetScale(110, 95, 110)`: lower than it is wide), and
 /// `GEO_SUB_W0_010`, the Invincible (`ANH_SUB_W0_010_IDLE1_IV`,
 /// `SetScale(64, 64, 64)`).
 const HILDA_MODEL: u16 = 320;
 const HILDA_IDLE: u16 = 5134;
-const HILDA_SCALE: f32 = 110.0 / 64.0 / 256.0;
+const HILDA_SCALE: [f32; 3] = [
+    110.0 / 64.0 / 256.0,
+    95.0 / 64.0 / 256.0,
+    110.0 / 64.0 / 256.0,
+];
 const INVINCIBLE_MODEL: u16 = 317;
 const INVINCIBLE_IDLE: u16 = 5127;
-const INVINCIBLE_SCALE: f32 = 1.0 / 256.0;
+const INVINCIBLE_SCALE: [f32; 3] = [1.0 / 256.0; 3];
 /// `WMActor.SetScale(67, 67, 67)`: 67 / 64 of 1/256.
-const MODEL_SCALE: f32 = 67.0 / 64.0 / 256.0;
+const MODEL_SCALE: [f32; 3] = [67.0 / 64.0 / 256.0; 3];
 /// Hue turn in degrees and brightness that stand in for the other chocobo
 /// colors (control entries 1 to 6: yellow, light blue, red, deep blue, gold
 /// on the ground and in the air). The reference swaps in textures from
@@ -276,7 +280,7 @@ impl WorldRenderer {
         let moving = play.walker.moved;
         let time = play.frames as f32 / 30.0;
         let at = [pos.x, pos.y, pos.z];
-        let place = |scale: f32, tint: (f32, f32)| Placement {
+        let place = |scale: [f32; 3], tint: (f32, f32)| Placement {
             at,
             yaw: play.walker.rot_y,
             scale,
@@ -518,7 +522,8 @@ struct Placement {
     at: [f32; 3],
     /// Degrees about the up axis.
     yaw: f32,
-    scale: f32,
+    /// Per axis, as `WMActor.SetScale`.
+    scale: [f32; 3],
     /// Hue turn in degrees and brightness of the texture.
     tint: (f32, f32),
 }
@@ -587,7 +592,8 @@ fn draw_character(
         let view: Vec<Vec3> = vertices
             .iter()
             .map(|vertex| {
-                let world = origin + rotation * (Vec3::from_array(*vertex) * place.scale);
+                let world =
+                    origin + rotation * (Vec3::from_array(*vertex) * Vec3::from_array(place.scale));
                 camera.to_view(world.to_array())
             })
             .collect();
