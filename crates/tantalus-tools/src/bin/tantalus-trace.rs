@@ -77,6 +77,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut set_globals: Vec<(u16, i32)> = Vec::new();
     let mut start_gil: u32 = 0;
     let mut start_party: Vec<i32> = Vec::new();
+    let mut start_exp: u64 = 0;
     let mut start_cards: u32 = 0;
     let mut waypoint_dwell_ticks: u64 = WAYPOINT_DWELL;
     let mut waypoint_objects: BTreeSet<(i32, i32)> = BTreeSet::new();
@@ -303,6 +304,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
             "--dwell" => waypoint_dwell_ticks = parse_number(&value()?, "--dwell")?,
             "--gil" => start_gil = parse_number(&value()?, "--gil")?,
             "--cards" => start_cards = parse_number(&value()?, "--cards")?,
+            "--start-exp" => start_exp = parse_number(&value()?, "--start-exp")?,
             "--start-party" => {
                 start_party = value()?
                     .split(',')
@@ -582,6 +584,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     start_gil,
                     start_party,
                     start_cards,
+                    start_exp,
                     waypoint_dwell_ticks,
                     waypoint_objects,
                     settle_ticks,
@@ -1141,6 +1144,7 @@ struct ChainOptions {
     start_party: Vec<i32>,
     /// Tetra Master cards a fresh-world probe starts with (`--cards`), ids 0 up.
     start_cards: u32,
+    start_exp: u64,
     /// Ticks the explorer stands on each waypoint (`--dwell`).
     waypoint_dwell_ticks: u64,
     /// Objects (by uid) the explorer visits after its `--waypoints`, at
@@ -1252,6 +1256,7 @@ fn chain(
         start_gil,
         start_party,
         start_cards,
+        start_exp,
         waypoint_dwell_ticks,
         waypoint_objects,
         settle_ticks,
@@ -1377,6 +1382,12 @@ fn chain(
         world.party = start_party;
     }
     world.cards = (0..start_cards).collect();
+    if start_exp > 0 {
+        // A fresh-world probe of a late scene: the party has the level a played game has.
+        for character in world.party.clone() {
+            world.apply_experience(character, start_exp);
+        }
+    }
     if let Some(path) = &load_world {
         let text = std::fs::read_to_string(path)
             .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
@@ -1457,6 +1468,26 @@ fn chain(
             Some(name) => match load_navigation(&field_bundles, name) {
                 Ok(mesh) => {
                     let status = format!("{name}: {} triangles", mesh.triangles.len());
+                    if std::env::var_os("TRACE_NAV").is_some() {
+                        // Probe aid: every triangle's centre as `map x height z`.
+                        for triangle in &mesh.triangles {
+                            let points: Vec<[f64; 3]> = triangle
+                                .vertices
+                                .iter()
+                                .filter_map(|index| mesh.vertices.get(*index as usize))
+                                .map(|v| {
+                                    [
+                                        f64::from(v.x + triangle.offset.x),
+                                        -f64::from(v.y + triangle.offset.y),
+                                        f64::from(v.z + triangle.offset.z),
+                                    ]
+                                })
+                                .collect();
+                            let n = points.len().max(1) as f64;
+                            let sum = |axis: usize| points.iter().map(|p| p[axis]).sum::<f64>() / n;
+                            eprintln!("nav {map} {:.0} {:.0} {:.0}", sum(0), sum(1), sum(2));
+                        }
+                    }
                     world.provide_navigation(mesh);
                     status
                 }

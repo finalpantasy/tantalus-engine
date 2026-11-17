@@ -17,8 +17,12 @@ use tantalus_legacy::{EventBinary, EventProgram, VmStatus};
 pub type Pool = Vec<Vec<(u16, EventProgram)>>;
 
 /// Director keys for shared scripts (`STARTSEQ`) start here, one per
-/// object, so they never collide with `entry * 256 + function` keys.
-pub const SHARED_SCRIPT_KEY: u64 = 0x1_0000;
+/// object, so they never collide with `entry * 256 + function` keys, nor with
+/// the second objects of an entry (`(n << 16) | entry`, `FieldWorld::init_object`):
+/// field 1251's shared script of entry 2 (key `0x1_0000 + 2`) once deleted the
+/// clone `(1 << 16) | 2` with its own `DeleteObject(255)`, and the clone's
+/// requests (uid 129, `RunScriptSync`) never ran.
+pub const SHARED_SCRIPT_KEY: u64 = 1 << 48;
 
 /// `EventInput.Confirm`.
 pub const CONFIRM: i32 = 0x20000;
@@ -803,6 +807,17 @@ impl WorldExit {
 mod tests {
     use super::*;
     use tantalus_legacy::decode_program;
+
+    /// A shared script's key never names another object: a second object of
+    /// an entry is `(n << 16) | entry`.
+    #[test]
+    fn shared_script_keys_do_not_name_second_objects() {
+        for entry in 0..=255_u64 {
+            for n in 1..=4096_u64 {
+                assert_ne!(SHARED_SCRIPT_KEY + entry, (n << 16) | entry);
+            }
+        }
+    }
 
     /// `Wait(frames)` then end.
     fn wait_program(frames: u8) -> EventProgram {
