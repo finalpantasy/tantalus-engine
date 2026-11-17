@@ -113,18 +113,28 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
         let ids: Vec<i32> = party.split(',').filter_map(|id| id.parse().ok()).collect();
         game.set_party(&ids);
     }
-    if live
-        && let Some(id) = std::env::var("TANTALUS_BENCH_SCENE")
-            .ok()
-            .and_then(|scene| scene.strip_prefix("battle:")?.parse::<i32>().ok())
+    let mut bench_seen = 0usize;
+    // `TANTALUS_BENCH_SCENE=battle:ID` also starts the replay's battle at
+    // once, so effects can be checked without a route to a battle.
+    if let Some(id) = std::env::var("TANTALUS_BENCH_SCENE")
+        .ok()
+        .and_then(|scene| scene.strip_prefix("battle:")?.parse::<i32>().ok())
     {
-        for event in game.bench_battle(id) {
+        let events = if live {
+            game.bench_battle(id)
+        } else {
+            game.bench_fight(id)
+        };
+        for event in events {
             println!("{}", tantalus_client::live::describe(&event));
+            if matches!(event, PlayEvent::Battle { .. }) {
+                bench_seen += 1;
+            }
         }
     }
     let mut open_for = 0u64;
     let mut last_confirm = false;
-    let mut seen = 0usize;
+    let mut seen = bench_seen;
     let mut stage = None;
     for tick in 0..ticks {
         let mut held = holds

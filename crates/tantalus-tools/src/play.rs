@@ -1482,6 +1482,31 @@ impl PlayGame {
         events
     }
 
+    /// Test aid for captures: fights battle `scene` to its end on the
+    /// stand-in policy at once and keeps its stage in
+    /// [`PlayGame::last_battle`], as an encounter does.
+    pub fn bench_fight(&mut self, scene: i32) -> Vec<PlayEvent> {
+        let party = self.party();
+        let (Some(session), Some(battles)) = (self.session.as_mut(), self.data.battles.as_ref())
+        else {
+            return Vec::new();
+        };
+        let request = tantalus_game::field::EncounterRequest {
+            rush: 0,
+            group: None,
+            battle: scene as _,
+            steiner_state: false,
+            timer: None,
+        };
+        let items = session.director.world().items.clone();
+        let mut report = battles.fight_with_items(&request, &party, &items);
+        self.last_battle = report.stage.take();
+        vec![PlayEvent::Battle {
+            battle: request.battle,
+            outcome: report.outcome.unwrap_or_else(|| "no result".to_owned()),
+        }]
+    }
+
     /// Test aid for the frame-rate bench: starts a Tetra Master game
     /// against `opponent`.
     pub fn bench_card_game(&mut self, opponent: u16) {

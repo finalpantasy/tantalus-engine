@@ -77,6 +77,7 @@ impl SfxRuntime {
             caster: 0,
             targets: vec![1],
             item: false,
+            args: [0; 3],
             put: [0, 0],
         };
         let mut run = self

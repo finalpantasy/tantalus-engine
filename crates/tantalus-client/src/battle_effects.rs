@@ -15,8 +15,11 @@
 //! drawn as `SFXRender` batches them, over the scene.
 //!
 //! The spells' own cameras ([`EffectLibrary`], `PLAY_CAMERA` in the
-//! effect's sequence stream) are played by `battle_camera_play` for the
-//! effects in [`EffectKind`]; a summon keeps the scene's camera.
+//! effect's sequence stream) are played by `battle_camera_play` for every
+//! drawn party effect that has any; an enemy attack keeps the scene's
+//! attack camera. An enemy plays the effect its attack sequence starts
+//! (`SeqExecVfx` / `SeqExecSVfx`, `tantalus_tools::battle_stage::attack_vfx`)
+//! and a party member's Attack its `AttackSequence` effect.
 //!
 //! Effects that do not match the player's DLL are not drawn ([`is_drawn`]):
 //! 212 to 224, which the DLL itself does not play the same way twice, and
@@ -80,6 +83,8 @@ pub struct StageEffect {
     pub targets: Vec<usize>,
     /// An `Item` or `AutoPotion` command (`BTL_VFX_REQ.flgs` bit 2).
     pub item: bool,
+    /// The request's `monbone[0]`, `monbone[1]` and `arg0`.
+    pub args: [i16; 3],
     pub timing: EffectTiming,
     /// Stage tick of the machine's `EffectApplied`.
     pub applied: f64,
@@ -241,6 +246,38 @@ pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
             else {
                 continue;
             };
+            // An enemy plays the effect its scene attack names
+            // (`BattleCommandInfo.VfxIndex`); a party member's Attack its
+            // character's `AttackSequence` (`btl_vfx.GetPlayerAttackVfx`).
+            let own = if *unit >= party {
+                stage
+                    .attack_effects
+                    .get(usize::try_from(*sub_no).unwrap_or(usize::MAX))
+                    .copied()
+                    .flatten()
+                    .map(|vfx| (i32::from(vfx.effect), vfx.args))
+            } else if *cmd_no == tantalus_legacy::battle::queue::cmd::ATTACK {
+                match stage.units[*unit].model {
+                    StageModel::Player { serial, .. } => {
+                        tantalus_assets::pc::battle_models::player_attack_sequences()
+                            .into_iter()
+                            .find(|row| row.0 == u32::from(serial))
+                            .map(|row| (row.2, [0; 3]))
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            if let Some((id, args)) = own {
+                let Some(timing) = stage.effects.timing_of(id, false) else {
+                    continue;
+                };
+                let mut effect = own_effect(stage, tick, *unit, id, targets, timing);
+                effect.args = args;
+                out.push(effect);
+                continue;
+            }
             if *unit >= party {
                 continue;
             }
@@ -259,6 +296,7 @@ pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
                         caster: *unit,
                         targets: vec![*unit],
                         item: false,
+                        args: [0; 3],
                         timing: *timing,
                         applied: (tick + timing.hit as usize) as f64,
                         start: tick as f64,
@@ -278,22 +316,13 @@ pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
                 tantalus_legacy::battle::queue::cmd::ITEM
                     | tantalus_legacy::battle::queue::cmd::AUTO_POTION
             );
-            let applied = stage.frames[tick..]
-                .iter()
-                .enumerate()
-                .find_map(|(offset, frame)| {
-                    frame
-                        .events
-                        .iter()
-                        .any(|event| matches!(event, StageEvent::Effect { caster, .. } if caster == unit))
-                        .then_some(tick + offset)
-                })
-                .unwrap_or(tick + crate::battle_motion::EFFECT_TICKS as usize);
+            let applied = effect_applied(stage, tick, *unit);
             out.push(StageEffect {
                 id,
                 caster: *unit,
                 targets: targets.clone(),
                 item,
+                args: [0; 3],
                 timing,
                 applied: applied as f64,
                 start: (applied as f64 - f64::from(timing.hit)).max(tick as f64),
@@ -301,6 +330,44 @@ pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
         }
     }
     out
+}
+
+/// Stage tick of `caster`'s `EffectApplied` at or after `tick`.
+fn effect_applied(stage: &BattleStage, tick: usize, caster: usize) -> usize {
+    stage.frames[tick..]
+        .iter()
+        .enumerate()
+        .find_map(|(offset, frame)| {
+            frame
+                .events
+                .iter()
+                .any(|event| matches!(event, StageEvent::Effect { caster: who, .. } if *who == caster))
+                .then_some(tick + offset)
+        })
+        .unwrap_or(tick + crate::battle_motion::EFFECT_TICKS as usize)
+}
+
+/// An effect a command plays on its own (an enemy attack's, or a party
+/// member's Attack).
+fn own_effect(
+    stage: &BattleStage,
+    tick: usize,
+    unit: usize,
+    id: i32,
+    targets: &[usize],
+    timing: EffectTiming,
+) -> StageEffect {
+    let applied = effect_applied(stage, tick, unit);
+    StageEffect {
+        id,
+        caster: unit,
+        targets: targets.to_vec(),
+        item: false,
+        args: [0; 3],
+        timing,
+        applied: applied as f64,
+        start: (applied as f64 - f64::from(timing.hit)).max(tick as f64),
+    }
 }
 
 /// Seconds a damage number from `caster`'s `EffectApplied` at stage tick
@@ -572,6 +639,7 @@ fn start(
             .filter(|target| *target < units.len())
             .collect(),
         item: effect.item,
+        args: effect.args,
         put,
     };
     let package = library.package(effect.id)?;
@@ -694,6 +762,7 @@ mod tests {
             caster: 0,
             targets: vec![1],
             item: false,
+            args: [0; 3],
             timing: EffectTiming {
                 hit: 11,
                 figure: 25,
@@ -863,6 +932,7 @@ mod tests {
                 .map(|target| int(target) as usize)
                 .collect(),
             item: first["item"].as_bool().unwrap_or(false),
+            args: [0; 3],
             put: [int(&first["put"][0]) as i16, int(&first["put"][1]) as i16],
         };
         let library = EffectLibrary::new(install().join("x64/FF9_Data/resources.assets"));

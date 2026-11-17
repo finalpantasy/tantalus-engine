@@ -350,6 +350,9 @@ pub struct BattleStage {
     /// `radius_effect` (`FF9DBModelParameters` Radius), added to camera
     /// orbit distances. 0 when unknown.
     pub enemy_radius: i32,
+    /// The special effect each enemy attack sequence starts, by attack
+    /// number (`sub_no`): [`attack_vfx`].
+    pub attack_effects: Vec<Option<AttackVfx>>,
     /// Spell and item effect ids and timing ([`crate::battle_effects`]).
     pub effects: std::sync::Arc<crate::battle_effects::EffectTable>,
 }
@@ -389,6 +392,44 @@ pub fn attack_cameras(bytes: &[u8]) -> Vec<Option<AttackCamera>> {
                         run: op == CameraOp::Run,
                         alternate: op == CameraOp::RunIfAlternate,
                         camera_no: id,
+                    }),
+                    _ => None,
+                })
+        })
+        .collect()
+}
+
+/// The first effect an enemy attack sequence starts: the `Vfx` op
+/// (`SeqExecVfx`: `SetBattleVfx(effect, [bone0, bone1, arg0, flag])`) or
+/// the `SVfx` timer (`SeqExecSVfx`: `[param, 0, 0, 0]`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AttackVfx {
+    pub effect: u16,
+    /// `monbone[0]`, `monbone[1]` and `arg0` of the request.
+    pub args: [i16; 3],
+}
+
+/// [`AttackVfx`] of every sequence in the scene's sequence file.
+pub fn attack_vfx(bytes: &[u8]) -> Vec<Option<AttackVfx>> {
+    use tantalus_assets::pc::battle_sequence::{InterpretOptions, MarkerKind, interpret};
+    let Ok(file) = SequenceFile::parse(bytes, "raw17") else {
+        return Vec::new();
+    };
+    (0..file.slots.len())
+        .map(|index| {
+            let sequence = file.sequence(index)?;
+            let options = InterpretOptions {
+                base_anim: file.slots[index].base_anim,
+                ..InterpretOptions::default()
+            };
+            interpret(sequence, &options)
+                .markers
+                .iter()
+                .find_map(|marker| match marker.kind {
+                    MarkerKind::VfxStart { effect, args, .. } => Some(AttackVfx { effect, args }),
+                    MarkerKind::SpecialVfxTrigger { effect, param } => Some(AttackVfx {
+                        effect,
+                        args: [i16::from(param), 0, 0],
                     }),
                     _ => None,
                 })
@@ -492,6 +533,7 @@ impl BattleStage {
             sfx: Vec::new(),
             camera_block: None,
             attack_cameras: Vec::new(),
+            attack_effects: Vec::new(),
             put: scene
                 .patterns
                 .get(pattern)

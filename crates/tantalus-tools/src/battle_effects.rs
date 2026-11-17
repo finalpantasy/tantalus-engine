@@ -2,9 +2,9 @@
 //! Memoria's exported effect sequences (`Data/SpecialEffects/ef<id>/
 //! Sequence.seq`, run by `UnifiedBattleSequencer`) and the battle tables.
 //!
-//! The effect itself is the special-effect plugin's MIPS script and is not
-//! run; the client draws stand-ins for a few spells
-//! (`tantalus_client::battle_effects`) on this timing:
+//! The effect itself is the special-effect plugin's MIPS script, which the
+//! client plays (`tantalus_client::battle_effects`); the timing below is
+//! the plugin's own where it matches the DLL and `Sequence.seq` otherwise:
 //! - `btl_vfx.GetPlayerCommandSFX`: an item plays its `ItemEffects.csv`
 //!   `AnimationId` (column 4); an ability its `Actions.csv` `AnimationId`
 //!   (column 8, `VfxIndex`), or `AnimationId2` (column 9, `Vfx2`) when it
@@ -125,6 +125,7 @@ pub fn plugin_timing(
         caster: 0,
         targets: vec![1],
         item,
+        args: [0; 3],
         put: [0, 0],
     };
     let mut run = runtime.play(id, package, &setup)?;

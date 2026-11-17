@@ -53,6 +53,8 @@ pub struct CameraDirector {
     effect_plays: Vec<EffectPlay>,
     /// Ticks a drawn effect starts (`SfxStateReset` draws the side bit).
     effect_starts: Vec<usize>,
+    /// The effects whose own cameras play ([`Self::effect_plays`]).
+    own_camera: std::collections::HashSet<i32>,
     /// Tick the playing effect camera's effect ends.
     effect_end: Option<usize>,
     /// The unit whose command holds the camera.
@@ -118,15 +120,18 @@ impl CameraDirector {
         script.start_plunge(0);
         let mut effect_plays = Vec::new();
         let mut effect_starts = Vec::new();
+        let mut own_camera = std::collections::HashSet::new();
         if let Some(library) = library {
             for effect in crate::battle_effects::stage_effects(stage) {
-                // A summon's cameras frame its own model and world, which
-                // are not drawn (a wall or nothing for 18 s of a full
-                // summon): it keeps the scene's camera.
-                if crate::battle_effects::EffectKind::of(effect.id)
-                    .is_none_or(crate::battle_effects::EffectKind::is_summon)
-                {
+                // Enemy attacks keep the scene's attack cameras, and an
+                // effect the plugin does not play keeps the stand-in.
+                if effect.caster >= party || !crate::battle_effects::is_drawn(effect.id) {
                     continue;
+                }
+                // An effect without cameras (a short one with
+                // `UseCamera=False`) leaves the camera as it is.
+                if !library.cameras(effect.id).plays.is_empty() {
+                    own_camera.insert(effect.id);
                 }
                 let start = effect.start.round() as usize;
                 effect_starts.push(start);
@@ -159,6 +164,7 @@ impl CameraDirector {
             reaction: None,
             effect_plays,
             effect_starts,
+            own_camera,
             effect_end: None,
             busy: None,
             victory: false,
@@ -325,7 +331,7 @@ impl CameraDirector {
             else {
                 return;
             };
-            if crate::battle_effects::EffectKind::of(id).is_some() {
+            if self.own_camera.contains(&id) {
                 return;
             }
             self.busy = Some(unit);

@@ -63,6 +63,9 @@ pub struct Setup {
     pub targets: Vec<usize>,
     /// An item (`flgs |= 2`: the Potion's "Item" use).
     pub item: bool,
+    /// `monbone[0]`, `monbone[1]` and `arg0` of the request (an enemy
+    /// attack's `Vfx` op arguments; 0 for party commands).
+    pub args: [i16; 3],
     /// `PatAddr[PatNum].Monster[0]` x and z.
     pub put: [i16; 2],
 }
@@ -335,6 +338,9 @@ pub fn request(setup: &Setup) -> Vec<u8> {
         request[60..62].copy_from_slice(&((x / n) as i16).to_le_bytes());
         request[64..66].copy_from_slice(&((z / n) as i16).to_le_bytes());
     }
+    request[58] = setup.args[0] as u8;
+    request[59] = setup.args[1] as u8;
+    request[66..68].copy_from_slice(&setup.args[2].to_le_bytes());
     let flags: u16 = if setup.item { 2 } else { 0 };
     request[68..70].copy_from_slice(&flags.to_le_bytes());
     request

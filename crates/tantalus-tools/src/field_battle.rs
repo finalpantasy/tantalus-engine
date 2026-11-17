@@ -1113,6 +1113,9 @@ impl FieldBattles {
             .and_then(|geo| self.equipment.model_radius.get(&i32::from(geo)).copied())
             .unwrap_or(0);
         stage.effects = self.equipment.effects.clone();
+        stage.attack_effects = sequence
+            .map(crate::battle_stage::attack_vfx)
+            .unwrap_or_default();
         stage.camera_block =
             sequence.and_then(tantalus_assets::pc::battle_camera::CameraBlock::from_raw17);
         stage.attack_cameras = sequence
