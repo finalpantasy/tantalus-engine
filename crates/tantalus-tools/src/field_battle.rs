@@ -969,17 +969,21 @@ impl FieldBattles {
                 timing: COMMAND_TIMING,
                 command_timing_late: {
                     let table = self.equipment.effects.clone();
-                    // Enemy attacks play the effect their scene entry names
-                    // (`BattleCommandInfo.VfxIndex`).
-                    let attack_effects: Vec<i32> = scene
-                        .attacks
-                        .iter()
-                        .map(|attack| i32::from(attack.vfx_index))
+                    // Enemy attacks play the effect their attack sequence
+                    // starts (`SeqExecVfx` / `SeqExecSVfx`), not the scene
+                    // entry's `VfxIndex`; a sequence with no effect (plain
+                    // melee) keeps the flat wait.
+                    let attack_effects: Vec<Option<i32>> = sequence
+                        .map(crate::battle_stage::attack_vfx)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|vfx| vfx.map(|vfx| i32::from(vfx.effect)))
                         .collect();
                     tantalus_legacy::battle::machine::LateTimings(Some(std::sync::Arc::new(
                         move |key| {
                             if key.2 == tantalus_legacy::battle::machine::ENEMY_ATTACK_VARIANT {
-                                let effect = *attack_effects.get(usize::try_from(key.1).ok()?)?;
+                                let effect =
+                                    (*attack_effects.get(usize::try_from(key.1).ok()?)?)?;
                                 return table.effect_timing_ticks(effect, false);
                             }
                             table.command_timing_of(key)
