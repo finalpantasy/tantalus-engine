@@ -359,3 +359,17 @@ Checks:
   frame (`TANTALUS_SFX_EFFECT`, `TANTALUS_SFX_FRAMES`, `TANTALUS_SFX_OUT` for side-by-side
   PNGs). In the first battle (336, Fire, Cure and Potion recast onto Zidane's first command, on
   Baku) all 90 frames of each match.
+
+## Known oracle differences
+
+- Photon (299): the port's output changes with the initial stack contents
+  (fill 00 and ff agree, 01 and 7f do not), so the effect reads an
+  uninitialized stack word. The one-pixel vertex difference from frame 81
+  follows from that; the DLL's stack content is not reproducible. The GTE
+  functions themselves match the DLL (`translated_gte_matches_the_dll`).
+- Effects 212-224: the port is stable under every stack fill, but the DLL's
+  primitive count varies between runs (212: 28,858 or 30,146), so the DLL reads
+  memory that differs per run (uninitialized or address dependent). The port's
+  value equals the larger DLL count; no port change is needed.
+- Effects 341-346 differ by one pixel at frame 5; not sensitive to stack fill,
+  cause not found.

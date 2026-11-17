@@ -701,3 +701,111 @@ fn probe_screen() {
         }
     }
 }
+
+/// The translated GTE functions against the DLL's own on random register
+/// files (`GteRtps` 0x3E80, `GteRtV0Tr` 0x3D60, `GteAvsz3` 0x48D0,
+/// `GteDpcs` 0x4B50).
+#[test]
+#[ignore = "needs the player's FF9SpecialEffectPlugin.dll"]
+fn translated_gte_matches_the_dll() {
+    let mut oracle = Oracle::load(&dll()).expect("load");
+    oracle.init_battle(&init_param()).expect("init");
+    let image =
+        tantalus_sfx::image::PluginImage::parse(std::fs::read(dll()).expect("dll")).expect("pe");
+    let host = Arc::new(Mutex::new(DebugHost::default()));
+    let mut plugin = Plugin::load(&image, Box::new(Shared(host))).expect("image");
+    plugin.module_base = oracle.base() as u64;
+    plugin.init_system();
+    plugin.init_battle(&init_param());
+    let mut seed = 0x1234_5678_9ABC_DEF0u64;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed as u32
+    };
+    let mut differing = Vec::new();
+    for (name, rva) in [
+        ("rtps", 0x3E80u32),
+        ("rtv0tr", 0x3D60),
+        ("avsz3", 0x48D0),
+        ("dpcs", 0x4B50),
+    ] {
+        for round in 0..3000 {
+            let bytes: Vec<u8> = (0..64)
+                .flat_map(|_| {
+                    let word = if round % 2 == 0 {
+                        next() & 0x0FFF_0FFF
+                    } else {
+                        next()
+                    };
+                    word.to_le_bytes()
+                })
+                .collect();
+            oracle.write_module_bytes(0x211F40, &bytes);
+            plugin
+                .m
+                .write_bytes(0x1_8000_0000 + 0x211F40, &bytes)
+                .expect("write");
+            // SAFETY: test-only; the function only touches the register file.
+            unsafe {
+                let function: extern "C" fn(i32) -> i64 = std::mem::transmute(oracle.internal(rva));
+                function(0);
+            }
+            match name {
+                "rtps" => {
+                    plugin.GteRtps(0);
+                }
+                "rtv0tr" => {
+                    plugin.GteRtV0Tr();
+                }
+                "avsz3" => {
+                    plugin.GteAvsz3();
+                }
+                _ => {
+                    plugin.GteDpcs();
+                }
+            }
+            let theirs = oracle.module_bytes(0x211F40, 256);
+            let ours = plugin
+                .m
+                .bytes(0x1_8000_0000 + 0x211F40, 256)
+                .expect("read")
+                .to_vec();
+            if theirs != ours {
+                let at = (0..256).find(|&i| theirs[i] != ours[i]).unwrap();
+                differing.push((name, round, at, ours[at], theirs[at]));
+            }
+        }
+    }
+    println!("{} differ", differing.len());
+    for row in differing.iter().take(12) {
+        println!("{row:x?}");
+    }
+    assert!(differing.is_empty());
+}
+
+/// The port's primitive count and a hash of its frames for
+/// `TANTALUS_SFX_EFFECT` (run with different fills to see whether the port
+/// reads uninitialized memory).
+#[test]
+#[ignore = "probe"]
+fn probe_port_hash() {
+    use std::hash::{Hash, Hasher};
+    let id: i32 = std::env::var("TANTALUS_SFX_EFFECT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(212);
+    let run = run_port(id, 900, 0x1_8000_0000);
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    let mut prims = 0;
+    for frame in &run.frames {
+        prims += frame.len();
+        frame.hash(&mut hasher);
+    }
+    println!(
+        "port effect {id}: {} frames, {prims} prims, hash {:x}",
+        run.frames.len(),
+        hasher.finish()
+    );
+}
