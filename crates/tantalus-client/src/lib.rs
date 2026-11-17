@@ -29,6 +29,7 @@ pub mod projection;
 pub mod psx_blend;
 pub mod scene_adapter;
 pub mod track;
+pub mod trance_glow;
 pub mod view_scroll;
 pub mod window;
 pub mod world_minimap;

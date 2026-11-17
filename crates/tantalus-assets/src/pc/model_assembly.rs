@@ -455,6 +455,18 @@ impl<'f, 'a> SerializedStore<'f, 'a> {
         read(&value, &self.source).map(Some)
     }
 
+    /// The bytes of the `TextAsset` at `path_id` (`None` when no object has
+    /// that path id).
+    pub fn text_asset(&self, path_id: i64) -> Result<Option<Vec<u8>>, ImportError> {
+        let Some(index) = self.index.get(&path_id).copied() else {
+            return Ok(None);
+        };
+        let bytes = self.file.object_data(index)?;
+        Ok(Some(
+            crate::pc::text_asset::TextAsset::parse(bytes, &self.source)?.script,
+        ))
+    }
+
     /// Decodes an `AnimationClip` by path id.
     pub fn clip(&self, path_id: i64) -> Result<Option<AnimationClip>, ImportError> {
         Ok(match self.load(path_id)? {

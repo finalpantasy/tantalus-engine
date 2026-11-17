@@ -143,6 +143,9 @@ pub struct BattleAssets {
     models_bundle: PathBuf,
     clips_bundle: PathBuf,
     backgrounds: HashMap<String, Option<BattleBackground>>,
+    /// `BBGINFO.chr_r/g/b` per background (lowercase name): the character
+    /// color `btl_stat.SetStatusVfx` adds its glow to.
+    chr: HashMap<String, [u8; 3]>,
     models: HashMap<u32, Option<AssembledModel>>,
     clips: HashMap<ClipKey, Option<AnimationClip>>,
     effects: crate::battle_effects::EffectLibrary,
@@ -157,6 +160,7 @@ impl BattleAssets {
             models_bundle: streaming_assets.join("p0data4.bin"),
             clips_bundle: streaming_assets.join("p0data5.bin"),
             backgrounds: HashMap::new(),
+            chr: HashMap::new(),
             models: HashMap::new(),
             clips: HashMap::new(),
             effects: crate::battle_effects::EffectLibrary::new(
@@ -172,6 +176,15 @@ impl BattleAssets {
         self.backgrounds
             .get(&background_name(&stage.scene)?.to_ascii_lowercase())?
             .as_ref()
+    }
+
+    /// `BBGINFO.chr_r/g/b` of `stage`'s background (mid gray when its
+    /// `INB` is missing).
+    pub fn chr(&self, stage: &BattleStage) -> [u8; 3] {
+        background_name(&stage.scene)
+            .and_then(|name| self.chr.get(&name.to_ascii_lowercase()))
+            .copied()
+            .unwrap_or([128; 3])
     }
 
     /// Loads what `stage` needs. One line per thing that failed.
@@ -227,8 +240,25 @@ impl BattleAssets {
                                     })
                                 })
                                 .ok_or_else(|| format!("{path} is not in the bundle"))?;
-                            assemble_background(store, name, root.path_id)
-                                .map_err(|error| error.to_string())
+                            let background = assemble_background(store, name, root.path_id)
+                                .map_err(|error| error.to_string())?;
+                            // `BattleMap/BattleInfo/INB_Bnnn.inb`.
+                            let info = format!(
+                                "assets/resources/battlemap/battleinfo/{}.inb.bytes",
+                                key.replacen("bbg", "inb", 1)
+                            );
+                            let chr = entries
+                                .iter()
+                                .find(|entry| entry.path == info)
+                                .and_then(|entry| store.text_asset(entry.path_id).ok().flatten())
+                                .and_then(|bytes| {
+                                    tantalus_assets::pc::battle_scene::BattleInfo::parse(
+                                        &bytes, &info,
+                                    )
+                                    .ok()
+                                })
+                                .map(|info| [info.chr_r, info.chr_g, info.chr_b]);
+                            Ok((background, chr))
                         })
                     })
                 })
@@ -292,7 +322,10 @@ impl BattleAssets {
         });
         if let (Some((name, key)), Some(loaded)) = (background_key, loaded_background) {
             match loaded {
-                Ok(background) => {
+                Ok((background, chr)) => {
+                    if let Some(chr) = chr {
+                        self.chr.insert(key.clone(), chr);
+                    }
                     problems.extend(
                         background
                             .problems
@@ -444,8 +477,8 @@ fn draw_unit(
     assets: &BattleAssets,
     (geo, bone): (u32, Option<u8>),
     motion: &UnitMotion,
-    position: [f32; 3],
-    turn: f32,
+    (position, turn): ([f32; 3], f32),
+    glow: Option<[u8; 3]>,
 ) -> Option<(f32, Option<Vec3>)> {
     let Some(Some(model)) = assets.models.get(&geo) else {
         return None;
@@ -489,6 +522,23 @@ fn draw_unit(
         Some(origin + rotation * local)
     });
     let mut top = 0.0f32;
+    // The glowing model's textures, tinted once per texture.
+    let mut tinted: HashMap<usize, Vec<u8>> = HashMap::new();
+    if let Some(color) = glow {
+        for texture in model
+            .parts
+            .iter()
+            .flat_map(|part| &part.submeshes)
+            .filter_map(|submesh| submesh.material.as_ref())
+            .flat_map(|material| &material.textures)
+        {
+            if let Some(rgba) = texture.rgba.as_deref() {
+                tinted
+                    .entry(rgba.as_ptr() as usize)
+                    .or_insert_with(|| crate::trance_glow::tint(rgba, color));
+            }
+        }
+    }
     let state = DrawState {
         blend: Blend::Opaque,
         depth_test: true,
@@ -516,6 +566,10 @@ fn draw_unit(
                     let rgba = texture.rgba.as_deref()?;
                     let width = usize::try_from(texture.width).ok()?;
                     let height = usize::try_from(texture.height).ok()?;
+                    let rgba = match glow {
+                        Some(_) => tinted.get(&(rgba.as_ptr() as usize))?.as_slice(),
+                        None => rgba,
+                    };
                     (width > 0 && height > 0 && rgba.len() >= width * height * 4).then_some(
                         Texture {
                             width,
@@ -655,8 +709,8 @@ impl BattleScene {
                     assets,
                     (look.geo, None),
                     &motion,
-                    unit.position,
-                    unit.turn,
+                    (unit.position, unit.turn),
+                    None,
                 )
                 .map_or(0.0, |(top, _)| top)
             })
@@ -786,6 +840,25 @@ impl BattleScene {
             if motion.hidden {
                 continue;
             }
+            // `btl_stat.SetStatusVfx`: a living member in Trance pulses.
+            let glow = match (&unit.model, record) {
+                (StageModel::Player { serial, .. }, Some(record))
+                    if std::env::var_os("TANTALUS_NO_GLOW").is_none()
+                        && matches!(record.trance.get(index), Some(Some((_, true))))
+                        && record.hp.get(index).is_some_and(|hp| *hp > 0) =>
+                {
+                    tantalus_assets::pc::battle_models::player_trance_glow(u32::from(*serial)).map(
+                        |glow| {
+                            crate::trance_glow::glow_color(
+                                assets.chr(stage),
+                                glow,
+                                crate::trance_glow::battle_counter(seconds),
+                            )
+                        },
+                    )
+                }
+                _ => None,
+            };
             if let Some((top, bone)) = time("b_unit", || {
                 draw_unit(
                     &mut frame,
@@ -796,8 +869,8 @@ impl BattleScene {
                         stage.tar_bones.get(index).copied().flatten(),
                     ),
                     &motion,
-                    unit.position,
-                    motion.facing.unwrap_or(unit.turn),
+                    (unit.position, motion.facing.unwrap_or(unit.turn)),
+                    glow,
                 )
             }) {
                 let feet = Vec3::from_array(unit.position) + Vec3::from_array(motion.offset);

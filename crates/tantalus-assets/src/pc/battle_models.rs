@@ -1210,6 +1210,15 @@ pub fn player_trance_model(serial: u32) -> Option<&'static str> {
         .map(|row| row.trance_model)
 }
 
+/// `BattleParameters.csv` row `serial`: its `TranceGlowingColor`, the color
+/// `btl_stat.SetStatusVfx` pulses on the model while in Trance.
+pub fn player_trance_glow(serial: u32) -> Option<[u8; 3]> {
+    names::PLAYERS
+        .iter()
+        .find(|row| row.serial == serial)
+        .map(|row| row.trance_glow)
+}
+
 pub fn player_battle_row(serial: u32) -> Option<(&'static str, &'static str, &'static str)> {
     names::PLAYERS
         .iter()

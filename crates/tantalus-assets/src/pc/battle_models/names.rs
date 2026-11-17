@@ -10958,6 +10958,8 @@ pub(super) struct PlayerRow {
     pub label: &'static str,
     pub model: &'static str,
     pub trance_model: &'static str,
+    /// `TranceGlowingColor` (`btl_stat.SetStatusVfx`, status glow kind 2).
+    pub trance_glow: [u8; 3],
     pub animations: [&'static str; 34],
     pub attack_sequence: i32,
     pub weapon_bone: u8,
@@ -10969,6 +10971,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Zidane (Dagger)",
         model: "GEO_MAIN_B0_000",
         trance_model: "GEO_MAIN_B0_022",
+        trance_glow: [255, 96, 96],
         animations: [
             "ANH_MAIN_B0_000_000",
             "ANH_MAIN_B0_000_022",
@@ -11013,6 +11016,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Zidane (Thief sword)",
         model: "GEO_MAIN_B0_001",
         trance_model: "GEO_MAIN_B0_023",
+        trance_glow: [255, 96, 96],
         animations: [
             "ANH_MAIN_B0_001_000",
             "ANH_MAIN_B0_001_022",
@@ -11057,6 +11061,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Vivi",
         model: "GEO_MAIN_B0_006",
         trance_model: "GEO_MAIN_B0_028",
+        trance_glow: [104, 120, 255],
         animations: [
             "ANH_MAIN_B0_006_000",
             "ANH_MAIN_B0_006_022",
@@ -11101,6 +11106,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Garnet (Long hair - Rod)",
         model: "GEO_MAIN_B0_002",
         trance_model: "GEO_MAIN_B0_024",
+        trance_glow: [255, 184, 120],
         animations: [
             "ANH_MAIN_B0_002_000",
             "ANH_MAIN_B0_002_022",
@@ -11145,6 +11151,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Garnet (Long hair - Racket)",
         model: "GEO_MAIN_B0_003",
         trance_model: "GEO_MAIN_B0_025",
+        trance_glow: [255, 184, 120],
         animations: [
             "ANH_MAIN_B0_003_000",
             "ANH_MAIN_B0_003_022",
@@ -11189,6 +11196,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Garnet (Short hair - Rod)",
         model: "GEO_MAIN_B0_004",
         trance_model: "GEO_MAIN_B0_026",
+        trance_glow: [255, 184, 120],
         animations: [
             "ANH_MAIN_B0_004_000",
             "ANH_MAIN_B0_004_022",
@@ -11233,6 +11241,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Garnet (Short hair - Racket)",
         model: "GEO_MAIN_B0_005",
         trance_model: "GEO_MAIN_B0_027",
+        trance_glow: [255, 184, 120],
         animations: [
             "ANH_MAIN_B0_005_000",
             "ANH_MAIN_B0_005_022",
@@ -11277,6 +11286,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Steiner (Outdoor)",
         model: "GEO_MAIN_B0_018",
         trance_model: "GEO_MAIN_B0_029",
+        trance_glow: [128, 192, 208],
         animations: [
             "ANH_MAIN_B0_007_000",
             "ANH_MAIN_B0_007_022",
@@ -11321,6 +11331,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Steiner (Indoor)",
         model: "GEO_MAIN_B0_007",
         trance_model: "GEO_MAIN_B0_029",
+        trance_glow: [128, 192, 208],
         animations: [
             "ANH_MAIN_B0_007_000",
             "ANH_MAIN_B0_007_022",
@@ -11365,6 +11376,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Quina",
         model: "GEO_MAIN_B0_008",
         trance_model: "GEO_MAIN_B0_030",
+        trance_glow: [208, 112, 120],
         animations: [
             "ANH_MAIN_B0_008_000",
             "ANH_MAIN_B0_008_022",
@@ -11409,6 +11421,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Eiko (flute)",
         model: "GEO_MAIN_B0_009",
         trance_model: "GEO_MAIN_B0_031",
+        trance_glow: [200, 216, 104],
         animations: [
             "ANH_MAIN_B0_009_000",
             "ANH_MAIN_B0_009_022",
@@ -11453,6 +11466,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Eiko (Racket)",
         model: "GEO_MAIN_B0_010",
         trance_model: "GEO_MAIN_B0_032",
+        trance_glow: [200, 216, 104],
         animations: [
             "ANH_MAIN_B0_010_000",
             "ANH_MAIN_B0_010_022",
@@ -11497,6 +11511,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Freya",
         model: "GEO_MAIN_B0_011",
         trance_model: "GEO_MAIN_B0_033",
+        trance_glow: [192, 104, 144],
         animations: [
             "ANH_MAIN_B0_011_000",
             "ANH_MAIN_B0_011_022",
@@ -11541,6 +11556,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Amarant",
         model: "GEO_MAIN_B0_012",
         trance_model: "GEO_MAIN_B0_034",
+        trance_glow: [208, 184, 104],
         animations: [
             "ANH_MAIN_B0_012_000",
             "ANH_MAIN_B0_012_022",
@@ -11585,6 +11601,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Cinna",
         model: "GEO_MAIN_B0_013",
         trance_model: "GEO_MAIN_B0_013",
+        trance_glow: [255, 160, 128],
         animations: [
             "ANH_MAIN_B0_013_000",
             "ANH_MAIN_B0_013_022",
@@ -11629,6 +11646,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Marcus",
         model: "GEO_MAIN_B0_014",
         trance_model: "GEO_MAIN_B0_014",
+        trance_glow: [255, 160, 128],
         animations: [
             "ANH_MAIN_B0_014_000",
             "ANH_MAIN_B0_014_022",
@@ -11673,6 +11691,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Blank",
         model: "GEO_MAIN_B0_015",
         trance_model: "GEO_MAIN_B0_015",
+        trance_glow: [255, 160, 128],
         animations: [
             "ANH_MAIN_B0_015_000",
             "ANH_MAIN_B0_015_022",
@@ -11717,6 +11736,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Blank (Pluto armor)",
         model: "GEO_MAIN_B0_016",
         trance_model: "GEO_MAIN_B0_016",
+        trance_glow: [255, 160, 128],
         animations: [
             "ANH_MAIN_B0_016_000",
             "ANH_MAIN_B0_016_022",
@@ -11761,6 +11781,7 @@ pub(super) const PLAYERS: &[PlayerRow] = &[
         label: "Beatrix",
         model: "GEO_MAIN_B0_017",
         trance_model: "GEO_MAIN_B0_017",
+        trance_glow: [255, 160, 128],
         animations: [
             "ANH_MAIN_B0_017_000",
             "ANH_MAIN_B0_017_022",
