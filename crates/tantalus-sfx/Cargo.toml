@@ -1,0 +1,17 @@
+[package]
+name = "tantalus-sfx"
+description = "Battle special effects: a Rust port of the PS1 effect runtime in FF9SpecialEffectPlugin.dll"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+# Test-only: runs the player's own FF9SpecialEffectPlugin.dll to compare
+# against. Never a runtime fallback (STATE.md); CI never enables it.
+dll-oracle = ["dep:libloading"]
+
+[dependencies]
+libloading = { version = "0.8", optional = true }
+tantalus-assets = { path = "../tantalus-assets" }

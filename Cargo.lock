@@ -6012,6 +6012,14 @@ name = "tantalus-sdk"
 version = "0.1.0"
 
 [[package]]
+name = "tantalus-sfx"
+version = "0.1.0"
+dependencies = [
+ "libloading",
+ "tantalus-assets",
+]
+
+[[package]]
 name = "tantalus-tools"
 version = "0.1.0"
 dependencies = [
