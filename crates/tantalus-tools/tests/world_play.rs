@@ -325,3 +325,32 @@ fn the_world_script_follows_the_walker_and_reads_the_world() {
     assert!((x as f32 / 256.0 - play.walker.pos.x).abs() < 2.0);
     assert!((z as f32 / 256.0 - play.walker.pos.z).abs() < 2.0);
 }
+
+#[test]
+fn the_chocograph_list_opens_from_the_script_and_picks_the_hint_map() {
+    let Some(dir) = streaming() else { return };
+    let bundle = dir.join("p0data7.bin");
+    let assets = Arc::new(WorldAssets::load(&dir, 1).expect("world assets"));
+    let events = event_places(&bundle, "EVT_WORLD_WORLD00").expect("place events");
+    let mut world = tantalus_game::FieldWorld::new();
+    let memory = &mut world.global_memory;
+    // Pictures 0 and 6 found, the chocobo reaches Reef (ability 2).
+    memory.set(187, tantalus_legacy::VariableType::Byte, 0b0100_0001);
+    memory.set(191, tantalus_legacy::VariableType::Byte, 2);
+    let script =
+        tantalus_tools::world_script::WorldScript::start(&bundle, "EVT_WORLD_WORLD00", 9000, world)
+            .unwrap();
+    let mut play = WorldPlay::new(assets, events, 1218.0, -747.0, 1).unwrap();
+    play.set_script(script);
+    assert!(play.chocograph.is_none());
+    // `OpenMenu` 5 from the script's Chocograph prompt.
+    play.script_mut_for_tests().world_mut().chocograph_requested = true;
+    play.tick(0, 0, CONFIRM, false);
+    let book = play.chocograph.as_ref().expect("the list opens");
+    assert_eq!((book.map_count(), book.ability()), (2, 2));
+    assert!(play.chocograph_select(1).is_err());
+    play.chocograph_select(6).unwrap();
+    assert_eq!(play.hintmap, 7);
+    assert!(play.chocograph_cancel());
+    assert_eq!(play.hintmap, 0);
+}

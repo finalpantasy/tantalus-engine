@@ -113,6 +113,13 @@ pub struct WorldPlay {
     /// The chocobo the script placed (by story point), if the player owns
     /// one and is not riding it.
     pub chocobo: Option<ParkedChocobo>,
+    /// `FF9StateGlobal.hintmap_id`: the selected Chocograph picture (0
+    /// none, else index + 1). The script reads it as system variable 198
+    /// and digs at that picture's spot (entry 5 function 14, entry 3).
+    pub hintmap: i32,
+    /// The Chocograph list while the script's menu is open
+    /// (`ChocographUI`).
+    pub chocograph: Option<tantalus_legacy::chocobo::ChocographBook>,
     friendly: BTreeSet<u16>,
     /// The place under the actor, if any.
     pub place: Option<i32>,
@@ -186,6 +193,12 @@ impl WorldPlay {
         })
     }
 
+    /// The running world script, mutably (tests drive its requests).
+    #[doc(hidden)]
+    pub fn script_mut_for_tests(&mut self) -> &mut crate::world_script::WorldScript {
+        self.script.as_mut().expect("a world script")
+    }
+
     /// The running world script, if any.
     pub fn script(&self) -> Option<&crate::world_script::WorldScript> {
         self.script.as_ref()
@@ -218,6 +231,8 @@ impl WorldPlay {
             events,
             script: None,
             chocobo: None,
+            hintmap: 0,
+            chocograph: None,
             friendly,
             place: None,
             frames: 0,
@@ -586,6 +601,7 @@ impl WorldPlay {
             .world_event
             .map(|hit| event_code(hit.cell_x, hit.cell_z, hit.event));
         let (scripted, events) = self.script_place(hit_code);
+        self.poll_chocograph_menu();
         tick.script_battle = events.0;
         tick.field = events.1;
         self.place = scripted.or_else(|| hit_code.and_then(|code| self.events.get(&code)).copied());
@@ -669,6 +685,58 @@ impl WorldPlay {
         (None, started)
     }
 
+    /// Opens the Chocograph list when the script asked for it
+    /// (`OpenMenu` 5): the book is read from the script's global state
+    /// (found and opened bits 184 to 189, the chocobo's reach, byte 191).
+    fn poll_chocograph_menu(&mut self) {
+        let Some(script) = self.script.as_mut() else {
+            return;
+        };
+        let world = script.world_mut();
+        if !std::mem::take(&mut world.chocograph_requested) {
+            return;
+        }
+        let bytes = world.global_memory.bytes();
+        let len = tantalus_legacy::saves::ff9_tree::EventGlobal::LEN.min(bytes.len());
+        if let Ok(global) =
+            tantalus_legacy::saves::ff9_tree::EventGlobal::from_bytes(bytes[..len].to_vec())
+        {
+            self.chocograph = Some(tantalus_legacy::chocobo::ChocographBook::from_event(
+                &global,
+                self.hintmap,
+            ));
+        }
+    }
+
+    /// Picks a picture in the open Chocograph list
+    /// (`ChocographUI.OnKeyConfirm`): sets the hint map the script digs by.
+    pub fn chocograph_select(
+        &mut self,
+        index: usize,
+    ) -> Result<(), tantalus_legacy::chocobo::SelectError> {
+        let Some(book) = self.chocograph.as_mut() else {
+            return Err(tantalus_legacy::chocobo::SelectError::OutOfRange);
+        };
+        book.select(index)?;
+        self.hintmap = book.hintmap_id;
+        Ok(())
+    }
+
+    /// Clears the selection (the list's Cancel sub menu).
+    pub fn chocograph_cancel(&mut self) -> bool {
+        let Some(book) = self.chocograph.as_mut() else {
+            return false;
+        };
+        let cleared = book.cancel_selection();
+        self.hintmap = book.hintmap_id;
+        cleared
+    }
+
+    /// Closes the list.
+    pub fn chocograph_close(&mut self) {
+        self.chocograph = None;
+    }
+
     /// What `ff9.w_frameGetParameter` answers the script this frame
     /// (system variables 192 to 211) and where the script's objects stand:
     /// the area and topograph under the actor, the camera yaw, the actor's
@@ -698,6 +766,7 @@ impl WorldPlay {
             (197, params[2]),
             // 199: the camera yaw as a 12-bit angle shifted by 4.
             (199, (camera / 360.0 * 256.0) as i32 & 0xFF),
+            (198, self.hintmap),
             (200, 0),
             (201, fixed(pos.x)),
             (202, fixed(pos.y)),

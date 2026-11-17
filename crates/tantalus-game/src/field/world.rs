@@ -863,6 +863,10 @@ pub struct FieldWorld {
     /// The save screen was asked for and is not open yet (runtime-only).
     #[serde(skip)]
     pub save_requested: bool,
+    /// A script ran `MENU(5)`: the Chocograph list was asked for and is not
+    /// open yet (runtime-only).
+    #[serde(skip)]
+    pub chocograph_requested: bool,
     /// A script ran `MENU(2, shop)`: the shop to open, not open yet
     /// (runtime-only).
     #[serde(skip)]
@@ -1122,6 +1126,7 @@ impl FieldWorld {
             menu_disabled: false,
             save_point: false,
             save_requested: false,
+            chocograph_requested: false,
             shop_requested: None,
             world_codes: Vec::new(),
             support_enabled: BTreeMap::new(),
@@ -1242,6 +1247,7 @@ impl FieldWorld {
         self.light_changes.clear();
         self.save_point = false;
         self.save_requested = false;
+        self.chocograph_requested = false;
         self.shop_requested = None;
         self.clear_tile_animations();
         self.control_actor = None;

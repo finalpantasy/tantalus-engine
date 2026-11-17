@@ -605,6 +605,11 @@ impl LegacyEventHost for FieldHost<'_> {
                 self.world.save_point = true;
                 self.world.save_requested = true;
             }
+            if let HostEvent::OpenMenu { menu: 5, .. } = event {
+                // `EventService.OpenChocographMenu` (the world script's
+                // Chocograph prompt): the picture list opens.
+                self.world.chocograph_requested = true;
+            }
             if let HostEvent::OpenMenu { menu: 2, subject } = event {
                 // `EventService.OpenShopMenu`: the subject is the shop id.
                 self.world.shop_requested = Some(*subject);
