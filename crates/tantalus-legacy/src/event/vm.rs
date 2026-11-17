@@ -171,8 +171,8 @@ impl EventVm {
             .then_some(self.entity)
             .flatten();
         let memory = match object {
-            Some(entity) => host.instance_memory(entity),
-            None => host.variable_memory(variable.scope),
+            Some(entity) if host.instance_memory(entity).is_some() => host.instance_memory(entity),
+            _ => host.variable_memory(variable.scope),
         };
         match memory {
             Some(memory) => memory
@@ -196,8 +196,8 @@ impl EventVm {
             .then_some(self.entity)
             .flatten();
         let memory = match object {
-            Some(entity) => host.instance_memory(entity),
-            None => host.variable_memory(variable.scope),
+            Some(entity) if host.instance_memory(entity).is_some() => host.instance_memory(entity),
+            _ => host.variable_memory(variable.scope),
         };
         match memory {
             Some(memory) => {

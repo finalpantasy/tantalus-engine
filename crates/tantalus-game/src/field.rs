@@ -24,7 +24,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use tantalus_contracts::{EngineError, EntityId, ErrorCategory, Tick};
-use tantalus_legacy::{EventProgram, EventVm, LegacyEventHost, VmError, VmStepReport};
+use tantalus_legacy::{EventProgram, EventVm, LegacyEventHost, VmError, VmStatus, VmStepReport};
 
 #[derive(Debug)]
 pub struct FieldScene {
@@ -38,6 +38,10 @@ pub struct FieldScene {
     /// Functions set aside while a higher-priority function of their object runs
     /// (`Obj.ip` holds one running function; a request interrupts the idle loop).
     suspended: BTreeSet<EntityId>,
+    /// The main object's level-0 function that ends a battle's return
+    /// (`EnterBattleEnd`): every other object stays suspended until it
+    /// returns (`ExitBattleEnd`, EventEngine.cs:706 and 1127).
+    battle_end: Option<EntityId>,
 }
 
 impl FieldScene {
@@ -47,7 +51,14 @@ impl FieldScene {
             ranks: BTreeMap::new(),
             next_rank: 0,
             suspended: BTreeSet::new(),
+            battle_end: None,
         }
+    }
+
+    /// `EnterBattleEnd`: objects other than the main one wait until the
+    /// function `key` (the main object's level-0 request) returns.
+    pub fn begin_battle_end(&mut self, key: EntityId) {
+        self.battle_end = Some(key);
     }
 
     /// Sets `entity`'s function aside (`true`) or lets it run again.
@@ -163,6 +174,14 @@ impl FieldScene {
         host: &mut dyn LegacyEventHost,
     ) -> Result<Vec<FieldStep>, FieldError> {
         let mut reports = Vec::new();
+        if let Some(key) = self.battle_end
+            && self
+                .entries
+                .get(&key)
+                .is_none_or(|vm| vm.status() == VmStatus::Completed)
+        {
+            self.battle_end = None;
+        }
         for entity in self.run_order() {
             if self.suspended.contains(&entity) {
                 continue;
@@ -170,6 +189,11 @@ impl FieldScene {
             let Some(vm) = self.entries.get_mut(&entity) else {
                 continue;
             };
+            if self.battle_end.is_some_and(|key| key != entity)
+                && vm.entity() != Some(EntityId::new(0))
+            {
+                continue;
+            }
             // `DisposeObj` unlinks the object: none of its functions run
             // until a `NEW` initializes it again.
             if vm

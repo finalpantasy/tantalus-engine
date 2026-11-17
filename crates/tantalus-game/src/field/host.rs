@@ -762,6 +762,43 @@ impl LegacyEventHost for FieldHost<'_> {
                     state.anim_span = state.animation_frames;
                     state.anim_frozen = false;
                 }
+                HostEvent::PlayJumpAnimation { actor, landing } => {
+                    // `PREJUMP` / `POSTJUMP` (DoEventCode.cs:2061-2076): the jump
+                    // clip plays held from frame 0 to `jump0 - 1`, and the landing
+                    // plays it from `jump1 + 1` to the end with the flags cleared.
+                    let jump = self
+                        .world
+                        .actor_presentation
+                        .get(actor)
+                        .and_then(|presentation| presentation.jump_animation);
+                    if let Some((animation, [jump0, jump1])) = jump {
+                        let clip = self
+                            .world
+                            .animation_frame_counts
+                            .as_ref()
+                            .and_then(|counts| counts(animation))
+                            .unwrap_or(self.world.animation_default_ticks);
+                        let state = self.actor_mut(*actor, "play jump animation")?;
+                        state.anim_hold = !*landing;
+                        state.anim_loop = false;
+                        state.anim_loops = 0;
+                        state.in_frame = if *landing { jump1.wrapping_add(1) } else { 0 };
+                        state.out_frame = if *landing {
+                            u8::MAX
+                        } else {
+                            jump0.wrapping_sub(1)
+                        };
+                        state.animation_frame = u16::from(state.in_frame);
+                        state.animation_frames = if *landing {
+                            clip.saturating_sub(u16::from(state.in_frame)).max(1)
+                        } else {
+                            u16::from(state.out_frame).max(1)
+                        };
+                        state.anim_span = state.animation_frames;
+                        state.anim_frozen = false;
+                        state.look.playing = Some(animation);
+                    }
+                }
                 HostEvent::SetAnimationFlags {
                     actor,
                     flags,
@@ -1014,7 +1051,24 @@ impl LegacyEventHost for FieldHost<'_> {
                     y,
                     steps,
                 } => {
+                    let range = self
+                        .world
+                        .actor_presentation
+                        .get(actor)
+                        .and_then(|presentation| presentation.jump_animation)
+                        .map(|(_, [jump0, jump1])| (jump0, jump1));
                     let state = self.actor_mut(*actor, "setup jump")?;
+                    // `SETVY3` marks the jump and plays the jump clip over
+                    // `jump0..jump1` (held by the earlier `PREJUMP`).
+                    state.act_jump = true;
+                    if let Some((jump0, jump1)) = range {
+                        state.in_frame = jump0;
+                        state.out_frame = jump1;
+                        state.animation_frame = u16::from(jump0);
+                        state.animation_frames = u16::from(jump1.abs_diff(jump0)).max(1);
+                        state.anim_span = state.animation_frames;
+                        state.anim_frozen = false;
+                    }
                     // `JUMP3` setup: `BGI_charSetActive(0)` (EventEngine.DoEventCode.cs).
                     state.path_active = false;
                     state.placed_unchecked = true;

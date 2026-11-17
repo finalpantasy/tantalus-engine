@@ -151,6 +151,11 @@ impl FieldDirector {
     }
 
     /// Sets a function aside while a higher-priority one of its object runs.
+    /// `EnterBattleEnd` for the main object's function `key`.
+    pub fn begin_battle_end(&mut self, key: EntityId) {
+        self.scene.begin_battle_end(key);
+    }
+
     pub fn set_suspended(&mut self, entity: EntityId, suspended: bool) {
         self.scene.set_suspended(entity, suspended);
     }
@@ -241,7 +246,17 @@ impl FieldDirector {
                 _ => None,
             };
             if let Some(source) = source {
-                self.scene.requeue_object(EntityId::new(u64::from(source)));
+                // `NEW3` appends the object it created (a second object of the
+                // entry has its own place in the list), not the entry's first.
+                let object = match event {
+                    HostEvent::InitializeObject { unique_id, .. } => {
+                        let uid = if *unique_id == 0 { source } else { *unique_id };
+                        self.world.resolve_uid(i32::from(uid))
+                    }
+                    _ => None,
+                }
+                .unwrap_or_else(|| EntityId::new(u64::from(source)));
+                self.scene.requeue_object(object);
                 initialized.push(source);
             }
         }

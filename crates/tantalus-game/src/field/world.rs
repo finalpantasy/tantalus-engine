@@ -82,6 +82,10 @@ pub struct ActorState {
     /// A held animation has ended: nothing advances until the next `ANIM` (`afFreeze`).
     #[serde(default)]
     pub anim_frozen: bool,
+    /// `actJump`: set by `SetupJump`, cleared when the landing animation stops
+    /// (`FinishJump` also resets the animation range to the whole clip).
+    #[serde(default)]
+    pub act_jump: bool,
     /// Length of the animation being played, for a loop to restart.
     #[serde(default)]
     pub anim_span: u16,
@@ -423,6 +427,7 @@ impl ActorState {
             anim_loop: false,
             anim_loops: 0,
             anim_frozen: false,
+            act_jump: false,
             anim_span: 0,
             look: ActorLook::default(),
             move_speed: default_move_speed(),
@@ -695,7 +700,8 @@ pub struct FieldWorld {
     deleted_objects: BTreeSet<EntityId>,
     rng: u64,
     input_mask: i32,
-    /// Walk speed in world units per tick for synthetic movement progress.
+    /// Walk speed in world units per frame at the default movement speed of 30
+    /// (`MSPEED` sets `actor.speed` in units per frame).
     pub walk_speed: f32,
     /// Default animation duration in ticks when a script plays an animation.
     pub animation_default_ticks: u16,
@@ -1021,7 +1027,7 @@ impl FieldWorld {
             rng: 0x9E37_79B9_7F4A_7C15,
             random_battles: RandomBattles::default(),
             input_mask: 0,
-            walk_speed: 16.0,
+            walk_speed: 30.0,
             animation_default_ticks: 32,
             exit_arrivals: BTreeSet::new(),
             applied_resolutions: BTreeSet::new(),
@@ -1580,6 +1586,12 @@ impl FieldWorld {
                         } else {
                             u16::from(state.out_frame)
                         };
+                        if state.act_jump {
+                            // `FinishJump`.
+                            state.act_jump = false;
+                            state.in_frame = 0;
+                            state.out_frame = u8::MAX;
+                        }
                     }
                 }
             }

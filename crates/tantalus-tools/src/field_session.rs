@@ -457,7 +457,13 @@ pub fn resume_after_battle(director: &mut FieldDirector, pool: &Pool) -> Result<
     if pool.is_empty() {
         return Ok(());
     }
-    rerun(director, pool, 0, 10)?;
+    if rerun(director, pool, 0, 10)?
+        && let Some(key) = function_entity(pool, 0, 10)
+    {
+        // `Request` of the main object's function 10 runs `EnterBattleEnd`:
+        // the other objects wait until it returns.
+        director.begin_battle_end(key);
+    }
     Ok(())
 }
 

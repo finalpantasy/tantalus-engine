@@ -124,6 +124,19 @@ fn run(args: Vec<String>) -> Result<(), String> {
             "--language" => language = value()?,
             "--choices" => {
                 for part in value()?.split(',') {
+                    // `*:TEXT=N` answers that text on every field
+                    // (the moogle menus, whose text ids match across fields)
+                    // unless the field has its own entry.
+                    let part = part.trim();
+                    let (maps, part): (Vec<u16>, &str) = match part.strip_prefix("*:") {
+                        Some(rest) => ((0..2000).collect(), rest),
+                        None => (Vec::new(), part),
+                    };
+                    let part = &if maps.is_empty() {
+                        part.to_string()
+                    } else {
+                        format!("0:{part}")
+                    };
                     let parsed = part.trim().split_once(':').and_then(|(map, rest)| {
                         let (text, answer) = rest.split_once('=')?;
                         let (answer, from) = match answer.split_once('@') {
@@ -140,7 +153,13 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     let (map, text, from, answer) = parsed.ok_or_else(|| {
                         format!("bad --choices entry `{part}`, want MAP:TEXT=N[@SCENARIO]")
                     })?;
-                    choices.insert((map, text, from), answer);
+                    if maps.is_empty() {
+                        choices.insert((map, text, from), answer);
+                    } else {
+                        for map in &maps {
+                            choices.insert((i32::from(*map), text, i32::MIN), answer);
+                        }
+                    }
                 }
             }
             "--route" => {
@@ -1328,6 +1347,7 @@ fn chain(
         let mut open_since: BTreeMap<u8, u64> = BTreeMap::new();
         let mut confirms = 0usize;
         let mut choices_made: Vec<(u16, i32)> = Vec::new();
+        let mut reset_choice_at: Option<u64> = None;
         // Scripted player (--explore): while user control is on, step the
         // controlled actor into each region that has a tag-2 function, run
         // that function once (the reference `Request(quad, 1, 2)` from
@@ -1598,6 +1618,10 @@ fn chain(
                     held |= rule.mask;
                 }
             }
+            if reset_choice_at.is_some_and(|at| ticks_run >= at) {
+                director.world_mut().dialog_choice = 0;
+                reset_choice_at = None;
+            }
             // A confirm press lasts one tick.
             if pressed {
                 director.world_mut().set_input(held);
@@ -1608,7 +1632,24 @@ fn chain(
             // Through a cutscene the player keeps tapping confirm; scenes
             // that skip ahead on `KeyOn` (map 150 entry 23) wait for a
             // press that comes after the line has shown.
+            // An open dialog with a chosen answer is left to the window
+            // closer below, which sets the answer before it confirms.
+            let answered_window = director.world().windows.iter().any(|(window, open)| {
+                *open
+                    && director
+                        .world()
+                        .window_texts
+                        .get(window)
+                        .is_some_and(|text| {
+                            choice_texts.contains(text)
+                                && choices
+                                    .range((map, *text, i32::MIN)..=(map, *text, i32::MAX))
+                                    .next()
+                                    .is_some()
+                        })
+            });
             if confirm_after > 0
+                && !answered_window
                 && !director.world().user_control
                 && ticks_run > 0
                 && ticks_run.is_multiple_of(CONFIRM_PERIOD)
@@ -1666,10 +1707,16 @@ fn chain(
                             // reached: map 202's Baku starts his fight on
                             // "Anytime!" only from scenario 2100.
                             let scenario = scenario_counter(director.world());
-                            let answer = choices
+                            let entry = choices
                                 .range((map, text, i32::MIN)..=(map, text, scenario))
-                                .next_back()
-                                .map_or(0, |(_, answer)| *answer);
+                                .next_back();
+                            let answer = entry.map_or(0, |(_, answer)| *answer);
+                            // A `*:` answer (the moogle menus) is only the
+                            // menu's own: the next script that reads the
+                            // choice must not see it.
+                            if entry.is_some_and(|((_, _, from), _)| *from == i32::MIN) {
+                                reset_choice_at = Some(ticks_run + 20);
+                            }
                             director.world_mut().dialog_choice = answer;
                             choices_made.push((text, answer));
                         }
@@ -2028,11 +2075,18 @@ fn chain(
             if let Some(index) = index {
                 world_exits_used[index] = true;
                 let location = world_exits[index].1;
-                let outcome = match db.get(&world_map) {
-                    Some(name) => tantalus_tools::field_session::world_exit(
-                        bundle, name, location, &mut world,
-                    ),
-                    None => Err(format!("world map {world_map} not in EventDB")),
+                let outcome = if location < 0 {
+                    // A scripted world scene (the cargo ship's flight, 9001):
+                    // the world script runs as a field and ends with its own
+                    // `ChangeField`.
+                    Ok(Some(world_map))
+                } else {
+                    match db.get(&world_map) {
+                        Some(name) => tantalus_tools::field_session::world_exit(
+                            bundle, name, location, &mut world,
+                        ),
+                        None => Err(format!("world map {world_map} not in EventDB")),
+                    }
                 };
                 println!(
                     "{}",

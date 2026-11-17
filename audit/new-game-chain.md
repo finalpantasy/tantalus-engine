@@ -510,7 +510,7 @@ The three Evil Forest fights take the party to level 2, and the Plant Brain
 falls. Every battle in the Alexandria to Evil Forest slice is now a victory
 (337 is the scripted result 5).
 
-## Story route: field 301 to the cargo ship
+## Story route: field 301 to Lindblum
 
 `audit/story-route.sh` is a second regression beside the chain99 run. It
 runs chain99 with `--save-at 301:<file>` (the output stays identical), then
@@ -550,56 +550,28 @@ closed:
 The Dali airport errand needed no engine change: with the three talks
 skipped, scenario 2810 follows.
 
-Open: after the 8e00983 rebase the engine room scene stalls early (entry 7
-waits on an animation, entry 8 on a walk), where it ran through to the deck
-(field 507) before. Before the rebase the deck scene (507) also left the
-player locked: region 10 re-fires `Map28 = 6` while the player stands in it.
-Past that lie Lindblum, Burmecia and Cleyra; disc 1 ends at
-`EVT_ALEX3_AC_OHAKA` (field 1800), whose `DISCCHANGE` goes to disc 2, field
-1812.
+Later engine fixes took the route through the cargo ship to Lindblum:
 
-## Playing it
+- `MSPEED` is units per frame (default 30); the old default of 16 left the
+  engine room 504 stalling (walk waits that never finished in time).
+- Instance variables (`Instance` scope) belong to the object, not to the
+  function (`Obj` local buffer). Objects run in creation order, and a created
+  object is appended to that order.
+- After a battle every object except uid 0 is suspended until the main
+  object's function 10 returns (`EnterBattleEnd`/`ExitBattleEnd`).
+- `PlayJumpAnimation`/`SETVY3`/`PREJUMP`/`POSTJUMP` frame spans and
+  `FinishJump` (field 502 and 506).
+- `--world-exits 9001:-1` runs the cargo ship's scripted world scene as a
+  field; it ends in its own `ChangeField(503)`.
+- `--choices '*:3=6'` answers a text on every field on every field (moogle menu
+  Cancel); an open dialog with a chosen answer is no longer confirmed blind.
 
-The chain's field loop now lives in the library (`tantalus_tools::field_session`
-for one field, `tantalus_tools::play::PlayGame` for a whole run), and a person
-can drive it:
-
-```
-tantalus-client play --assets <StreamingAssets> --game-data <x64/FF9_Data> \
-  --memoria <Memoria root> --atan <ratan_tbl.bin> \
-  [--battles audit/battle-scene-ids.tsv] [--world-exits 4] [--scale 3]
-```
-
-Arrows or WASD walk, Enter, Space or Z confirm (and close the open window;
-in a choice window, up and down pick the answer first), Backspace or X
-cancel, Q and E are triangle and square, Tab is select and P is start. The
-window shows the field background and a marker per actor (amber for the
-player). Dialog lines, battles and field changes print to the console, and
-the open line shows in the title bar, since the client has no font yet.
-
-What the play loop does that the chain's scripted player did not:
-
-- Input walking stays on the walkmesh. A step that lands inside a triangle
-  of the current floor, or of another floor where two meet, is kept; any
-  other step slides to the nearest edge of the current floor. Field 50's
-  doorway is floor 0 and the room is floor 2.
-- Region functions run every tick the player stands in the region, as
-  `EventCollision.CollisionRequest` does (`TreadQuad`, then
-  `Request(quad, 1, 2)`). Field 50's candle needs this: region 7 sets map
-  variable 38 each tick, and the main loop shows the "Light the candle"
-  choice when confirm is pressed while it is set.
-- Keys walk the way `FieldMapActorController.UpdateMovement` does: up is
-  +z, down -z, left -x, right +x, turned about +y by the field's control
-  twist (`SetControlDirection`, opcode 0x67, second argument, zeroed on
-  field load). In field 50, up walks toward the candle.
-- The view follows Memoria's `FieldMap.offset` and the camera's viewport
-  (`vrpMinX/MaxX/MinY/MaxY`): actors project with that offset, and the
-  window scrolls to keep the player in frame, clamped to the viewport.
-  Before this the background sat off by the offset and left a dark strip
-  on the right and bottom.
-
-Two headless checks cover the same loop without a window:
-`tantalus-play` prints each event as JSON, and `tantalus-client capture-play`
-renders the field the run ends on. With Up held for ticks 300-356
-(`--hold 300-356:10`) and confirm presses (`--auto-confirm 30`), both reach field 50, the candle choice, battle 336
-(victory) and the meeting in field 52.
+The region 10 re-fire on the deck (507) is the reference rule (a region's
+tag 2 is requested every frame while the player stands in it with control);
+the lock came from the slow walk speed and is gone. The route now ends in
+Lindblum (field 611, scenario 3000). Past it, with the explorer and
+`--route 611>612,612>613,613>614,614>610`, the story reaches the hunting
+festival fields (555, scenario 3110); the step to 565 (scenario 3115) is
+gated by a field 555 cutscene (Map var 57) not yet reached. Burmecia, Cleyra
+and Alexandria remain; disc 1 ends at `EVT_ALEX3_AC_OHAKA` (field 1800),
+whose `DISCCHANGE` goes to disc 2, field 1812.
