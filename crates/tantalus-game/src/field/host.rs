@@ -242,6 +242,50 @@ impl FieldHost<'_> {
                 shadow_intensity,
                 shadow_scale,
             }),
+            HostEvent::SetObjectScale {
+                actor,
+                scale,
+                vertical_scale,
+            } => {
+                let look = self.world.actor_presentation.entry(actor).or_default();
+                look.scale = scale;
+                look.vertical_scale = vertical_scale;
+            }
+            HostEvent::SetHeadFocusMasks {
+                actor,
+                self_mask,
+                target_mask,
+            } => {
+                let look = self.world.actor_presentation.entry(actor).or_default();
+                look.head_focus_self = self_mask;
+                look.head_focus_target = target_mask;
+            }
+            HostEvent::SetHeadFocusFlags { actor, flags } => {
+                self.world
+                    .actor_presentation
+                    .entry(actor)
+                    .or_default()
+                    .head_focus_flags = flags;
+            }
+            HostEvent::ShowBubbleIcon { icon } => self.world.bubble_icon = Some(icon),
+            HostEvent::SetHereIcon { mode } => self.world.here_icon = mode,
+            HostEvent::SetTileShadeColor { overlay, color } => {
+                self.world.tile_shade.insert(overlay, color);
+            }
+            HostEvent::ApplyFadeFilter {
+                mode,
+                frame,
+                cyan,
+                magenta,
+                yellow,
+            } => {
+                self.world.fade_filter = Some(super::world::FadeFilter {
+                    mode,
+                    frames: frame,
+                    color: [cyan, magenta, yellow],
+                    elapsed: 0,
+                });
+            }
             HostEvent::SetModelLight {
                 model,
                 color,
@@ -1257,6 +1301,14 @@ impl LegacyEventHost for FieldHost<'_> {
 
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError> {
         Ok(!self.world.request_pending(entity))
+    }
+
+    fn script_request_is_complete_at(
+        &mut self,
+        entity: EntityId,
+        level: i32,
+    ) -> Result<bool, EngineError> {
+        Ok(!self.world.request_pending_at(entity, level))
     }
 
     fn object_uid(&mut self, entity: EntityId) -> Option<i32> {

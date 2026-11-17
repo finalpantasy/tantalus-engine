@@ -25,6 +25,8 @@ pub struct EventVm {
     /// target, so the caller polls the target, not itself (a caller that
     /// polled itself deadlocked when it was the target of another wait).
     request_target: Option<EntityId>,
+    /// Script level of the `REQEW` request being waited for.
+    request_level: i32,
     pc: u32,
     variables: BTreeMap<(VariableScope, u16), i32>,
     expression_value: i32,
@@ -41,6 +43,7 @@ impl EventVm {
             entity: None,
             own_object: None,
             request_target: None,
+            request_level: i32::MAX,
             pc: 0,
             variables: BTreeMap::new(),
             expression_value: 0,
@@ -383,13 +386,14 @@ impl EventVm {
                     };
                     let entity = self.request_target.unwrap_or(entity);
                     if !host
-                        .script_request_is_complete(entity)
+                        .script_request_is_complete_at(entity, self.request_level)
                         .map_err(|error| VmError::host(error, self.pc, 0))?
                     {
                         return Ok(self.report(tick, 0, Vec::new()));
                     }
                     self.wait = None;
                     self.request_target = None;
+                    self.request_level = i32::MAX;
                     self.status = VmStatus::Running;
                 }
             }
@@ -1414,8 +1418,13 @@ impl EventVm {
                     let y = self.evaluate(host, &y, instruction.offset, opcode)?;
                     let scale = [x, z, y].map(|value| i32::from(value as i8).wrapping_shl(6));
                     self.pc = next;
+                    // Uid 255 is the running object itself.
+                    let actor = match self.entity {
+                        Some(own) if actor == 255 => own,
+                        _ => EntityId::new(actor as u64),
+                    };
                     events.push(HostEvent::SetObjectScale {
-                        actor: EntityId::new(actor as u64),
+                        actor,
                         scale,
                         vertical_scale: z as u8,
                     });
@@ -1474,6 +1483,7 @@ impl EventVm {
                         self.pc = next;
                         self.wait = Some(WaitState::ScriptRequest);
                         self.request_target = Some(target);
+                        self.request_level = level;
                         self.status = VmStatus::Waiting;
                         events.push(HostEvent::RequestScriptSync { level, target, tag });
                     } else {
@@ -1609,6 +1619,7 @@ impl EventVm {
                     self.pc = next;
                     self.wait = Some(WaitState::ScriptRequest);
                     self.request_target = None;
+                    self.request_level = i32::MAX;
                     self.status = VmStatus::Waiting;
                     events.push(HostEvent::RequestCallerSync { level, tag });
                 }

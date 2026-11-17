@@ -687,3 +687,67 @@ impl WorldExit {
         Err("world exit code did not reach ChangeField in 600 ticks".to_owned())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tantalus_legacy::decode_program;
+
+    /// `Wait(frames)` then end.
+    fn wait_program(frames: u8) -> EventProgram {
+        decode_program(&[0x22, 0, frames, 4]).unwrap()
+    }
+
+    fn status(director: &FieldDirector, entity: EntityId) -> VmStatus {
+        director
+            .entry_states()
+            .iter()
+            .find(|(e, ..)| *e == entity)
+            .map(|(_, _, status, _)| *status)
+            .unwrap()
+    }
+
+    /// An object runs one function at a time: while its talk (tag 3) runs, the idle loop
+    /// (tag 1) does not advance, and it carries on once the talk returns.
+    #[test]
+    fn talk_sets_the_idle_loop_aside_until_it_returns() {
+        let pool: Pool = vec![vec![(1, wait_program(3)), (3, wait_program(12))]];
+        let mut director = new_director(FieldWorld::new(), &pool, 0);
+        let idle = function_entity(&pool, 0, 1).unwrap();
+        let talk = function_entity(&pool, 0, 3).unwrap();
+        register(&mut director, &pool, 0, Some(1)).unwrap();
+        register(&mut director, &pool, 0, Some(3)).unwrap();
+
+        let mut idle_done_at = None;
+        let mut talk_done_at = None;
+        for tick in 0..40 {
+            suspend_idle_loops(&mut director, &pool);
+            director.step().unwrap();
+            if talk_done_at.is_none() && status(&director, talk) == VmStatus::Completed {
+                talk_done_at = Some(tick);
+            }
+            if idle_done_at.is_none() && status(&director, idle) == VmStatus::Completed {
+                idle_done_at = Some(tick);
+            }
+        }
+        let talk_done_at = talk_done_at.expect("the talk finishes");
+        let idle_done_at = idle_done_at.expect("the idle loop finishes after the talk");
+        assert!(
+            idle_done_at > talk_done_at,
+            "idle loop finished at {idle_done_at} before the talk at {talk_done_at}"
+        );
+    }
+
+    #[test]
+    fn idle_loop_runs_freely_without_a_talk() {
+        let pool: Pool = vec![vec![(1, wait_program(3))]];
+        let mut director = new_director(FieldWorld::new(), &pool, 0);
+        let idle = function_entity(&pool, 0, 1).unwrap();
+        register(&mut director, &pool, 0, Some(1)).unwrap();
+        for _ in 0..6 {
+            suspend_idle_loops(&mut director, &pool);
+            director.step().unwrap();
+        }
+        assert_eq!(status(&director, idle), VmStatus::Completed);
+    }
+}

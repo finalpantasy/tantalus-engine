@@ -381,3 +381,107 @@ fn deleting_an_object_pauses_every_function_until_it_is_initialized_again() {
     let steps = scene.step(Tick::new(4), &mut host).unwrap();
     assert!(steps.iter().any(|step| step.entity == actor(2 * 256 + 1)));
 }
+
+/// Runs `AMODE flags, count` then `ANIM 1` on actor 1 and returns the world.
+fn animate_with_flags(flags: u8, count: u8) -> FieldWorld {
+    // 0x3f AMODE: flags 0 (both operands inline bytes), then 0x40 ANIM: flags 0, id 1.
+    let program = decode_program(&[0x3f, 0, flags, count, 0x40, 0, 1, 0, 4]).unwrap();
+    let mut scene = FieldScene::new();
+    scene.add_entry(actor(1), program).unwrap();
+    let mut world = FieldWorld::new();
+    world.add_actor(actor(1), [0.0; 3]);
+    let mut host = FieldHost::new(&mut world);
+    scene.step(Tick::new(0), &mut host).unwrap();
+    world
+}
+
+#[test]
+fn amode_hold_freezes_the_animation_on_its_last_frame() {
+    // AMODE bit 0 is afHold.
+    let mut world = animate_with_flags(1, 0);
+    let state = &world.actors[&actor(1)];
+    assert!(state.anim_hold && !state.anim_loop && !state.anim_frozen);
+    for _ in 0..200 {
+        world.advance_animations();
+    }
+    let state = &world.actors[&actor(1)];
+    assert!(state.anim_frozen, "a held animation freezes when it ends");
+    let frame = state.animation_frame;
+    for _ in 0..50 {
+        world.advance_animations();
+    }
+    assert_eq!(world.actors[&actor(1)].animation_frame, frame);
+}
+
+#[test]
+fn amode_loop_restarts_the_animation_until_the_count_runs_out() {
+    // AMODE bit 1 is afLoop, with a repeat count of 2: two passes, then the idle loop.
+    let mut world = animate_with_flags(2, 2);
+    let state = &world.actors[&actor(1)];
+    assert!(state.anim_loop && state.anim_loops == 2);
+    let span = state.animation_frames;
+    assert!(span > 0);
+    let mut restarts = 0;
+    let mut previous = span;
+    for _ in 0..(u32::from(span) * 4) {
+        world.advance_animations();
+        let frames = world.actors[&actor(1)].animation_frames;
+        if frames > previous {
+            restarts += 1;
+        }
+        previous = frames;
+    }
+    assert_eq!(restarts, 1, "one restart for a count of 2");
+    assert_eq!(world.actors[&actor(1)].animation_frames, 0);
+    assert!(!world.actors[&actor(1)].anim_frozen);
+}
+
+#[test]
+fn plain_animation_ends_and_the_idle_loop_takes_over() {
+    let mut world = animate_with_flags(0, 0);
+    let span = world.actors[&actor(1)].animation_frames;
+    for _ in 0..=span {
+        world.advance_animations();
+    }
+    let state = &world.actors[&actor(1)];
+    assert_eq!(state.animation_frames, 0);
+    assert!(!state.anim_frozen);
+}
+
+#[test]
+fn presentation_ops_record_scale_head_focus_icons_and_fades() {
+    // 0x9f SCALE: flags 0, actor 255 (self), x 128, z 129, y 130.
+    // 0x8b SETHFOCUS: flags 0, self 3, target 5.   0x47: flags 0, value 1.
+    // 0x68 BUBBLE: flags 0, icon 2.   0xef HEREON: flags 0, mode 1.
+    // 0x59 shade: flags 0, overlay 1, rgb 10 20 30.   0xec FADE: flags 0, six bytes.
+    let program = decode_program(&[
+        0x9f, 0, 255, 128, 129, 130, //
+        0x8b, 0, 3, 5, //
+        0x47, 0, 1, //
+        0x68, 0, 2, //
+        0xef, 0, 1, //
+        0x59, 0, 1, 10, 20, 30, //
+        0xec, 0, 7, 16, 0, 1, 2, 3, //
+        4,
+    ])
+    .unwrap();
+    let mut scene = FieldScene::new();
+    scene.add_entry(actor(1), program).unwrap();
+    let mut world = FieldWorld::new();
+    world.add_actor(actor(1), [0.0; 3]);
+    {
+        let mut host = FieldHost::new(&mut world);
+        scene.step(Tick::new(0), &mut host).unwrap();
+    }
+    let look = world.actor_presentation[&actor(1)];
+    assert_eq!(look.scale, [-128 << 6, -127 << 6, -126 << 6]);
+    assert_eq!((look.head_focus_self, look.head_focus_target), (3, 5));
+    assert_eq!(look.head_focus_flags, 1);
+    assert_eq!(world.bubble_icon, Some(2));
+    assert_eq!(world.here_icon, 1);
+    assert_eq!(world.tile_shade[&1], [10, 20, 30]);
+    let fade = world.fade_filter.expect("a fade was requested");
+    assert_eq!((fade.mode, fade.frames, fade.color), (7, 16, [1, 2, 3]));
+    world.advance_animations();
+    assert_eq!(world.fade_filter.unwrap().elapsed, 1);
+}

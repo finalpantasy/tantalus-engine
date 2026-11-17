@@ -2036,6 +2036,16 @@ pub trait LegacyEventHost {
         level: i32,
     ) -> Result<bool, EngineError>;
     fn script_request_is_complete(&mut self, entity: EntityId) -> Result<bool, EngineError>;
+    /// A `REQEW` caller at `level` waits only for its own request: a request already running
+    /// on the target at a higher level (a lower priority) does not hold it.
+    fn script_request_is_complete_at(
+        &mut self,
+        entity: EntityId,
+        level: i32,
+    ) -> Result<bool, EngineError> {
+        let _ = level;
+        self.script_request_is_complete(entity)
+    }
     fn read_custom_variable(&mut self, variable: u16) -> Result<i32, EngineError>;
     /// Shared byte memory for a variable scope (`gEventGlobal` for Global,
     /// `EventContext.mapvar` for Map). `None` keeps the VM's private

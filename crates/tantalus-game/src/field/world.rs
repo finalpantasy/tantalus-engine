@@ -155,6 +155,55 @@ pub const CHAR_ATTR_LADDER: u32 = 4;
 pub const CHAR_ATTR_SHADOW_OFF: u32 = 16;
 pub const CHAR_ATTR_SHADOW_LOCK: u32 = 32;
 
+/// What a script set on an actor that only the renderer shows (runtime-only).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ActorPresentation {
+    /// `SetObjectScale` (`SCALE`): x, z, y scale (4096 = 1.0 in the reference's fixed point).
+    pub scale: [i32; 3],
+    /// `SetObjectScale` fourth byte: the vertical scale factor.
+    pub vertical_scale: u8,
+    /// `SetHeadFocusMasks` (`SETHFOCUS`): which objects this one's head follows, and which follow it.
+    pub head_focus_self: u8,
+    pub head_focus_target: u8,
+    /// `SetHeadFocusFlags`: head tracking on/off bits (0 = off).
+    pub head_focus_flags: u8,
+}
+
+impl Default for ActorPresentation {
+    fn default() -> Self {
+        Self {
+            scale: [4096; 3],
+            vertical_scale: 0,
+            head_focus_self: 0,
+            head_focus_target: 0,
+            head_focus_flags: 0,
+        }
+    }
+}
+
+/// `ApplyFadeFilter` (`FADEFILTER`): the screen filter a script asked for (runtime-only).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FadeFilter {
+    pub mode: i32,
+    /// Ticks the fade takes; 0 applies at once.
+    pub frames: i32,
+    /// Color offset per channel.
+    pub color: [i32; 3],
+    /// Ticks since the fade started.
+    pub elapsed: i32,
+}
+
+impl FadeFilter {
+    /// How far the fade has gone, 0 to 256.
+    pub fn progress(&self) -> i32 {
+        if self.frames <= 0 {
+            256
+        } else {
+            (self.elapsed * 256 / self.frames).clamp(0, 256)
+        }
+    }
+}
+
 /// One `fldmcf.SetMCF*Light` call on the field's map config.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LightChange {
@@ -629,6 +678,21 @@ pub struct FieldWorld {
     /// The map config light changes this field made, in order (runtime-only).
     #[serde(skip)]
     pub light_changes: Vec<LightChange>,
+    /// Scale and head-focus a script set per actor (runtime-only).
+    #[serde(skip)]
+    pub actor_presentation: BTreeMap<EntityId, ActorPresentation>,
+    /// The speech-bubble icon `ShowBubbleIcon` raised over the player, if any (runtime-only).
+    #[serde(skip)]
+    pub bubble_icon: Option<i32>,
+    /// `SetHereIcon` mode: whether the "you are here" icon shows (runtime-only).
+    #[serde(skip)]
+    pub here_icon: i32,
+    /// `SetTileShadeColor`: the tint of each background overlay, by overlay (runtime-only).
+    #[serde(skip)]
+    pub tile_shade: BTreeMap<i32, [u8; 3]>,
+    /// The latest `ApplyFadeFilter` (runtime-only).
+    #[serde(skip)]
+    pub fade_filter: Option<FadeFilter>,
     /// Experience-to-stats provider (runtime-only).
     #[serde(skip)]
     pub level_growth: Option<LevelGrowth>,
@@ -808,6 +872,11 @@ impl FieldWorld {
             support_enabled: BTreeMap::new(),
             actor_shadows: BTreeMap::new(),
             light_changes: Vec::new(),
+            actor_presentation: BTreeMap::new(),
+            bubble_icon: None,
+            here_icon: 0,
+            tile_shade: BTreeMap::new(),
+            fade_filter: None,
             level_growth: None,
         }
     }
@@ -844,6 +913,11 @@ impl FieldWorld {
     pub fn begin_field(&mut self) {
         // `EventEngine` clears `dashinh` when a field starts.
         self.run_disabled = false;
+        self.actor_presentation.clear();
+        self.bubble_icon = None;
+        self.here_icon = 0;
+        self.tile_shade.clear();
+        self.fade_filter = None;
         self.regions.clear();
         self.windows.clear();
         self.window_texts.clear();
@@ -1113,6 +1187,13 @@ impl FieldWorld {
         std::mem::take(&mut self.world_transitions)
     }
 
+    /// A request at `level` or a more urgent one is still running on `entity`.
+    pub fn request_pending_at(&self, entity: EntityId, level: i32) -> bool {
+        self.pending_requests
+            .get(&entity)
+            .is_some_and(|levels| levels.iter().any(|pending| *pending <= level))
+    }
+
     pub fn request_pending(&self, entity: EntityId) -> bool {
         self.pending_requests.contains_key(&entity)
     }
@@ -1193,6 +1274,9 @@ impl FieldWorld {
     /// `ProcessAnime` for every actor. The reference runs it before the tick's scripts
     /// (`ProcessEvents`), so a script reads the frame the animation reached this tick.
     pub fn advance_animations(&mut self) {
+        if let Some(fade) = self.fade_filter.as_mut() {
+            fade.elapsed = fade.elapsed.saturating_add(1);
+        }
         for state in self.actors.values_mut() {
             if state.anim_frozen {
                 // `ProcessAnime` does nothing while `afFreeze` is set.

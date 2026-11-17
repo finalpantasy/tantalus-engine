@@ -215,6 +215,8 @@ impl FieldDirector {
         // HonoluluFieldMain.FF9FieldMapMain services the movie before events.
         let map = self.world.field_map_no;
         self.world.fmv.service(map);
+        // The bubble icon shows for the tick a script raised it.
+        self.world.bubble_icon = None;
         let mut host = FieldHost::new(&mut self.world);
         let steps = self.scene.step(tick, &mut host).map_err(|error| {
             EngineError::new(

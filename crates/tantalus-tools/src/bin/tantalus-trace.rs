@@ -921,7 +921,7 @@ fn scenario_counter(world: &tantalus_game::FieldWorld) -> i32 {
     i32::from(bytes[0]) | (i32::from(bytes[1] as i8) << 8)
 }
 
-/// Destination of a region's exit: the first `ChangeField` with a constant
+/// Destination of a region's exit: the first `ChangeField` or `ChangeWorldMap` with a constant
 /// operand in the entry's tag-2 function.
 fn exit_destination(functions: &[(u16, EventProgram)]) -> Option<i32> {
     let (_, program) = functions.iter().find(|(tag, _)| *tag == 2)?;
@@ -929,7 +929,10 @@ fn exit_destination(functions: &[(u16, EventProgram)]) -> Option<i32> {
         .instructions
         .values()
         .find_map(|instruction| match &instruction.kind {
-            InstructionKind::ChangeField(Expression(ops)) => match ops.as_slice() {
+            InstructionKind::ChangeField(Expression(ops))
+            | InstructionKind::ChangeWorldMap {
+                destination: Expression(ops),
+            } => match ops.as_slice() {
                 [ExpressionOp::Constant(map), ExpressionOp::End] => Some(*map),
                 _ => None,
             },
@@ -947,7 +950,10 @@ fn exit_destinations(functions: &[(u16, EventProgram)]) -> Vec<i32> {
         .instructions
         .values()
         .filter_map(|instruction| match &instruction.kind {
-            InstructionKind::ChangeField(Expression(ops)) => match ops.as_slice() {
+            InstructionKind::ChangeField(Expression(ops))
+            | InstructionKind::ChangeWorldMap {
+                destination: Expression(ops),
+            } => match ops.as_slice() {
                 [ExpressionOp::Constant(map), ExpressionOp::End] => Some(*map),
                 _ => None,
             },
