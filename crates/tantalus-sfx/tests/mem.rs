@@ -1,7 +1,8 @@
 //! The flat memory and the PSX address mapper on a blank image.
 
 use tantalus_sfx::mem::{
-    HEAP_BASE, IMAGE_BASE, MAPPER, Memory, host_to_psx, psx_to_host, register, select_ram,
+    HEAP_BASE, HEAP_SPACING, IMAGE_BASE, MAPPER, Memory, host_to_psx, psx_to_host, register,
+    select_ram,
 };
 
 fn memory() -> Memory {
@@ -13,7 +14,8 @@ fn heap_and_image_round_trip() {
     let mut memory = memory();
     let block = memory.alloc(10);
     assert_eq!(block, HEAP_BASE);
-    assert_eq!(memory.alloc(1), HEAP_BASE + 16);
+    assert_eq!(memory.alloc(1), HEAP_BASE + 2 * HEAP_SPACING);
+    assert!(memory.u8(HEAP_BASE + 10).is_err());
     memory.set_u32(block + 4, 0xDEAD_BEEF).unwrap();
     assert_eq!(memory.u16(block + 6).unwrap(), 0xDEAD);
     memory.set_u64(IMAGE_BASE + 8, block).unwrap();

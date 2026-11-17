@@ -253,12 +253,29 @@ test-only and never a runtime fallback; CI builds neither the feature nor the te
 | `PsxInterpreterRun` | `interp` | unit tests only; frame-level checks need the native calls |
 | Flat memory (module image at 0x180000000, heap), PSX address mapper | `mem` | unit tests only |
 
-Not ported yet: the sequencer (`SeqStateUpdate`), the native call table and the primitive
-emitters. Until the sequencer is ported, the loader picks
-record groups by the order of the sequence's LOAD_CHUNK ops. Two effects still differ there:
+| The whole plugin, translated from Memoria's rewrite | `plugin` | 359 of 372 effects give the same primitives, frame for frame, and the same host calls (`--test plugin sweep`) |
 
-- 149 (Stop) makes extra 192x64 uploads through native calls 0, 1 and 166 while it plays.
-- 381 (Ark__Full) loads groups the sequencer picks at run time.
+The `plugin` module is generated: `crates/tantalus-sfx/cs2rs` is a Roslyn translator that reads
+Memoria's C# rewrite (`.reference/Memoria/FF9SpecialEffectPlugin`) and writes
+`src/plugin/generated.rs` over the flat memory model (pointers are `u64` addresses, module
+globals are loads and stores at their preferred-base addresses, address-taken locals live on
+a native stack in `Memory`). Regenerate with
+`dotnet run -c Release --project crates/tantalus-sfx/cs2rs -- <Memoria plugin dir> crates/tantalus-sfx/src/plugin/generated.rs`.
+`src/plugin/rt.rs` holds what the generated code calls (loads, stores, the stack, indirect
+calls by RVA, the host callback). The translator patches the C# where the rewrite and the DLL
+disagree (`Patches` in `Program.cs`, each logged in `audit/approved-differences.csv`).
+
+Checks (`cargo test -p tantalus-sfx --features dll-oracle --test plugin -- --ignored`):
+
+- Fire (ef000): 126 frames, 28,906 primitives and 190 host calls, all identical.
+- Cure (ef008, also Potion): 121 frames, 24,872 primitives and 172 host calls, all identical.
+- `sweep` over effects 0-511: 359 of 372 match. 212-224 differ from frame 60 on, and the DLL
+  does not repeat itself there (two runs of 212 give different primitives), so they need a
+  deterministic reference first.
+
+Memory layout matters for matching: the PSX address mapper opens 3 MB windows over host
+blocks, so heap blocks start 4 MB apart and the stack grows down, as on Windows, or the port
+opens different windows from the DLL.
 
 What Fire and Cure run, from `coverage_probe` (an INT3 on each of the 268 functions Memoria
 gives an address for; first calls only, so callees without an address are not listed):

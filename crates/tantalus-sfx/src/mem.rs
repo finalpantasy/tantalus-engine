@@ -15,6 +15,13 @@ use crate::image::PluginImage;
 pub const IMAGE_BASE: u64 = 0x1_8000_0000;
 /// Where [`Memory::alloc`] hands out blocks.
 pub const HEAP_BASE: u64 = 0x2_0000_0000;
+/// The distance between heap blocks (see [`Memory::alloc`]).
+pub const HEAP_SPACING: u64 = 4 << 20;
+/// Where the port's native stack lives (`stackalloc` and locals whose
+/// address the rewrite takes).
+pub const STACK_BASE: u64 = 0x40_0000_0000;
+/// Size of that stack.
+pub const STACK_SIZE: usize = 4 << 20;
 /// `unk_180576A10`: the global mapper.
 pub const MAPPER: u64 = IMAGE_BASE + 0x57_6A10;
 
@@ -25,7 +32,10 @@ pub struct Fault(pub u64);
 #[derive(Clone)]
 pub struct Memory {
     image: Vec<u8>,
-    heap: Vec<u8>,
+    /// Heap blocks by start address.
+    heap: std::collections::BTreeMap<u64, Vec<u8>>,
+    heap_next: u64,
+    stack: Vec<u8>,
 }
 
 impl std::fmt::Debug for Memory {
@@ -50,7 +60,9 @@ impl Memory {
         }
         Some(Self {
             image,
-            heap: Vec::new(),
+            heap: Default::default(),
+            heap_next: HEAP_BASE,
+            stack: vec![0; STACK_SIZE],
         })
     }
 
@@ -58,21 +70,35 @@ impl Memory {
     pub fn with_image_size(size: usize) -> Self {
         Self {
             image: vec![0; size],
-            heap: Vec::new(),
+            heap: Default::default(),
+            heap_next: HEAP_BASE,
+            stack: vec![0; STACK_SIZE],
         }
     }
 
-    /// `NativeMemory.Alloc`: a zeroed, 16-byte aligned block. Blocks are
-    /// never reused, so a freed pointer cannot alias a new one.
+    /// `NativeMemory.Alloc`: a zeroed block. Blocks are never reused, so a
+    /// freed pointer cannot alias a new one, and each starts on its own
+    /// [`HEAP_SPACING`] boundary: the original's heap blocks are far apart,
+    /// so each gets its own window in the PSX address mapper (a window
+    /// covers 3 MB), and the port must open the same windows.
     pub fn alloc(&mut self, size: usize) -> u64 {
-        let start = self.heap.len().next_multiple_of(16);
-        self.heap.resize(start + size.max(1), 0);
-        HEAP_BASE + start as u64
+        let start = self.heap_next;
+        let size = size.max(1);
+        self.heap.insert(start, vec![0; size]);
+        self.heap_next = (start + size as u64 + HEAP_SPACING).next_multiple_of(HEAP_SPACING);
+        start
     }
 
     fn slice(&self, address: u64, len: usize) -> Result<&[u8], Fault> {
-        let (region, offset) = if address >= HEAP_BASE {
-            (&self.heap, address - HEAP_BASE)
+        let (region, offset) = if address >= STACK_BASE {
+            (&self.stack, address - STACK_BASE)
+        } else if address >= HEAP_BASE {
+            let (start, block) = self
+                .heap
+                .range(..=address)
+                .next_back()
+                .ok_or(Fault(address))?;
+            (block, address - start)
         } else if address >= IMAGE_BASE {
             (&self.image, address - IMAGE_BASE)
         } else {
@@ -83,8 +109,15 @@ impl Memory {
     }
 
     fn slice_mut(&mut self, address: u64, len: usize) -> Result<&mut [u8], Fault> {
-        let (region, offset) = if address >= HEAP_BASE {
-            (&mut self.heap, address - HEAP_BASE)
+        let (region, offset) = if address >= STACK_BASE {
+            (&mut self.stack, address - STACK_BASE)
+        } else if address >= HEAP_BASE {
+            let (start, block) = self
+                .heap
+                .range_mut(..=address)
+                .next_back()
+                .ok_or(Fault(address))?;
+            (block, address - start)
         } else if address >= IMAGE_BASE {
             (&mut self.image, address - IMAGE_BASE)
         } else {
@@ -101,6 +134,29 @@ impl Memory {
     pub fn write_bytes(&mut self, address: u64, bytes: &[u8]) -> Result<(), Fault> {
         self.slice_mut(address, bytes.len())?.copy_from_slice(bytes);
         Ok(())
+    }
+
+    /// `memmove`: copies `len` bytes from `source` to `destination`.
+    pub fn copy(&mut self, destination: u64, source: u64, len: usize) {
+        if len == 0 {
+            return;
+        }
+        let bytes = self
+            .bytes(source, len)
+            .unwrap_or_else(|f| panic!("read fault at {:#x}", f.0))
+            .to_vec();
+        self.write_bytes(destination, &bytes)
+            .unwrap_or_else(|f| panic!("write fault at {:#x}", f.0));
+    }
+
+    /// `memset`.
+    pub fn fill(&mut self, destination: u64, value: u8, len: usize) {
+        if len == 0 {
+            return;
+        }
+        self.slice_mut(destination, len)
+            .unwrap_or_else(|f| panic!("write fault at {:#x}", f.0))
+            .fill(value);
     }
 
     pub fn u8(&self, address: u64) -> Result<u8, Fault> {

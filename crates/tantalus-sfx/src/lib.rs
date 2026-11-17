@@ -12,6 +12,7 @@ pub mod interp;
 pub mod loader;
 pub mod mem;
 pub mod mips;
+pub mod plugin;
 pub mod vram;
 
 #[cfg(feature = "dll-oracle")]

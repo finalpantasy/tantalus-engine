@@ -11,19 +11,8 @@
 use crate::vram::{Rect, Vram};
 use std::sync::Mutex;
 
-/// One host callback the plugin made.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Call {
-    /// The frame (`SFX_Update` calls so far) it was made in.
-    pub frame: u32,
-    /// `code >> 24`.
-    pub command: u8,
-    /// `code & 0xFFFFFF` (the object id for unit commands).
-    pub low: u32,
-    pub args: [i32; 4],
-    /// FNV-1a of the pixels of a `LoadImage`.
-    pub pixels: Option<u64>,
-}
+use crate::plugin::debug_host::position;
+pub use crate::plugin::debug_host::{Call, fnv};
 
 #[derive(Default)]
 struct HostState {
@@ -35,26 +24,6 @@ struct HostState {
 static HOST: Mutex<Option<HostState>> = Mutex::new(None);
 /// The plugin keeps global state: one oracle at a time.
 static IN_USE: Mutex<()> = Mutex::new(());
-
-/// FNV-1a over the little-endian bytes of `words`.
-pub fn fnv(words: &[u16]) -> u64 {
-    words.iter().fold(0xcbf2_9ce4_8422_2325u64, |hash, word| {
-        word.to_le_bytes().iter().fold(hash, |hash, &byte| {
-            (hash ^ u64::from(byte)).wrapping_mul(0x100_0000_01b3)
-        })
-    })
-}
-
-/// Where the harness puts battle object `btl_id`: party members in front
-/// of the camera, enemies behind them.
-fn position(btl_id: u32) -> [i16; 3] {
-    let slot = btl_id.trailing_zeros() as i16;
-    if btl_id >= 0x10 {
-        [(slot - 4) * 400, 0, -1000]
-    } else {
-        [slot * 400 - 600, 0, 1000]
-    }
-}
 
 fn log(
     host: &mut HostState,
