@@ -23,7 +23,7 @@
 //!
 //! Effects that do not match the player's DLL are not drawn ([`is_drawn`]):
 //! 212 to 224, which the DLL itself does not play the same way twice, and
-//! eleven sword skills still to fix.
+//! Photon (299), one vertex off.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};

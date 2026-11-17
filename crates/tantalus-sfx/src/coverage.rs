@@ -21,6 +21,8 @@ struct Armed {
     base: usize,
     original: std::collections::HashMap<usize, u8>,
     hits: Vec<u32>,
+    /// RCX, RDX, R8, R9 and the fifth argument at each hit.
+    args: Vec<[u64; 5]>,
 }
 
 static ARMED: Mutex<Option<Armed>> = Mutex::new(None);
@@ -51,6 +53,15 @@ unsafe extern "system" fn handler(pointers: *mut *mut c_void) -> i32 {
         *(address as *mut u8) = byte;
         FlushInstructionCache(GetCurrentProcess(), address as *const c_void, 1);
         armed.hits.push((address - armed.base) as u32);
+        let reg = |offset: usize| *(context.add(offset) as *const u64);
+        let rsp = reg(0x98) as usize;
+        armed.args.push([
+            reg(0x80),
+            reg(0x88),
+            reg(0xB8),
+            reg(0xC0),
+            *((rsp + 0x28) as *const u64),
+        ]);
         *(context.add(RIP) as *mut usize) = address;
         -1
     }
@@ -73,6 +84,7 @@ pub unsafe fn arm(base: usize, text: (u32, u32), rvas: &[u32]) {
             base,
             original: Default::default(),
             hits: Vec::new(),
+            args: Vec::new(),
         };
         for &rva in rvas {
             let address = base + rva as usize;
@@ -90,6 +102,11 @@ pub unsafe fn arm(base: usize, text: (u32, u32), rvas: &[u32]) {
 
 /// The RVAs hit since [`arm`], in first-call order; disarms the rest.
 pub fn take() -> Vec<u32> {
+    take_with_args().into_iter().map(|(rva, _)| rva).collect()
+}
+
+/// [`take`] with the first five argument words of each first call.
+pub fn take_with_args() -> Vec<(u32, [u64; 5])> {
     let armed = ARMED.lock().unwrap().take();
     let Some(armed) = armed else {
         return Vec::new();
@@ -104,5 +121,5 @@ pub fn take() -> Vec<u32> {
         unsafe { RemoveVectoredExceptionHandler(*handle as *mut c_void) };
         *handle = 0;
     }
-    armed.hits
+    armed.hits.into_iter().zip(armed.args).collect()
 }

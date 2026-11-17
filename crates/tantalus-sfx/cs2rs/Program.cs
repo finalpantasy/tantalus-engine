@@ -36,6 +36,12 @@ static class P
         // skills (188-191, 221, 299, 401, 409-412) open one window too many.
         ("u0005_sub_180048B10.cs", "        Span<int> args = stackalloc int[2];\n", ""),
         ("u0005_sub_180048B10.cs", "        Stack16_StartPsxTask_request request = default;\n", "        Span<int> args = stackalloc int[2];\n        Stack16_StartPsxTask_request request = default;\n"),
+        // SfxOpCtx16MoveNearObj's init finishes the task at once when the
+        // object has the flag at +16 set, as SfxOpCtx16BlendNearObj does; the
+        // rewrite tests `== 0`. The DLL keeps the task running (it starts the
+        // step that aims at the object) for the sword skills 188-191, 401 and
+        // 409-412, so the rewrite's condition is inverted.
+        ("u0159_SfxOpCtx16BlendNearObj.cs", "flagIndex) + 16) == 0)", "flagIndex) + 16) != 0)"),
     };
     static readonly HashSet<(string, string)> applied = new();
     static string Patch(string path, string text)

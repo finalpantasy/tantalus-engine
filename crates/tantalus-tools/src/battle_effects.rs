@@ -85,9 +85,8 @@ pub fn parse_effect_sequence(text: &str) -> Option<EffectTiming> {
 
 /// Effects whose plugin run does not match the player's DLL
 /// (`tantalus-sfx` `--test plugin sweep`): 212 to 224, where the DLL does
-/// not repeat itself, and the sword skills Darkside, Minus Strike, Iai
-/// Strike, Thunder Slash (both levels), Bio Sword, Lancer and Photon.
-const NOT_MATCHING: [i32; 11] = [188, 189, 190, 191, 221, 299, 401, 409, 410, 411, 412];
+/// not repeat itself, and Photon (299), one vertex off from frame 81.
+const NOT_MATCHING: [i32; 1] = [299];
 
 /// The effects the plugin plays: those that match the DLL.
 pub fn is_drawn(id: i32) -> bool {

@@ -253,7 +253,7 @@ test-only and never a runtime fallback; CI builds neither the feature nor the te
 | `PsxInterpreterRun` | `interp` | unit tests only; frame-level checks need the native calls |
 | Flat memory (module image at 0x180000000, heap), PSX address mapper | `mem` | unit tests only |
 
-| The whole plugin, translated from Memoria's rewrite | `plugin` | 349 of 372 effects give the same primitives, frame for frame, and the same host calls (`--test plugin sweep`) |
+| The whole plugin, translated from Memoria's rewrite | `plugin` | 358 of 372 effects give the same primitives, frame for frame, and the same host calls (`--test plugin sweep`) |
 
 The `plugin` module is generated: `crates/tantalus-sfx/cs2rs` is a Roslyn translator that reads
 Memoria's C# rewrite (`.reference/Memoria/FF9SpecialEffectPlugin`) and writes
@@ -269,13 +269,13 @@ Checks (`cargo test -p tantalus-sfx --features dll-oracle --test plugin -- --ign
 
 - Fire (ef000): 126 frames, 28,858 primitives and 208 host calls, all identical.
 - Cure (ef008, also Potion): 121 frames, 24,185 primitives and 191 host calls, all identical.
-- `sweep` over effects 0-511: 349 of 372 match. 212-224 differ from frame 60 on, and the DLL
+- `sweep` over effects 0-511: 358 of 372 match. 212-224 differ from frame 60 on, and the DLL
   does not repeat itself there (two runs of 212 give different primitives), so they need a
-  deterministic reference first. Darkside, Minus Strike, Iai Strike and Thunder Slash (188-191,
-  409-412), Bio Sword (221), Photon (299) and Lancer (401) differ from frame 57 or so:
-  `probe_lockstep` shows the port opening one PSX address window more than the DLL (entry 5 of
-  the mapper at 0x180576AB0), most likely a stack address that the DLL's stack window covers
-  and the port's does not.
+  deterministic reference first. Photon (299) differs from frame 81 by one pixel in one vertex.
+  The sword skills Darkside, Minus Strike, Iai Strike, Thunder Slash (188-191, 409-412) and
+  Lancer (401) now match: Memoria's `SfxOpCtx16MoveNearObj` init had the flag test inverted (the
+  DLL keeps the task running; the rewrite ended it in its first frame), found with
+  `probe_functions` (the functions the DLL and the port call in one frame, from INT3 hits).
 - Until the 32-byte `BTL_DATA_INIT` fix (the harness wrote 36-byte records), no effect found
   its target and every one played on the caster; the earlier 359 of 372 was for that case.
 
@@ -313,7 +313,7 @@ Harness notes:
 
 `battle_effects` plays every party spell and item effect through the translated plugin
 (`tantalus_sfx::SfxRuntime::play`, a fresh plugin per effect), except the ones that do not
-match the DLL (`battle_effects::is_drawn`: 212-224 and the eleven sword skills above):
+match the DLL (`battle_effects::is_drawn`: 212-224 and Photon 299):
 
 - Units: `SFX.InitBattleParty` from the stage (`btl_list` order, party then enemies, eight at
   most). `BTL_DATA_INIT` is 32 bytes (`SFX_INIT_PARAM` is 300); the plugin looks targets up by

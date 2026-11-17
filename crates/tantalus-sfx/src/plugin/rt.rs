@@ -96,7 +96,7 @@ pub struct Plugin {
     /// preferred base by default; tests set the oracle's load address.
     pub module_base: u64,
     /// Debugging: when set, every translated function records its name in
-    /// [`Plugin::calls`] (the last 4096).
+    /// [`Plugin::calls`] (the last 4M).
     pub tracing: bool,
     pub calls: std::collections::VecDeque<&'static str>,
 }
@@ -146,7 +146,7 @@ impl Plugin {
     }
 
     pub fn trace(&mut self, name: &'static str) {
-        if self.calls.len() >= 4096 {
+        if self.calls.len() >= 1 << 22 {
             self.calls.pop_front();
         }
         self.calls.push_back(name);

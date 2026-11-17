@@ -22793,7 +22793,7 @@ let __t0: u64 = self.salloc(((4i32 as i64) * 2) as usize);
                 return 1i64;
         }
         let mut flagIndex: i32 = (if ((((self.ld::<u8>(pa(state, (1i32) as i64, 1))) as i32) == 0xffi32)) { 0i32 } else { ((self.ld::<u8>(pa(state, (1i32) as i64, 1))) as i32) });
-        if (((({ let __a: u64 = ((((self.PsxGetContextQword(flagIndex)).wrapping_add(0x10i64))) as u64); self.ld::<u8>(__a) }) as i32) == 0i32)) {
+        if (((({ let __a: u64 = ((((self.PsxGetContextQword(flagIndex)).wrapping_add(0x10i64))) as u64); self.ld::<u8>(__a) }) as i32) != 0i32)) {
                 return 1i64;
         }
         {  let __t9: u8 = 0u8; { let __a = 0x180323185u64; let __v = __t9; self.st::<u8>(__a, __v); };  };

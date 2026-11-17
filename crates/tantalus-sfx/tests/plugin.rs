@@ -476,3 +476,126 @@ fn probe_lockstep() {
     }
     println!("no difference");
 }
+
+#[test]
+#[ignore = "probe"]
+fn probe_calls() {
+    let id: i32 = std::env::var("TANTALUS_SFX_EFFECT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(188);
+    let from: u32 = std::env::var("TANTALUS_SFX_FROM")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(55);
+    let theirs = run_dll(id, 90);
+    let ours = run_port(id, 90, theirs.base);
+    for (name, run) in [("dll", &theirs), ("port", &ours)] {
+        for call in run
+            .calls
+            .iter()
+            .filter(|c| c.frame >= from && c.frame <= from + 6)
+        {
+            println!(
+                "{name} f{} cmd {:#x} low {:#x} args {:?}",
+                call.frame, call.command, call.low, call.args
+            );
+        }
+    }
+}
+
+/// The functions the DLL and the port call in one frame
+/// (`TANTALUS_SFX_EFFECT`, `TANTALUS_SFX_FRAME`, `TANTALUS_MEMORIA_PLUGIN`).
+#[test]
+#[ignore = "probe"]
+fn probe_functions() {
+    let id: i32 = std::env::var("TANTALUS_SFX_EFFECT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(188);
+    let target: usize = std::env::var("TANTALUS_SFX_FRAME")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(58);
+    let folder = std::env::var("TANTALUS_MEMORIA_PLUGIN").expect("TANTALUS_MEMORIA_PLUGIN");
+    let text = std::fs::read_to_string(std::path::Path::new(&folder).join("CodeAddresses.g.cs"))
+        .expect("CodeAddresses.g.cs");
+    let mut names = std::collections::BTreeMap::new();
+    for line in text.lines() {
+        if let Some(at) = line.find(" @ 0x18") {
+            let name = line[..at].rsplit('(').next().unwrap_or("").to_string();
+            let hex: String = line[at + 5..]
+                .chars()
+                .take_while(|c| c.is_ascii_hexdigit())
+                .collect();
+            if let Ok(va) = u64::from_str_radix(&hex, 16) {
+                names.insert((va - 0x1_8000_0000) as u32, name);
+            }
+        }
+    }
+    let bytes = effect_bytes(id);
+    let image =
+        tantalus_sfx::image::PluginImage::parse(std::fs::read(dll()).expect("dll")).expect("pe");
+    let text_section = image.section_of(0x1000).expect("text");
+    let mut oracle = Oracle::load(&dll()).expect("load");
+    oracle.init_battle(&init_param()).expect("init");
+    oracle.play(id, &bytes, &request()).expect("play");
+    for _ in 0..target {
+        oracle.frame().expect("frame");
+    }
+    let rvas: Vec<u32> = names.keys().copied().collect();
+    // SAFETY: test-only; every RVA is a function start Memoria names.
+    unsafe { tantalus_sfx::coverage::arm(oracle.base(), text_section, &rvas) };
+    oracle.frame().expect("frame");
+    let hits = tantalus_sfx::coverage::take_with_args();
+    if std::env::var_os("TANTALUS_SFX_ORDER").is_some() {
+        for (rva, args) in &hits {
+            println!("dll first call {} {args:x?}", names[rva]);
+        }
+    }
+    let dll_set: std::collections::BTreeSet<String> = hits
+        .into_iter()
+        .map(|(rva, _)| names[&rva].clone())
+        .collect();
+
+    let host = Arc::new(Mutex::new(DebugHost::default()));
+    let mut plugin = Plugin::load(&image, Box::new(Shared(host.clone()))).expect("image");
+    plugin.module_base = oracle.base() as u64;
+    plugin.init_system();
+    plugin.init_battle(&init_param());
+    plugin.play(id, &bytes, &request());
+    for _ in 0..target {
+        host.lock().unwrap().frame += 1;
+        plugin.frame();
+    }
+    plugin.tracing = true;
+    plugin.calls.clear();
+    host.lock().unwrap().frame += 1;
+    plugin.frame();
+    let port_set: std::collections::BTreeSet<String> = plugin
+        .calls
+        .iter()
+        .map(|name| (*name).to_string())
+        .filter(|name| names.values().any(|known| known == name))
+        .collect();
+    println!(
+        "dll only: {:?}",
+        dll_set.difference(&port_set).collect::<Vec<_>>()
+    );
+    println!(
+        "port only: {:?}",
+        port_set.difference(&dll_set).collect::<Vec<_>>()
+    );
+    println!("dll {} port {}", dll_set.len(), port_set.len());
+    if std::env::var_os("TANTALUS_SFX_ORDER").is_some() {
+        let mut last = "";
+        let mut line = Vec::new();
+        for name in plugin.calls.iter() {
+            if names.values().any(|known| known == name) && *name != last {
+                line.push(*name);
+                last = name;
+            }
+        }
+        println!("port order: {line:?}");
+    }
+}
