@@ -347,6 +347,8 @@ match the DLL (`battle_effects::is_drawn`: 212-224 and Photon 299):
   before the effect (`Frame::capture`; on the GPU a `Command::Capture` copies the target between passes). The `DR_MOVE`
   screen shots of Slow and Silent Voice are `Batch::capture` markers: the view captures the frame there and the later
   page 7 and 9 batches sample it (`sfx-battle-screenshot-twist`).
+  Packets between a `DR_AREA` begin and end are drawn into a persistent 512 x 256 texture (VRAM from 384, 256), which every
+  later 15-bit page not otherwise handled reads (`sfx-battle-generated-texture`); Devour's page reads the screen.
 
 `SfxRuntime::load_effect` runs the translated plugin to the effect's end and returns its
 `LoadImage` uploads; `loader::effect_uploads` stays for the oracle tests.

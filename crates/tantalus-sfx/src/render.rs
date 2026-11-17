@@ -25,17 +25,38 @@
 //!
 //! A `DR_MOVE` from the display area is a screen shot (`SFXScreenShot`,
 //! Slow and Silent Voice): a `capture` batch, and the later batches that
-//! use page 7 or 9 sample it. Not drawn yet: the packets between a
-//! `DR_AREA` begin and end, which the game draws into a texture.
+//! use page 7 or 9 sample it. The packets between a `DR_AREA` begin and end
+//! are drawn into a 512 x 256 texture (VRAM from 384, 256) that every later
+//! 15-bit page reads (`generated_target` and `generated`).
 
 use std::collections::HashMap;
 
 use crate::plugin::Prim;
 use crate::vram::{Rect, Vram};
 
-/// `SpecialEffect.Slow` and `SpecialEffect.Silent_Voice`.
+/// `PSXTextureMgr.GEN_TEXTURE_X`, `GEN_TEXTURE_Y`, `_W` and `_H`: the VRAM
+/// area the generated texture stands for.
+pub const GEN_X: i32 = 384;
+pub const GEN_Y: i32 = 256;
+pub const GEN_W: usize = 512;
+pub const GEN_H: usize = 256;
+
+/// `SpecialEffect.Slow`, `Silent_Voice`, `Devour` and `Stop`.
 const SLOW: i32 = 126;
 const SILENT_VOICE: i32 = 395;
+const DEVOUR: i32 = 274;
+const STOP: i32 = 149;
+
+/// Where a textured mesh's texels come from (`SFXMesh.GetTexture`).
+enum Source {
+    Vram,
+    Screen,
+    Devour,
+    /// The last screen shot, read this many texels further right.
+    Shot(f32),
+    /// The generated texture, its page this far right of its left edge.
+    Generated(f32),
+}
 
 /// `SFX.playParam`: per effect, bits 0-1 the subtractive pass's place
 /// (`S1`..`S3`, 0 for the default 3), bits 2-3 the color intensity (`C1`..
@@ -80,7 +101,34 @@ pub struct Batch {
     /// Silent Voice; the texels of the batches after it are PSX pixels of
     /// that capture).
     pub capture: bool,
+    /// No triangles: `DR_AREA` begin. The generated texture (512 x 256,
+    /// the VRAM at (384, 256)) is created, black, if the effect has none yet
+    /// (`SFXRenderTextureBegin`).
+    pub generated_begin: bool,
+    /// Drawn into the generated texture, with its texels (`xy` is a pixel
+    /// of it), not onto the screen.
+    pub generated_target: bool,
+    /// The texture is the generated one (`SFXMesh.GetTexture` after a
+    /// `DR_AREA` pair): a 15-bit page, `page` is `None` and the texels are
+    /// the page's shifted by its place (`tx * 64 - 384`) in a 512 x 256
+    /// texture.
+    pub generated: bool,
     pub triangles: Vec<[Corner; 3]>,
+}
+
+impl Batch {
+    fn marker(capture: bool, generated_begin: bool) -> Self {
+        Self {
+            blend: Blend::Opaque,
+            page: None,
+            screen: false,
+            capture,
+            generated_begin,
+            generated_target: false,
+            generated: false,
+            triangles: Vec::new(),
+        }
+    }
 }
 
 /// A texture page as 256 x 256 RGBA8, rows top-down (row `v`).
@@ -135,6 +183,8 @@ struct Mesh {
     texture: Option<(u16, u16)>,
     /// `SFXKey` filter bits: 0, point (1) or bilinear (2).
     filter: u8,
+    /// Drawn between a `DR_AREA` begin and end.
+    offscreen: bool,
     triangles: Vec<[Corner; 3]>,
 }
 
@@ -147,6 +197,8 @@ struct Builder<'a> {
     offscreen: bool,
     /// The effect (`SFX.currentEffectID`).
     effect: i32,
+    /// `PSXTextureMgr.isCreateGenTexture`.
+    generated_created: bool,
     /// Where the last screen shot (`DR_MOVE`) starts on the PSX screen.
     shot: Option<[i32; 2]>,
     /// Color intensity (`ColorData`).
@@ -223,9 +275,6 @@ impl Builder<'_> {
     }
 
     fn add(&mut self, list: List, texture: Option<(u16, u16)>, triangles: &[[Corner; 3]]) {
-        if self.offscreen {
-            return;
-        }
         // The key holds the page, depth and CLUT, not the blend mode.
         let texture = texture.map(|(tpage, clut)| (tpage & 0x19F, clut));
         let filter = self.filter;
@@ -234,11 +283,13 @@ impl Builder<'_> {
         } else {
             list
         };
-        if let Some(mesh) = self
-            .meshes
-            .iter_mut()
-            .find(|mesh| mesh.list == list && mesh.texture == texture && mesh.filter == filter)
-        {
+        let offscreen = self.offscreen;
+        if let Some(mesh) = self.meshes.iter_mut().find(|mesh| {
+            mesh.list == list
+                && mesh.texture == texture
+                && mesh.filter == filter
+                && mesh.offscreen == offscreen
+        }) {
             mesh.triangles.extend_from_slice(triangles);
             return;
         }
@@ -246,6 +297,7 @@ impl Builder<'_> {
             list,
             texture,
             filter,
+            offscreen,
             triangles: triangles.to_vec(),
         });
     }
@@ -451,10 +503,21 @@ impl Builder<'_> {
             _ => match code {
                 // DR_TPAGE.
                 0xE1 => self.tpage = first as u16,
-                // DR_AREA: draws between a begin and an end go to a texture.
+                // DR_AREA (`SFXRender.DR_AREA`): draws between a begin and an
+                // end go to the generated texture, whose origin is VRAM
+                // (384, 256).
                 0xE4 => {
                     self.flush();
-                    self.offscreen = w(1) >> 16 != 0;
+                    let begin = w(1) >> 16 != 0;
+                    if begin {
+                        self.offset[0] -= GEN_X;
+                        self.offset[1] -= GEN_Y;
+                        self.out.batches.push(Batch::marker(false, true));
+                    } else if self.offscreen {
+                        // `SFXRenderTextureEnd`.
+                        self.generated_created = true;
+                    }
+                    self.offscreen = begin;
                 }
                 // DR_OFFSET.
                 0xE5 => {
@@ -473,13 +536,7 @@ impl Builder<'_> {
                         // Slow's sits 128 rows higher.
                         let ry = if self.effect == SLOW { ry - 128 } else { ry };
                         self.shot = Some([rx, ry]);
-                        self.out.batches.push(Batch {
-                            blend: Blend::Opaque,
-                            page: None,
-                            screen: false,
-                            capture: true,
-                            triangles: Vec::new(),
-                        });
+                        self.out.batches.push(Batch::marker(true, false));
                     } else {
                         self.vram.move_image(
                             Rect {
@@ -518,45 +575,87 @@ impl Builder<'_> {
         };
         meshes.sort_by_key(|mesh| order(mesh.list));
         for mesh in meshes {
-            // `SFXMesh.GetTexture`: a 15-bit page (mode 2) left of page 6
-            // is the screen (`SFXKey.IsBlurTexture`); the packets' texels
-            // address the captured screen, not VRAM.
-            let mut screen = mesh
-                .texture
-                .is_some_and(|(tpage, _)| (tpage >> 7) & 3 == 2 && tpage & 0xF < 6);
+            let mut screen = false;
+            let mut generated = false;
             let mut triangles = mesh.triangles;
-            // Slow's page 7 and Silent Voice's pages 7 and 9 (texture keys
-            // 0x578000 and 0x598000) are the last screen shot; page 9 reads
-            // 128 texels further right.
-            let shot = mesh.texture.and_then(|(tpage, _)| {
-                if (tpage >> 7) & 3 != 2 || (tpage >> 4) & 1 != 1 {
-                    return None;
+            // `SFXMesh.GetTexture`: what a 15-bit page (mode 2) really is.
+            let source = mesh
+                .texture
+                .map_or(Source::Vram, |(tpage, clut)| self.source(tpage, clut));
+            match source {
+                Source::Vram => {}
+                // Left of page 6: the screen the scene left
+                // (`SFXKey.IsBlurTexture`); the packets' texels address the
+                // captured screen, not VRAM.
+                Source::Screen => screen = true,
+                // Devour's blur texture, a 480 x 360 view of the screen
+                // that starts 176 texels in (`_constTexParam` 176, 0, 480,
+                // 360), in PSX screen pixels.
+                Source::Devour => {
+                    screen = true;
+                    for corner in triangles.iter_mut().flatten() {
+                        corner.uv = [(corner.uv[0] + 176.0) / 1.5, corner.uv[1] / 1.5];
+                    }
                 }
-                match (self.effect, tpage & 0xF) {
-                    (SLOW, 7) | (SILENT_VOICE, 7) => Some(0.0),
-                    (SILENT_VOICE, 9) => Some(128.0),
-                    _ => None,
+                // Slow's page 7 and Silent Voice's pages 7 and 9 (texture
+                // keys 0x578000 and 0x598000) are the last screen shot;
+                // page 9 reads 128 texels further right.
+                Source::Shot(shift) => {
+                    // No shot yet: the texture is missing and nothing draws.
+                    let Some(origin) = self.shot else {
+                        continue;
+                    };
+                    screen = true;
+                    for corner in triangles.iter_mut().flatten() {
+                        corner.uv[0] += shift + origin[0] as f32;
+                        corner.uv[1] += origin[1] as f32;
+                    }
                 }
-            });
-            if let Some(shift) = shot {
-                // No shot yet: the texture is missing and nothing draws.
-                let Some(origin) = self.shot else {
-                    continue;
-                };
-                screen = true;
-                for corner in triangles.iter_mut().flatten() {
-                    corner.uv[0] += shift + origin[0] as f32;
-                    corner.uv[1] += origin[1] as f32;
+                // After a `DR_AREA` pair: the generated texture, which
+                // stands for VRAM from (384, 256).
+                Source::Generated(shift) => {
+                    generated = true;
+                    for corner in triangles.iter_mut().flatten() {
+                        corner.uv[0] += shift;
+                    }
                 }
             }
-            let page = mesh.texture.filter(|_| !screen).map(|key| self.page(key));
+            let page = mesh
+                .texture
+                .filter(|_| !screen && !generated)
+                .map(|key| self.page(key));
             self.out.batches.push(Batch {
                 blend: mesh.list.blend(),
                 page,
                 screen,
                 capture: false,
+                generated_begin: false,
+                generated_target: mesh.offscreen,
+                generated,
                 triangles,
             });
+        }
+    }
+
+    /// `SFXMesh.GetTexture`, in its order, for a textured mesh.
+    fn source(&self, tpage: u16, clut: u16) -> Source {
+        if (tpage >> 7) & 3 != 2 {
+            return Source::Vram;
+        }
+        let (tx, ty) = (tpage & 0xF, (tpage >> 4) & 1);
+        if tx < 6 {
+            return Source::Screen;
+        }
+        // The texture key without the HAS_TEXTURE bit.
+        let low = clut & 0x7FFF;
+        match (self.effect, tx, ty, low) {
+            (DEVOUR, 7, 1, 0x7FFF) => Source::Devour,
+            (SLOW | SILENT_VOICE, 7, 1, 0) => Source::Shot(0.0),
+            (SILENT_VOICE, 9, 1, 0) => Source::Shot(128.0),
+            // Stop's black sprite reads its page.
+            (STOP, 7, 1, 0) => Source::Vram,
+            _ if self.generated_created => Source::Generated(f32::from(tx) * 64.0 - GEN_X as f32),
+            _ => Source::Vram,
         }
     }
 
@@ -624,12 +723,14 @@ pub fn render_list(effect: i32, prims: &[Prim], vram: &mut Vram) -> RenderList {
         2 => 1.5,
         _ => 2.0,
     };
+    let generated_created = vram.generated_created;
     let mut builder = Builder {
         vram,
         tpage: 0,
         offset: [0, 0],
         offscreen: false,
         effect,
+        generated_created,
         shot: None,
         intensity,
         sub_order,
@@ -643,6 +744,7 @@ pub fn render_list(effect: i32, prims: &[Prim], vram: &mut Vram) -> RenderList {
         builder.packet(words);
     }
     builder.flush();
+    builder.vram.generated_created = builder.generated_created;
     builder.out
 }
 
@@ -722,5 +824,58 @@ mod tests {
         // Any other effect draws the page from VRAM.
         let other = render_list(0, &packets, &mut vram);
         assert!(other.batches[1..].iter().all(|batch| !batch.screen));
+    }
+
+    /// A `DR_OFFSET` or `DR_AREA` packet.
+    fn setting(code: u32, value: u32) -> (i32, Vec<u32>) {
+        (0, vec![0, code << 24, value])
+    }
+
+    #[test]
+    fn a_dr_area_pair_makes_the_generated_texture_later_15_bit_pages_read() {
+        let corners = [[0, 0, 0, 0], [8, 0, 8, 0], [0, 8, 0, 8], [8, 8, 8, 8]];
+        let mut vram = Vram::default();
+        let packets = [
+            // Before the pair: page 7 is VRAM.
+            quad(0x2C, 0x117, corners),
+            setting(0xE5, 384 << 16 | 512),
+            setting(0xE4, 512 << 16 | 128),
+            quad(0x2C, 0x113, corners),
+            setting(0xE5, 0),
+            setting(0xE4, 0),
+            quad(0x2C, 0x117, corners),
+            // A 4-bit page is always VRAM.
+            quad(0x2C, 0x017, corners),
+        ];
+        let list = render_list(0, &packets, &mut vram);
+        let kinds: Vec<_> = list
+            .batches
+            .iter()
+            .map(|batch| {
+                (
+                    batch.generated_begin,
+                    batch.generated_target,
+                    batch.generated,
+                )
+            })
+            .collect();
+        assert_eq!(
+            kinds,
+            [
+                (false, false, false),
+                (true, false, false),
+                (false, true, false),
+                (false, false, true),
+                (false, false, false),
+            ]
+        );
+        // Drawn at the VRAM place less (384, 256), and read 64 texels in
+        // (page 7 is at 448).
+        assert_eq!(list.batches[2].triangles[0][0].xy, [128.0, 128.0]);
+        assert_eq!(list.batches[3].triangles[0][0].uv, [64.0, 0.0]);
+        // It stays created for the effect's next frames.
+        assert!(vram.generated_created);
+        let next = render_list(0, &[quad(0x2C, 0x117, corners)], &mut vram);
+        assert!(next.batches[0].generated);
     }
 }

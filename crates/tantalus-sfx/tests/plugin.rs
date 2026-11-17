@@ -772,6 +772,77 @@ fn probe_draw_audit() {
     }
 }
 
+/// One frame's packets (`TANTALUS_SFX_EFFECT`, `TANTALUS_SFX_FRAME`): the
+/// code, then the words.
+#[test]
+#[ignore = "probe"]
+fn probe_packets() {
+    let var = |name: &str| std::env::var(name).ok().and_then(|v| v.parse::<i32>().ok());
+    let id = var("TANTALUS_SFX_EFFECT").unwrap_or(0);
+    let run = run_port(id, 900, 0x1_8000_0000);
+    // Without a frame, the first one with a `DR_AREA`.
+    let at = var("TANTALUS_SFX_FRAME").map_or_else(
+        || {
+            run.frames
+                .iter()
+                .position(|frame| {
+                    frame
+                        .iter()
+                        .any(|(_, w)| w.get(1).is_some_and(|w| w >> 24 == 0xE4))
+                })
+                .unwrap_or(0)
+        },
+        |frame| frame as usize,
+    );
+    println!("frame {at}");
+    for (depth, words) in &run.frames[at.min(run.frames.len() - 1)] {
+        let code = words.get(1).map_or(0, |w| w >> 24);
+        let words: Vec<String> = words.iter().skip(1).map(|w| format!("{w:08x}")).collect();
+        println!("{depth:5} {code:02x} {}", words.join(" "));
+    }
+}
+
+/// Which host commands each effect makes (`TANTALUS_SFX_FROM`..`_TO`):
+/// one line per command with the effects that make it.
+#[test]
+#[ignore = "probe"]
+fn probe_all_commands() {
+    let range = |name: &str, default: i32| {
+        std::env::var(name)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    };
+    let mut file = tantalus_assets::pc::serialized_inventory::StandaloneSerialized::open(
+        &common::install().join("x64/FF9_Data/resources.assets"),
+    )
+    .expect("assets");
+    let names: std::collections::HashSet<String> = file
+        .text_assets()
+        .expect("text assets")
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+    let mut table: std::collections::BTreeMap<u8, Vec<i32>> = Default::default();
+    for id in range("TANTALUS_SFX_FROM", 0)..range("TANTALUS_SFX_TO", 512) {
+        let short =
+            (100..=118).contains(&id) || (313..=376).contains(&id) || (461..=485).contains(&id);
+        if !short && !names.contains(&format!("ef{id:03}")) {
+            continue;
+        }
+        let Ok(run) = std::panic::catch_unwind(|| run_port(id, 900, 0x1_8000_0000)) else {
+            continue;
+        };
+        let used: std::collections::BTreeSet<u8> = run.calls.iter().map(|c| c.command).collect();
+        for command in used {
+            table.entry(command).or_default().push(id);
+        }
+    }
+    for (command, effects) in table {
+        println!("cmd {command}: {} effects {effects:?}", effects.len());
+    }
+}
+
 /// The translated GTE functions against the DLL's own on random register
 /// files (`GteRtps` 0x3E80, `GteRtV0Tr` 0x3D60, `GteAvsz3` 0x48D0,
 /// `GteDpcs` 0x4B50).

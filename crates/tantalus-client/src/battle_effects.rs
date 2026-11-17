@@ -124,6 +124,8 @@ struct Playing {
     run: Option<tantalus_sfx::player::EffectRun>,
     played: u32,
     list: Option<tantalus_sfx::render::RenderList>,
+    /// The generated texture (`fill_generated`).
+    generated: Option<Frame>,
 }
 
 /// An effect's own cameras.
@@ -551,6 +553,7 @@ pub fn draw_effects(
             run: start(library, effect, &units, stage.put),
             played: 0,
             list: None,
+            generated: None,
         });
         if play.played < target
             && let Some(run) = play.run.as_mut()
@@ -564,6 +567,7 @@ pub fn draw_effects(
             };
             match run.step(&psx_camera) {
                 Some(list) => {
+                    fill_generated(&mut play.generated, &list);
                     play.list = Some(list);
                     play.played += 1;
                     dump(effect, play.played, &units, &psx_camera, stage.put);
@@ -575,7 +579,7 @@ pub fn draw_effects(
             }
         }
         if let Some(list) = &play.list {
-            draw_list(frame, list);
+            draw_list(frame, list, play.generated.as_ref());
         }
     }
 }
@@ -658,10 +662,86 @@ fn start(
     library.runtime()?.play(effect.id, &package, &setup)
 }
 
-/// One frame's packets, in `SFXRender`'s order, over the frame (PSX screen
-/// 320 x 220 around 160, 120, as [`Frame::project`] places points).
-pub fn draw_list(frame: &mut Frame, list: &tantalus_sfx::render::RenderList) {
+fn psx_blend(blend: tantalus_sfx::render::Blend) -> Blend {
     use tantalus_sfx::render::Blend as PsxBlend;
+    match blend {
+        PsxBlend::Opaque => Blend::Opaque,
+        PsxBlend::Add => Blend::Add,
+        PsxBlend::Subtract => Blend::Subtract,
+    }
+}
+
+/// A VRAM page of the list as a texture.
+fn page_texture<'a>(
+    list: &'a tantalus_sfx::render::RenderList,
+    batch: &tantalus_sfx::render::Batch,
+) -> Option<Texture<'a>> {
+    batch
+        .page
+        .and_then(|page| list.pages.get(page))
+        .map(|page| Texture {
+            width: 256,
+            height: 256,
+            rgba: &page.rgba,
+            clamp: true,
+        })
+}
+
+/// The generated texture (`PSXTextureMgr.genTexture`, 512 x 256, VRAM from
+/// (384, 256) on) after `list`'s `DR_AREA` pairs: its batches draw into
+/// `generated`, which is created black by the first begin
+/// (`SFXRenderTextureBegin`) and keeps what it has from frame to frame.
+/// Called once per plugin frame, in order.
+pub fn fill_generated(generated: &mut Option<Frame>, list: &tantalus_sfx::render::RenderList) {
+    use tantalus_sfx::render::{GEN_H, GEN_W};
+    for batch in &list.batches {
+        if batch.generated_begin && generated.is_none() {
+            *generated = Some(Frame::new(GEN_W as u32, GEN_H as u32, [0, 0, 0, 255]));
+        }
+        if !batch.generated_target || batch.screen {
+            continue;
+        }
+        let Some(target) = generated.as_mut() else {
+            continue;
+        };
+        let blend = psx_blend(batch.blend);
+        // The texture the batch itself reads may be the one it draws to.
+        let snapshot = batch.generated.then(|| target.rgba.clone());
+        let texture = match &snapshot {
+            Some(rgba) => Some(Texture {
+                width: GEN_W,
+                height: GEN_H,
+                rgba,
+                clamp: true,
+            }),
+            None => page_texture(list, batch),
+        };
+        let (tw, th) = if batch.generated {
+            (GEN_W as f32, GEN_H as f32)
+        } else {
+            (256.0, 256.0)
+        };
+        for triangle in &batch.triangles {
+            let corners = triangle.map(|corner| ScreenCorner {
+                xy: corner.xy,
+                uv: [corner.uv[0] / tw, 1.0 - corner.uv[1] / th],
+                color: corner.color,
+            });
+            target.draw_screen(corners, texture, blend);
+        }
+    }
+}
+
+/// One frame's packets, in `SFXRender`'s order, over the frame (PSX screen
+/// 320 x 220 around 160, 120, as [`Frame::project`] places points). The
+/// batches that draw into the generated texture were drawn by
+/// [`fill_generated`]; the ones that read it read `generated`.
+pub fn draw_list(
+    frame: &mut Frame,
+    list: &tantalus_sfx::render::RenderList,
+    generated: Option<&Frame>,
+) {
+    use tantalus_sfx::render::{GEN_H, GEN_W};
     let (sx, sy) = (
         frame.width as f32 / crate::battle_raster::PSX_WIDTH,
         frame.height as f32 / crate::battle_raster::PSX_HEIGHT,
@@ -683,20 +763,23 @@ pub fn draw_list(frame: &mut Frame, list: &tantalus_sfx::render::RenderList) {
             screen = frame.capture();
             continue;
         }
-        let blend = match batch.blend {
-            PsxBlend::Opaque => Blend::Opaque,
-            PsxBlend::Add => Blend::Add,
-            PsxBlend::Subtract => Blend::Subtract,
-        };
-        let texture = batch
-            .page
-            .and_then(|page| list.pages.get(page))
-            .map(|page| Texture {
-                width: 256,
-                height: 256,
-                rgba: &page.rgba,
+        if batch.generated_target || batch.generated_begin {
+            continue;
+        }
+        let blend = psx_blend(batch.blend);
+        let texture = if batch.generated {
+            let Some(generated) = generated else {
+                continue;
+            };
+            Some(Texture {
+                width: GEN_W,
+                height: GEN_H,
+                rgba: &generated.rgba,
                 clamp: true,
-            });
+            })
+        } else {
+            page_texture(list, batch)
+        };
         if batch.screen && screen.is_none() {
             continue;
         }
@@ -708,6 +791,8 @@ pub fn draw_list(frame: &mut Frame, list: &tantalus_sfx::render::RenderList) {
                 crate::battle_raster::PSX_WIDTH,
                 crate::battle_raster::PSX_HEIGHT,
             )
+        } else if batch.generated {
+            (GEN_W as f32, GEN_H as f32)
         } else {
             (256.0, 256.0)
         };
@@ -841,6 +926,54 @@ mod tests {
             }
             assert_eq!(back.near, camera.near);
         }
+    }
+
+    #[test]
+    fn the_generated_texture_is_drawn_once_and_read_later() {
+        use tantalus_sfx::render::{Batch, Blend as PsxBlend, Corner, RenderList};
+        let corner = |x: f32, y: f32| Corner {
+            xy: [x, y],
+            uv: [x, y],
+            color: [1.0, 0.0, 0.0],
+        };
+        let batch = |begin: bool, target: bool, generated: bool| Batch {
+            blend: PsxBlend::Opaque,
+            page: None,
+            screen: false,
+            capture: false,
+            generated_begin: begin,
+            generated_target: target,
+            generated,
+            triangles: if begin {
+                Vec::new()
+            } else {
+                vec![[corner(8.0, 8.0), corner(40.0, 8.0), corner(8.0, 40.0)]]
+            },
+        };
+        let list = RenderList {
+            batches: vec![batch(true, false, false), batch(false, true, false)],
+            pages: Vec::new(),
+        };
+        let mut generated = None;
+        fill_generated(&mut generated, &list);
+        let texture = generated.as_ref().expect("created by the begin");
+        let at = |x: usize, y: usize| texture.rgba[(y * 512 + x) * 4..][..4].to_vec();
+        assert_eq!(at(12, 12), [255, 0, 0, 255]);
+        assert_eq!(at(300, 200), [0, 0, 0, 255]);
+        // The screen draw skips the batch that went into the texture.
+        let mut frame = Frame::new(320, 220, [0, 0, 0, 255]);
+        draw_list(&mut frame, &list, generated.as_ref());
+        assert!(frame.rgba.chunks(4).all(|pixel| pixel[0] == 0));
+        // A batch that reads it shows it, 0..256 of its 512 texels wide.
+        let read = RenderList {
+            batches: vec![Batch {
+                triangles: vec![[corner(8.0, 8.0), corner(40.0, 8.0), corner(8.0, 40.0)]],
+                ..batch(false, false, true)
+            }],
+            pages: Vec::new(),
+        };
+        draw_list(&mut frame, &read, generated.as_ref());
+        assert!(frame.rgba.chunks(4).any(|pixel| pixel[0] == 255));
     }
 
     /// The player's game (`TANTALUS_FF9`, or the Steam install).
@@ -994,6 +1127,18 @@ mod tests {
             }
         }
         sheet.save(var("TANTALUS_SFX_OUT")).expect("png");
+        // The generated texture as the last frame left it.
+        let playing = library.playing.lock().unwrap();
+        if let Some(generated) = playing.values().find_map(|play| play.generated.as_ref()) {
+            let png = image::RgbaImage::from_raw(
+                generated.width,
+                generated.height,
+                generated.rgba.clone(),
+            )
+            .expect("generated texture");
+            png.save(var("TANTALUS_SFX_OUT").replace(".png", "-generated.png"))
+                .expect("png");
+        }
     }
 
     /// A battle's effect frames (`TANTALUS_SFX_DUMP`, written by a
@@ -1159,7 +1304,7 @@ dll  {:#?}",
                 let draw = |list: &Option<tantalus_sfx::render::RenderList>| {
                     let mut frame = Frame::new(640, 480, [0, 0, 0, 255]);
                     if let Some(list) = list {
-                        draw_list(&mut frame, list);
+                        draw_list(&mut frame, list, None);
                     }
                     frame
                 };

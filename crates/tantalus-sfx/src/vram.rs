@@ -19,12 +19,17 @@ pub struct Rect {
 #[derive(Clone, PartialEq, Eq)]
 pub struct Vram {
     pixels: Vec<u16>,
+    /// A `DR_AREA` render-to-texture pair has ended in this effect
+    /// (`PSXTextureMgr.isCreateGenTexture`): from then on its 15-bit pages
+    /// read the generated texture, not VRAM (`render::render_list`).
+    pub generated_created: bool,
 }
 
 impl Default for Vram {
     fn default() -> Self {
         Self {
             pixels: vec![0; VRAM_WIDTH * VRAM_HEIGHT],
+            generated_created: false,
         }
     }
 }
