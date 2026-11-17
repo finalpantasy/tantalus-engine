@@ -739,6 +739,11 @@ impl PlayGame {
                     mp: stats.current_mp.max(0) as u32,
                     max_mp: stats.max_mp.max(0) as u32,
                     base,
+                    level: self
+                        .data
+                        .menu
+                        .level(world.character_exp.get(character).copied().unwrap_or(0))
+                        as u8,
                     globals: PartyGlobals::from_globals(world.global_memory.bytes()),
                     row: u8::from(!world.back_row.contains(character)),
                     trance: world.trance.get(character).copied().unwrap_or(0),

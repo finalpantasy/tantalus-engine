@@ -116,8 +116,11 @@ pub fn parse_leveling(text: &str) -> Result<Vec<LevelRow>, String> {
 pub fn build_stats(base: BaseStats, levels: &[LevelRow], level: usize) -> Option<CharacterStats> {
     let row = levels.get(level.checked_sub(1)?)?;
     let lv = level as u32;
-    let strength = (u32::from(base.strength) + lv * 3 / 10).min(99);
-    let magic = (u32::from(base.magic) + lv * 3 / 10).min(99);
+    // Each level-up adds 3 to the strength and magic counters (`cur` is
+    // rebuilt from zero, `ff9level.cs:158-161`), a point per 32.
+    let counter = ((lv - 1) * 3) as u16 >> 5;
+    let strength = (u32::from(base.strength) + lv * 3 / 10 + u32::from(counter)).min(99);
+    let magic = (u32::from(base.magic) + lv * 3 / 10 + u32::from(counter)).min(99);
     let max_hp = (u32::from(row.bonus_hp) * strength / 50).min(HP_LIMIT) as i32;
     let max_mp = (u32::from(row.bonus_mp) * magic / 100).min(MP_LIMIT) as i32;
     Some(CharacterStats {
@@ -126,6 +129,15 @@ pub fn build_stats(base: BaseStats, levels: &[LevelRow], level: usize) -> Option
         current_mp: max_mp,
         max_mp,
     })
+}
+
+/// Level 1..=99 for a total experience (`ff9level.CharacterLevelUps`).
+pub fn level_for_experience(levels: &[LevelRow], experience: u64) -> u8 {
+    levels
+        .iter()
+        .take_while(|row| u64::from(row.experience) <= experience)
+        .count()
+        .clamp(1, 99) as u8
 }
 
 /// Player records for every character after `FF9Play_Init`.
@@ -202,6 +214,18 @@ mod tests {
         let high = build_stats(base[&1], &levels, 10).unwrap();
         assert_eq!(high.max_hp, 110 * 24 / 50);
         assert!(build_stats(base[&1], &levels, 0).is_none());
+        // Level 99: 98 level-ups add 3 each to the counter (294 >> 5 = 9)
+        // on top of lv*3/10 = 29 (`ff9level.FF9Level_GetStr`).
+        let top = build_stats(base[&1], &levels, 99).unwrap();
+        assert_eq!(top.max_hp, 199 * (21 + 29 + 9) / 50);
+    }
+
+    #[test]
+    fn level_follows_the_experience_table() {
+        let levels = parse_leveling(&level_csv()).unwrap();
+        assert_eq!(level_for_experience(&levels, 0), 1);
+        assert_eq!(level_for_experience(&levels, 25), 2);
+        assert_eq!(level_for_experience(&levels, 3_000_000), 99);
     }
 
     #[test]

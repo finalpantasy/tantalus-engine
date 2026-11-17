@@ -928,6 +928,16 @@ impl<'a> Calculator<'a> {
         self.target_calc.hp_damage = damage;
     }
 
+    /// `CalcCannonProportionDamage` (`BattleCalculator.cs:575`): a share of
+    /// the target's current HP.
+    pub fn calc_cannon_proportion_damage(&mut self) {
+        self.calc_damage_common();
+        if self.attack > 100 {
+            self.attack = 100;
+        }
+        self.target_calc.hp_damage = (self.t().cur_hp as i32).wrapping_mul(self.attack) / 100;
+    }
+
     /// `CalcHpMagicRecovery` (`BattleCalculator.cs:584`).
     pub fn calc_hp_magic_recovery(&mut self) {
         if !self.t().is_zombie() {

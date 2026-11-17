@@ -38,7 +38,7 @@ fn main() -> ExitCode {
 }
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
-       tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
+       tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--level N] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
        tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--wall-regions MAP,...] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
@@ -87,6 +87,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut win_battles: BTreeSet<i32> = BTreeSet::new();
     let mut fight_battle: Option<i32> = None;
     let mut fight_party: Vec<i32> = vec![0];
+    let mut fight_level: usize = 1;
     let mut fight_globals = tantalus_tools::field_battle::PartyGlobals::default();
     let mut fight_items: std::collections::BTreeMap<i32, i32> = Default::default();
     let mut fight_hp: std::collections::BTreeMap<i32, u32> = Default::default();
@@ -381,6 +382,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
             }
             "--confirm-after" => confirm_after = parse_number(&value()?, "--confirm-after")?,
             "--battle" => fight_battle = Some(parse_number(&value()?, "--battle")?),
+            "--level" => fight_level = parse_number(&value()?, "--level")?,
             "--party" => {
                 fight_party = value()?
                     .split(',')
@@ -456,7 +458,6 @@ fn run(args: Vec<String>) -> Result<(), String> {
             };
             let base = tantalus_game::new_game::parse_base_stats(&read("BaseStats.csv")?)?;
             let levels = tantalus_game::new_game::parse_leveling(&read("Leveling.csv")?)?;
-            let stats = tantalus_game::new_game::new_game_character_stats(&base, &levels);
             let battles = tantalus_tools::field_battle::FieldBattles::load(
                 bundle.parent().ok_or("--bundle has no directory")?,
                 &bundle,
@@ -472,7 +473,13 @@ fn run(args: Vec<String>) -> Result<(), String> {
             let party: Vec<tantalus_tools::field_battle::PartyFighter> = fight_party
                 .iter()
                 .filter_map(|character| {
-                    let stats = stats.get(character)?;
+                    let base_row = *base.get(character)?;
+                    let leveled = tantalus_game::new_game::build_stats(
+                        base_row,
+                        &levels,
+                        fight_level.clamp(1, 99),
+                    )?;
+                    let stats = &leveled;
                     Some(tantalus_tools::field_battle::PartyFighter {
                         character: *character,
                         hp: fight_hp
@@ -483,6 +490,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                         mp: stats.current_mp.max(0) as u32,
                         max_mp: stats.max_mp.max(0) as u32,
                         base: *base.get(character)?,
+                        level: fight_level.clamp(1, 99) as u8,
                         globals: fight_globals,
                         row: 1,
                         trance: 0,
@@ -1314,6 +1322,10 @@ fn chain(
         .as_ref()
         .map(|(base, _)| base.clone())
         .unwrap_or_default();
+    let battle_levels: Vec<tantalus_game::new_game::LevelRow> = growth_tables
+        .as_ref()
+        .map(|(_, levels)| levels.clone())
+        .unwrap_or_default();
     // Field bundles sit beside the event bundle (`StreamingAssets`).
     let field_bundles: Vec<PathBuf> = (11..=19)
         .map(|n| {
@@ -1806,6 +1818,10 @@ fn chain(
                                     mp: stats.current_mp.max(0) as u32,
                                     max_mp: stats.max_mp.max(0) as u32,
                                     base,
+                                    level: tantalus_game::new_game::level_for_experience(
+                                        &battle_levels,
+                                        world.character_exp.get(character).copied().unwrap_or(0),
+                                    ),
                                     globals:
                                         tantalus_tools::field_battle::PartyGlobals::from_globals(
                                             world.global_memory.bytes(),

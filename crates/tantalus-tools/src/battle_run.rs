@@ -71,21 +71,26 @@ fn demo_players(weak: bool) -> Vec<BattleUnit> {
                 unit.magic_defence = 5;
                 unit.magic_evade = 2;
             } else {
-                unit.level = 20;
-                unit.cur_hp = 500;
-                unit.max_hp = 500;
+                // `TANTALUS_BATTLE_STRONG` set: a mid-game party (level 70,
+                // 4,000 HP) for sweeps that look for scenes a strong party
+                // still loses; the default stays the level-20 corpus party.
+                let strong = std::env::var_os("TANTALUS_BATTLE_STRONG").is_some();
+                unit.level = if strong { 70 } else { 20 };
+                let hp = if strong { 4000 } else { 500 };
+                unit.cur_hp = hp;
+                unit.max_hp = hp;
                 unit.cur_mp = 100;
                 unit.max_mp = 100;
-                unit.strength = 30;
-                unit.magic = 30;
+                unit.strength = if strong { 55 } else { 30 };
+                unit.magic = if strong { 55 } else { 30 };
                 unit.dexterity = 30;
-                unit.will = 20;
-                unit.physical_defence = 10;
+                unit.will = if strong { 35 } else { 20 };
+                unit.physical_defence = if strong { 30 } else { 10 };
                 unit.physical_evade = 5;
-                unit.magic_defence = 12;
+                unit.magic_defence = if strong { 30 } else { 12 };
                 unit.magic_evade = 6;
                 unit.weapon = Some(WeaponStats {
-                    power: 25,
+                    power: if strong { 50 } else { 25 },
                     rate: 0,
                     elements: tantalus_legacy::battle::Elements::NONE,
                     category: WeaponStats::SHORT_RANGE,

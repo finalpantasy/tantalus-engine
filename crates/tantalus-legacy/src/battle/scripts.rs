@@ -4,8 +4,9 @@
 //! `BaseWeaponScript.cs`. Only `Perform` is ported; the `RateTarget`
 //! estimators (enemy AI scoring) are separate code paths.
 //!
-//! Ported ids: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 19 20 22 25 27 42 44
-//! 48 55 58 62 63 64 69 70 71 72 73 74 75 76 77 96 100 103 109. Every other id returns
+//! Ported ids: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 19 20 21 22 23 25 26
+//! 27 30 42 44 48 55 58 62 63 64 69 70 71 72 73 74 75 76 77 91 93 96 97 99 100
+//! 103 109. Every other id returns
 //! [`CalcError::UnportedScript`].
 
 use super::calc::{AttackBonus, CalcError, CalcFlags, Calculator, EatResult, UnitFlags};
@@ -37,9 +38,13 @@ pub fn perform(id: i32, v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Calc
         17 => magic_gravity_damage(v, rng),
         19 => physical_attack(v, rng),
         20 => original_magic_attack(v, rng),
+        21 => goblin_punch(v, rng),
         22 => lv_direct_hp_damage(v),
+        23 => lv_holy(v, rng),
         25 => precise_direct_hp_damage(v),
+        26 => thousand_needles(v),
         27 => direct_hp_damage(v, rng),
+        30 => white_wind(v),
         42 => throw(v, rng),
         44 => focus(v),
         48 => spear(v, rng),
@@ -59,7 +64,11 @@ pub fn perform(id: i32, v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Calc
         75 => dead_pepper(v),
         76 => tent(v, rng),
         77 => dark_matter(v),
+        91 => cannon(v, rng),
+        93 => maelstrom(v, rng),
         96 => trance_full(v, rng),
+        97 => entice(v, rng),
+        99 => flare_star(v, rng),
         100 => precise_enemy_physical_attack(v, rng),
         103 => magic_apply_positive_status(v, rng),
         109 => mini(v, rng),
@@ -685,6 +694,115 @@ fn mini(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
     v.penalty_command_divided_hit_rate();
     if v.try_magic_hit(rng) {
         v.try_alter_command_statuses(rng);
+    }
+    Ok(())
+}
+
+/// Script 21 (`0021_GoblinPunchScript.cs`).
+fn goblin_punch(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
+    v.normal_magic_params(rng);
+    if v.t().level == v.c().level {
+        v.attack += i32::from(v.c().level);
+        v.defense_power = 0;
+    }
+    v.caster_penalty_mini();
+    v.target_penalty_shell_attack();
+    v.calc_hp_damage();
+    Ok(())
+}
+
+/// Script 23 (`0023_LvHolyScript.cs`).
+fn lv_holy(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
+    if v.is_target_level_multiple_of_command_rate()? && v.target_can_be_attacked() {
+        v.normal_magic_params(rng);
+        v.caster_enemy_trance_bonus_attack();
+        v.caster_penalty_mini();
+        v.target_penalty_shell_attack();
+        v.bonus_element();
+        if v.can_attack_elemental_command() {
+            v.calc_hp_damage();
+        }
+    }
+    Ok(())
+}
+
+/// Script 26 (`0026_ThousandNeedlesScript.cs`): a fixed `Power * 100 +
+/// HitRate` damage.
+fn thousand_needles(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    v.target_calc.flags.0 |= UnitFlags::HP_ALTERATION;
+    v.target_calc.hp_damage = v
+        .command
+        .power
+        .wrapping_mul(100)
+        .wrapping_add(v.command.hit_rate);
+    Ok(())
+}
+
+/// Script 30 (`0030_WhiteWindScript.cs`): heals by the caster's maximum HP
+/// (a third for Power 0, the vanilla value).
+fn white_wind(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    v.target_calc.flags.0 |= UnitFlags::HP_ALTERATION;
+    if !v.t().is_zombie() {
+        v.target_calc.flags.0 |= UnitFlags::HP_RECOVERY;
+    }
+    let max = v.c().max_hp as i32;
+    v.target_calc.hp_damage = if v.command.power == 0 {
+        max / 3
+    } else {
+        max.wrapping_mul(v.command.power) / 100
+    };
+    Ok(())
+}
+
+/// Script 91 (`0091_CannonScript.cs`).
+fn cannon(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
+    if !v.target_check_unsafety_or_miss() {
+        return Ok(());
+    }
+    v.magic_accuracy();
+    v.target_penalty_shell_hit_rate();
+    v.penalty_command_divided_hit_rate();
+    if !v.try_magic_hit(rng) {
+        return Ok(());
+    }
+    v.set_command_attack();
+    v.bonus_element();
+    if v.can_attack_magic() {
+        v.calc_cannon_proportion_damage();
+    }
+    Ok(())
+}
+
+/// Script 93 (`0093_MaelstromScript.cs`): the target is left with 1 to 9 HP.
+fn maelstrom(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
+    if v.target_check_unsafety_or_miss() && v.target_can_be_attacked() {
+        v.flags.0 |= CalcFlags::DIRECT_HP;
+        let hp = 1 + rng.random8() % 9;
+        v.t_mut().set_current_hp(hp as u32);
+        let mask = v.command.ability_status;
+        v.target_try_alter_statuses(mask, false, rng);
+    }
+    Ok(())
+}
+
+/// Script 97 (`0097_EnticeScript.cs`): misses a female character.
+fn entice(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
+    if v.t().has_character_category(super::unit::CATEGORY_FEMALE) {
+        v.flags.0 |= CalcFlags::MISS;
+    } else {
+        v.try_alter_command_statuses(rng);
+    }
+    Ok(())
+}
+
+/// Script 99 (`0099_FlareStarScript.cs`): `Level * Power` damage.
+fn flare_star(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
+    v.magic_accuracy();
+    v.target_penalty_shell_hit_rate();
+    v.penalty_command_divided_hit_rate();
+    if v.try_magic_hit(rng) {
+        v.target_calc.flags.0 |= UnitFlags::HP_ALTERATION;
+        v.target_calc.hp_damage = i32::from(v.t().level).wrapping_mul(v.command.power);
     }
     Ok(())
 }

@@ -125,6 +125,8 @@ pub struct PartyFighter {
     pub mp: u32,
     pub max_mp: u32,
     pub base: BaseStats,
+    /// Character level (`PLAYER.level`), from the total experience.
+    pub level: u8,
     /// Event globals the battle setup reads.
     pub globals: PartyGlobals,
     /// 0 back row, 1 front row (`bi.row`); the Order screen sets it.
@@ -1981,6 +1983,33 @@ impl LiveFight {
                 .unzip();
             self.stage
                 .record(tick, &machine.units, &max_atb, &present, &phase);
+            // `TANTALUS_BATTLE_LOG` set: every machine event and script
+            // command on stderr, for tracing one fight.
+            static LOG: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+            if *LOG.get_or_init(|| std::env::var_os("TANTALUS_BATTLE_LOG").is_some()) {
+                for (t, e) in &machine.log[self.log_seen.min(machine.log.len())..] {
+                    eprintln!("battle tick {tick} t{t} {e:?}");
+                }
+                let events = &self.adapter.hooks().driver.state.events;
+                for e in &events[self.events_seen.min(events.len())..] {
+                    eprintln!("battle ai tick {tick} {e:?}");
+                }
+                if tick % 200 == 3 {
+                    for (i, u) in machine.units.iter().enumerate() {
+                        eprintln!(
+                            "battle unit tick {tick} {i} lv{} hp{}/{} str{} mag{} pdef{} mdef{} status{:x}",
+                            u.level,
+                            u.cur_hp,
+                            u.max_hp,
+                            u.strength,
+                            u.magic,
+                            u.physical_defence,
+                            u.magic_defence,
+                            u.status_current
+                        );
+                    }
+                }
+            }
             let events = crate::battle_stage::stage_events(
                 machine,
                 &machine.log[self.log_seen.min(machine.log.len())..],
@@ -2406,6 +2435,28 @@ fn outcome_name(outcome: BattleOutcome) -> &'static str {
     }
 }
 
+/// `PLAYER.basis` dex, str, mgc, wpr after `level - 1` level-ups
+/// (`ff9play.FF9Play_Build` with `lvup`, `ff9level.FF9Level_GetDex/Str/Mgc/
+/// Wpr`): each level-up adds the stone bonus (str +3, mgc +3, wpr +1, as
+/// `cur` is rebuilt from zero) and the equipment bonus to a `u16` counter
+/// that counts a point per 32, on top of `base + level * k`. The equipment
+/// bonus is the default set's, the stand-in the field side has for gear.
+fn level_basis(base: &BaseStats, level: u8, equip: [i32; 4]) -> [u8; 4] {
+    let lv = i32::from(level);
+    let ups = lv - 1;
+    let counter = |capa: i32, equip: i32| ((ups * (capa + equip)) as u16 >> 5) as i32;
+    let dex = i32::from(base.speed) + lv / 10 + counter(0, equip[0]);
+    let str_ = i32::from(base.strength) + lv * 3 / 10 + counter(3, equip[1]);
+    let mgc = i32::from(base.magic) + lv * 3 / 10 + counter(3, equip[2]);
+    let wpr = i32::from(base.spirit) + lv * 3 / 20 + counter(1, equip[3]);
+    [
+        dex.min(50) as u8,
+        str_.min(99) as u8,
+        mgc.min(99) as u8,
+        wpr.min(50) as u8,
+    ]
+}
+
 /// A party member at level 1: base stats, the field HP/MP and the default
 /// equipment (a power-12 short-range weapon when the tables have none).
 fn party_unit(slot: usize, fighter: &PartyFighter, equipment: &Equipment) -> BattleUnit {
@@ -2430,18 +2481,19 @@ fn party_unit(slot: usize, fighter: &PartyFighter, equipment: &Equipment) -> Bat
         0
     };
     unit.row = fighter.row;
-    unit.level = 1;
+    unit.level = fighter.level.clamp(1, 99);
     unit.cur_hp = fighter.hp.max(1);
     unit.max_hp = fighter.max_hp.max(1);
     unit.cur_mp = fighter.mp;
     unit.max_mp = fighter.max_mp;
     // `FF9Play_Update`: `elem = basis + equipment bonus`, capped at 99.
     let bonus = equipment.stat_bonus(fighter.character);
+    let basis = level_basis(&fighter.base, unit.level, bonus);
     let stat = |base: u8, add: i32| (i32::from(base) + add).clamp(0, 99) as u8;
-    unit.dexterity = stat(fighter.base.speed, bonus[0]);
-    unit.strength = stat(fighter.base.strength, bonus[1]);
-    unit.magic = stat(fighter.base.magic, bonus[2]);
-    unit.will = stat(fighter.base.spirit, bonus[3]).max(1);
+    unit.dexterity = stat(basis[0], bonus[0]);
+    unit.strength = stat(basis[1], bonus[1]);
+    unit.magic = stat(basis[2], bonus[2]);
+    unit.will = stat(basis[3], bonus[3]).max(1);
     unit.physical_defence = defence[0];
     unit.physical_evade = defence[1];
     unit.magic_defence = defence[2];
@@ -2459,6 +2511,47 @@ fn party_unit(slot: usize, fighter: &PartyFighter, equipment: &Equipment) -> Bat
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn zidane() -> PartyFighter {
+        PartyFighter {
+            character: 0,
+            hp: 3000,
+            max_hp: 3000,
+            mp: 100,
+            max_mp: 100,
+            base: BaseStats {
+                speed: 21,
+                strength: 21,
+                magic: 14,
+                spirit: 15,
+                gems: 10,
+            },
+            level: 1,
+            globals: PartyGlobals::default(),
+            row: 1,
+            trance: 0,
+        }
+    }
+
+    /// A strong party fights with its level and level-grown stats, not with
+    /// level 1 ones (the Ralvuimago fight of the story probe was lost at
+    /// level 80 with the level 1 strength of a new game).
+    #[test]
+    fn party_units_carry_the_level_and_the_grown_stats() {
+        let equipment = Equipment::default();
+        let fresh = party_unit(0, &zidane(), &equipment);
+        assert_eq!((fresh.level, fresh.strength, fresh.dexterity), (1, 21, 21));
+        let mut veteran = zidane();
+        veteran.level = 99;
+        let unit = party_unit(0, &veteran, &equipment);
+        assert_eq!(unit.level, 99);
+        // `FF9Level_GetStr`: 21 + 99 * 3 / 10 + (98 * 3 >> 5) = 59; dex 21
+        // + 9 = 30; mgc 14 + 29 + 9 = 52; wpr 15 + 14 + 3 = 32.
+        assert_eq!(
+            (unit.strength, unit.dexterity, unit.magic, unit.will),
+            (59, 30, 52, 32)
+        );
+    }
 
     #[test]
     fn stat_bonus_sums_the_bonus_rows_of_the_default_set() {

@@ -1749,6 +1749,42 @@ fn unported_script_is_an_error() {
     assert_eq!(r.try_run(&[7]).unwrap_err(), CalcError::UnportedScript(59));
 }
 
+/// Script 26 (`0026_ThousandNeedlesScript.cs`): Power * 100 + HitRate.
+#[test]
+fn s26_thousand_needles_is_fixed_damage() {
+    let mut r = Rig::enemy_attacks(26);
+    r.cmd.power = 10;
+    r.cmd.hit_rate = 3;
+    let o = r.run(&[7]);
+    assert_eq!(o.target.hp_damage, 1003);
+    assert!(o.target.flags.has(UnitFlags::HP_ALTERATION));
+}
+
+/// Script 30 (`0030_WhiteWindScript.cs`): a third of the caster's maximum
+/// HP at Power 0, `Power` percent otherwise; a zombie is hurt instead.
+#[test]
+fn s30_white_wind_heals_from_the_casters_max_hp() {
+    let mut r = Rig::enemy_attacks(30);
+    let o = r.run(&[7]);
+    assert_eq!(o.target.hp_damage, 133);
+    assert!(o.target.flags.has(UnitFlags::HP_RECOVERY));
+
+    let mut r = Rig::enemy_attacks(30);
+    r.cmd.power = 50;
+    r.t().status_current = st::ZOMBIE;
+    let o = r.run(&[7]);
+    assert_eq!(o.target.hp_damage, 200);
+    assert!(!o.target.flags.has(UnitFlags::HP_RECOVERY));
+}
+
+/// Script 97 (`0097_EnticeScript.cs`): a female character is missed.
+#[test]
+fn s97_entice_misses_women() {
+    let mut r = Rig::enemy_attacks(97);
+    r.t().player_category = tantalus_legacy::battle::unit::CATEGORY_FEMALE;
+    assert!(miss(&r.run(&[7])));
+}
+
 #[test]
 fn steal_takes_the_rarest_slot_that_rolls() {
     // Trance draw, the Level + Will vs Level roll (0 % 21 < 0 % 1 fails

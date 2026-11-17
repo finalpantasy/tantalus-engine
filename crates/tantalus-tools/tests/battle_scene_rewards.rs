@@ -972,6 +972,7 @@ fn chain_and_handoff_paths_agree_on_the_same_scene() {
                 mp: 100,
                 max_mp: 100,
                 base: base_stats,
+                level: 1,
                 globals: Default::default(),
                 row: 1,
                 trance: 0,
