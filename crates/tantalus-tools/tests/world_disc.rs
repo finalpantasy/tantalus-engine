@@ -41,3 +41,35 @@ fn world_exit_on_late_disc_loads_disc_four_and_its_script() {
             .any(|parked| parked.ship == tantalus_tools::world_script::Ship::Invincible)
     );
 }
+
+/// Square reaches the field script as the Special control for the frame it
+/// is pressed (`EventInput.ProcessInput`): Chocobo Hot and Cold's dig reads
+/// `KeyOn(0x80000)`.
+#[test]
+fn square_is_the_special_key_in_a_field() {
+    let root = PathBuf::from("E:/SteamLibrary/steamapps/common/FINAL FANTASY IX");
+    let memoria = PathBuf::from("E:/FFIX Recomp/.reference/Memoria");
+    let atan = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../local/probe/ratan_tbl.bin");
+    if !root.is_dir() || !memoria.is_dir() || !atan.is_file() {
+        return;
+    }
+    let paths = PlayPaths {
+        streaming_assets: root.join("StreamingAssets"),
+        game_data: root.join("x64/FF9_Data"),
+        memoria,
+        atan_table: atan,
+        battles: None,
+        language: "us".to_owned(),
+    };
+    let data = PlayData::load(&paths).expect("play data");
+    let (mut game, _) = PlayGame::new(data, 2950).expect("game");
+    for _ in 0..5 {
+        game.tick(0).expect("tick");
+    }
+    assert_eq!(game.world().input_mask() & 0x80000, 0);
+    game.tick(tantalus_tools::play::pad::SQUARE).expect("tick");
+    assert_ne!(game.world().input_mask() & 0x80000, 0);
+    // Held, it is not a new press.
+    game.tick(tantalus_tools::play::pad::SQUARE).expect("tick");
+    assert_eq!(game.world().input_mask() & 0x80000, 0);
+}

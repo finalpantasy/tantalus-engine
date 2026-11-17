@@ -35,6 +35,9 @@ use tantalus_game::battle::BattleCommand;
 use tantalus_legacy::HostEvent;
 
 /// `EventInput` pad bits (Memoria `Global/Event/EventInput.cs`).
+/// The script's bit for the Special control (`Control.Special`).
+const SPECIAL_KEY: i32 = 0x80000;
+
 pub mod pad {
     pub const SELECT: i32 = 0x1;
     pub const START: i32 = 0x8;
@@ -1261,6 +1264,12 @@ impl PlayGame {
                 ));
             }
         }
+        if !party_screen && pressed & pad::SQUARE != 0 {
+            // `ETb.KeyOn` sees the logical Special control (square) as
+            // 0x80000 for the frame it is pressed (`EventInput.ProcessInput`,
+            // `GetKeyMaskFromControl`): Chocobo Hot and Cold's dig.
+            input |= SPECIAL_KEY;
+        }
         if !party_screen && pressed & CONFIRM != 0 {
             input |= CONFIRM;
             for (window, text) in &open {
@@ -1723,6 +1732,23 @@ impl PlayGame {
                     .global_memory
                     .set(index, VariableType::UInt16, i32::from(bits));
             }
+        }
+    }
+
+    /// Puts the player at `position` on the next field tick (as a load does).
+    pub fn place_player(&mut self, position: [f32; 3]) {
+        self.pending_position = Some(position);
+    }
+
+    /// Writes a script global (`gEventGlobal`) in the running field and the
+    /// world between fields, to start a probe at a chosen story state.
+    pub fn set_global(&mut self, index: u16, kind: tantalus_legacy::VariableType, value: i32) {
+        let mut worlds = vec![&mut self.world];
+        if let Some(session) = self.session.as_mut() {
+            worlds.push(session.director.world_mut());
+        }
+        for world in worlds {
+            world.global_memory.set(index, kind, value);
         }
     }
 
