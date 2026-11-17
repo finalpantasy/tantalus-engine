@@ -39,7 +39,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--gil N] [--settle TICKS] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--wall-regions MAP,...] [--gil N] [--settle TICKS] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -69,6 +69,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut retalk: BTreeSet<(i32, usize)> = BTreeSet::new();
     let mut ate: BTreeMap<i32, u32> = BTreeMap::new();
     let mut region_talks: BTreeSet<i32> = BTreeSet::new();
+    let mut wall_regions: BTreeSet<i32> = BTreeSet::new();
     let mut hold: BTreeMap<i32, i32> = BTreeMap::new();
     let mut press_when: Vec<PressWhen> = Vec::new();
     let mut suspend_loops = false;
@@ -197,6 +198,17 @@ fn run(args: Vec<String>) -> Result<(), String> {
                         part.trim()
                             .parse()
                             .map_err(|_| format!("bad --region-talks entry `{part}`, want MAP"))?,
+                    );
+                }
+            }
+            // Fields where a region that is not an exit and keeps taking
+            // control counts as a wall after a few refusals (the 613 guard).
+            "--wall-regions" => {
+                for part in value()?.split(',') {
+                    wall_regions.insert(
+                        part.trim()
+                            .parse()
+                            .map_err(|_| format!("bad --wall-regions entry `{part}`, want MAP"))?,
                     );
                 }
             }
@@ -529,6 +541,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     retalk,
                     ate,
                     region_talks,
+                    wall_regions,
                     hold,
                     press_when,
                     suspend_loops,
@@ -1028,6 +1041,7 @@ struct ChainOptions {
     retalk: BTreeSet<(i32, usize)>,
     ate: BTreeMap<i32, u32>,
     region_talks: BTreeSet<i32>,
+    wall_regions: BTreeSet<i32>,
     /// Pad bits held for a whole field, by field map (`KeyState(Held)`
     /// polls such as map 115's ladder climb, which reads up = 16).
     hold: BTreeMap<i32, i32>,
@@ -1141,6 +1155,7 @@ fn chain(
         retalk,
         ate,
         region_talks,
+        wall_regions,
         hold,
         press_when,
         suspend_loops,
@@ -1939,7 +1954,12 @@ fn chain(
                                     *refusals += 1;
                                 }
                                 *seen = control_changes.len();
-                                if exits.contains_key(&entry) && *refusals >= EXIT_REFUSALS {
+                                // A region that is not an exit and keeps taking
+                                // control (the 613 castle guard at scenario 3118)
+                                // is a wall, not a goal: stop returning to it.
+                                if *refusals >= EXIT_REFUSALS
+                                    && (exits.contains_key(&entry) || wall_regions.contains(&map))
+                                {
                                     triggered.insert(entry);
                                 }
                             }

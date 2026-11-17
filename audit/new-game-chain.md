@@ -621,20 +621,44 @@ How a fresh worker gets from the arrival to field 565 and what to read.
    cutscene), so 611 must be entered from 612, the castle.
 6. Route to the castle at 3118: from 563 the air cab text 99, choice 2,
    flies to 610 (`--choices 563:99=2`), then 610 -> 614 -> 613. Field 613
-   at 3118 (Map31 = 3) has the guard region 16 (z -1846 to -1631, x -388 to
-   362): standing in it requests entry 0 tag 18 every frame, which walks
-   guard 7 to the player (tag 19), shows text 371, and walks the guard away
-   (tag 20). The explorer arrives at (-26, -1747), inside that band, and
-   repeats the 204 tick cycle until the tick limit (about 30 times in 6000
-   ticks); exit 14 (to 612) is region 14 at x 2543 to 3460, z -365 to 312,
-   and the explorer never reaches it. The next worker should find why the
-   walk to exit 14 goes through the region 16 band (navigation mesh or the
-   explorer's target choice), then enter 611 (route `613>612,612>611` at
-   3118) to get 3120, then 3125 (613 text 348/349 and 3130 with the lift).
-   The festival points minigame is not reached. Burmecia, Gizamaluke's
-   Grotto, South Gate, Cleyra and Alexandria remain; disc 1 ends at
-   `EVT_ALEX3_AC_OHAKA` (field 1800), whose `DISCCHANGE` goes to disc 2,
-   field 1812.
+   at 3118 (Map31 = 3) has the guard region 16 (z -1846 to -1631): standing
+   in it requests entry 0 tag 18 every frame (guard 7 walks to the player,
+   text 371, walks away). The explorer's target list includes every region,
+   so it kept jumping back into region 16 and lost control each time. The
+   fix is explorer-side: `--wall-regions 613` counts a non-exit region that
+   keeps taking control (three refusals) as done, as exits already were.
+   With it, `--route "613>612@3118,612>611@3118"` gives 613 -> 612 -> 611
+   (3120) -> 612 -> 613 (3130) -> 601 -> 613 -> 612 -> 611 (3140) -> 617 ->
+   616 -> 615 -> 606 (3140). The flag is opt-in, because field 255 of the
+   chain run also refuses three times and would change chain109.
+
+### Disc 1 segments
+
+Segment probes start a fresh world at a field with the scenario preset
+(`--set-global 0:LOW,1:HIGH` writes the little-endian scenario counter),
+no `--load-world`, so party, items and story bits are the new-game defaults
+and later cutscenes may take other branches than a played game. Each run
+used `--explore --confirm-after 30`, 6000 ticks per field, at most 60 to 80
+fields. Scenario values come from the init `JumpSwitch` cases of the
+entry fields. "Furthest" is the highest scenario counter the run reached.
+
+| Segment | Start field @ scenario | Furthest | Where it ends, blocker and lead |
+| --- | --- | --- | --- |
+| Lindblum, hunt prelude | 613 @ 3118 (saved world from the story route) | 3140 | ends in 606 (Aerbs Mountains title): entry 2 loops on Map31 == 0 and entry 0 function 1 waits for a key (`KeyOn(589824)`, Cancel/Special) behind a camera-position test (SysVar 12/13); the explorer's Cancel taps do not reach it. 606 also holds a walk at `MSPEED 1`. Next worker: read 606 entry 0 function 1 pc 596 to 700 |
+| Gizamaluke's Grotto | 701 @ 3740 | 3740 | 701 -> 702 -> 703 -> 704 -> 706 in 6000 ticks, 6 talks; no blocker found yet, needs a longer run |
+| Burmecia | 751 / 750 @ 3800 to 4990 | 4990 | the explorer loops 752 <-> 756 <-> 757 (balcony question "Go out to the balcony?" Yes/No, a `ScriptRequest` wait in entry 6); answer it with `--choices`, then look for the next exit |
+| South Gate | 800 @ 3740 | 3750 | 800 <-> 801, stealth scene ("I must get rid of them before I go into the alley"): waits on a shared script and a 21 frame wait; sneaking input not modelled |
+| Cleyra trunk | 1000 @ 4650 | 4660 | with `--hold MAP:16` for 1000 to 1018 (the same Up-held climb as 557/565: entries poll `KeyState(Held)` 16/192/32 and wait on `WaitAnimation`) the run goes 1000 -> 1006 and reaches the world map (9000) |
+| Cleyra settlement | 1050 @ 4660 | 4700 | with the hold: 1050 -> 1051 -> ... -> 1012 at 4700; ends on `WaitAnimation` in 1012 entry 15 (3844@31) |
+| Cleyra, the attack | 1100 @ 4700 | 4888 | with the hold: 1100 -> 1101 (4888) -> ... -> 1109 <-> 1110 loop |
+| Red Rose | 1150 @ 5000 | 5020 | 1150 -> 1153 (balance game, text "Press or to shift your center of gravity!") -> 1208 at 5020 |
+| Alexandria castle | 1200 / 1201 @ 5050 | 5050 | no control for 6000 ticks: 1201 entry 2 waits at pc 1515 and entry 10 at 917 on frame waits; 1208 @ 5020 shows Brahne and Garnet (1208 -> 1207 -> 1206) |
+| End of disc 1 | 1800 @ 10250 | 10400 | 1800 -> 2850 at 10400 and waits on the party menu (`Waiting:PartyMenu`, entry 0 pc 3675): the chain has no party menu answer |
+
+What is left: every row above needs a longer run with answers for its
+prompts; the first real blockers to fix are the 606 key wait (hunt), the
+party menu wait (1800), and the Cleyra 1012 animation wait. The disc 1
+`DISCCHANGE` itself was not reached.
 
 `audit/story-route.sh` now ends at field 565, scenario 3118 (97 fields,
 `MAX_FIELDS`); probe with
