@@ -1835,7 +1835,15 @@ impl PlayGame {
                 play.set_ride(1);
             }
         }
+        // The script's inventory and Chocograph state follow the player's
+        // (a dig's treasure reaches the bag, the save keeps the pick).
+        if let Some(session) = self.session.as_ref() {
+            play.sync_into_script(session.director.world());
+        }
         let tick = play.tick(held, pressed, CONFIRM, false);
+        if let Some(session) = self.session.as_mut() {
+            play.sync_out_of_script(session.director.world_mut());
+        }
         if let Some(field) = tick.field {
             // The world script changed field by itself (its own prompt).
             let session = self.session.take().expect("session");

@@ -598,6 +598,10 @@ pub struct OverlayChange {
 /// provider owns the level tables. Runtime-only.
 pub type LevelGrowth = std::sync::Arc<dyn Fn(i32, u64) -> Option<CharacterStats> + Send + Sync>;
 
+fn is_zero_i32(value: &i32) -> bool {
+    *value == 0
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct FieldWorld {
     pub actors: BTreeMap<EntityId, ActorState>,
@@ -867,6 +871,16 @@ pub struct FieldWorld {
     /// open yet (runtime-only).
     #[serde(skip)]
     pub chocograph_requested: bool,
+    /// The world script's pad edges (`ETb.sKeyOn`, `ETb.sKeyOff`) and held
+    /// bits (`ETb.sKey`), set by the walking world each frame; `None` in the
+    /// field, where `input_mask` answers all three (runtime-only).
+    #[serde(skip)]
+    pub world_keys: Option<[i32; 3]>,
+    /// `FF9StateGlobal.hintmap_id`: the Chocograph picture the player picked
+    /// (0 none, else index + 1). Saved with the world
+    /// (`ff9.SaveWorld`/`LoadWorld`, the `70000_World` block).
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub hintmap_id: i32,
     /// A script ran `MENU(2, shop)`: the shop to open, not open yet
     /// (runtime-only).
     #[serde(skip)]
@@ -999,6 +1013,7 @@ impl PartialEq for FieldWorld {
             && self.rng == other.rng
             && self.random_battles == other.random_battles
             && self.input_mask == other.input_mask
+            && self.hintmap_id == other.hintmap_id
             && self.walk_speed == other.walk_speed
             && self.walk_hold_bit == other.walk_hold_bit
             && self.run_disabled == other.run_disabled
@@ -1127,6 +1142,8 @@ impl FieldWorld {
             save_point: false,
             save_requested: false,
             chocograph_requested: false,
+            world_keys: None,
+            hintmap_id: 0,
             shop_requested: None,
             world_codes: Vec::new(),
             support_enabled: BTreeMap::new(),

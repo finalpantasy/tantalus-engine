@@ -78,6 +78,33 @@ impl WorldEffects {
     }
 }
 
+/// The pad bits the script reads for the held physical and logical buttons
+/// (`EventInput.ProcessInput` and `GetKeyMaskFromControl`): each logical
+/// control sets its own bit and its physical button's, in the default
+/// layout confirm = cross, cancel = circle, menu = triangle, special =
+/// square, the bumpers and triggers L1, R1, L2, R2.
+pub fn script_pad(held: i32) -> i32 {
+    const LOGICAL: [(i32, i32); 9] = [
+        // (bit the walking world holds, bits the script sees besides it)
+        (0x20000, 0x4000),   // Confirm and cross
+        (0x10000, 0x2000),   // Cancel and circle
+        (0x1000, 0x1000000), // Triangle and Menu
+        (0x8000, 0x80000),   // Square and Special
+        (0x400, 0x100000),   // L1 and LeftBumper
+        (0x800, 0x200000),   // R1 and RightBumper
+        (0x100, 0x400000),   // L2 and LeftTrigger
+        (0x200, 0x800000),   // R2 and RightTrigger
+        (0x1, 0),            // Select
+    ];
+    let mut mask = held;
+    for (bit, extra) in LOGICAL {
+        if held & bit != 0 {
+            mask |= extra;
+        }
+    }
+    mask & 0x3FF_FFFF
+}
+
 /// Script entry of the controlled character (Zidane, model 310).
 pub const ZIDANE_ENTRY: u32 = 11;
 /// Script entry of the Blue Narciss object (model 311).
@@ -138,6 +165,14 @@ impl WorldScript {
             self.effects.apply(code, value);
         }
         Ok(tick)
+    }
+
+    /// The pad the script reads this frame (`ETb.ProcessKeyEvents`): the
+    /// buttons pressed (`KEYON`), released (`KEYOFF`) and held (`KEY`).
+    pub fn set_keys(&mut self, pressed: i32, held: i32, released: i32) {
+        let world = self.world_mut();
+        world.set_input(held);
+        world.world_keys = Some([pressed, held, released]);
     }
 
     /// Sets what `ff9.w_frameGetParameter` returns (system variables 192

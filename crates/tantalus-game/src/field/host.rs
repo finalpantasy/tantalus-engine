@@ -1689,10 +1689,22 @@ impl LegacyEventHost for FieldHost<'_> {
     }
 
     fn read_key_on(&mut self) -> Result<i32, EngineError> {
+        // `EBin` B_KEYON: `ETb.KeyOn` (the buttons pressed this frame).
+        if let Some([on, _, _]) = self.world.world_keys {
+            return Ok(on);
+        }
         Ok(self.world.input_mask())
     }
 
     fn read_key_state(&mut self, state: KeyState) -> Result<i32, EngineError> {
+        // `EBin` B_KEYOFF / B_KEY: `ETb.KeyOff` (released this frame) and
+        // `ETb.GetInputs` (held).
+        if let Some([_, held, off]) = self.world.world_keys {
+            return Ok(match state {
+                KeyState::Off => off,
+                KeyState::Held => held,
+            });
+        }
         match state {
             KeyState::Off => Ok(i32::from(self.world.input_mask() == 0)),
             KeyState::Held => Ok(self.world.input_mask()),

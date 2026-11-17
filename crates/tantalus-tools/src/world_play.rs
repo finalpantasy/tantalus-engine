@@ -17,6 +17,8 @@ use tantalus_legacy::world::{
     plane_step, select_scene, ship_step, wrap_position,
 };
 
+use tantalus_game::FieldWorld;
+
 use crate::world_data::WorldAssets;
 use crate::world_places::event_code;
 
@@ -110,6 +112,8 @@ pub struct WorldPlay {
     /// The world script, run every frame; when present its place handlers
     /// decide the place under the actor (`events` is the fallback).
     script: Option<crate::world_script::WorldScript>,
+    /// The pad held on the previous script frame (for `KEYOFF`).
+    script_held: i32,
     /// The chocobo the script placed (by story point), if the player owns
     /// one and is not riding it.
     pub chocobo: Option<ParkedChocobo>,
@@ -157,6 +161,7 @@ impl WorldPlay {
     /// Runs the world script alongside the walk: each frame it ticks, and a
     /// place cell requests the cell's handler (`ff9.WorldEvent`).
     pub fn set_script(&mut self, script: crate::world_script::WorldScript) {
+        self.hintmap = script.world().hintmap_id;
         self.script = Some(script);
         self.chocobo = self.script_start().and_then(|start| start.chocobo);
         // `ff9.w_movementChrInitSlice`: the chocobo stands on the ground.
@@ -230,6 +235,7 @@ impl WorldPlay {
             walker,
             events,
             script: None,
+            script_held: 0,
             chocobo: None,
             hintmap: 0,
             chocograph: None,
@@ -553,6 +559,13 @@ impl WorldPlay {
     /// One 30 Hz frame with the pad `held` and the buttons `pressed` this frame.
     pub fn tick(&mut self, held: i32, pressed: i32, confirm: i32, menu_open: bool) -> WorldTick {
         self.frames += 1;
+        // A confirm press answers the script's open dialogs and goes no
+        // further (`EventInput.isDialogConfirm`).
+        let (pressed, held) = if pressed & confirm != 0 && self.close_script_windows() {
+            (pressed & !confirm, held & !confirm)
+        } else {
+            (pressed, held)
+        };
         let axis = |negative: i32, positive: i32| match (held & negative != 0, held & positive != 0)
         {
             (true, false) => -128,
@@ -600,7 +613,7 @@ impl WorldPlay {
         let hit_code = report
             .world_event
             .map(|hit| event_code(hit.cell_x, hit.cell_z, hit.event));
-        let (scripted, events) = self.script_place(hit_code);
+        let (scripted, events) = self.script_place(hit_code, held);
         self.poll_chocograph_menu();
         tick.script_battle = events.0;
         tick.field = events.1;
@@ -644,15 +657,25 @@ impl WorldPlay {
     /// returned; `None` without a script, off a place, or when the handler
     /// declines (a story or Chocograph condition is not met). The second
     /// value is what the script itself started: a battle and a field change.
-    fn script_place(&mut self, code: Option<u16>) -> (Option<i32>, (Option<i32>, Option<i32>)) {
+    fn script_place(
+        &mut self,
+        code: Option<u16>,
+        held: i32,
+    ) -> (Option<i32>, (Option<i32>, Option<i32>)) {
         self.feed_script();
+        // `ETb.ProcessKeyEvents`: edges against the last frame's inputs.
+        let held = crate::world_script::script_pad(held);
+        let pressed = held & !self.script_held;
+        let released = self.script_held & !held;
+        self.script_held = held;
         let Some(script) = self.script.as_mut() else {
             return (None, (None, None));
         };
+        script.set_keys(pressed, held, released);
         let mut started = (None, None);
         let collect = |script: &mut crate::world_script::WorldScript,
                        started: &mut (Option<i32>, Option<i32>)| {
-            match script.tick_events(0) {
+            match script.tick_events(held) {
                 Ok(tick) => {
                     if started.0.is_none() {
                         started.0 = tick.encounters.first().map(|request| request.battle);
@@ -735,6 +758,63 @@ impl WorldPlay {
     /// Closes the list.
     pub fn chocograph_close(&mut self) {
         self.chocograph = None;
+    }
+
+    /// Hands the player's inventory, gil and Chocograph pick to the script's
+    /// world before its frame (the main menu changes them between frames).
+    pub fn sync_into_script(&mut self, from: &FieldWorld) {
+        if let Some(script) = self.script.as_mut() {
+            let world = script.world_mut();
+            world.items.clone_from(&from.items);
+            world.gil = from.gil;
+        }
+    }
+
+    /// Gives the player's world what the script changed: items and gil
+    /// (`AddItem`, the treasure of a dig), the script's globals (the dug
+    /// Chocograph bits 184 and up, the story point) and
+    /// `FF9StateGlobal.hintmap_id`, which the save keeps.
+    pub fn sync_out_of_script(&self, to: &mut FieldWorld) {
+        if let Some(script) = self.script.as_ref() {
+            let world = script.world();
+            to.items.clone_from(&world.items);
+            to.gil = world.gil;
+            to.global_memory.clone_from(&world.global_memory);
+        }
+        to.hintmap_id = self.hintmap;
+    }
+
+    /// Closes the dialogs the script has open (the player confirmed them),
+    /// as the field's confirm press does; true when one was open.
+    pub fn close_script_windows(&mut self) -> bool {
+        let Some(script) = self.script.as_mut() else {
+            return false;
+        };
+        let world = script.world_mut();
+        let open: Vec<u8> = world
+            .windows
+            .iter()
+            .filter(|(_, open)| **open)
+            .map(|(window, _)| *window)
+            .collect();
+        for window in &open {
+            world.close_window(*window);
+        }
+        !open.is_empty()
+    }
+
+    /// The text id of each dialog the script has open.
+    pub fn script_dialogs(&self) -> Vec<(u8, u16)> {
+        let Some(script) = self.script.as_ref() else {
+            return Vec::new();
+        };
+        let world = script.world();
+        world
+            .windows
+            .iter()
+            .filter(|(_, open)| **open)
+            .filter_map(|(window, _)| Some((*window, *world.window_texts.get(window)?)))
+            .collect()
     }
 
     /// What `ff9.w_frameGetParameter` answers the script this frame
