@@ -146,6 +146,11 @@ impl FieldDirector {
         self.scene.add_shared_script(key, object, program)
     }
 
+    /// Sets a function aside while a higher-priority one of its object runs.
+    pub fn set_suspended(&mut self, entity: EntityId, suspended: bool) {
+        self.scene.set_suspended(entity, suspended);
+    }
+
     pub fn remove_entry(&mut self, entity: EntityId) -> bool {
         self.program_sources.remove(&entity);
         self.scene.remove_entry(entity).is_some()
@@ -235,6 +240,7 @@ impl FieldDirector {
             }
         }
         self.world.advance();
+        self.world.advance_animations();
         // `FieldMap.HonoUpdate` runs `BgAnimationService` every tick.
         self.world.service_tile_animations();
         self.tick += 1;

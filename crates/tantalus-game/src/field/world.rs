@@ -70,6 +70,21 @@ pub struct ActorState {
     pub in_frame: u8,
     #[serde(default = "full_out_frame")]
     pub out_frame: u8,
+    /// `AMODE` (`afHold`): the next animation freezes on its last frame when it ends.
+    #[serde(default)]
+    pub anim_hold: bool,
+    /// `AMODE` (`afLoop`, `afPalindrome`): the animation restarts at `inFrame` when it ends.
+    #[serde(default)]
+    pub anim_loop: bool,
+    /// `AMODE` repeat count (`loopCount`); 0 loops forever.
+    #[serde(default)]
+    pub anim_loops: u8,
+    /// A held animation has ended: nothing advances until the next `ANIM` (`afFreeze`).
+    #[serde(default)]
+    pub anim_frozen: bool,
+    /// Length of the animation being played, for a loop to restart.
+    #[serde(default)]
+    pub anim_span: u16,
     /// What the renderer draws; the scripts never read it back.
     #[serde(default)]
     pub look: ActorLook,
@@ -259,6 +274,11 @@ impl ActorState {
             jump: None,
             in_frame: 0,
             out_frame: u8::MAX,
+            anim_hold: false,
+            anim_loop: false,
+            anim_loops: 0,
+            anim_frozen: false,
+            anim_span: 0,
             look: ActorLook::default(),
         }
     }
@@ -1167,7 +1187,16 @@ impl FieldWorld {
                     state.turn = None;
                 }
             }
-            if state.animation_frames == 0 && state.out_frame == u8::MAX {
+        }
+    }
+
+    /// `ProcessAnime` for every actor. The reference runs it before the tick's scripts
+    /// (`ProcessEvents`), so a script reads the frame the animation reached this tick.
+    pub fn advance_animations(&mut self) {
+        for state in self.actors.values_mut() {
+            if state.anim_frozen {
+                // `ProcessAnime` does nothing while `afFreeze` is set.
+            } else if state.animation_frames == 0 && state.out_frame == u8::MAX {
                 // The idle animation loops (`ExecAnim` restarts it at
                 // frame 0), so member 7 keeps counting; map 66 entry 2
                 // waits for frame 13 of it. Real clip lengths are not
@@ -1181,14 +1210,35 @@ impl FieldWorld {
                 // starts at frame 0 (`animFrame`, `getvobj` member 7).
                 // Scripts wait for that with `while member 7 != 0`.
                 if state.animation_frames == 0 {
-                    // A ranged animation (`AFRAME`) stops on its out
-                    // frame (map 115's rope climb steps one frame per
-                    // `ANIM` and reads it back).
-                    state.animation_frame = if state.out_frame == u8::MAX {
-                        0
-                    } else {
-                        u16::from(state.out_frame)
+                    // `AnimStop`: a held animation freezes on its out frame (map 115's
+                    // rope climb steps one frame per `ANIM` and reads it back); a looping
+                    // one restarts at `inFrame` (until its repeat count runs out); any other
+                    // hands over to the idle loop at frame 0 (`DefaultAnim`).
+                    let looping = state.anim_loop && {
+                        if state.anim_loops == 0 {
+                            true
+                        } else {
+                            state.anim_loops -= 1;
+                            state.anim_loops != 0
+                        }
                     };
+                    if looping {
+                        state.animation_frame = u16::from(state.in_frame);
+                        state.animation_frames = state.anim_span.max(1);
+                    } else if state.anim_hold {
+                        state.anim_frozen = true;
+                        state.animation_frame = if state.out_frame == u8::MAX {
+                            0
+                        } else {
+                            u16::from(state.out_frame)
+                        };
+                    } else {
+                        state.animation_frame = if state.out_frame == u8::MAX {
+                            0
+                        } else {
+                            u16::from(state.out_frame)
+                        };
+                    }
                 }
             }
         }

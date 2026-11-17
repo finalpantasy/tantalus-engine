@@ -20,7 +20,7 @@ pub use world::{
     ActorState, CharacterStats, EncounterRequest, FieldWorld, Jump, Movement, TimerState, Turn,
 };
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use tantalus_contracts::{EngineError, EntityId, ErrorCategory, Tick};
@@ -35,6 +35,9 @@ pub struct FieldScene {
     /// head, so objects run in creation order, not entry order.
     ranks: BTreeMap<EntityId, u64>,
     next_rank: u64,
+    /// Functions set aside while a higher-priority function of their object runs
+    /// (`Obj.ip` holds one running function; a request interrupts the idle loop).
+    suspended: BTreeSet<EntityId>,
 }
 
 impl FieldScene {
@@ -43,6 +46,16 @@ impl FieldScene {
             entries: BTreeMap::new(),
             ranks: BTreeMap::new(),
             next_rank: 0,
+            suspended: BTreeSet::new(),
+        }
+    }
+
+    /// Sets `entity`'s function aside (`true`) or lets it run again.
+    pub fn set_suspended(&mut self, entity: EntityId, suspended: bool) {
+        if suspended {
+            self.suspended.insert(entity);
+        } else {
+            self.suspended.remove(&entity);
         }
     }
 
@@ -151,6 +164,9 @@ impl FieldScene {
     ) -> Result<Vec<FieldStep>, FieldError> {
         let mut reports = Vec::new();
         for entity in self.run_order() {
+            if self.suspended.contains(&entity) {
+                continue;
+            }
             let Some(vm) = self.entries.get_mut(&entity) else {
                 continue;
             };

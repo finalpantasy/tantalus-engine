@@ -67,6 +67,9 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut route: Vec<(i32, i32, i32)> = Vec::new();
     let mut skip_talk: BTreeSet<(i32, usize)> = BTreeSet::new();
     let mut hold: BTreeMap<i32, i32> = BTreeMap::new();
+    let mut press_when: Vec<PressWhen> = Vec::new();
+    let mut suspend_loops = false;
+    let mut set_globals: Vec<(u16, i32)> = Vec::new();
     let mut fight_battle: Option<i32> = None;
     let mut fight_party: Vec<i32> = vec![0];
     let mut fight_globals = tantalus_tools::field_battle::PartyGlobals::default();
@@ -166,6 +169,40 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     let (map, mask) = parsed
                         .ok_or_else(|| format!("bad --hold entry `{part}`, want MAP:MASK"))?;
                     hold.insert(map, mask);
+                }
+            }
+            "--set-global" => {
+                // INDEX:VALUE[,...]: byte variables written to global memory before the chain.
+                for part in value()?.split(',') {
+                    let (index, byte) = part
+                        .trim()
+                        .split_once(':')
+                        .and_then(|(index, byte)| Some((index.parse().ok()?, byte.parse().ok()?)))
+                        .ok_or_else(|| format!("bad --set-global entry `{part}`"))?;
+                    set_globals.push((index, byte));
+                }
+            }
+            "--suspend-loops" => suspend_loops = true,
+            "--press-when" => {
+                // MAP:INDEX:LO:HI:MASK[,...]: hold MASK while map byte INDEX is in LO..=HI.
+                for part in value()?.split(',') {
+                    let fields: Vec<i32> = part
+                        .trim()
+                        .split(':')
+                        .filter_map(|field| field.parse().ok())
+                        .collect();
+                    let [map, index, low, high, mask] = fields[..] else {
+                        return Err(format!(
+                            "bad --press-when entry `{part}`, want MAP:INDEX:LO:HI:MASK"
+                        ));
+                    };
+                    press_when.push(PressWhen {
+                        map,
+                        index: index as usize,
+                        low: low as u8,
+                        high: high as u8,
+                        mask,
+                    });
                 }
             }
             "--waypoints" => {
@@ -375,6 +412,9 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     route,
                     skip_talk,
                     hold,
+                    press_when,
+                    suspend_loops,
+                    set_globals,
                     backgrounds,
                     waypoints,
                     battles: match battle_ids {
@@ -448,6 +488,15 @@ fn nonzero(bytes: &[u8]) -> BTreeMap<usize, u8> {
         .filter(|(_, byte)| **byte != 0)
         .map(|(offset, byte)| (offset, *byte))
         .collect()
+}
+
+/// `--press-when` rule: hold `mask` while map byte `index` is within `low..=high`.
+struct PressWhen {
+    map: i32,
+    index: usize,
+    low: u8,
+    high: u8,
+    mask: i32,
 }
 
 /// `EventInput.Confirm`.
@@ -849,6 +898,12 @@ struct ChainOptions {
     /// Pad bits held for a whole field, by field map (`KeyState(Held)`
     /// polls such as map 115's ladder climb, which reads up = 16).
     hold: BTreeMap<i32, i32>,
+    /// Pad bits held while a map byte is in a range (jump rope: press while the rope is low).
+    press_when: Vec<PressWhen>,
+    /// Suspend an object's idle loop while its talk runs (`Obj.ip`); off keeps the chain101 traces.
+    suspend_loops: bool,
+    /// Byte values written to global memory before the first field.
+    set_globals: Vec<(u16, i32)>,
     /// `EventEngineUtils.eventIDToFBGID`: field map number to background
     /// name, whose `<name>.bgi` walkmesh backs `BGI` triangle queries.
     backgrounds: BTreeMap<i32, String>,
@@ -928,6 +983,9 @@ fn chain(
         route,
         skip_talk,
         hold,
+        press_when,
+        suspend_loops,
+        set_globals,
         backgrounds,
         waypoints,
         battles: field_battles,
@@ -1026,6 +1084,11 @@ fn chain(
     if let Some(table) = atan {
         world.provide_atan_table(table);
     }
+    for (index, value) in &set_globals {
+        world
+            .global_memory
+            .set(*index, tantalus_legacy::VariableType::Byte, *value);
+    }
     let mut map = start;
     if let Some(dir) = &actor_track {
         std::fs::create_dir_all(dir).map_err(|error| format!("{}: {error}", dir.display()))?;
@@ -1070,7 +1133,8 @@ fn chain(
         let route_target = route_index.map(|index| route[index].1);
         *visits.entry(map).or_default() += 1;
         world.field_map_no = map;
-        let held = hold.get(&map).copied().unwrap_or(0);
+        let base_held = hold.get(&map).copied().unwrap_or(0);
+        let mut held = base_held;
         // EventEngine.InitEvents zeroes mapvar for every field (EventEngine.cs:556).
         world.map_memory.clear();
         world.begin_field();
@@ -1115,6 +1179,7 @@ fn chain(
         };
         let mut director = tantalus_tools::field_session::new_director(world.clone(), &pool, held);
         let mut scheduler = EntryScheduler::start(&mut director, &pool)?;
+        scheduler.loops_run_during_talks = !suspend_loops;
         // Scripted player: with --confirm-after N, a window open for N ticks
         // is closed as if confirm were pressed (0 disables).
         let mut open_since: BTreeMap<u8, u64> = BTreeMap::new();
@@ -1357,10 +1422,19 @@ fn chain(
                 }
             }
             scheduler.settle(&mut director, &pool)?;
+            held = base_held;
+            for rule in press_when.iter().filter(|rule| rule.map == map) {
+                let byte = director.world().map_memory.bytes()[rule.index];
+                if (rule.low..=rule.high).contains(&byte) {
+                    held |= rule.mask;
+                }
+            }
             // A confirm press lasts one tick.
             if pressed {
                 director.world_mut().set_input(held);
                 pressed = false;
+            } else if press_when.iter().any(|rule| rule.map == map) {
+                director.world_mut().set_input(held);
             }
             // Through a cutscene the player keeps tapping confirm; scenes
             // that skip ahead on `KeyOn` (map 150 entry 23) wait for a
@@ -1731,6 +1805,7 @@ fn chain(
                 "next_map": transition,
                 "world_map": world_map,
                 "party": director.world().party,
+                "gil": director.world().gil,
                 "exits": exits,
                 "route_target": route_target,
                 "regions_defined": director.world().regions.keys().map(|region| region.get()).collect::<Vec<_>>(),

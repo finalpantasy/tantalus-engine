@@ -119,6 +119,27 @@ pub fn register(
     Ok(Some(entity))
 }
 
+/// An object runs one function at a time (`Obj.ip`): while its talk function (tag 3) runs, its
+/// idle loop (tag 1) waits (map 103 rope: the kid redraws the rope frame every tick) and carries
+/// on when the request returns.
+pub fn suspend_idle_loops(director: &mut FieldDirector, pool: &Pool) {
+    let states = director.entry_states();
+    let running = |entity: EntityId| {
+        states
+            .iter()
+            .any(|(e, _, status, _)| *e == entity && *status != VmStatus::Completed)
+    };
+    for (entry, functions) in pool.iter().enumerate() {
+        let Some(loop_entity) = function_entity(pool, entry, 1) else {
+            continue;
+        };
+        let interrupted = functions
+            .iter()
+            .any(|(tag, _)| *tag == 3 && function_entity(pool, entry, *tag).is_some_and(running));
+        director.set_suspended(loop_entity, interrupted);
+    }
+}
+
 /// The director key of `entry`'s function `tag`, if the entry has it.
 pub fn function_entity(pool: &Pool, entry: usize, tag: u16) -> Option<EntityId> {
     let position = pool[entry].iter().position(|(t, _)| *t == tag)?;
@@ -189,6 +210,9 @@ pub struct EntryScheduler {
     /// Requested functions still running, with the target entry.
     spawned: Vec<(EntityId, u64)>,
     pub loops_started: usize,
+    /// Keep every object's idle loop running while its talk function runs (the engine's
+    /// original behavior, kept for regression traces); off by default, as in the reference.
+    pub loops_run_during_talks: bool,
     pub shared_scripts_run: usize,
     /// Requests with no function to run.
     pub unspawned: usize,
@@ -352,6 +376,9 @@ impl EntryScheduler {
             {
                 self.loops_started += 1;
             }
+        }
+        if !self.loops_run_during_talks {
+            suspend_idle_loops(director, pool);
         }
         Ok(())
     }

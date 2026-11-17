@@ -686,6 +686,20 @@ impl LegacyEventHost for FieldHost<'_> {
                     } else {
                         u16::from(state.out_frame.abs_diff(state.in_frame)).max(1)
                     };
+                    state.anim_span = state.animation_frames;
+                    state.anim_frozen = false;
+                }
+                HostEvent::SetAnimationFlags {
+                    actor,
+                    flags,
+                    loop_count,
+                } => {
+                    // `AMODE` replaces the whole flag byte: hold 8, loop 16, palindrome 32.
+                    let state = self.actor_mut(*actor, "set animation flags")?;
+                    state.anim_hold = flags & 8 != 0;
+                    state.anim_loop = flags & 48 != 0;
+                    state.anim_loops = *loop_count;
+                    state.anim_frozen = false;
                 }
                 HostEvent::SetAnimationRange { actor, start, end } => {
                     let state = self.actor_mut(*actor, "set animation range")?;
