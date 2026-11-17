@@ -11,6 +11,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use tantalus_contracts::{EntityId, FieldNavigationMesh, Point3};
 use tantalus_legacy::event::party::{EntryLink, PARTY_SLOT_FIRST, PARTY_SLOT_LAST, party_uid};
 
+fn all_choices() -> i32 {
+    -1
+}
+
+/// `EventEngine.cEventLevelN - 1`: the level of an object's idle loop.
+pub const IDLE_SCRIPT_LEVEL: i32 = 7;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Movement {
     pub destination: [f32; 2],
@@ -642,6 +649,12 @@ pub struct FieldWorld {
     /// option picked in the last choice window. Set by the player (or a
     /// scripted stand-in) when it closes a window.
     pub dialog_choice: i32,
+    /// `ETb.sChooseMask`: the options `CHOOSEPARAM` (`EnableDialogChoices`)
+    /// left available, bit N for option N; -1 is all. Only a text with a
+    /// `[PCHM]` tag applies it (`DialogBoxSymbols.SetupChoose`). Cleared
+    /// when a field starts (`ETb.InitMesWin`). Runtime-only.
+    #[serde(skip, default = "all_choices")]
+    pub choice_mask: i32,
     /// Text id each window last showed.
     pub window_texts: BTreeMap<u8, u16>,
     /// Script flags and speaking actor of each window (`MES` flags, the
@@ -1036,6 +1049,7 @@ impl FieldWorld {
             control_twist: 0.0,
             mes_signal: 0,
             dialog_choice: 0,
+            choice_mask: -1,
             window_texts: BTreeMap::new(),
             window_speakers: BTreeMap::new(),
             mes_values: BTreeMap::new(),
@@ -1206,6 +1220,7 @@ impl FieldWorld {
         self.window_texts.clear();
         self.window_speakers.clear();
         self.pending_requests.clear();
+        self.choice_mask = -1;
         self.object_inits.clear();
         self.uid_map.clear();
         self.instance_sources.clear();
@@ -1447,6 +1462,33 @@ impl FieldWorld {
             .get(&entity)
             .and_then(|levels| levels.iter().min())
             .is_none_or(|current| level < *current)
+    }
+
+    /// `Obj.level` (`getvobj` member 6, `EBin.cs`): the level of the
+    /// function the object runs. `EventEngine.Call` sets it to the request's
+    /// level and `EventEngine.Return` restores the caller's; after the init
+    /// function the idle loop runs at `cEventLevelN - 1` = 7
+    /// (`EventEngine.Return`, `stateInit`). Field 812 waits for the player's
+    /// requested walk to end by polling this above 2.
+    pub fn object_level(&self, entity: EntityId) -> i32 {
+        self.pending_requests
+            .get(&entity)
+            .and_then(|levels| levels.iter().min().copied())
+            .unwrap_or(IDLE_SCRIPT_LEVEL)
+    }
+
+    /// The option a confirm press picks when the script masked the choice
+    /// list: an unavailable option cannot be selected, and the cursor
+    /// starts on the lowest available one (`DialogBoxSymbols.SetupChoose`:
+    /// `DefaultChoice = ActiveIndexes.Min()`).
+    pub fn available_choice(&self, answer: i32) -> i32 {
+        let mask = self.choice_mask;
+        if mask == -1 || !(0..31).contains(&answer) || mask & (1 << answer) != 0 {
+            return answer;
+        }
+        (0..31)
+            .find(|option| mask & (1 << option) != 0)
+            .unwrap_or(answer)
     }
 
     pub fn pend_caller(&mut self, level: i32) {

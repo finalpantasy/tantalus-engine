@@ -111,6 +111,22 @@ fn every_foot_place_on_the_world_leads_to_a_field() {
     assert_eq!(fields[&2], 1856);
 }
 
+/// `EVT_WORLD_WORLD02` (disc 2, world map 9002) reads the place from map
+/// byte 30, not 29: place 6 is Treno's gate (field 908) before scenario 6990.
+#[test]
+fn the_disc_two_world_reads_its_own_place_variable() {
+    use tantalus_tools::field_session::WorldExit;
+    let Some(dir) = streaming() else {
+        eprintln!("install not found; skipping");
+        return;
+    };
+    let exit = WorldExit::load(&dir.join("p0data7.bin"), "EVT_WORLD_WORLD02").expect("exit");
+    let mut world = tantalus_game::field::FieldWorld::default();
+    assert_eq!(exit.run(6, &mut world), Ok(Some(908)));
+    let mut world = tantalus_game::field::FieldWorld::default();
+    assert_eq!(exit.run(19, &mut world), Ok(Some(1000)));
+}
+
 #[test]
 fn the_world_wraps_and_blocks_take_their_second_form() {
     use tantalus_legacy::world::{RaycastMode, Vec3, wrap_position};

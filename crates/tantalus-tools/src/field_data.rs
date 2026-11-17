@@ -32,6 +32,8 @@ pub struct FieldTextInfo {
     pub signals: BTreeMap<u16, Vec<i32>>,
     /// Text ids that contain a `[CHOO]` choice list.
     pub choices: BTreeSet<u16>,
+    /// Text ids whose choice list takes the script's mask (`[PCHM]`).
+    pub masked_choices: BTreeSet<u16>,
     /// Literal text of each entry (tags dropped), for the trace record.
     pub plain: BTreeMap<u16, String>,
     /// How each entry lays out as a dialog window.
@@ -301,6 +303,13 @@ impl FieldText {
                 .any(|token| matches!(token, MesToken::Tag(tag) if tag.code == "Choice"))
             {
                 info.choices.insert(id);
+            }
+            if entry
+                .tokens
+                .iter()
+                .any(|token| matches!(token, MesToken::Tag(tag) if tag.code == "PreChooseMask"))
+            {
+                info.masked_choices.insert(id);
             }
             let values: Vec<i32> = entry
                 .tokens

@@ -646,18 +646,18 @@ entry fields. "Furthest" is the highest scenario counter the run reached.
 | --- | --- | --- | --- |
 | Lindblum, hunt | 613 @ 3118 (saved world from the story route), then 606 @ 3140 | 3700 | fixed: 606 waited for Cancel or Special behind a camera-position test on system variables 12/13, which `VRP` fills from the field view. The view now starts at the vrp midpoint and follows SCROLL, release and the 3D player service (`FieldMap.BG_init`, `EBG_scene2DScroll`, `SceneService3DScroll`). With `--pan 606@110:225/165:105/400:104/395:190/275:205/300:105` the run goes 606 -> 615 -> ... -> the Festival of the Hunt (3175, timed, scored by the field scripts from system variables 24/27) -> 3180/3190 -> 3700, then the explorer circles 615 to 619 and 601 |
 | Gizamaluke's Grotto | 701 @ 3740 | 3740 | 701 -> 702 -> 703 -> 704 -> 706 in 6000 ticks, 6 talks; no blocker found yet, needs a longer run |
-| Burmecia | 751 @ 3800; 755 @ 3820 with entrance 604 | 3830 | the 756/757 balcony question is input: Yes jumps across the roofs between 756 and 757 by design. The story needs 755's floor to give way, which tests `B_BGIFLOOR` of `B_PTR 250` == 3. Fixed: the floor is now the one under the controlled actor (`BGI.BGI_charGetInfo`), and pointer 250 is the controlled object (`GetUIDFromLocalUID`). With `--waypoints 755@1100:3800/600:4400/400:4450` the floor drops (3830). The next steps (757 at 3840/3850, the 753 door at 3860) need a route the explorer does not find |
+| Burmecia | 755 @ 3820 with entrance 604 | 3900, disc 2 | fixed. No engine gap past the floor: the route is input. After the floor drops (3830) the player goes back 753 -> 755 -> 756, answers Yes to "Go out to the balcony?" (text 115), which jumps the roofs 752 -> 757 (entrance 607); in 757 he declines the same question, hears the soldier and checks under the bed (3840, 3850), then jumps back and declines at 756 to walk 755 -> 753 (the door, 3860) -> 758 (3870) -> ... -> 766. In 766 the menu text 197 ("Talk to her / Leave her alone / ...") loops on Talk; Leave her alone (choice 1) goes on to 767/768 and the disc change. Explorer change: a story step (scenario change) also lets it re-enter regions that do not leave the field, as it already re-talked to objects. Inputs: `--waypoints 755@1100:3800/600:4400/400:4450 --route "753>755@3830,755>756@3830,756>755@3850,755>753@3850" --choices "757:115=1,757:115=0@3850,756:115=1@3850,766:197=1"`; one run goes 755 @ 3820 -> disc 2 -> Treno (903, 4400) |
 | South Gate | 800 @ 3740 | 3750 | unchanged: 800 -> 801, the stealth scene ("I must get rid of them before I go into the alley") waits on shared scripts, a 21 frame wait and an animation wait; not investigated further |
 | Cleyra trunk | 1000 @ 4650 | 4660 | with `--hold MAP:16` for 1000 to 1018 (the same Up-held climb as 557/565: entries poll `KeyState(Held)` 16/192/32 and wait on `WaitAnimation`) the run goes 1000 -> 1006 and reaches the world map (9000) |
-| Cleyra settlement | 1050 @ 4660 | 4700 | with `--hold MAP:16` for 1000 to 1018 and 1050 (1050 is a ladder too). The 1012 `WaitAnimation` was a loop, not a stuck clip: entry 14's region pushes Zidane back with `MOVH` (slide) until scenario 4800 sets Global bit 3861, and `MOVH` did nothing, so he stayed in the region and the scene replayed. Fixed (`MoveToward_mixed`, flag 1 keeps the facing). 1012 now pushes back as intended; the explorer keeps walking into the closed trunk path instead of the settlement |
+| Cleyra settlement | 1050 @ 4660 | 4720 | with `--hold MAP:16` for 1000 to 1018 and 1050. Routing, not an engine gate: at 4700 1051 plays its ATE chain (1053, 1055, 1054, 1057, 1058 with entrance 4) and the explorer then took the free exit 1052 -> 1010 into the trunk. `--route "1051>1055@4700,1055>1054@4700,1054>1058@4700,1058>1059@4700"` reaches the cathedral; talking to the priests in 1059 sets 4720. The explorer then takes 1059's door to 1060, where nothing gives control at 4720 (only entry 0's init with Map bit 158 set, or entry 3's ATE menu, which needs control). The story goes back out to the town (4725 is set in 1055); 1060 is likely the wrong way, not investigated further |
 | Cleyra, the attack | 1100 @ 4700 | 4888 | with the hold: 1100 -> 1101 (4888) -> ... -> 1109 <-> 1110 loop |
 | Red Rose | 1150 @ 5000 | 5020 | 1150 -> 1153 (balance game, text "Press or to shift your center of gravity!") -> 1208 at 5020 |
 | Alexandria castle | 1200 / 1201 @ 5050 | 5050 | unchanged: no control for 6000 ticks (1201 entry 2 pc 1515 and entry 10 pc 917 on frame waits); not investigated further |
-| End of disc 1 | 768 @ 3890 with entrance 626 or 627 | 3900, disc 2 | disc 1 ends in Burmecia, not in 1800: `EVT_BURMECIA_PALACE_2` (768) sets entrance 1 and changes to field 70, whose `DISCCHANGE 17184` goes to field 800 on disc 2. The trace now records the disc change (`disc_change` in the row) and goes on: 768 -> 767 -> 768 (3900) -> 70 -> 800 -> 814 -> 813 -> 812, which stops with no control for 6000 ticks. 1800 @ 10250 is disc 3 (Garnet's haircut); its `DISCCHANGE` (-30956) goes to 1812 on disc 3, and its party menu wait in 2850 needs a roster (a fresh world has an empty party) |
+| End of disc 1 | 768 @ 3890 with entrance 626 or 627 | 4400, disc 2 | disc 1 ends in Burmecia, not in 1800: `EVT_BURMECIA_PALACE_2` (768) sets entrance 1 and changes to field 70, whose `DISCCHANGE 17184` goes to field 800 on disc 2. Fixed: 812 waited in entry 0 function 1 for `B_OBJ 12` member 6 (`Obj.level`, `EBin.getvobj`) to rise above 2, that is for the player's requested walk (level 2) to return; the member was never kept and read 0. It now is the level of the running request, 7 in the idle loop (`EventEngine.Call`/`Return`). Also fixed: `EVT_WORLD_WORLD02` (world map 9002) reads the place from map byte 30, not 29, so `--world-exits 9002:6` (Treno, field 908) works. The run goes 768 -> 767 -> 768 (3900) -> 70 -> 800 -> 814 -> 813 -> 812 (4150) -> 810 (4210) -> 809 -> 815 -> 811 -> 816 -> 803 -> 804 -> 806 (4230) -> world 9002 -> Treno 908 (4400) -> 905 -> 915 -> 907 -> 911 -> 903, which has no control for 6000 ticks (text 111). 1800 @ 10250 is disc 3 (Garnet's haircut); its `DISCCHANGE` (-30956) goes to 1812 on disc 3, and its party menu wait in 2850 needs a roster (a fresh world has an empty party) |
 
-What is left: Burmecia past 3830 (a route to 757 and the 753 door), the
-South Gate stealth scene, the Alexandria castle frame waits, disc 2 field
-812, and the Cleyra settlement route. The party menu (`PARTYMENU`) is
+What is left: the South Gate stealth scene, the Alexandria castle frame
+waits, Treno field 903 (no control at 4400), and the Cleyra cathedral
+(1060 at 4720, or the way back to the town for 4725). The party menu (`PARTYMENU`) is
 answered in the trace by keeping the party, filled from the roster when it
 is too small; `play` drives it with the pad.
 
@@ -667,6 +667,20 @@ scenario counters as chain109, with different ticks and operation counts
 in fields that use `MOVH` or read the view (103, 115, 307 and others).
 `audit/story-route-expected.json` was regenerated for the same reason
 (same fields and scenario counters, new ticks).
+
+chain111 (2026-11-18): a choice list with a `[PCHM]` tag takes the
+script's `EnableDialogChoices` mask (`ETb.SetChooseParam`,
+`DialogBoxSymbols.SetupChoose`), so the scripted player can no longer pick
+a removed option; the cursor starts on the lowest one left. The ticket booth
+(104, text 251) hides "Show ticket" on the second visit, so the run now
+asks the other questions there. Same 159 records, fields, next maps and
+scenario counters as chain110; ticks, texts and choices differ from field
+104 on. The story route changed only in the ticks of field 455 (the region
+retry) and was regenerated. chain110 vs chain110.worker: not
+nondeterminism. Two runs of main are byte-identical, and the worker file
+is reproduced exactly by adding `*:3=6` to `CHOICES` (it answers the
+moogle menu at field 253, the only moogle field the default list leaves
+out).
 
 `audit/story-route.sh` now ends at field 565, scenario 3118 (97 fields,
 `MAX_FIELDS`); probe with

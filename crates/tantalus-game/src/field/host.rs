@@ -1223,6 +1223,10 @@ impl LegacyEventHost for FieldHost<'_> {
                 HostEvent::RunSharedScript { actor, .. } => {
                     self.world.start_shared_script(*actor);
                 }
+                HostEvent::EnableDialogChoices { choices, .. } => {
+                    // `CHOOSEPARAM` -> `ETb.SetChooseParam` (EventEngine.DoEventCode.cs).
+                    self.world.choice_mask = *choices;
+                }
                 HostEvent::CalculateExitPosition { region } => {
                     let (x, z) = self.exit_position(*region);
                     self.world.set_system_variable(10, x);
@@ -1411,7 +1415,7 @@ impl LegacyEventHost for FieldHost<'_> {
                 .world
                 .uid_of(reference.object)
                 .ok_or_else(|| Self::unknown("object member uid without a UID mapping")),
-            6 => Ok(state.level),
+            6 => Ok(self.world.object_level(reference.object)),
             7 => Ok(i32::from(state.animation_frame)),
             // Members 8 and above fall through to the reference's
             // battle-data lookup, which yields zero for non-battle objects.
@@ -1911,6 +1915,37 @@ mod tests {
         world.clear_requests(object);
         assert!(!world.request_pending(object));
         assert!(world.request_acceptable(object, 6));
+    }
+
+    /// Field 766 removes each answered option from its menu with
+    /// `EnableDialogChoices`; a confirm then picks the first one left.
+    #[test]
+    fn masked_choices_pick_an_available_option() {
+        let mut world = FieldWorld::new();
+        assert_eq!(world.available_choice(0), 0);
+        world.choice_mask = 6;
+        assert_eq!(world.available_choice(0), 1);
+        assert_eq!(world.available_choice(2), 2);
+        world.choice_mask = 4;
+        assert_eq!(world.available_choice(0), 2);
+        world.begin_field();
+        assert_eq!(world.choice_mask, -1);
+    }
+
+    /// `getvobj` member 6 is `Obj.level`: 7 in the idle loop, the request's
+    /// level while a requested function runs (field 812 polls it).
+    #[test]
+    fn object_level_member_follows_requests() {
+        let mut world = FieldWorld::new();
+        let object = EntityId::new(12);
+        world.add_actor(object, [0.0; 3]);
+        let mut host = FieldHost::new(&mut world);
+        let member = ObjectMemberRef { object, member: 6 };
+        assert_eq!(host.read_object_member(member).unwrap(), 7);
+        host.world.pend_request(object, 2);
+        assert_eq!(host.read_object_member(member).unwrap(), 2);
+        host.world.complete_request(object);
+        assert_eq!(host.read_object_member(member).unwrap(), 7);
     }
 
     #[test]

@@ -634,6 +634,8 @@ pub fn world_exit(
 pub struct WorldExit {
     program: EventProgram,
     starts: Vec<u32>,
+    /// The map byte that holds the place number.
+    place_variable: u16,
 }
 
 impl WorldExit {
@@ -686,9 +688,33 @@ impl WorldExit {
                 starts.push(*next);
             }
         }
+        // The place number the switch reads: map byte 29 in most world
+        // scripts, 30 in `EVT_WORLD_WORLD02` (the instruction before the
+        // switch, `Evaluate(Map Byte N)`).
+        let place_variable = program
+            .instructions
+            .range(..switch.offset)
+            .next_back()
+            .and_then(|(_, instruction)| match &instruction.kind {
+                InstructionKind::Evaluate(tantalus_legacy::Expression(ops)) => match ops.as_slice()
+                {
+                    [
+                        tantalus_legacy::ExpressionOp::Variable(tantalus_legacy::VariableRef {
+                            scope: tantalus_legacy::VariableScope::Map,
+                            value_type: tantalus_legacy::VariableType::Byte,
+                            index,
+                        }),
+                        tantalus_legacy::ExpressionOp::End,
+                    ] => Some(*index),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .unwrap_or(29);
         Ok(Self {
             program: program.clone(),
             starts,
+            place_variable,
         })
     }
 
@@ -735,6 +761,10 @@ impl WorldExit {
             .map_memory
             .set(24, VariableType::Byte, location)
             .ok_or("map variable 24 out of range")?;
+        world
+            .map_memory
+            .set(self.place_variable, VariableType::Byte, location)
+            .ok_or("place variable out of range")?;
         let mut vm = tantalus_legacy::EventVm::resume(
             program.clone(),
             EntityId::new(0),

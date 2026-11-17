@@ -1402,6 +1402,7 @@ fn chain(
             }
         };
         let mut choice_texts = BTreeSet::new();
+        let mut masked_texts = BTreeSet::new();
         let mut plain_texts: BTreeMap<u16, String> = BTreeMap::new();
         let text_status = match &text {
             Some(text) => match text.info(map) {
@@ -1413,6 +1414,7 @@ fn chain(
                     );
                     world.dialog_signals = info.signals;
                     choice_texts = info.choices;
+                    masked_texts = info.masked_choices;
                     plain_texts = info.plain;
                     status
                 }
@@ -1570,7 +1572,13 @@ fn chain(
                         choices
                             .range((map, *text, i32::MIN)..=(map, *text, scenario))
                             .next_back()
-                            .map(|(_, answer)| *answer)
+                            .map(|(_, answer)| {
+                                if masked_texts.contains(text) {
+                                    director.world().available_choice(*answer)
+                                } else {
+                                    *answer
+                                }
+                            })
                     });
                 if let Some(answer) = answer {
                     director.world_mut().dialog_choice = answer;
@@ -1655,6 +1663,19 @@ fn chain(
                             talk_scenario = scenario;
                             talked.retain(|entry| skipped.contains(entry));
                             talk_dwell.clear();
+                            // The same holds for a region that does not
+                            // leave the field: 757's "Go out to the
+                            // balcony?" is declined before the soldier's
+                            // errand and taken after it (scenario 3850).
+                            let retry: Vec<usize> = triggered
+                                .iter()
+                                .copied()
+                                .filter(|entry| !exits.contains_key(entry))
+                                .collect();
+                            for entry in retry {
+                                triggered.remove(&entry);
+                                dwell_ticks.remove(&entry);
+                            }
                         }
                         // One confirm starts one talk (`EventCollision`
                         // requests a single object), and none while another
@@ -1830,6 +1851,13 @@ fn chain(
                                 .range((map, text, i32::MIN)..=(map, text, scenario))
                                 .next_back();
                             let answer = entry.map_or(0, |(_, answer)| *answer);
+                            // A masked list (`[PCHM]`) cannot select a
+                            // removed option (map 766's "Talk to her").
+                            let answer = if masked_texts.contains(&text) {
+                                director.world().available_choice(answer)
+                            } else {
+                                answer
+                            };
                             // A `*:` answer (the moogle menus) is only the
                             // menu's own: the next script that reads the
                             // choice must not see it.
