@@ -1171,6 +1171,7 @@ impl FieldBattles {
             draws,
             events_seen: 0,
             sent: 0,
+            countered: false,
             stage,
             tick: 0,
             log_seen: 0,
@@ -1201,6 +1202,9 @@ enum FightState {
     Ended,
     Failed(String),
 }
+
+/// Fight length after which the stand-in policy attacks the weakest enemy first.
+const STALEMATE_TICKS: u64 = 1500;
 
 /// The action ids the stand-in policy sends.
 #[derive(Debug, Clone)]
@@ -1654,6 +1658,8 @@ pub struct LiveFight {
     draws: SplitMix64Random,
     events_seen: usize,
     sent: u32,
+    /// An enemy counter command aimed at the party has run: the stand-in Vivi stops casting.
+    countered: bool,
     stage: crate::battle_stage::BattleStage,
     tick: u64,
     /// Read position into the machine's event log, for the stage record.
@@ -1795,16 +1801,38 @@ impl LiveFight {
     /// enemy still standing, read from the machine (units are party then
     /// enemies).
     fn stand_in(&mut self) -> Option<BattleCommand> {
+        // A player who has been hit by a counter-attack (Black Waltz No. 2 answers
+        // Vivi's Fire with Fira, EVT_BATTLE_AP_E012) stops casting at that enemy.
+        if !self.countered {
+            let machine = self.adapter.battle();
+            let party_ids = (0..self.party.len()).fold(0, |ids, i| ids | machine.units[i].id);
+            self.countered = machine.running.iter().chain(&machine.cmds.queue).any(|&c| {
+                let slot = &machine.cmds.slots[c];
+                slot.cmd_no == cmd::ENEMY_COUNTER && slot.tar_id & party_ids != 0
+            });
+        }
+        let countered = self.countered;
         let party = &self.party;
         let gear = &self.gear;
         let ids = &self.ids;
         let entities = &self.entities;
         let machine = self.adapter.battle();
-        let target = (party.len()..machine.units.len()).find(|&i| {
-            machine.sched[i].in_list
-                && machine.units[i].cur_hp > 0
-                && !machine.units[i].is_under_any_status(DEATH)
-        });
+        // The first enemy still standing; once the fight has dragged on
+        // (STALEMATE_TICKS) the weakest, the first on a tie: a healer beside a
+        // stronger partner (the Ice Cavern pair, EVT_BATTLE_IC_E011) heals
+        // the target faster than one fighter hurts it, and a player who
+        // sees that picks the healer.
+        let standing = |i: &usize| {
+            machine.sched[*i].in_list
+                && machine.units[*i].cur_hp > 0
+                && !machine.units[*i].is_under_any_status(DEATH)
+        };
+        let mut enemies = (party.len()..machine.units.len()).filter(standing);
+        let target = if self.report.ticks > STALEMATE_TICKS {
+            enemies.min_by_key(|&i| machine.units[i].cur_hp)
+        } else {
+            enemies.next()
+        };
         let actor = machine
             .ready_players
             .iter()
@@ -1846,7 +1874,8 @@ impl LiveFight {
             })
             .min_by_key(|&i| machine.units[i].cur_hp * 1000 / machine.units[i].max_hp.max(1));
         // Vivi keeps casting while he has the MP; the others heal.
-        let caster = party[actor].character == 1 && has(ABILITY_FIRE) && unit.cur_mp >= 6;
+        let caster =
+            party[actor].character == 1 && has(ABILITY_FIRE) && unit.cur_mp >= 6 && !self.countered;
         let heal = match (downed, hurt) {
             _ if caster => None,
             (Some(ally), _) if count(ITEM_PHOENIX_DOWN) > 0 => Some((ids.phoenix.clone(), ally)),
@@ -1871,7 +1900,7 @@ impl LiveFight {
         } else {
             (
                 match party[actor].character {
-                    1 if has(ABILITY_FIRE) && unit.cur_mp >= 6 => ids.fire.clone(),
+                    1 if has(ABILITY_FIRE) && unit.cur_mp >= 6 && !countered => ids.fire.clone(),
                     0 if has(ABILITY_FLEE)
                         && unit.is_under_any_status(tantalus_legacy::battle::status::TRANCE) =>
                     {
