@@ -505,6 +505,11 @@ impl Equipment {
         std::sync::Arc::make_mut(&mut self.effects).load_plugin_timing(game_data);
     }
 
+    /// The translated plugin [`Self::load_plugin_timing`] loaded, shared with the spell sounds.
+    pub fn plugin(&self) -> Option<std::sync::Arc<crate::battle_effects::PluginTiming>> {
+        self.effects.plugin.clone()
+    }
+
     /// Reads `CharacterParameters.csv` and `DefaultEquipment.csv` from
     /// `characters` and `Weapons.csv` / `Armors.csv` from `../Items`.
     pub fn load(characters: &Path) -> Result<Self, String> {

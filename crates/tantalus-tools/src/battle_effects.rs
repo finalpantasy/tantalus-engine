@@ -105,6 +105,20 @@ pub fn plugin_timing(
     package: &[u8],
     item: bool,
 ) -> Option<EffectTiming> {
+    plugin_play(runtime, id, package, item).map(|(timing, _)| timing)
+}
+
+/// One sound command the plugin issued (`SFX.BattleCallback` 32): the plugin frame and
+/// `[mode, sound number, channel tag, sce]`.
+pub type SoundCall = (u32, [i32; 4]);
+
+/// [`plugin_timing`] and the sound commands the effect issued, by plugin frame.
+pub fn plugin_play(
+    runtime: &tantalus_sfx::SfxRuntime,
+    id: i32,
+    package: &[u8],
+    item: bool,
+) -> Option<(EffectTiming, Vec<SoundCall>)> {
     use tantalus_sfx::player::{Setup, Unit};
     let unit = |btl_id: u16, player: bool, z: i16| Unit {
         btl_id,
@@ -139,12 +153,15 @@ pub fn plugin_timing(
     let events = run.events();
     let hit = events.effect_points.first()?.0;
     let figure = events.figure_points.first().map_or(hit, |point| point.0);
-    Some(EffectTiming {
-        hit,
-        figure: figure.max(hit),
-        length: run.frame().max(hit),
-        dim: None,
-    })
+    Some((
+        EffectTiming {
+            hit,
+            figure: figure.max(hit),
+            length: run.frame().max(hit),
+            dim: None,
+        },
+        events.sounds.clone(),
+    ))
 }
 
 /// Effect ids of abilities and items, with their timing.
@@ -162,13 +179,16 @@ pub struct EffectTable {
     pub plugin: Option<std::sync::Arc<PluginTiming>>,
 }
 
+/// One played effect: its timing and the sound commands it issued.
+type Played = Option<(EffectTiming, Vec<SoundCall>)>;
+
 /// The translated plugin and the effect packages, timing each effect the
 /// first time a command needs it (the long summons take a second each).
 pub struct PluginTiming {
     runtime: tantalus_sfx::SfxRuntime,
     file: std::sync::Mutex<tantalus_assets::pc::serialized_inventory::StandaloneSerialized>,
     assets: Vec<(String, tantalus_assets::pc::serialized::SerializedObject)>,
-    done: std::sync::Mutex<std::collections::HashMap<(i32, bool), Option<EffectTiming>>>,
+    done: std::sync::Mutex<std::collections::HashMap<(i32, bool), Played>>,
 }
 
 impl std::fmt::Debug for PluginTiming {
@@ -187,25 +207,36 @@ impl PartialEq for PluginTiming {
 impl PluginTiming {
     /// Effect `id`'s timing, played once per (effect, item).
     pub fn timing(&self, id: i32, item: bool) -> Option<EffectTiming> {
+        self.played(id, item).map(|(timing, _)| timing)
+    }
+
+    /// The sound commands effect `id` issues, by plugin frame from the effect's start.
+    pub fn sounds(&self, id: i32, item: bool) -> Option<Vec<SoundCall>> {
+        self.played(id, item).map(|(_, sounds)| sounds)
+    }
+
+    fn played(&self, id: i32, item: bool) -> Played {
         if !is_drawn(id) {
             return None;
         }
         let mut done = self.done.lock().unwrap_or_else(|e| e.into_inner());
-        *done.entry((id, item)).or_insert_with(|| {
-            let name = format!("ef{id:03}");
-            // No package (Player_Attack 100-118, SFX_Attack 313 and on): the
-            // game plays the plugin's built-in script from a null buffer.
-            let Some((_, object)) = self.assets.iter().find(|(asset, _)| *asset == name) else {
-                return plugin_timing(&self.runtime, id, &[], item);
-            };
-            let text = self
-                .file
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .read_text_asset(object)
-                .ok()?;
-            plugin_timing(&self.runtime, id, &text.script, item)
-        })
+        done.entry((id, item))
+            .or_insert_with(|| {
+                let name = format!("ef{id:03}");
+                // No package (Player_Attack 100-118, SFX_Attack 313 and on): the
+                // game plays the plugin's built-in script from a null buffer.
+                let Some((_, object)) = self.assets.iter().find(|(asset, _)| *asset == name) else {
+                    return plugin_play(&self.runtime, id, &[], item);
+                };
+                let text = self
+                    .file
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .read_text_asset(object)
+                    .ok()?;
+                plugin_play(&self.runtime, id, &text.script, item)
+            })
+            .clone()
     }
 }
 

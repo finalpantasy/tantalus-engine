@@ -104,6 +104,8 @@ pub struct PlayData {
     menu: crate::field_menu::MenuTables,
     shops: crate::shop_menu::ShopTables,
     streaming_assets: PathBuf,
+    /// The translated plugin that times effects; its sound commands drive the spell sounds.
+    plugin: Option<std::sync::Arc<crate::battle_effects::PluginTiming>>,
     /// `Actions.csv`, for the ability to effect map of the spell sounds.
     actions_csv: PathBuf,
     /// The spell and ability sounds, read from the game files on the first battle.
@@ -162,10 +164,12 @@ impl PlayData {
         new_game.items = tantalus_game::new_game::parse_initial_items(&read_text(
             &characters.join("../Items/InitialItems.csv"),
         )?)?;
+        let mut plugin = None;
         let battles = match &paths.battles {
             Some(ids) => Some(FieldBattles::load(sa, &bundle, ids, {
                 let mut equipment = crate::field_battle::Equipment::load(&characters)?;
                 equipment.load_plugin_timing(&paths.game_data);
+                plugin = equipment.plugin();
                 equipment
             })?),
             None => None,
@@ -185,6 +189,7 @@ impl PlayData {
             menu,
             shops,
             streaming_assets: sa.clone(),
+            plugin,
             actions_csv: memoria.join("Memoria.Patcher/StreamingAssets/Data/Battle/Actions.csv"),
             effect_sounds: std::sync::OnceLock::new(),
             movies: std::fs::read_to_string(memoria.join("Assembly-CSharp/Global/MBG.cs"))
@@ -1808,6 +1813,7 @@ impl PlayGame {
         let more = fight.step(FightControl::Player(command));
         let effects = self.data.effect_sounds.get_or_init(|| {
             crate::battle_sound::EffectSounds::load(&self.data.game_data, &self.data.actions_csv)
+                .map(|sounds| sounds.with_plugin(self.data.plugin.clone()))
                 .map_err(|error| eprintln!("battle sounds: no spell sounds: {error}"))
                 .ok()
         });

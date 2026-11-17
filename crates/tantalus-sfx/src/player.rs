@@ -119,8 +119,9 @@ pub struct Events {
     pub effect_points: Vec<(u32, u16)>,
     /// Callback 24 (`btl2d.Btl2dReq`: the damage numbers) per unit.
     pub figure_points: Vec<(u32, u16)>,
-    /// Callback 32: sound commands (`arg0`, `arg1`).
-    pub sounds: Vec<(u32, i32, i32)>,
+    /// Callback 32: sound commands by frame (`arg0` mode, `arg1` sound number, `arg2`
+    /// channel tag, `arg3` the `sce` flag `SFX.AdjustSoundIndex` reads).
+    pub sounds: Vec<(u32, [i32; 4])>,
 }
 
 /// What the effect has done to a unit's model since it began: the
@@ -251,7 +252,7 @@ impl BattleHost {
                 return 0;
             }
             32 => {
-                self.events.sounds.push((self.frame, a0, a1));
+                self.events.sounds.push((self.frame, [a0, a1, a2, a3]));
                 return 0;
             }
             // `PSXTextureMgr.isBgCapture` and `bgParam`.

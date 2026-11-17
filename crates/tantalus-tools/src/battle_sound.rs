@@ -11,9 +11,14 @@
 //! * The command menu's own sounds ([`menu_cue`]): the cursor, backing out, a refusal, and the
 //!   chime when a party member's turn comes up (`BattleHUD.cs:1285`).
 //!
-//! What is not exact: the effect plugin's own script is not run, so a sound's time is its offset
-//! from the effect's figure point in the sequence, laid back from where the view puts the effect
-//! ([`EFFECT_TICKS`]), and waits that depend on animations count as zero.
+//! A spell's sounds are the plugin's own sound commands (host callback 32, `SFX.SoundPlay` and
+//! `SoundPlayChant`): the effect is played once on the translated plugin and each command keeps
+//! its plugin frame (one battle tick each), so a sound lands that many ticks after the effect
+//! starts, as the view starts it. The sound number goes through `SFX.AdjustSoundIndex` and then
+//! indexes the resident list or the effect's list. What is not exact: the pitch changes
+//! (`soundFPS`) are not played, and the effect starts a fixed `CAST_LEAD` after the command
+//! where the machine uses each character's own lead. Effects the plugin cannot play fall back to
+//! the effect file's sequence, ahead of the figure point ([`EFFECT_TICKS`]).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -22,6 +27,7 @@ use tantalus_assets::pc::battle_sequence::{InterpretOptions, MarkerKind, Sequenc
 use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
 use tantalus_assets::pc::special_effect::EffectFile;
 
+use crate::battle_effects::{CAST_LEAD, MIN_EFFECT_TICKS};
 use crate::battle_stage::{BattleStage, StageEvent, StageModel};
 use crate::play_audio::AudioCue;
 
@@ -101,6 +107,117 @@ pub struct EffectSounds {
     item_effect_of: BTreeMap<i32, i32>,
     /// Effect id to `(ticks before the figure point, sound resource)`.
     timelines: BTreeMap<i32, Vec<(u32, String)>>,
+    /// Effect id to its sound list (`SpecialEffectMetaData.txt`).
+    lists: BTreeMap<i32, Vec<String>>,
+    /// The resident sound list (`ResidentSpecialEffectMetaData.txt`): sound numbers 0 to 11.
+    resident: Vec<String>,
+    /// The translated plugin, whose sound commands give the exact frames.
+    plugin: Option<std::sync::Arc<crate::battle_effects::PluginTiming>>,
+}
+
+/// A sound the plugin asked for.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PluginSound {
+    /// A sound resource.
+    Resource(String),
+    /// The Reflect chime (`SFX.REFLECT_SOUND_ID`).
+    Reflect,
+}
+
+/// `SFX.REFLECT_SOUND_ID`.
+const REFLECT_SOUND_ID: u16 = 350;
+/// Sounds the resident list holds (`SfxSoundPlayer.GetResidentSoundCount`).
+const RESIDENT_SOUNDS: i32 = 12;
+
+/// `SFX.AdjustSoundIndex`: the sound number `SoundPlay(dno, _, sce)` plays on effect `effect`
+/// after `calls` earlier plays, or `None` when the call is skipped.
+fn adjust_sound_index(effect: i32, dno: i32, sce: i32, calls: u32) -> Option<i32> {
+    const PHOENIX_REBIRTH_FLAME: i32 = 225;
+    const MADEEN_FULL: i32 = 251;
+    const ARK_FULL: i32 = 381;
+    const ARK_SHORT: i32 = 447;
+    const BAHAMUT_FULL: i32 = 227;
+    const LUCKY_SEVEN: i32 = 312;
+    const ROULETTE: i32 = 237;
+    const LEVIATHAN_FULL: i32 = 179;
+    const EXPLOSION: i32 = 31;
+    const VENOM_POWDER: i32 = 10;
+    let dno = dno + 12;
+    if sce != 0 {
+        match effect {
+            PHOENIX_REBIRTH_FLAME => return Some(dno + 12),
+            MADEEN_FULL => return Some(dno + 11),
+            ARK_FULL => {
+                return Some(match calls {
+                    28.. => dno + 36,
+                    20..=27 => dno + 20,
+                    12..=19 => dno + 16,
+                    _ => dno + 8,
+                });
+            }
+            ARK_SHORT => return Some(dno + 4),
+            BAHAMUT_FULL => return Some(dno + 14),
+            _ => {}
+        }
+    }
+    match effect {
+        ARK_SHORT if calls >= 8 => Some(dno + 8),
+        ARK_FULL if calls >= 28 => Some(dno + 28),
+        ARK_FULL if calls >= 12 => Some(dno + 12),
+        LUCKY_SEVEN => Some(dno - 7),
+        ROULETTE if dno != 12 => Some(dno - 3),
+        BAHAMUT_FULL => Some(dno - 2),
+        LEVIATHAN_FULL => (dno != 15).then_some(dno),
+        EXPLOSION => (dno == 12).then_some(dno),
+        VENOM_POWDER => Some(dno - 3),
+        _ => Some(dno),
+    }
+}
+
+/// The sounds an effect's plugin commands play, by plugin frame (`SFX.SoundPlay` for mode 0 and
+/// `SoundPlayChant` for mode 1; the other modes stream or stop).
+pub fn plugin_sounds(
+    effect: i32,
+    calls: &[crate::battle_effects::SoundCall],
+    list: &[String],
+    resident: &[String],
+) -> Vec<(u32, PluginSound)> {
+    let mut out = Vec::new();
+    let mut played = 0_u32;
+    let mut chant = 0_i32;
+    let by_number = |num: i32| -> Option<PluginSound> {
+        let (names, index) = if num < RESIDENT_SOUNDS {
+            (resident, num)
+        } else {
+            (list, num - RESIDENT_SOUNDS)
+        };
+        let index = usize::try_from(index).ok()?;
+        Some(PluginSound::Resource(names.get(index)?.clone()))
+    };
+    for &(frame, [mode, dno, _, sce]) in calls {
+        match mode {
+            0 => {
+                let Some(num) = adjust_sound_index(effect, dno, sce, played) else {
+                    continue;
+                };
+                played += 1;
+                out.extend(by_number(num).map(|sound| (frame, sound)));
+            }
+            1 => {
+                let kind = dno & 0xFF_FFFF;
+                if kind == 3 {
+                    if chant % 3 == 0 {
+                        out.push((frame, PluginSound::Reflect));
+                    }
+                } else {
+                    out.extend(by_number(kind * 3 + chant).map(|sound| (frame, sound)));
+                }
+                chant += 1;
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 impl EffectSounds {
@@ -111,9 +228,13 @@ impl EffectSounds {
             .map_err(|error| error.to_string())?;
         let assets = file.text_assets().map_err(|error| error.to_string())?;
         let mut lists: BTreeMap<i32, Vec<String>> = BTreeMap::new();
+        let mut resident = Vec::new();
         let mut effects = Vec::new();
         for (name, object) in &assets {
-            if name == "SpecialEffectMetaData.txt" {
+            if name == "ResidentSpecialEffectMetaData.txt" {
+                let text = file.read_text_asset(object).map_err(|e| e.to_string())?;
+                resident = parse_resident_list(&text.script);
+            } else if name == "SpecialEffectMetaData.txt" {
                 let text = file.read_text_asset(object).map_err(|e| e.to_string())?;
                 lists = parse_sound_lists(&text.script)?;
             } else if let Some(id) = name
@@ -152,7 +273,34 @@ impl EffectSounds {
             effect_of: parse_actions(&text),
             item_effect_of,
             timelines,
+            lists,
+            resident,
+            plugin: None,
         })
+    }
+
+    /// Uses the translated plugin's sound commands for the spells it can play.
+    pub fn with_plugin(
+        mut self,
+        plugin: Option<std::sync::Arc<crate::battle_effects::PluginTiming>>,
+    ) -> Self {
+        self.plugin = plugin;
+        self
+    }
+
+    /// The plugin's sounds for ability `id` (or Item command item `id`), as `(plugin frame,
+    /// sound)`, and the effect's `hit` frame; `None` when the plugin does not play that effect.
+    fn plugin_play(&self, id: i32, item: bool) -> Option<(Vec<(u32, PluginSound)>, u32)> {
+        let effect = if item {
+            *self.item_effect_of.get(&id)?
+        } else {
+            *self.effect_of.get(&id)?
+        };
+        let plugin = self.plugin.as_ref()?;
+        let calls = plugin.sounds(effect, item)?;
+        let hit = plugin.timing(effect, item)?.hit;
+        let list = self.lists.get(&effect).map_or(&[][..], Vec::as_slice);
+        Some((plugin_sounds(effect, &calls, list, &self.resident), hit))
     }
 
     /// The sounds of ability `ability`'s effect.
@@ -195,6 +343,22 @@ fn parse_item_effects(items: &str, effects: &str) -> BTreeMap<i32, i32> {
             let effect_id: i32 = fields.nth(2)?.trim().parse().ok()?;
             Some((item, *animation.get(&effect_id)?))
         })
+        .collect()
+}
+
+/// `ResidentSpecialEffectMetaData.txt`: `{"data": {"0": ["<resource>", ..]}}`, which carries
+/// trailing commas, so the quoted names are read directly.
+fn parse_resident_list(bytes: &[u8]) -> Vec<String> {
+    let text = String::from_utf8_lossy(bytes);
+    let Some(start) = text.find('\x5b') else {
+        return Vec::new();
+    };
+    let body = &text[start..];
+    let body = &body[..body.find('\x5d').unwrap_or(body.len())];
+    body.split('"')
+        .skip(1)
+        .step_by(2)
+        .map(str::to_owned)
         .collect()
 }
 
@@ -393,6 +557,27 @@ impl BattleSounds {
         self.due.push((self.tick + u64::from(after), sound));
     }
 
+    /// Queues the plugin's own sound commands for a spell, item or ability. They fall due their
+    /// plugin frame after the effect starts. Returns whether the plugin played the effect.
+    fn schedule_plugin(&mut self, effects: Option<&EffectSounds>, id: i32, item: bool) -> bool {
+        let Some((sounds, hit)) = effects.and_then(|effects| effects.plugin_play(id, item)) else {
+            return false;
+        };
+        // The view starts the effect `hit` frames before the HP change, which the machine puts
+        // at `CAST_LEAD` + `hit` ticks (and no sooner than `MIN_EFFECT_TICKS`).
+        let start = CAST_LEAD.max(MIN_EFFECT_TICKS.saturating_sub(hit));
+        for (frame, sound) in sounds {
+            self.add(
+                start + frame,
+                match sound {
+                    PluginSound::Resource(resource) => Due::Resource(resource),
+                    PluginSound::Reflect => Due::Effect(REFLECT_SOUND_ID, FULL_VOLUME),
+                },
+            );
+        }
+        true
+    }
+
     fn schedule(
         &mut self,
         event: &StageEvent,
@@ -410,6 +595,9 @@ impl BattleSounds {
                 }
             }
             StageEvent::Command { cmd_no, sub_no, .. } if cmd_no == ITEM_COMMAND => {
+                if self.schedule_plugin(effects, sub_no, true) {
+                    return;
+                }
                 for (before, resource) in effects.into_iter().flat_map(|e| e.for_item(sub_no)) {
                     self.add(
                         EFFECT_TICKS.saturating_sub(*before),
@@ -425,6 +613,9 @@ impl BattleSounds {
             }
             StageEvent::Command { unit, sub_no, .. } => {
                 self.attacking.retain(|&attacker| attacker != unit);
+                if self.schedule_plugin(effects, sub_no, false) {
+                    return;
+                }
                 for (before, resource) in effects.into_iter().flat_map(|e| e.for_ability(sub_no)) {
                     self.add(
                         EFFECT_TICKS.saturating_sub(*before),
@@ -473,6 +664,45 @@ mod tests {
         assert_eq!(cues.len(), 1);
     }
 
+    #[test]
+    fn plugin_sound_numbers_follow_adjust_sound_index() {
+        let list: Vec<String> = ["a", "b", "c"].map(str::to_owned).to_vec();
+        let resident: Vec<String> = (0..12).map(|n| format!("r{n}")).collect();
+        let res = |name: &str| PluginSound::Resource(name.to_owned());
+        // A plain effect: sound number n plays the effect's list entry n.
+        let calls = [(3, [0, 1, 0, 0]), (9, [0, 0, 0, 0]), (12, [1, 1, 0, 0])];
+        assert_eq!(
+            plugin_sounds(1, &calls, &list, &resident),
+            [(3, res("b")), (9, res("a")), (12, res("r3"))]
+        );
+        // Explosion (31) skips every call but the first sound; Lucky Seven (312) shifts by 7.
+        assert_eq!(
+            plugin_sounds(
+                31,
+                &[(0, [0, 1, 0, 0]), (1, [0, 0, 0, 0])],
+                &list,
+                &resident
+            ),
+            [(1, res("a"))]
+        );
+        assert_eq!(adjust_sound_index(312, 7, 0, 0), Some(12));
+        // Reflect's chant sound plays on every third chant call.
+        let chant = [(0, [1, 3, 0, 0]), (1, [1, 3, 0, 0]), (2, [1, 3, 0, 0])];
+        assert_eq!(
+            plugin_sounds(1, &chant, &list, &resident),
+            [(0, PluginSound::Reflect)]
+        );
+        assert_eq!(
+            parse_resident_list(
+                b"{
+ \"data\": {\"0\": [\"x/a\",
+	\"x/b\",
+ ]}}"
+            ),
+            ["x/a", "x/b"]
+        );
+    }
+
     /// Runs only with `FFIX_GAME_DATA` (the install's `FF9_Data`) and `FFIX_ACTIONS_CSV` set.
     #[test]
     fn real_cure_plays_its_three_sounds_before_the_figure() {
@@ -492,6 +722,32 @@ mod tests {
         let potion = sounds.for_item(236);
         println!("POTION {potion:?}");
         assert!(!potion.is_empty(), "the Potion's effect has sounds");
+    }
+
+    /// Runs only with `FFIX_GAME_DATA` and `FFIX_ACTIONS_CSV` set.
+    #[test]
+    fn real_spells_play_their_sounds_on_plugin_frames() {
+        let (Some(data), Some(actions)) = (
+            std::env::var_os("FFIX_GAME_DATA"),
+            std::env::var_os("FFIX_ACTIONS_CSV"),
+        ) else {
+            return;
+        };
+        let mut table = crate::battle_effects::EffectTable::default();
+        table.load_plugin_timing(Path::new(&data));
+        let sounds = EffectSounds::load(Path::new(&data), Path::new(&actions))
+            .unwrap()
+            .with_plugin(table.plugin.clone());
+        // Cure 1, Fire 25, Ifrit 51.
+        for ability in [1, 25, 51] {
+            let (played, hit) = sounds.plugin_play(ability, false).expect("plugin plays it");
+            println!("ability {ability}: hit {hit} sounds {played:?}");
+            assert!(!played.is_empty(), "ability {ability} plays sounds");
+            assert!(played.iter().all(|(_, sound)| matches!(
+                sound,
+                PluginSound::Resource(_) | PluginSound::Reflect
+            )));
+        }
     }
 
     fn stage_with(events: Vec<Vec<StageEvent>>) -> BattleStage {
