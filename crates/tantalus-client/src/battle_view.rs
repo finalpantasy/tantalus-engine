@@ -122,6 +122,7 @@ pub struct BattleAssets {
     backgrounds: HashMap<String, Option<BattleBackground>>,
     models: HashMap<u32, Option<AssembledModel>>,
     clips: HashMap<ClipKey, Option<AnimationClip>>,
+    effects: crate::battle_effects::EffectLibrary,
 }
 
 impl BattleAssets {
@@ -135,6 +136,12 @@ impl BattleAssets {
             backgrounds: HashMap::new(),
             models: HashMap::new(),
             clips: HashMap::new(),
+            effects: crate::battle_effects::EffectLibrary::new(
+                streaming_assets
+                    .parent()
+                    .unwrap_or(streaming_assets)
+                    .join("x64/FF9_Data/resources.assets"),
+            ),
         }
     }
 
@@ -604,7 +611,7 @@ impl BattleScene {
                 .unwrap_or(0.0)
             })
             .collect();
-        let director = CameraDirector::new(stage, &heights);
+        let director = CameraDirector::new(stage, &heights, Some(&assets.effects));
         Self {
             camera,
             base,
@@ -637,7 +644,7 @@ impl BattleScene {
             return self.camera;
         };
         if tick + 1 < running.ticks() {
-            *running = match CameraDirector::new(stage, &self.heights) {
+            *running = match CameraDirector::new(stage, &self.heights, Some(&assets.effects)) {
                 Some(fresh) => fresh,
                 None => return self.camera,
             };
@@ -649,15 +656,19 @@ impl BattleScene {
                 .and_then(Option::as_ref)
                 .map_or(0.0, clip_length)
         };
-        // Where each unit stands at a tick (steps forward, runs, jumps).
-        let offsets = |tick: usize| -> Vec<[f32; 3]> {
+        // Where each unit stands and faces at a tick (steps forward, runs,
+        // turns, jumps).
+        let offsets = |tick: usize| -> Vec<([f32; 3], Option<f32>)> {
             let seconds = tick as f64 / BATTLE_TICKS_PER_SECOND;
             self.looks
                 .iter()
                 .enumerate()
                 .map(|(index, look)| match look {
-                    Some(look) => unit_motion(stage, index, seconds, &look.motions, &length).offset,
-                    None => [0.0; 3],
+                    Some(look) => {
+                        let motion = unit_motion(stage, index, seconds, &look.motions, &length);
+                        (motion.offset, motion.facing)
+                    }
+                    None => ([0.0; 3], None),
                 })
                 .collect()
         };
@@ -727,7 +738,7 @@ impl BattleScene {
                 look.geo,
                 &motion,
                 unit.position,
-                unit.turn,
+                motion.facing.unwrap_or(unit.turn),
             ) {
                 let feet = Vec3::from_array(unit.position) + Vec3::from_array(motion.offset);
                 let at = feet + Vec3::Y * top;

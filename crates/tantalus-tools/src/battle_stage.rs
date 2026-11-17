@@ -263,6 +263,8 @@ pub struct BattleStage {
     pub camera: u8,
     /// Party first, then enemies, in machine order.
     pub units: Vec<StageUnit>,
+    /// Each unit's `radius_collision` (empty: unknown, 0).
+    pub radii: Vec<f32>,
     pub frames: Vec<StageFrame>,
     pub outcome: Option<String>,
     /// [`attack_animations`] of the scene's sequence file, by enemy attack
@@ -348,6 +350,9 @@ impl BattleStage {
                 name: None,
             })
             .collect();
+        // `radius_collision`: 256 for players (`btl_init.cs:466`), the
+        // monster type's `Radius` for enemies.
+        let mut radii = vec![256.0; units.len()];
         if let Some(row) = scene.patterns.get(pattern) {
             let placements = row
                 .monsters
@@ -355,6 +360,12 @@ impl BattleStage {
                 .take(usize::from(row.monster_count).min(row.monsters.len()));
             for placement in placements {
                 units.push(enemy_unit(scene, placement));
+                radii.push(
+                    scene
+                        .monster_types
+                        .get(usize::from(placement.type_no))
+                        .map_or(0.0, |kind| f32::from(kind.radius)),
+                );
             }
         }
         Self {
@@ -363,6 +374,7 @@ impl BattleStage {
             pattern,
             camera: scene.patterns.get(pattern).map_or(0, |row| row.camera),
             units,
+            radii,
             frames: Vec::new(),
             outcome: None,
             attack_anims: Vec::new(),

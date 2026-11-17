@@ -8,8 +8,9 @@
 //!   `CameraNo` (`PatAddr[PatNum].Camera`; 3 and up are random, 0 here).
 //! - At an effect's start (`SeqStateUpdate` -> `SfxStateReset`,
 //!   `SfxTriggerReaction`): a party member's command takes set 3 when it
-//!   aims at the party and 4 otherwise; an enemy's takes its own set
-//!   (5 + slot). Here the effect starts with the command.
+//!   aims at the party and 4 otherwise, once its effect plays (after an
+//!   attacker's run); an enemy's takes its own set (5 + slot) with the
+//!   command.
 //! - `SeqExecRunCamera` (sequence code 0x20): `SetCameraTarget` and
 //!   `SetEnemyCamera` at the op's frame.
 //! - At the effect's end (`SfxBeginBlock`): back to the default set 1.
@@ -26,6 +27,10 @@ use tantalus_tools::battle_stage::{BattleStage, StageEvent, StageModel};
 
 use crate::battle_raster::BattleCamera;
 
+/// An effect's camera: tick, caster, target, camera set bytes, tick the
+/// effect ends.
+type EffectPlay = (usize, usize, Option<usize>, Vec<u8>, usize);
+
 /// The camera state after the ticks run so far.
 #[derive(Debug, Clone)]
 pub struct CameraDirector {
@@ -37,6 +42,14 @@ pub struct CameraDirector {
     /// Enemy cameras waiting for their op's frame: tick, caster, targets,
     /// camera number.
     pending: Vec<(usize, usize, Vec<usize>, u8)>,
+    /// A party command's reaction camera waiting for its effect to play:
+    /// tick, set, caster, target.
+    reaction: Option<(usize, usize, usize, Option<usize>)>,
+    /// The effects' own cameras (`PLAY_CAMERA`), in tick order: tick,
+    /// caster, target, camera set bytes, tick the effect ends.
+    effect_plays: Vec<EffectPlay>,
+    /// Tick the playing effect camera's effect ends.
+    effect_end: Option<usize>,
     /// The unit whose command holds the camera.
     busy: Option<usize>,
     victory: bool,
@@ -44,9 +57,14 @@ pub struct CameraDirector {
 }
 
 impl CameraDirector {
-    /// `heights` are the units' model heights (battle units). `None` when
-    /// the scene has no camera block.
-    pub fn new(stage: &BattleStage, heights: &[f32]) -> Option<Self> {
+    /// `heights` are the units' model heights (battle units); `library`
+    /// gives the drawn effects' own cameras. `None` when the scene has no
+    /// camera block.
+    pub fn new(
+        stage: &BattleStage,
+        heights: &[f32],
+        library: Option<&crate::battle_effects::EffectLibrary>,
+    ) -> Option<Self> {
         let block = stage.camera_block.clone()?;
         let party = stage
             .units
@@ -68,7 +86,7 @@ impl CameraDirector {
                     -unit.position[1] as i16,
                     unit.position[2] as i16,
                 ],
-                yaw: (unit.turn.rem_euclid(360.0) / 360.0 * 4096.0) as i16,
+                yaw: yaw(unit.turn),
                 player: index < party,
                 // `SFX.SetupSfxInit`: a player's `geo_radius` is its
                 // `radius_collision` (256) and `geo_height` twice that; an
@@ -93,12 +111,42 @@ impl CameraDirector {
         let mut script = CameraScript::new(block, stage.battle as u32);
         script.context.camera_no = if stage.camera < 3 { stage.camera } else { 0 };
         script.start_plunge(0);
+        let mut effect_plays = Vec::new();
+        if let Some(library) = library {
+            for effect in crate::battle_effects::stage_effects(stage) {
+                // A summon's cameras frame its own model and world, which
+                // are not drawn (a wall or nothing for 18 s of a full
+                // summon): it keeps the scene's camera.
+                if crate::battle_effects::EffectKind::of(effect.id)
+                    .is_none_or(crate::battle_effects::EffectKind::is_summon)
+                {
+                    continue;
+                }
+                let start = effect.start.round() as usize;
+                for play in library.cameras(effect.id).iter() {
+                    // `IsAlternate`: a random pick; here one fixed by the
+                    // caster and tick.
+                    let pick = (effect.caster + start) % play.choices.len();
+                    effect_plays.push((
+                        start + play.frame as usize,
+                        effect.caster,
+                        effect.targets.first().copied(),
+                        play.choices[pick].clone(),
+                        start + effect.timing.length as usize,
+                    ));
+                }
+            }
+            effect_plays.sort_by_key(|play| play.0);
+        }
         Some(Self {
             script,
             world,
             ticks: 0,
             camera: None,
             pending: Vec::new(),
+            reaction: None,
+            effect_plays,
+            effect_end: None,
             busy: None,
             victory: false,
             party,
@@ -107,25 +155,27 @@ impl CameraDirector {
 
     /// The camera shown at stage frame `tick` (`None` until the script
     /// has placed it). Runs forward from the last call.
-    /// `offsets` gives each unit's offset from its battle position at a
-    /// tick (the camera follows a unit that steps forward or runs).
+    /// `poses` gives each unit's offset from its battle position and its
+    /// facing while a command turns it, at a tick (the camera follows a
+    /// unit that steps forward, runs and turns).
     pub fn camera_at(
         &mut self,
         stage: &BattleStage,
         tick: usize,
-        offsets: &dyn Fn(usize) -> Vec<[f32; 3]>,
+        poses: &dyn Fn(usize) -> Vec<([f32; 3], Option<f32>)>,
     ) -> Option<BattleCamera> {
         let last = stage.frames.len();
         while self.ticks <= tick && self.ticks < last.max(1) {
-            let now = offsets(self.ticks);
+            let now = poses(self.ticks);
             for (index, actor) in self.world.actors.iter_mut().enumerate() {
                 let unit = &stage.units[index];
-                let offset = now.get(index).copied().unwrap_or([0.0; 3]);
+                let (offset, facing) = now.get(index).copied().unwrap_or(([0.0; 3], None));
                 actor.position = [
                     (unit.position[0] + offset[0]) as i16,
                     -(unit.position[1] + offset[1]) as i16,
                     (unit.position[2] + offset[2]) as i16,
                 ];
+                actor.yaw = yaw(facing.unwrap_or(unit.turn));
             }
             self.step(stage, self.ticks);
             self.ticks += 1;
@@ -148,6 +198,25 @@ impl CameraDirector {
                 true
             }
         });
+        while self.effect_plays.first().is_some_and(|play| play.0 <= tick) {
+            let (_, caster, target, set, end) = self.effect_plays.remove(0);
+            self.busy = Some(caster);
+            self.effect_end = Some(end);
+            self.script
+                .start_effect_camera(&set, 0, caster, target, &self.world);
+        }
+        if self.effect_end.is_some_and(|end| end <= tick) {
+            self.effect_end = None;
+            self.busy = None;
+            self.script.begin_default();
+        }
+        if let Some((at, set, caster, target)) = self.reaction
+            && at <= tick
+        {
+            self.reaction = None;
+            self.script
+                .start_track_block(set, 80, caster, target, &self.world);
+        }
         for (_, caster, targets, camera_no) in due {
             let center = self.center(&targets);
             self.script.set_enemy_camera(
@@ -168,9 +237,13 @@ impl CameraDirector {
                         sub_no,
                         targets,
                     } => self.command(stage, tick, *unit, *cmd_no, *sub_no, targets),
-                    StageEvent::Finished { unit, .. } if self.busy == Some(*unit) => {
+                    // An effect camera runs to the end of its effect.
+                    StageEvent::Finished { unit, .. }
+                        if self.busy == Some(*unit) && self.effect_end.is_none() =>
+                    {
                         self.busy = None;
                         self.pending.clear();
+                        self.reaction = None;
                         self.script.begin_default();
                     }
                     _ => {}
@@ -200,13 +273,14 @@ impl CameraDirector {
     ) {
         let target = targets.first().copied();
         if unit < self.party {
-            // A drawn spell keeps the default camera on the scene: its own
-            // effect cameras are not read.
-            let drawn = stage
-                .effects
-                .effect_of(cmd_no, sub_no, targets.len())
-                .is_some_and(|(id, _)| crate::battle_effects::EffectKind::of(id).is_some());
-            if drawn {
+            // A drawn spell plays its own effect cameras (`effect_plays`).
+            // Attack plays a short effect with `UseCamera=False`
+            // (`SFXData.IsShortSpecialEffect`) and sequence-only commands
+            // (Steal, Jump) play none: the camera stays.
+            let Some((id, timing)) = stage.effects.effect_of(cmd_no, sub_no, targets.len()) else {
+                return;
+            };
+            if crate::battle_effects::EffectKind::of(id).is_some() {
                 return;
             }
             self.busy = Some(unit);
@@ -215,8 +289,15 @@ impl CameraDirector {
             } else {
                 4
             };
-            self.script
-                .start_track_block(set, 80, unit, target, &self.world);
+            // `SfxTriggerReaction` runs when the command's effect plays
+            // (`PlaySFX`), after an attacker's run: here its
+            // `EffectApplied`, less the effect's hit frames when known.
+            let hit = timing.hit as usize;
+            let at = effect_tick(stage, unit, tick)
+                .unwrap_or(tick + crate::battle_motion::EFFECT_TICKS as usize)
+                .saturating_sub(hit)
+                .max(tick);
+            self.reaction = Some((at, set, unit, target));
             return;
         }
         self.busy = Some(unit);
@@ -259,6 +340,26 @@ impl CameraDirector {
         let z: i32 = points.iter().map(|p| i32::from(p[2])).sum();
         [(x / n) as i16, 0, (z / n) as i16]
     }
+}
+
+/// `eulerAngles.y * 11.3777781` (`SFX.cs` Get Angles): degrees in
+/// 4096ths, as Unity reports them (0 to 360).
+fn yaw(degrees: f32) -> i16 {
+    (degrees.rem_euclid(360.0) * 11.377_778) as i16
+}
+
+/// The first `EffectApplied` of `caster` at or after `tick`.
+fn effect_tick(stage: &BattleStage, caster: usize, tick: usize) -> Option<usize> {
+    stage
+        .frames
+        .get(tick..)?
+        .iter()
+        .position(|frame| {
+            frame.events.iter().any(
+                |event| matches!(event, StageEvent::Effect { caster: who, .. } if *who == caster),
+            )
+        })
+        .map(|offset| tick + offset)
 }
 
 /// `PsxCamera.PsxMatrix2UnityMatrix` and `PsxProj2UnityProj`: the PSX view

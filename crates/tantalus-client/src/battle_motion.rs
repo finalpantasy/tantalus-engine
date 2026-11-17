@@ -48,17 +48,18 @@ pub mod mp {
 /// (`field_battle::COMMAND_TIMING`).
 pub const EFFECT_TICKS: f64 = 40.0;
 pub const COMMAND_TICKS: f64 = 75.0;
-/// How far short of its target an attacker stops.
-const STRIKE_DISTANCE: f32 = 450.0;
+/// How far short of its target's collision radius an attacker stops
+/// (`Player_Attack_*` sequences: `Distance=400`).
+const STRIKE_DISTANCE: f32 = 400.0;
 /// Seconds of the run up to the target.
 const RUN_SECONDS: f32 = 0.5;
 /// Seconds a defeated enemy stays after its death clip.
 const FADE_SECONDS: f32 = 0.4;
 /// Seconds a damage number stays up.
 pub const NUMBER_SECONDS: f64 = 1.2;
-/// The longest wait for a `Figure` point looked back for (Cure on many
-/// waits 42 frames).
-const MAX_FIGURE_DELAY: f64 = 4.0;
+/// The longest wait for a `Figure` point looked back for (a full Shiva
+/// shows its numbers about 18 s after the HP change).
+const MAX_FIGURE_DELAY: f64 = 22.0;
 
 /// The clips a unit can play.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -134,6 +135,9 @@ pub struct UnitMotion {
     pub offset: [f32; 3],
     /// Gone (a defeated enemy after its death).
     pub hidden: bool,
+    /// The facing (`Euler` y, degrees) while a command turns the unit
+    /// (`Turn: BaseAngle=AllTargets`); `None` keeps its battle turn.
+    pub facing: Option<f32>,
 }
 
 /// One piece of a timeline.
@@ -146,6 +150,8 @@ struct Segment {
     /// Offset at the segment's start and end (lerped).
     from: [f32; 3],
     to: [f32; 3],
+    /// Facing from, to and the seconds the turn takes from the start.
+    turn: Option<(f32, f32, f32)>,
 }
 
 fn seconds_of(index: usize) -> f64 {
@@ -225,16 +231,41 @@ fn last_event(
         })
 }
 
-/// Where an attacker on `from` stops in front of `target`, as an offset.
-fn strike_offset(from: [f32; 3], target: [f32; 3]) -> [f32; 3] {
+/// Where an attacker on `from` stops in front of `target`, as an offset:
+/// `STRIKE_DISTANCE` plus the target's `radius_collision`
+/// (`MoveToTarget: Distance=400 ; UseCollisionRadius=True`).
+fn strike_offset(from: [f32; 3], target: [f32; 3], radius: f32) -> [f32; 3] {
     let (dx, dz) = (target[0] - from[0], target[2] - from[2]);
     let distance = dx.hypot(dz);
-    if distance <= STRIKE_DISTANCE {
+    let stop = STRIKE_DISTANCE + radius;
+    if distance <= stop {
         return [0.0; 3];
     }
-    let scale = (distance - STRIKE_DISTANCE) / distance;
+    let scale = (distance - stop) / distance;
     [dx * scale, 0.0, dz * scale]
 }
+
+/// `SequenceTurn` towards a target: `ratan2(-dx, -dz)` in degrees, taken
+/// the short way round from `turn`.
+fn facing_towards(from: [f32; 3], target: [f32; 3], turn: f32) -> f32 {
+    let (dx, dz) = (target[0] - from[0], target[2] - from[2]);
+    if dx == 0.0 && dz == 0.0 {
+        return turn;
+    }
+    let mut angle = (-dx).atan2(-dz).to_degrees();
+    while angle - turn > 180.0 {
+        angle -= 360.0;
+    }
+    while angle - turn < -180.0 {
+        angle += 360.0;
+    }
+    angle
+}
+
+/// The turn to the target and back (`Turn: ... Time=4`, the return's
+/// `Time=2`), in seconds.
+const TURN_TO_SECONDS: f32 = 4.0 / 15.0;
+const TURN_BACK_SECONDS: f32 = 2.0 / 15.0;
 
 /// Unit `unit` at `seconds`. `length` gives a clip's length in seconds.
 /// On top of the clip: a unit in the air after Jump is not drawn, and a
@@ -289,6 +320,7 @@ fn clip_motion(
         looping: true,
         offset: [0.0; 3],
         hidden: false,
+        facing: None,
     };
     let len = |clip: Option<ClipKey>| clip.map_or(0.0, length);
     let record = stage.frame_at(seconds);
@@ -343,12 +375,21 @@ fn clip_motion(
             };
             let offset = [0, 1, 2]
                 .map(|axis| segment.from[axis] + (segment.to[axis] - segment.from[axis]) * t);
+            let facing = segment.turn.map(|(from, to, seconds)| {
+                let t = if seconds > 0.0 {
+                    ((now - segment.start) / seconds).clamp(0.0, 1.0)
+                } else {
+                    1.0
+                };
+                from + (to - from) * t
+            });
             return UnitMotion {
                 clip: segment.clip,
                 time: now - segment.start,
                 looping: segment.looping,
                 offset,
                 hidden: false,
+                facing,
             };
         }
     }
@@ -389,11 +430,21 @@ fn command_segments(
     len: &dyn Fn(Option<ClipKey>) -> f32,
 ) -> Vec<Segment> {
     let home = stage.units[unit].position;
+    let turn = stage.units[unit].turn;
     let target = running
         .target
-        .and_then(|target| stage.units.get(target))
-        .map(|target| target.position);
-    let strike = target.map_or([0.0; 3], |target| strike_offset(home, target));
+        .and_then(|target| stage.units.get(target).map(|unit| (target, unit.position)));
+    let strike = target.map_or([0.0; 3], |(index, position)| {
+        strike_offset(
+            home,
+            position,
+            stage.radii.get(index).copied().unwrap_or(0.0),
+        )
+    });
+    let face = target.map_or(turn, |(_, position)| facing_towards(home, position, turn));
+    let toward = Some((turn, face, TURN_TO_SECONDS));
+    let facing = Some((face, face, 0.0));
+    let back = Some((face, turn, TURN_BACK_SECONDS));
     let start = running.start as f32;
     let effect = running.effect as f32;
     let still = |clip: Option<ClipKey>, start: f32, length: f32, looping: bool| Segment {
@@ -403,6 +454,7 @@ fn command_segments(
         looping,
         from: [0.0; 3],
         to: [0.0; 3],
+        turn: None,
     };
     let mut out = Vec::new();
     match motions {
@@ -421,31 +473,35 @@ fn command_segments(
                     looping: true,
                     from: [0.0; 3],
                     to: strike,
+                    turn: toward,
                 });
                 out.push(Segment {
                     from: strike,
                     to: strike,
+                    turn: facing,
                     ..still(lead_in, lead_at, len(lead_in), false)
                 });
                 out.push(Segment {
                     from: strike,
                     to: strike,
+                    turn: facing,
                     ..still(attack, strike_at, len(attack), false)
                 });
-                let back = motions.player(mp::BACK);
+                let hop = motions.player(mp::BACK);
                 let back_at = strike_at + len(attack);
                 out.push(Segment {
-                    clip: back,
+                    clip: hop,
                     start: back_at,
-                    length: len(back).max(0.3),
+                    length: len(hop).max(0.3),
                     looping: false,
                     from: strike,
                     to: [0.0; 3],
+                    turn: back,
                 });
                 let settle = motions.player(mp::ATK_TO_NORMAL);
                 out.push(still(
                     settle,
-                    back_at + len(back).max(0.3),
+                    back_at + len(hop).max(0.3),
                     len(settle),
                     false,
                 ));
@@ -505,6 +561,7 @@ fn command_segments(
                     looping: true,
                     from: [0.0; 3],
                     to: strike,
+                    turn: None,
                 });
             }
             for (index, (clip, length)) in clips.iter().zip(&lengths).enumerate() {
@@ -516,6 +573,7 @@ fn command_segments(
                     looping: false,
                     from: strike,
                     to: if last { [0.0; 3] } else { strike },
+                    turn: None,
                 });
                 at += length;
             }
@@ -576,6 +634,19 @@ pub fn damage_numbers(stage: &BattleStage, seconds: f64) -> Vec<(usize, i64, f64
 mod tests {
     use super::*;
     use tantalus_tools::battle_stage::{StageFrame, StageUnit};
+
+    #[test]
+    fn facing_towards_takes_the_short_way() {
+        // Party faces +z toward enemies at -z in Unity battle space:
+        // `ratan2(-dx, -dz)` gives 0 straight ahead along -z.
+        let from = [0.0, 0.0, 0.0];
+        assert!(facing_towards(from, [0.0, 0.0, -100.0], 0.0).abs() < 1e-3);
+        assert!((facing_towards(from, [-100.0, 0.0, 0.0], 0.0) - 90.0).abs() < 1e-3);
+        // From 350 degrees, 10 degrees is reached going up, not down.
+        let up = facing_towards(from, [-17.6, 0.0, -100.0], 350.0);
+        assert!((up - 370.0).abs() < 0.1, "{up}");
+        assert_eq!(facing_towards(from, from, 42.0), 42.0);
+    }
 
     fn stage() -> BattleStage {
         let unit = |model, z| StageUnit {

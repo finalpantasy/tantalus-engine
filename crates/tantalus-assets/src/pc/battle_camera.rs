@@ -138,6 +138,8 @@ struct Track {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CameraScript {
     block: CameraBlock,
+    /// Length of the scene block; effect cameras are appended after it.
+    scene_len: usize,
     /// Script read position in `block.bytes`.
     cursor: Option<usize>,
     frame: u32,
@@ -193,6 +195,7 @@ fn trunc(value: f64) -> i32 {
 impl CameraScript {
     pub fn new(block: CameraBlock, seed: u32) -> Self {
         Self {
+            scene_len: block.bytes.len(),
             block,
             cursor: None,
             frame: 0,
@@ -323,6 +326,51 @@ impl CameraScript {
             self.snap_running(index, world);
         }
         self.select_variant(set);
+    }
+
+    /// `SfxStartTrackBlock` on a camera set outside the scene block: an
+    /// effect's own camera (`PLAY_CAMERA`), `set` the bytes of its small
+    /// file. The bytes join the block once (offsets in a set are relative
+    /// to the set).
+    pub fn start_effect_camera(
+        &mut self,
+        set: &[u8],
+        proj_offset: i32,
+        caster: usize,
+        target: Option<usize>,
+        world: &CameraWorld,
+    ) {
+        if set.len() < 4 {
+            return;
+        }
+        let at = match self
+            .block
+            .bytes
+            .windows(set.len())
+            .skip(self.scene_len)
+            .position(|window| window == set)
+        {
+            Some(position) => self.scene_len + position,
+            None => {
+                let at = self.block.bytes.len();
+                self.block.bytes.extend_from_slice(set);
+                at
+            }
+        };
+        self.proj_offset = 0;
+        self.clear_state();
+        self.caster = Some(caster);
+        self.target = target;
+        self.proj_offset = proj_offset;
+        if self.started & 2 != 0 {
+            self.started = 0;
+        }
+        self.stop = false;
+        self.speed = 0;
+        for index in 0..2 {
+            self.snap_running(index, world);
+        }
+        self.select_variant(at);
     }
 
     /// `SetCameraTarget` then `SetEnemyCamera` (`SfxStartTrackForEntry`):

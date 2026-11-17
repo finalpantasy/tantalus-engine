@@ -146,6 +146,72 @@ impl EffectTable {
     }
 }
 
+/// A camera the effect starts (`PLAY_CAMERA`), `frame` battle frames after
+/// `PlaySFX`: one of `choices` (an `IsAlternate` play picks among the
+/// `SETUP_CAMERA` list), each the bytes of a camera set (the
+/// `SFXDataCamera` layout of a scene camera set).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EffectCameraPlay {
+    pub frame: u32,
+    pub choices: Vec<Vec<u8>>,
+}
+
+/// The effect's camera plays, from its sequence stream (`SFXBinaryFile`):
+/// `WAIT` with type 0 advances the frame (the loading waits of type 1 do
+/// not), `LOAD_CHUNK` picks the small-file group, `SETUP_CAMERA` builds the
+/// alternatives (255 clears them) and `PLAY_CAMERA` plays its slot (`arg2`
+/// 0) or one of the alternatives (`arg2` 3).
+pub fn effect_camera_plays(
+    effect: &tantalus_assets::pc::special_effect::EffectFile,
+    bytes: &[u8],
+) -> Vec<EffectCameraPlay> {
+    use tantalus_assets::pc::special_effect::RecordDetail;
+    let small_file = |chunk: usize, slot: u8| -> Option<Vec<u8>> {
+        effect
+            .records
+            .iter()
+            .filter(|record| record.group == chunk)
+            .find_map(|record| match &record.detail {
+                RecordDetail::SmallFiles(table) => {
+                    let file = usize::try_from(*table.slot_to_file.get(usize::from(slot))?).ok()?;
+                    let entry = table.files.get(file)?;
+                    let start = table.base_offset + entry.offset;
+                    bytes.get(start..start + entry.size).map(<[u8]>::to_vec)
+                }
+                _ => None,
+            })
+    };
+    let mut frame = 0u32;
+    let mut chunk = 0usize;
+    let mut setup: Vec<u8> = Vec::new();
+    let mut out = Vec::new();
+    for op in &effect.sequence {
+        match op.code {
+            0x00 => break,
+            0x01 if op.arg1 == 0 => frame += u32::from(op.arg2),
+            0x05 => chunk = usize::from(op.arg1),
+            0x23 if op.arg1 == 0xFF => setup.clear(),
+            0x23 => setup.push(op.arg1),
+            0x29 => {
+                let slots = match op.arg2 {
+                    0 => vec![op.arg1],
+                    3 => setup.clone(),
+                    _ => continue,
+                };
+                let choices: Vec<Vec<u8>> = slots
+                    .iter()
+                    .filter_map(|slot| small_file(chunk, *slot))
+                    .collect();
+                if !choices.is_empty() {
+                    out.push(EffectCameraPlay { frame, choices });
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -10,10 +10,20 @@
 //! shapes are drawn: flames that burst on the target, ice shards that
 //! gather and shatter, a bolt from above, rising green sparkles.
 //!
-//! Summons and other spells are not drawn yet.
+//! Garnet's first summons (Shiva, Ifrit, Ramuh, full and short) draw the
+//! same shapes larger over every target. Their effects run far longer than
+//! the 40 frames the battle machine gives a command before its HP change,
+//! so an effect never starts before its command: it then lands after the
+//! HP change, and its numbers wait for its own `Figure` point.
+//!
+//! The spells' own cameras ([`EffectLibrary`], `PLAY_CAMERA` in the
+//! effect's sequence stream) are played by `battle_camera_play`; a summon
+//! keeps the scene's camera, as its models are not drawn.
+//!
+//! Other spells are not drawn.
 
 use bevy::math::Vec3;
-use tantalus_tools::battle_effects::EffectTiming;
+use tantalus_tools::battle_effects::{EffectCameraPlay, EffectTiming, effect_camera_plays};
 use tantalus_tools::battle_stage::{BATTLE_TICKS_PER_SECOND, BattleStage, StageEvent};
 
 use crate::battle_raster::{BattleCamera, Blend, DrawState, Frame, Texture, ViewVertex};
@@ -25,6 +35,12 @@ pub enum EffectKind {
     Blizzard,
     Thunder,
     Cure,
+    /// `Shiva__Full` 38 / `__Short` 407.
+    Shiva,
+    /// `Ifrit__Full` 276 / `__Short` 445.
+    Ifrit,
+    /// `Ramuh__Full` 186 / `__Short` 415.
+    Ramuh,
 }
 
 impl EffectKind {
@@ -36,8 +52,15 @@ impl EffectKind {
             6 | 62 => Some(Self::Blizzard),
             3 | 66 => Some(Self::Thunder),
             8 | 9 => Some(Self::Cure),
+            38 | 407 => Some(Self::Shiva),
+            276 | 445 => Some(Self::Ifrit),
+            186 | 415 => Some(Self::Ramuh),
             _ => None,
         }
+    }
+
+    pub fn is_summon(self) -> bool {
+        matches!(self, Self::Shiva | Self::Ifrit | Self::Ramuh)
     }
 }
 
@@ -48,7 +71,10 @@ pub struct StageEffect {
     pub caster: usize,
     pub targets: Vec<usize>,
     pub timing: EffectTiming,
-    /// Stage tick of `PlaySFX`: the `EffectApplied` tick less `hit`.
+    /// Stage tick of the machine's `EffectApplied`.
+    pub applied: f64,
+    /// Stage tick of `PlaySFX`: `applied` less `hit`, not before the
+    /// command.
     pub start: f64,
 }
 
@@ -56,6 +82,51 @@ impl StageEffect {
     /// Battle frames since `PlaySFX` at `seconds`.
     pub fn age(&self, seconds: f64) -> f64 {
         seconds * BATTLE_TICKS_PER_SECOND - self.start
+    }
+}
+
+/// The effects' data (`ef<id>` TextAssets of `resources.assets`), read
+/// when first asked for: the cameras each effect plays.
+#[derive(Debug)]
+pub struct EffectLibrary {
+    resources: std::path::PathBuf,
+    cache: std::sync::Mutex<std::collections::HashMap<i32, std::sync::Arc<Vec<EffectCameraPlay>>>>,
+}
+
+impl EffectLibrary {
+    /// `resources` is `x64/FF9_Data/resources.assets`.
+    pub fn new(resources: std::path::PathBuf) -> Self {
+        Self {
+            resources,
+            cache: std::sync::Mutex::new(std::collections::HashMap::new()),
+        }
+    }
+
+    /// The cameras effect `id` plays (empty when its data is missing).
+    pub fn cameras(&self, id: i32) -> std::sync::Arc<Vec<EffectCameraPlay>> {
+        let mut cache = self
+            .cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        cache
+            .entry(id)
+            .or_insert_with(|| std::sync::Arc::new(self.read(id).unwrap_or_default()))
+            .clone()
+    }
+
+    fn read(&self, id: i32) -> Option<Vec<EffectCameraPlay>> {
+        use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
+        use tantalus_assets::pc::special_effect::EffectFile;
+        let name = format!("ef{id:03}");
+        let mut file = StandaloneSerialized::open(&self.resources).ok()?;
+        let (_, object) = file
+            .text_assets()
+            .ok()?
+            .into_iter()
+            .find(|(asset, _)| *asset == name)?;
+        let bytes = file.read_text_asset(&object).ok()?.script;
+        let effect = EffectFile::parse(&bytes, &name).ok()?;
+        Some(effect_camera_plays(&effect, &bytes))
     }
 }
 
@@ -106,7 +177,8 @@ pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
                 caster: *unit,
                 targets: targets.clone(),
                 timing,
-                start: applied as f64 - f64::from(timing.hit),
+                applied: applied as f64,
+                start: (applied as f64 - f64::from(timing.hit)).max(tick as f64),
             });
         }
     }
@@ -118,12 +190,11 @@ pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
 pub fn figure_delay(effects: &[StageEffect], caster: usize, tick: usize) -> f64 {
     effects
         .iter()
-        .find(|effect| {
-            effect.caster == caster
-                && (effect.start + f64::from(effect.timing.hit) - tick as f64).abs() < 0.5
-        })
+        .find(|effect| effect.caster == caster && (effect.applied - tick as f64).abs() < 0.5)
         .map_or(0.0, |effect| {
-            f64::from(effect.timing.figure - effect.timing.hit) / BATTLE_TICKS_PER_SECOND
+            ((effect.start + f64::from(effect.timing.figure) - effect.applied)
+                / BATTLE_TICKS_PER_SECOND)
+                .max(0.0)
         })
 }
 
@@ -196,11 +267,19 @@ pub fn draw_effects(
             };
             let mut sprites = Vec::new();
             let seed = (*target as u32).wrapping_mul(2_654_435_761) ^ (order as u32);
+            // A summon: the same shapes, larger.
+            let big = UnitSpot {
+                feet: spot.feet,
+                height: spot.height.max(400.0) * 2.0,
+            };
             match kind {
                 EffectKind::Fire => fire(&mut sprites, spot, age, hit, length, seed),
                 EffectKind::Blizzard => blizzard(&mut sprites, spot, age, hit, length, seed),
                 EffectKind::Thunder => thunder(&mut sprites, spot, age, hit, length, seed),
                 EffectKind::Cure => cure(&mut sprites, spot, age, hit, length, seed),
+                EffectKind::Shiva => blizzard(&mut sprites, big, age, hit, length, seed),
+                EffectKind::Ifrit => fire(&mut sprites, big, age, hit, length, seed),
+                EffectKind::Ramuh => thunder(&mut sprites, big, age, hit, length, seed),
             }
             for sprite in sprites {
                 draw_sprite(frame, camera, &sprite);
@@ -594,6 +673,7 @@ mod tests {
                 length: 41,
                 dim: Some((0.5, 4, 41)),
             },
+            applied: 11.0,
             start: 0.0,
         };
         let at = |frame: f64| {
