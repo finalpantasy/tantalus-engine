@@ -89,6 +89,33 @@ impl<'a> FieldHost<'a> {
             )
         })
     }
+
+    /// `StartTurn` for `TURNA`, `TURNTO` and `TURNDS`: nothing when already facing the
+    /// angle; otherwise the turn starts, and a long one restarts the animation flags
+    /// (`turn_restarts_animation`).
+    fn start_turn(&mut self, actor: EntityId, angle: i16, speed: i32) -> Result<(), EngineError> {
+        let facing = facing_from_fixed_point(angle);
+        let speed = if speed == 0 { 16 } else { speed };
+        let long_turn = turn_restarts_animation(self.world, actor, facing, speed);
+        let state = self.actor_mut(actor, "turn")?;
+        if facing == state.facing {
+            return Ok(());
+        }
+        if long_turn {
+            state.anim_hold = false;
+            state.anim_loop = false;
+            state.anim_loops = 0;
+        }
+        state.in_frame = 0;
+        state.out_frame = u8::MAX;
+        state.facing = facing;
+        state.turn = Some(Turn {
+            target: angle,
+            speed,
+            remaining_ticks: 1 + speed.max(1) as u32,
+        });
+        Ok(())
+    }
 }
 
 impl FieldHost<'_> {
@@ -1016,38 +1043,15 @@ impl LegacyEventHost for FieldHost<'_> {
                     speed,
                 } => {
                     let ticks = 1 + ((*speed).max(1) as u32);
-                    let turn_frames = |left: bool, world: &super::world::FieldWorld| {
-                        let state = world.actors.get(actor)?;
-                        let id = if left {
-                            state.look.turn_left
-                        } else {
-                            state.look.turn_right
-                        }?;
-                        world.animation_frame_counts.as_ref().and_then(|c| c(id))
-                    };
                     // `StartTurn` (DoEventCode.cs:3340): a turn long enough to need its
                     // turn animation (more than 5 frames) restarts the animation flags
                     // (`animFlag = 0`), so a leftover loop or hold ends with it.
-                    let previous = self.world.actors.get(actor).map(|state| state.facing);
-                    let target = facing_from_fixed_point(*angle);
-                    let long_turn = previous.is_some_and(|previous| {
-                        let mut delta = f32::from((target - previous) & 0xFF) * 360.0 / 256.0;
-                        if delta > 180.0 {
-                            delta -= 360.0;
-                        }
-                        if delta.abs() < 0.01 {
-                            return false;
-                        }
-                        let Some(frames) = turn_frames(delta < 0.0, self.world) else {
-                            return false;
-                        };
-                        let speed = if *speed == 0 { 16 } else { *speed };
-                        let mut count = (i32::from(frames) << 4) / speed;
-                        if delta.abs() < 90.0 {
-                            count = (count as f32 * delta.abs() / 90.0) as i32;
-                        }
-                        count > 5
-                    });
+                    let long_turn = turn_restarts_animation(
+                        self.world,
+                        *actor,
+                        facing_from_fixed_point(*angle),
+                        *speed,
+                    );
                     let state = self.actor_mut(*actor, "turn")?;
                     if long_turn {
                         state.anim_hold = false;
@@ -1110,7 +1114,7 @@ impl LegacyEventHost for FieldHost<'_> {
                     if let Some(target_position) = target_position {
                         let state = self.actor_mut(*actor, "turn toward object")?;
                         let angle = angle_toward(state.position, target_position);
-                        start_turn(state, angle, *speed);
+                        self.start_turn(*actor, angle, *speed)?;
                     }
                 }
                 HostEvent::TurnActorToPosition { actor, x, z } => {
@@ -1122,14 +1126,14 @@ impl LegacyEventHost for FieldHost<'_> {
                     {
                         let angle = angle_toward(state.position, [*x as f32, 0.0, *z as f32]);
                         let speed = i32::from(state.turn_speed);
-                        start_turn(state, angle, speed);
+                        self.start_turn(*actor, angle, speed)?;
                     }
                 }
                 HostEvent::TurnToAngle { actor, angle } => {
                     // `TURNDS`: a turn at the object's own turn speed.
                     let state = self.actor_mut(*actor, "turn to angle")?;
                     let speed = i32::from(state.turn_speed);
-                    start_turn(state, *angle, speed);
+                    self.start_turn(*actor, *angle, speed)?;
                 }
                 HostEvent::TurnObjectToAngle { actor, angle } => {
                     // `DDIR` (0x87): the object faces the angle at once (0 south .. 192 east).
@@ -2000,20 +2004,40 @@ fn angle_toward(from: [f32; 3], to: [f32; 3]) -> i16 {
 
 /// `StartTurn` (DoEventCode.cs:3339): a turn onto the angle it already faces does nothing;
 /// a speed of 0 means 16.
-fn start_turn(state: &mut crate::field::ActorState, angle: i16, speed: i32) {
-    let facing = facing_from_fixed_point(angle);
-    if facing == state.facing {
-        return;
+/// `StartTurn` (DoEventCode.cs:3340-3430): a turn needing more than 5 frames of its
+/// turn animation (left or right clip, scaled by the angle under 90 degrees) plays that
+/// clip with `animFlag = 0`, which ends a leftover loop or hold flag.
+fn turn_restarts_animation(
+    world: &super::world::FieldWorld,
+    actor: EntityId,
+    target: i16,
+    speed: i32,
+) -> bool {
+    let Some(state) = world.actors.get(&actor) else {
+        return false;
+    };
+    let mut delta = f32::from((target - state.facing) & 0xFF) * 360.0 / 256.0;
+    if delta > 180.0 {
+        delta -= 360.0;
     }
+    if delta.abs() < 0.01 {
+        return false;
+    }
+    let id = if delta < 0.0 {
+        state.look.turn_left
+    } else {
+        state.look.turn_right
+    };
+    let Some(frames) = id.and_then(|id| world.animation_frame_counts.as_ref().and_then(|c| c(id)))
+    else {
+        return false;
+    };
     let speed = if speed == 0 { 16 } else { speed };
-    state.in_frame = 0;
-    state.out_frame = u8::MAX;
-    state.facing = facing;
-    state.turn = Some(Turn {
-        target: angle,
-        speed,
-        remaining_ticks: 1 + speed.max(1) as u32,
-    });
+    let mut count = (i32::from(frames) << 4) / speed;
+    if delta.abs() < 90.0 {
+        count = (count as f32 * delta.abs() / 90.0) as i32;
+    }
+    count > 5
 }
 
 /// `chr2slot`: a script's character index as a character id; anything outside the twelve
@@ -2101,6 +2125,53 @@ mod tests {
             current_mp: 0,
             max_mp: 20,
         }
+    }
+
+    /// Field 1608 (scenario 6840): Dagger loops an animation, then `TURNA` faces another
+    /// actor. `StartTurn` (DoEventCode.cs:3340) restarts the animation flags for a turn
+    /// that plays its turn clip, so the next `WaitAnimation` is not held by the old loop.
+    #[test]
+    fn a_long_object_turn_ends_a_leftover_animation_loop() {
+        let mut world = FieldWorld::new();
+        let actor = EntityId::new(15);
+        let other = EntityId::new(10);
+        world
+            .actors
+            .insert(actor, crate::field::ActorState::new([0.0; 3]));
+        world
+            .actors
+            .insert(other, crate::field::ActorState::new([100.0, 0.0, 100.0]));
+        {
+            let state = world.actors.get_mut(&actor).unwrap();
+            state.look.turn_left = Some(1);
+            state.look.turn_right = Some(2);
+            state.anim_loop = true;
+            state.facing = 0;
+        }
+        world.animation_frame_counts = Some(std::sync::Arc::new(|_| Some(20)));
+        let turn = HostEvent::TurnTowardObject {
+            actor,
+            target: 10,
+            speed: 16,
+        };
+        FieldHost::new(&mut world)
+            .apply(std::slice::from_ref(&turn))
+            .unwrap();
+        let state = &world.actors[&actor];
+        assert!(state.turn.is_some());
+        assert!(!state.anim_loop);
+
+        // A turn too short to need its clip leaves the loop alone.
+        let state = world.actors.get_mut(&actor).unwrap();
+        state.turn = None;
+        state.anim_loop = true;
+        world.animation_frame_counts = Some(std::sync::Arc::new(|_| Some(3)));
+        let state = world.actors.get_mut(&actor).unwrap();
+        state.facing = 0;
+        FieldHost::new(&mut world)
+            .apply(std::slice::from_ref(&turn))
+            .unwrap();
+        assert!(world.actors[&actor].anim_loop);
     }
 
     #[test]
