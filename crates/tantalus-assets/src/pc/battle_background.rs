@@ -257,6 +257,8 @@ fn build_mesh(
                         },
                         None => None,
                     };
+                    let texture = texture
+                        .or_else(|| stripped_world_texture(store, &material.name, textures, out));
                     (material.name, texture)
                 }
                 _ => (String::new(), None),
@@ -288,6 +290,36 @@ fn build_mesh(
         indices: mesh.indices.iter().map(|&i| u32::from(i)).collect(),
         submeshes,
     }))
+}
+
+/// World materials whose texture object is not in the bundle: the reference
+/// loads their texture by name instead (`WMBlock.ObjectNameToPaths`, the
+/// `WorldMap/Materials/<name>.png` entries; the volcano's crater and lava).
+fn stripped_world_texture(
+    store: &SerializedStore<'_, '_>,
+    material: &str,
+    textures: &mut HashMap<i64, Option<usize>>,
+    out: &mut BattleBackground,
+) -> Option<usize> {
+    let file = match material {
+        "VolcanoCrater1" => "0_4_0_128",
+        "VolcanoCrater2" => "1_4_0_128",
+        "VolcanoLava1" => "0_4_0_192",
+        "VolcanoLava2" => "1_4_0_192",
+        _ => return None,
+    };
+    let wanted = format!("assets/resources/worldmap/materials/{file}.png");
+    let entry = store
+        .container()
+        .ok()?
+        .into_iter()
+        .find(|entry| entry.path == wanted)?;
+    if let Some(slot) = textures.get(&entry.path_id) {
+        return *slot;
+    }
+    let slot = decode_texture(store, entry.path_id, out);
+    textures.insert(entry.path_id, slot);
+    slot
 }
 
 fn decode_texture(
