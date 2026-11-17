@@ -345,7 +345,8 @@ match the DLL (`battle_effects::is_drawn`: 212-224 and Photon 299):
   the scene with `Frame::draw_screen` (`Blend::Add`, `Blend::Subtract` on the CPU and the GPU).
   Batches that sample the screen (the blur texture: 15-bit pages left of page 6) draw from a capture of the frame taken
   before the effect (`Frame::capture`; on the GPU a `Command::Capture` copies the target between passes). The `DR_MOVE`
-  screen shots of Slow and Silent Voice are not drawn (`sfx-battle-screen-copy`).
+  screen shots of Slow and Silent Voice are `Batch::capture` markers: the view captures the frame there and the later
+  page 7 and 9 batches sample it (`sfx-battle-screenshot-twist`).
 
 `SfxRuntime::load_effect` runs the translated plugin to the effect's end and returns its
 `LoadImage` uploads; `loader::effect_uploads` stays for the oracle tests.

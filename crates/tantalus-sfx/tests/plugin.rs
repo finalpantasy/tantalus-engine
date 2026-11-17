@@ -702,6 +702,76 @@ fn probe_screen() {
     }
 }
 
+/// What each effect draws (`TANTALUS_SFX_FROM`..`TANTALUS_SFX_TO`): frames,
+/// triangles, packets between a `DR_AREA` begin and end (drawn into a texture,
+/// not drawn by the port), screen shots, and batches whose page is blank.
+#[test]
+#[ignore = "probe"]
+fn probe_draw_audit() {
+    let range = |name: &str, default: i32| {
+        std::env::var(name)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    };
+    let mut file = tantalus_assets::pc::serialized_inventory::StandaloneSerialized::open(
+        &common::install().join("x64/FF9_Data/resources.assets"),
+    )
+    .expect("assets");
+    let names: std::collections::HashSet<String> = file
+        .text_assets()
+        .expect("text assets")
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+    for id in range("TANTALUS_SFX_FROM", 0)..range("TANTALUS_SFX_TO", 512) {
+        let short =
+            (100..=118).contains(&id) || (313..=376).contains(&id) || (461..=485).contains(&id);
+        if !short && !names.contains(&format!("ef{id:03}")) {
+            continue;
+        }
+        let Ok(run) = std::panic::catch_unwind(|| run_port(id, 900, 0x1_8000_0000)) else {
+            println!("effect {id}: PANIC");
+            continue;
+        };
+        let mut vram = tantalus_sfx::vram::Vram::default();
+        let (mut triangles, mut blank, mut area, mut shots, mut moves, mut screen) =
+            (0, 0, 0, 0, 0, 0);
+        let mut shot_frames = (usize::MAX, 0);
+        for (index, frame) in run.frames.iter().enumerate() {
+            let list = tantalus_sfx::render::render_list(id, frame, &mut vram);
+            for batch in &list.batches {
+                triangles += batch.triangles.len();
+                if batch.capture {
+                    shot_frames = (shot_frames.0.min(index), index);
+                }
+                shots += usize::from(batch.capture);
+                if batch.screen {
+                    screen += batch.triangles.len();
+                }
+                if let Some(page) = batch.page.and_then(|page| list.pages.get(page))
+                    && page.rgba.chunks(4).all(|texel| texel[3] == 0)
+                {
+                    blank += batch.triangles.len();
+                }
+            }
+            for (_, words) in frame {
+                match words.get(1).map(|w| w >> 24) {
+                    Some(0xE4) if words.get(2).is_some_and(|w| w >> 16 != 0) => area += 1,
+                    Some(0xE7) => moves += 1,
+                    _ => {}
+                }
+            }
+        }
+        println!(
+            "effect {id}: {} frames, {triangles} tris, {blank} on blank pages, {screen} on screen, {area} DR_AREA, {moves} DR_MOVE, {shots} shots (frames {}..{})",
+            run.frames.len(),
+            shot_frames.0,
+            shot_frames.1
+        );
+    }
+}
+
 /// The translated GTE functions against the DLL's own on random register
 /// files (`GteRtps` 0x3E80, `GteRtV0Tr` 0x3D60, `GteAvsz3` 0x48D0,
 /// `GteDpcs` 0x4B50).

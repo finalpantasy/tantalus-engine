@@ -23,14 +23,19 @@
 //! the scene left; those batches carry `screen` and the host samples its
 //! own frame (`SFXMesh.GetTexture`, `PSXTextureMgr.blurTexture`).
 //!
-//! Not drawn yet: `DR_MOVE` screen shots into a texture (`SFXScreenShot`,
-//! Slow and Silent Voice) and the packets between a `DR_AREA` begin and
-//! end, which the game draws into a texture.
+//! A `DR_MOVE` from the display area is a screen shot (`SFXScreenShot`,
+//! Slow and Silent Voice): a `capture` batch, and the later batches that
+//! use page 7 or 9 sample it. Not drawn yet: the packets between a
+//! `DR_AREA` begin and end, which the game draws into a texture.
 
 use std::collections::HashMap;
 
 use crate::plugin::Prim;
 use crate::vram::{Rect, Vram};
+
+/// `SpecialEffect.Slow` and `SpecialEffect.Silent_Voice`.
+const SLOW: i32 = 126;
+const SILENT_VOICE: i32 = 395;
 
 /// `SFX.playParam`: per effect, bits 0-1 the subtractive pass's place
 /// (`S1`..`S3`, 0 for the default 3), bits 2-3 the color intensity (`C1`..
@@ -70,6 +75,11 @@ pub struct Batch {
     /// buffer area (page x below 6). Corner texels are PSX screen pixels
     /// (320 x 240), and `page` is `None`.
     pub screen: bool,
+    /// No triangles: take the screen as it is now, and sample it from here
+    /// on (`SFXScreenShot`, the `DR_MOVE` from the display area of Slow and
+    /// Silent Voice; the texels of the batches after it are PSX pixels of
+    /// that capture).
+    pub capture: bool,
     pub triangles: Vec<[Corner; 3]>,
 }
 
@@ -135,6 +145,10 @@ struct Builder<'a> {
     offset: [i32; 2],
     /// Inside a `DR_AREA` render-to-texture pair.
     offscreen: bool,
+    /// The effect (`SFX.currentEffectID`).
+    effect: i32,
+    /// Where the last screen shot (`DR_MOVE`) starts on the PSX screen.
+    shot: Option<[i32; 2]>,
     /// Color intensity (`ColorData`).
     intensity: f32,
     sub_order: i32,
@@ -448,13 +462,25 @@ impl Builder<'_> {
                     self.offset = [i32::from(value as u16), i32::from((value >> 16) as u16)];
                 }
                 // DR_MOVE: a VRAM copy, or (from the frame buffer) a screen
-                // capture, which is not drawn.
+                // shot.
                 0xE7 => {
                     self.flush();
                     let (rx, ry) = (i32::from((w(1) >> 16) as u16), i32::from(w(1) as i16));
                     let (rw, rh) = ((w(2) >> 16) as i16, w(2) as i16);
                     let (x, y) = ((w(3) >> 16) as i16, w(3) as i16);
-                    if !(rx < 320 && ry < 240) {
+                    if rx < 320 && ry < 240 {
+                        // `SFXRender.DR_MOVE`: a `SFXScreenShot` at (rx, ry);
+                        // Slow's sits 128 rows higher.
+                        let ry = if self.effect == SLOW { ry - 128 } else { ry };
+                        self.shot = Some([rx, ry]);
+                        self.out.batches.push(Batch {
+                            blend: Blend::Opaque,
+                            page: None,
+                            screen: false,
+                            capture: true,
+                            triangles: Vec::new(),
+                        });
+                    } else {
                         self.vram.move_image(
                             Rect {
                                 x: rx as i16,
@@ -495,15 +521,41 @@ impl Builder<'_> {
             // `SFXMesh.GetTexture`: a 15-bit page (mode 2) left of page 6
             // is the screen (`SFXKey.IsBlurTexture`); the packets' texels
             // address the captured screen, not VRAM.
-            let screen = mesh
+            let mut screen = mesh
                 .texture
                 .is_some_and(|(tpage, _)| (tpage >> 7) & 3 == 2 && tpage & 0xF < 6);
+            let mut triangles = mesh.triangles;
+            // Slow's page 7 and Silent Voice's pages 7 and 9 (texture keys
+            // 0x578000 and 0x598000) are the last screen shot; page 9 reads
+            // 128 texels further right.
+            let shot = mesh.texture.and_then(|(tpage, _)| {
+                if (tpage >> 7) & 3 != 2 || (tpage >> 4) & 1 != 1 {
+                    return None;
+                }
+                match (self.effect, tpage & 0xF) {
+                    (SLOW, 7) | (SILENT_VOICE, 7) => Some(0.0),
+                    (SILENT_VOICE, 9) => Some(128.0),
+                    _ => None,
+                }
+            });
+            if let Some(shift) = shot {
+                // No shot yet: the texture is missing and nothing draws.
+                let Some(origin) = self.shot else {
+                    continue;
+                };
+                screen = true;
+                for corner in triangles.iter_mut().flatten() {
+                    corner.uv[0] += shift + origin[0] as f32;
+                    corner.uv[1] += origin[1] as f32;
+                }
+            }
             let page = mesh.texture.filter(|_| !screen).map(|key| self.page(key));
             self.out.batches.push(Batch {
                 blend: mesh.list.blend(),
                 page,
                 screen,
-                triangles: mesh.triangles,
+                capture: false,
+                triangles,
             });
         }
     }
@@ -577,6 +629,8 @@ pub fn render_list(effect: i32, prims: &[Prim], vram: &mut Vram) -> RenderList {
         tpage: 0,
         offset: [0, 0],
         offscreen: false,
+        effect,
+        shot: None,
         intensity,
         sub_order,
         add_first: (param >> 28) & 1 != 0,
@@ -630,5 +684,43 @@ mod tests {
         assert_eq!(list.batches[0].triangles[0][0].uv, [128.0, 0.0]);
         let list = render_list(0, &[quad(0x44, 0x100, corners)], &mut vram);
         assert_eq!(list.batches[0].triangles[0][0].uv, [0.0, 0.0]);
+    }
+
+    /// A `DR_MOVE` packet from (rx, ry), 8 x 8, to (0, 0).
+    fn screen_move(rx: u16, ry: u16) -> (i32, Vec<u32>) {
+        (
+            0,
+            vec![
+                0,
+                0xE700_0000,
+                u32::from(rx) << 16 | u32::from(ry),
+                8 << 16 | 8,
+                0,
+            ],
+        )
+    }
+
+    #[test]
+    fn a_screen_shot_is_taken_where_slow_and_silent_voice_ask() {
+        let corners = [[0, 0, 0, 0], [8, 0, 8, 0], [0, 8, 0, 8], [8, 8, 8, 8]];
+        let mut vram = Vram::default();
+        // Page 7, y 1, 15-bit: Slow's screen shot (its DR_MOVE sits 128
+        // rows up), Silent Voice's page 9 reads 128 texels further right.
+        let packets = [
+            screen_move(20, 140),
+            quad(0x2C, 0x117, corners),
+            quad(0x2C, 0x119, corners),
+        ];
+        let slow = render_list(126, &packets, &mut vram);
+        assert!(slow.batches[0].capture);
+        assert!(slow.batches[1].screen && !slow.batches[2].screen);
+        assert_eq!(slow.batches[1].triangles[0][0].uv, [20.0, 12.0]);
+        let voice = render_list(395, &packets, &mut vram);
+        assert_eq!(voice.batches.len(), 3);
+        assert_eq!(voice.batches[1].triangles[0][0].uv, [20.0, 140.0]);
+        assert_eq!(voice.batches[2].triangles[0][0].uv, [148.0, 140.0]);
+        // Any other effect draws the page from VRAM.
+        let other = render_list(0, &packets, &mut vram);
+        assert!(other.batches[1..].iter().all(|batch| !batch.screen));
     }
 }

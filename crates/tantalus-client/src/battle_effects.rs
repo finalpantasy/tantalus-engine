@@ -675,7 +675,14 @@ pub fn draw_list(frame: &mut Frame, list: &tantalus_sfx::render::RenderList) {
         .any(|batch| batch.screen)
         .then(|| frame.capture())
         .flatten();
+    let mut screen = screen;
     for batch in &list.batches {
+        if batch.capture {
+            // `SFXScreenShot.Render`: the screen as the batches before it
+            // left it.
+            screen = frame.capture();
+            continue;
+        }
         let blend = match batch.blend {
             PsxBlend::Opaque => Blend::Opaque,
             PsxBlend::Add => Blend::Add,
@@ -893,6 +900,100 @@ mod tests {
             .max()
             .unwrap_or(0);
         assert!(most > 500, "lit {most}");
+    }
+
+    /// A contact sheet of one effect played in the battle view: effect
+    /// `TANTALUS_SFX_EFFECT` on a caster and a target, frames
+    /// `TANTALUS_SFX_FRAMES` (comma separated), over `TANTALUS_SFX_BG` (a
+    /// PNG of a battle, or a test pattern), to `TANTALUS_SFX_OUT`.
+    #[test]
+    #[ignore = "needs the game data; writes a PNG"]
+    fn an_effect_contact_sheet() {
+        let var = |name: &str| std::env::var(name).unwrap_or_default();
+        let id: i32 = var("TANTALUS_SFX_EFFECT").parse().unwrap_or(0);
+        let frames: Vec<u32> = var("TANTALUS_SFX_FRAMES")
+            .split(',')
+            .filter_map(|frame| frame.parse().ok())
+            .collect();
+        let library = EffectLibrary::new(install().join("x64/FF9_Data/resources.assets"));
+        let mut stage = fire_stage();
+        stage.units[1] = unit(StageModel::Enemy {
+            geo: 0,
+            idle: 0,
+            hit: 0,
+            death: 0,
+        });
+        stage.units[0].position = [0.0, 0.0, 1000.0];
+        stage.units[1].position = [0.0, 0.0, -1000.0];
+        let effect = StageEffect {
+            id,
+            caster: 0,
+            targets: vec![1],
+            item: false,
+            args: [0; 3],
+            timing: EffectTiming::default(),
+            applied: 0.0,
+            start: 0.0,
+        };
+        let camera = BattleCamera::preset(0);
+        let spots: Vec<_> = stage
+            .units
+            .iter()
+            .map(|unit| {
+                Some(UnitSpot {
+                    feet: unit.position,
+                    height: 600.0,
+                    turn: 0.0,
+                    bones: Default::default(),
+                })
+            })
+            .collect();
+        let (w, h) = (480u32, 330u32);
+        let background = match image::open(var("TANTALUS_SFX_BG")) {
+            Ok(png) => image::imageops::resize(
+                &png.to_rgba8(),
+                w,
+                h,
+                image::imageops::FilterType::Triangle,
+            ),
+            Err(_) => image::RgbaImage::from_fn(w, h, |x, y| {
+                let tile = ((x / 24) + (y / 24)) % 2 == 0;
+                let base = if tile { 150 } else { 90 };
+                image::Rgba([
+                    (x * 255 / w) as u8 / 2 + base / 2,
+                    base,
+                    (y * 255 / h) as u8,
+                    255,
+                ])
+            }),
+        };
+        let columns = 3u32;
+        let rows = (frames.len() as u32).div_ceil(columns).max(1);
+        let mut sheet = image::RgbaImage::new(w * columns, h * rows);
+        for (index, shot) in frames.iter().enumerate() {
+            let mut frame = Frame::new(w, h, [0, 0, 0, 255]);
+            frame.rgba.copy_from_slice(background.as_raw());
+            // The plugin steps one frame per call, so ask for each shot
+            // after the ones before it (the view plays a frame ahead).
+            draw_effects(
+                &mut frame,
+                &camera,
+                &library,
+                &stage,
+                std::slice::from_ref(&effect),
+                &spots,
+                f64::from(*shot) / BATTLE_TICKS_PER_SECOND,
+            );
+            let (cx, cy) = ((index as u32 % columns) * w, (index as u32 / columns) * h);
+            for y in 0..h {
+                for x in 0..w {
+                    let at = ((y * w + x) * 4) as usize;
+                    let p = &frame.rgba[at..at + 4];
+                    sheet.put_pixel(cx + x, cy + y, image::Rgba([p[0], p[1], p[2], 255]));
+                }
+            }
+        }
+        sheet.save(var("TANTALUS_SFX_OUT")).expect("png");
     }
 
     /// A battle's effect frames (`TANTALUS_SFX_DUMP`, written by a
