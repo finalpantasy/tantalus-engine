@@ -22,6 +22,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tantalus_tools::play::pad;
 
+use crate::bundle_store::with_store;
 use bevy::math::{Quat, Vec3};
 use tantalus_assets::pc::battle_background::{
     BattleBackground, BbgBlend, BbgGroup, assemble_background,
@@ -35,11 +36,9 @@ use tantalus_assets::pc::model_assembly::pose::{
     Interpolation, bind_clip, rest_pose, sample_clip, skin_model, transform_point,
 };
 use tantalus_assets::pc::model_assembly::{
-    AssembleOptions, AssembledModel, ModelCatalog, SerializedStore, assemble_model, clip_entries,
+    AssembleOptions, AssembledModel, ModelCatalog, assemble_model, clip_entries,
 };
-use tantalus_assets::pc::serialized::SerializedFile;
 use tantalus_assets::pc::unity_object::animation::AnimationClip;
-use tantalus_assets::pc::unity_raw::UnityRawBundle;
 use tantalus_tools::battle_stage::{BATTLE_TICKS_PER_SECOND, BattleStage, StageFrame, StageModel};
 
 use crate::battle_camera_play::CameraDirector;
@@ -47,7 +46,6 @@ use crate::battle_hud::{BattleHud, HudDraw, MenuDraw, PartyRow};
 use crate::battle_motion::{ClipKey, Motions, UnitMotion, damage_numbers, unit_motion};
 use crate::battle_raster::{BattleCamera, Blend, DrawState, Frame, Texture, ViewVertex};
 
-const MAX_BUNDLE_BYTES: usize = 600 * 1024 * 1024;
 /// Container folder of the battle backgrounds.
 const BACKGROUND_PREFIX: &str = "assets/resources/battlemap/battlemodel/battlemap_all/";
 /// Unity `MeshTopology.Triangles`.
@@ -179,48 +177,16 @@ impl BattleAssets {
     /// Loads what `stage` needs. One line per thing that failed.
     pub fn prepare(&mut self, stage: &BattleStage) -> Vec<String> {
         let mut problems = Vec::new();
-        match background_name(&stage.scene) {
-            None => problems.push(format!("no MapModel row for BSC_{}", stage.scene)),
-            Some(name) => {
-                let key = name.to_ascii_lowercase();
-                if !self.backgrounds.contains_key(&key) {
-                    let loaded = with_store(&self.battle_bundle, |store| {
-                        let entries = store.container().map_err(|error| error.to_string())?;
-                        let path = format!("{BACKGROUND_PREFIX}{key}/{key}.prefab");
-                        let root = entries
-                            .iter()
-                            .find(|entry| entry.class_id == 1 && entry.path == path)
-                            .or_else(|| {
-                                entries.iter().find(|entry| {
-                                    entry.class_id == 1
-                                        && entry
-                                            .path
-                                            .starts_with(&format!("{BACKGROUND_PREFIX}{key}/{key}"))
-                                })
-                            })
-                            .ok_or_else(|| format!("{path} is not in the bundle"))?;
-                        assemble_background(store, name, root.path_id)
-                            .map_err(|error| error.to_string())
-                    });
-                    match loaded {
-                        Ok(background) => {
-                            problems.extend(
-                                background
-                                    .problems
-                                    .iter()
-                                    .take(3)
-                                    .map(|problem| format!("{name}: {problem}")),
-                            );
-                            self.backgrounds.insert(key, Some(background));
-                        }
-                        Err(error) => {
-                            problems.push(format!("{name}: {error}"));
-                            self.backgrounds.insert(key, None);
-                        }
-                    }
-                }
+        // The background, the models and the clips come from three
+        // separate bundles, so they load side by side.
+        let background_key = match background_name(&stage.scene) {
+            None => {
+                problems.push(format!("no MapModel row for BSC_{}", stage.scene));
+                None
             }
+            Some(name) => Some((name, name.to_ascii_lowercase())),
         }
+        .filter(|(_, key)| !self.backgrounds.contains_key(key));
         let looks: Vec<UnitLook> = stage
             .units
             .iter()
@@ -235,28 +201,114 @@ impl BattleAssets {
             .collect();
         want_models.sort_unstable();
         want_models.dedup();
-        if !want_models.is_empty() {
-            let loaded = with_store(&self.models_bundle, |store| {
-                let entries = store.container().map_err(|error| error.to_string())?;
-                let catalog = ModelCatalog::from_container(&entries);
-                Ok(want_models
-                    .iter()
-                    .map(|geo| {
-                        let model = model_dirs(*geo, &catalog).into_iter().find_map(|dir| {
-                            assemble_model(
-                                store,
-                                &dir.label,
-                                *dir.roots.first()?,
-                                AssembleOptions {
-                                    decode_textures: true,
-                                },
-                            )
-                            .ok()
-                        });
-                        (*geo, model)
+        let mut want_clips: Vec<ClipKey> = looks
+            .iter()
+            .flat_map(|look| look.motions.all())
+            .filter(|clip| !self.clips.contains_key(clip))
+            .collect();
+        want_clips.sort_unstable();
+        want_clips.dedup();
+        let (loaded_background, loaded_models, loaded_clips) = std::thread::scope(|scope| {
+            let background = scope.spawn(|| {
+                crate::live::bench::time("pl_bg", || {
+                    background_key.as_ref().map(|(name, key)| {
+                        with_store(&self.battle_bundle, |store| {
+                            let entries = store.container().map_err(|error| error.to_string())?;
+                            let path = format!("{BACKGROUND_PREFIX}{key}/{key}.prefab");
+                            let root = entries
+                                .iter()
+                                .find(|entry| entry.class_id == 1 && entry.path == path)
+                                .or_else(|| {
+                                    entries.iter().find(|entry| {
+                                        entry.class_id == 1
+                                            && entry.path.starts_with(&format!(
+                                                "{BACKGROUND_PREFIX}{key}/{key}"
+                                            ))
+                                    })
+                                })
+                                .ok_or_else(|| format!("{path} is not in the bundle"))?;
+                            assemble_background(store, name, root.path_id)
+                                .map_err(|error| error.to_string())
+                        })
                     })
-                    .collect::<Vec<_>>())
+                })
             });
+            let models = scope.spawn(|| {
+                crate::live::bench::time("pl_models", || {
+                    (!want_models.is_empty()).then(|| {
+                        with_store(&self.models_bundle, |store| {
+                            let entries = store.container().map_err(|error| error.to_string())?;
+                            let catalog = ModelCatalog::from_container(&entries);
+                            Ok(want_models
+                                .iter()
+                                .map(|geo| {
+                                    let model =
+                                        model_dirs(*geo, &catalog).into_iter().find_map(|dir| {
+                                            assemble_model(
+                                                store,
+                                                &dir.label,
+                                                *dir.roots.first()?,
+                                                AssembleOptions {
+                                                    decode_textures: true,
+                                                },
+                                            )
+                                            .ok()
+                                        });
+                                    (*geo, model)
+                                })
+                                .collect::<Vec<_>>())
+                        })
+                    })
+                })
+            });
+            let clips = scope.spawn(|| {
+                crate::live::bench::time("pl_clips", || {
+                    (!want_clips.is_empty()).then(|| {
+                        with_store(&self.clips_bundle, |store| {
+                            let entries = store.container().map_err(|error| error.to_string())?;
+                            let (clips, _) = clip_entries(&entries);
+                            let by_name: HashMap<(u32, &str), i64> = clips
+                                .iter()
+                                .map(|clip| ((clip.geo_id, clip.name.as_str()), clip.path_id))
+                                .collect();
+                            Ok(want_clips
+                                .iter()
+                                .map(|&(folder, key)| {
+                                    let clip = by_name
+                                        .get(&(folder, key.to_string().as_str()))
+                                        .and_then(|path_id| store.clip(*path_id).ok().flatten());
+                                    ((folder, key), clip)
+                                })
+                                .collect::<Vec<_>>())
+                        })
+                    })
+                })
+            });
+            (
+                background.join().ok().flatten(),
+                models.join().ok().flatten(),
+                clips.join().ok().flatten(),
+            )
+        });
+        if let (Some((name, key)), Some(loaded)) = (background_key, loaded_background) {
+            match loaded {
+                Ok(background) => {
+                    problems.extend(
+                        background
+                            .problems
+                            .iter()
+                            .take(3)
+                            .map(|problem| format!("{name}: {problem}")),
+                    );
+                    self.backgrounds.insert(key, Some(background));
+                }
+                Err(error) => {
+                    problems.push(format!("{name}: {error}"));
+                    self.backgrounds.insert(key, None);
+                }
+            }
+        }
+        if let Some(loaded) = loaded_models {
             match loaded {
                 Ok(loaded) => {
                     for (geo, model) in &loaded {
@@ -273,31 +325,7 @@ impl BattleAssets {
                 }
             }
         }
-        let mut want_clips: Vec<ClipKey> = looks
-            .iter()
-            .flat_map(|look| look.motions.all())
-            .filter(|clip| !self.clips.contains_key(clip))
-            .collect();
-        want_clips.sort_unstable();
-        want_clips.dedup();
-        if !want_clips.is_empty() {
-            let loaded = with_store(&self.clips_bundle, |store| {
-                let entries = store.container().map_err(|error| error.to_string())?;
-                let (clips, _) = clip_entries(&entries);
-                let by_name: HashMap<(u32, &str), i64> = clips
-                    .iter()
-                    .map(|clip| ((clip.geo_id, clip.name.as_str()), clip.path_id))
-                    .collect();
-                Ok(want_clips
-                    .iter()
-                    .map(|&(folder, key)| {
-                        let clip = by_name
-                            .get(&(folder, key.to_string().as_str()))
-                            .and_then(|path_id| store.clip(*path_id).ok().flatten());
-                        ((folder, key), clip)
-                    })
-                    .collect::<Vec<_>>())
-            });
+        if let Some(loaded) = loaded_clips {
             match loaded {
                 Ok(loaded) => self.clips.extend(loaded),
                 Err(error) => {
@@ -309,23 +337,6 @@ impl BattleAssets {
         }
         problems
     }
-}
-
-fn with_store<T>(
-    path: &Path,
-    run: impl FnOnce(&SerializedStore<'_, '_>) -> Result<T, String>,
-) -> Result<T, String> {
-    let source = path
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let bundle = UnityRawBundle::open(path).map_err(|error| error.to_string())?;
-    let bytes = bundle
-        .read_entry(0, MAX_BUNDLE_BYTES)
-        .map_err(|error| error.to_string())?;
-    let file = SerializedFile::parse(&bytes, &source).map_err(|error| error.to_string())?;
-    let store = SerializedStore::new(&file, &source).map_err(|error| error.to_string())?;
-    run(&store)
 }
 
 /// The camera `stage` opens with: `PatAddr[pattern].Camera`, where 3 and

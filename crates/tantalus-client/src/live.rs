@@ -289,6 +289,7 @@ pub fn play(
     game.live_movies = true;
     let audio =
         (!mute).then(|| crate::audio::LiveAudio::start(&streaming_assets, game.game_data()));
+    crate::dialog_view::preload(game.game_data());
     let models = crate::actor_models::ActorModels::new(&streaming_assets);
     let battle_assets = crate::battle_view::BattleAssets::new(&streaming_assets);
     let mut app = App::new();
@@ -573,12 +574,14 @@ fn live_tick_inner(world: &mut World) {
                     .map_err(|error| println!("!! battle font and window art: {error}"))
                     .ok()
             });
-            live.fight = crate::battle_view::FightView::start(
-                Some(world),
-                &mut live.battle_assets,
-                hud.as_ref(),
-                &game,
-            );
+            live.fight = bench::time("load_battle", || {
+                crate::battle_view::FightView::start(
+                    Some(world),
+                    &mut live.battle_assets,
+                    hud.as_ref(),
+                    &game,
+                )
+            });
         }
     }
     {
@@ -637,11 +640,9 @@ fn live_tick_inner(world: &mut World) {
                     }
                 }
                 None => {
-                    live.world_view = Some(crate::world_view::LiveWorld::start(
-                        world,
-                        play,
-                        &live.streaming_assets,
-                    ))
+                    live.world_view = Some(bench::time("load_world", || {
+                        crate::world_view::LiveWorld::start(world, play, &live.streaming_assets)
+                    }))
                 }
             }
             drop(game);
@@ -661,7 +662,9 @@ fn live_tick_inner(world: &mut World) {
         live.markers_at = None;
         live.motion = None;
         if let Some(name) = &background {
-            match find_field(&live.streaming_assets, name) {
+            match bench::time("load_find_field", || {
+                find_field(&live.streaming_assets, name)
+            }) {
                 Ok(field) => live.bundled = Some(field),
                 Err(error) => println!("!! no background {name}: {error}"),
             }
@@ -677,7 +680,8 @@ fn live_tick_inner(world: &mut World) {
             field.scene = scene;
         }
         let mut scene = std::mem::take(&mut live.scene);
-        if let Err(error) = show_field(world, field, &mut scene) {
+        if let Err(error) = bench::time("load_show_field", || show_field(world, field, &mut scene))
+        {
             println!("!! cannot show {}: {error}", field.name);
         }
         live.scene = scene;
@@ -696,7 +700,9 @@ fn live_tick_inner(world: &mut World) {
         let (frame, placed) = bench::time("world_frame", || world_frame(game.world(), game.ticks));
         if live.markers_at != Some(game.ticks) {
             let field_name = game.field_name().map(str::to_owned);
-            for problem in live.models.prepare_field(field_name.as_deref()) {
+            for problem in bench::time("load_prepare_field", || {
+                live.models.prepare_field(field_name.as_deref())
+            }) {
                 println!("!! field light: {problem}");
             }
             live.models.apply_light_changes(&game.world().light_changes);

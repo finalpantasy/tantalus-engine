@@ -88,6 +88,21 @@ pub struct DialogView {
 
 /// Draws the open dialog windows of `game`, rebuilding them only when the
 /// open windows, the choice cursor or an anchor position change.
+/// The dialog font and window art loading on a background thread, started by
+/// [`preload`] so the first dialog does not stall a frame.
+static PRELOAD: std::sync::Mutex<Option<std::thread::JoinHandle<Result<DialogAssets, String>>>> =
+    std::sync::Mutex::new(None);
+
+/// Starts loading the dialog assets for [`sync_dialogs`] to pick up.
+pub fn preload(game_data: &std::path::Path) {
+    let path = game_data.join("resources.assets");
+    if let Ok(mut slot) = PRELOAD.lock() {
+        *slot = Some(std::thread::spawn(move || {
+            DialogAssets::load(&path, WindowAtlasChoice::Blue).map_err(|error| error.to_string())
+        }));
+    }
+}
+
 pub fn sync_dialogs(
     world: &mut World,
     game: &PlayGame,
@@ -111,7 +126,14 @@ pub fn sync_dialogs(
         .collect();
     if view.assets.is_none() {
         let path = game.game_data().join("resources.assets");
-        view.assets = Some(match DialogAssets::load(&path, WindowAtlasChoice::Blue) {
+        let loaded = match PRELOAD.lock().ok().and_then(|mut slot| slot.take()) {
+            Some(handle) => handle
+                .join()
+                .unwrap_or_else(|_| Err("the preload thread failed".to_owned())),
+            None => DialogAssets::load(&path, WindowAtlasChoice::Blue)
+                .map_err(|error| error.to_string()),
+        };
+        view.assets = Some(match loaded {
             Ok(assets) => Some(assets),
             Err(error) => {
                 println!("!! dialog font and window art: {error}");

@@ -164,6 +164,46 @@ impl UnityRawBundle {
         &self.report
     }
 
+    /// Where entry `index` sits in the file: (absolute offset, size), for
+    /// callers that map the file instead of copying the entry out.
+    pub fn entry_span(&self, index: usize) -> Option<(u64, u64)> {
+        let entry = self.report.entries.get(index)?;
+        Some((entry.absolute_offset, u64::from(entry.size)))
+    }
+
+    /// Entry `index` mapped from the file rather than copied out: the
+    /// bundles are hundreds of megabytes stored uncompressed, so this skips
+    /// the copy.
+    pub fn map_entry(
+        &self,
+        index: usize,
+        maximum_bytes: usize,
+    ) -> Result<MappedEntry, ImportError> {
+        let entry = self.report.entries.get(index).ok_or_else(|| {
+            ImportError::invalid(self.path.display(), format!("unknown bundle entry {index}"))
+        })?;
+        if entry.size as usize > maximum_bytes {
+            return Err(ImportError::invalid(
+                self.path.display(),
+                format!("entry `{}` exceeds the read budget", entry.path),
+            ));
+        }
+        let file = File::open(&self.path)
+            .map_err(|source| ImportError::io("open UnityRaw entry", &self.path, source))?;
+        // SAFETY: the game files are not modified while a tool or the client runs.
+        let map = unsafe { memmap2::Mmap::map(&file) }
+            .map_err(|source| ImportError::io("map UnityRaw entry", &self.path, source))?;
+        let start = entry.absolute_offset as usize;
+        let end = start + entry.size as usize;
+        if end > map.len() {
+            return Err(ImportError::invalid(
+                self.path.display(),
+                format!("entry `{}` lies outside the file", entry.path),
+            ));
+        }
+        Ok(MappedEntry { map, start, end })
+    }
+
     pub fn read_entry(&self, index: usize, maximum_bytes: usize) -> Result<Vec<u8>, ImportError> {
         let entry = self.report.entries.get(index).ok_or_else(|| {
             ImportError::invalid(self.path.display(), format!("unknown bundle entry {index}"))
@@ -218,4 +258,19 @@ fn read_c_string(file: &mut File, path: &Path, maximum: usize) -> Result<String,
         path.display(),
         "unterminated UnityRaw string",
     ))
+}
+
+/// A bundle entry mapped from its file (see [`UnityRawBundle::map_entry`]).
+pub struct MappedEntry {
+    map: memmap2::Mmap,
+    start: usize,
+    end: usize,
+}
+
+impl std::ops::Deref for MappedEntry {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.map[self.start..self.end]
+    }
 }

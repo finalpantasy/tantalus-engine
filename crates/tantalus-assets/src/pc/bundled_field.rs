@@ -25,7 +25,7 @@ impl BundledField {
     pub fn load(bundle_path: &Path, field_name: &str) -> Result<Self, ImportError> {
         let source = bundle_path.display().to_string();
         let bundle = UnityRawBundle::open(bundle_path)?;
-        let bytes = bundle.read_entry(0, 300 * 1024 * 1024)?;
+        let bytes = bundle.map_entry(0, 300 * 1024 * 1024)?;
         let serialized = SerializedFile::parse(&bytes, &source)?;
 
         let metadata_index = serialized
@@ -139,7 +139,7 @@ pub fn load_field_animations(
 ) -> Result<Option<(Vec<crate::pc::bgs::BgsAnimation>, usize)>, ImportError> {
     let source = bundle_path.display().to_string();
     let bundle = UnityRawBundle::open(bundle_path)?;
-    let bytes = bundle.read_entry(0, 300 * 1024 * 1024)?;
+    let bytes = bundle.map_entry(0, 300 * 1024 * 1024)?;
     let serialized = SerializedFile::parse(&bytes, &source)?;
     let Some(metadata_index) = serialized
         .report()
@@ -170,7 +170,7 @@ pub fn load_field_navigation(
 ) -> Result<Option<tantalus_contracts::FieldNavigationMesh>, ImportError> {
     let source = bundle_path.display().to_string();
     let bundle = UnityRawBundle::open(bundle_path)?;
-    let bytes = bundle.read_entry(0, 300 * 1024 * 1024)?;
+    let bytes = bundle.map_entry(0, 300 * 1024 * 1024)?;
     let serialized = SerializedFile::parse(&bytes, &source)?;
     let Some(metadata_index) = serialized
         .report()

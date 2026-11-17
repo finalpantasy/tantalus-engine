@@ -8,6 +8,7 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+memmap2 = "0.9"
 fontdue = "0.9.5"
 lewton = "0.10.2"
 oxideav-theora = "0.0.12"

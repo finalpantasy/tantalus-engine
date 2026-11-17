@@ -143,6 +143,68 @@ impl WorldRenderer {
         loaded
     }
 
+    /// Loads the blocks around `here` that are not held yet, side by side
+    /// (walking into new ground needs a row of them at once).
+    fn load_missing(&mut self, play: &WorldPlay, here: (i32, i32)) {
+        let mut missing: Vec<(usize, usize)> = Vec::new();
+        for dy in -RADIUS..=RADIUS {
+            for dx in -RADIUS..=RADIUS {
+                let key = (
+                    (here.0 + dx).rem_euclid(24) as usize,
+                    (here.1 + dy).rem_euclid(20) as usize,
+                );
+                if !self.blocks.contains_key(&key) && !missing.contains(&key) {
+                    missing.push(key);
+                }
+            }
+        }
+        if missing.len() < 2 {
+            return;
+        }
+        let threads = std::thread::available_parallelism()
+            .map_or(4, usize::from)
+            .min(8);
+        let chunk = missing.len().div_ceil(threads);
+        let loaded: Vec<((usize, usize), Result<Option<BattleBackground>, String>)> =
+            std::thread::scope(|scope| {
+                let handles: Vec<_> = missing
+                    .chunks(chunk)
+                    .map(|keys| {
+                        scope.spawn(move || {
+                            keys.iter()
+                                .map(|&(x, y)| {
+                                    let block = if play.assets.has_block(x, y) {
+                                        play.assets
+                                            .render_block(x, y)
+                                            .map(Some)
+                                            .map_err(|error| format!("block [{x}][{y}]: {error}"))
+                                    } else {
+                                        Ok(None)
+                                    };
+                                    ((x, y), block)
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                    })
+                    .collect();
+                handles
+                    .into_iter()
+                    .flat_map(|handle| handle.join().unwrap_or_default())
+                    .collect()
+            });
+        for (key, block) in loaded {
+            match block {
+                Ok(block) => {
+                    self.blocks.insert(key, block.map(Arc::new));
+                }
+                Err(problem) => {
+                    self.problems.push(problem);
+                    self.blocks.insert(key, None);
+                }
+            }
+        }
+    }
+
     /// Draws the world around `play`.
     pub fn render(&mut self, play: &WorldPlay, width: u32, height: u32) -> Frame {
         let camera = camera_for(play);
@@ -164,6 +226,7 @@ impl WorldRenderer {
         self.blocks.retain(|&(x, y), _| {
             apart(x as i32, here.0, 24) <= KEEP && apart(y as i32, here.1, 20) <= KEEP
         });
+        self.load_missing(play, here);
         let mut drawn: Vec<Drawn> = Vec::new();
         for dy in -RADIUS..=RADIUS {
             for dx in -RADIUS..=RADIUS {
@@ -518,8 +581,10 @@ impl LiveWorld {
         use bevy::camera::visibility::RenderLayers;
         use bevy::camera::{RenderTarget, ScalingMode};
         use bevy::prelude::*;
-        let mut renderer = WorldRenderer::new(streaming);
-        let frame = renderer.render(play, LIVE_SIZE.0, LIVE_SIZE.1);
+        let mut renderer = crate::live::bench::time("lw_new", || WorldRenderer::new(streaming));
+        let frame = crate::live::bench::time("lw_first_render", || {
+            renderer.render(play, LIVE_SIZE.0, LIVE_SIZE.1)
+        });
         let image = world
             .resource_mut::<Assets<Image>>()
             .add(crate::battle_view::frame_image(&frame));

@@ -170,6 +170,7 @@ pub fn spawn_frame_markers(
                 (pose.model.is_some() && pose.visible).then_some((*id, *position, pose, carried))
             })
             .collect();
+        let raster_start = std::time::Instant::now();
         std::thread::scope(|scope| {
             let handles: Vec<_> = jobs
                 .iter()
@@ -190,6 +191,8 @@ pub fn spawn_frame_markers(
                 }
             }
         });
+        crate::live::bench::record("m_raster", raster_start.elapsed().as_secs_f64() * 1000.0);
+        crate::live::bench::record("m_jobs", jobs.len() as f64);
     }
     for (id, position) in &frame.actors {
         if !placed.contains(id) || carried_ids.contains(id) {

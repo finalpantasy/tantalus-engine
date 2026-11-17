@@ -11,6 +11,7 @@
 //! the PSX field renderer; the only light is the map config's per-actor
 //! `_Color` and shadow (`field_light`).
 
+use crate::bundle_store::with_store;
 use crate::projection::project_field_point_depth;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -21,14 +22,11 @@ use tantalus_assets::pc::model_assembly::pose::{
     world_matrices,
 };
 use tantalus_assets::pc::model_assembly::{
-    AssembleOptions, AssembledModel, ModelCatalog, SerializedStore, assemble_model, clip_entries,
+    AssembleOptions, AssembledModel, ModelCatalog, assemble_model, clip_entries,
 };
-use tantalus_assets::pc::serialized::SerializedFile;
 use tantalus_assets::pc::unity_object::animation::AnimationClip;
-use tantalus_assets::pc::unity_raw::UnityRawBundle;
 use tantalus_contracts::LegacyFieldCamera;
 
-const MAX_BUNDLE_BYTES: usize = 600 * 1024 * 1024;
 /// Raster pixels per field pixel.
 pub const RASTER_SCALE: f32 = 4.0;
 /// Larger rasters are skipped (an actor almost on the camera plane).
@@ -153,6 +151,16 @@ pub fn rasterize_with(
     triangles: &[([ScreenVertex; 3], Option<Texels<'_>>)],
     fragment: impl Fn([u8; 4], [f32; 4]) -> Option<[u8; 4]>,
 ) -> Option<Raster> {
+    rasterize_rows(triangles, fragment, true)
+}
+
+/// `narrow` limits each row to the columns the triangle can cover; off, the
+/// whole bounding box is scanned (the reference the tests compare to).
+fn rasterize_rows(
+    triangles: &[([ScreenVertex; 3], Option<Texels<'_>>)],
+    fragment: impl Fn([u8; 4], [f32; 4]) -> Option<[u8; 4]>,
+    narrow: bool,
+) -> Option<Raster> {
     let mut min = [f32::INFINITY; 2];
     let mut max = [f32::NEG_INFINITY; 2];
     for vertex in triangles.iter().flat_map(|(vertices, _)| vertices) {
@@ -208,8 +216,23 @@ pub fn rasterize_with(
             .fold(f32::NEG_INFINITY, f32::max)
             .ceil() as u32)
             .min(height);
+        let sign = if area < 0.0 { -1.0 } else { 1.0 };
+        let sides = [(p[1], p[2]), (p[2], p[0]), (p[0], p[1])];
         for y in y0..y1 {
-            for x in x0..x1 {
+            // Columns far from the triangle fail the weight test anyway.
+            let (mut from, mut to) = (i64::from(x0), i64::from(x1));
+            let py = y as f32 + 0.5;
+            let at = x0 as f32 + 0.5;
+            for (a, b) in sides.into_iter().filter(|_| narrow) {
+                let f0 = sign * edge(a, b, [at, py]);
+                let slope = sign * edge(a, b, [at + 1.0, py]) - f0;
+                if slope > 1e-12 {
+                    from = from.max(i64::from(x0) + (-f0 / slope).floor() as i64 - 2);
+                } else if slope < -1e-12 {
+                    to = to.min(i64::from(x0) + (-f0 / slope).ceil() as i64 + 3);
+                }
+            }
+            for x in (from.max(0) as u32)..(to.max(0) as u32).min(x1) {
                 let c = [x as f32 + 0.5, y as f32 + 0.5];
                 let w = [
                     edge(p[1], p[2], c) / area,
@@ -649,8 +672,11 @@ impl ActorModels {
         carried: &[CarriedPose],
     ) -> Option<Raster> {
         let model = self.models.get(&pose.model?)?.as_ref()?;
+        let t0 = std::time::Instant::now();
         let poses = self.node_poses(model, pose);
         let skinned = skin_model(model, &poses);
+        crate::live::bench::record("a_skin", t0.elapsed().as_secs_f64() * 1000.0);
+        let t0 = std::time::Instant::now();
         let own = |vertex: [f32; 3]| place_vertex(vertex, pose.facing, position);
         let mut triangles = Vec::new();
         self.collect_triangles(camera, model, pose, &skinned, &own, &mut triangles);
@@ -691,7 +717,12 @@ impl ActorModels {
                 );
             }
         }
-        rasterize(&triangles)
+        crate::live::bench::record("a_collect", t0.elapsed().as_secs_f64() * 1000.0);
+        let t0 = std::time::Instant::now();
+        let out = rasterize(&triangles);
+        crate::live::bench::record("a_raster", t0.elapsed().as_secs_f64() * 1000.0);
+        crate::live::bench::record("a_tris", triangles.len() as f64);
+        out
     }
 }
 
@@ -783,23 +814,6 @@ fn clip_length(clip: &AnimationClip) -> f32 {
             .iter()
             .filter_map(|curve| curve.keys.last().map(|key| key.time)),
     ))
-}
-
-fn with_store<T>(
-    path: &Path,
-    run: impl FnOnce(&SerializedStore<'_, '_>) -> Result<T, String>,
-) -> Result<T, String> {
-    let source = path
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let bundle = UnityRawBundle::open(path).map_err(|error| error.to_string())?;
-    let bytes = bundle
-        .read_entry(0, MAX_BUNDLE_BYTES)
-        .map_err(|error| error.to_string())?;
-    let file = SerializedFile::parse(&bytes, &source).map_err(|error| error.to_string())?;
-    let store = SerializedStore::new(&file, &source).map_err(|error| error.to_string())?;
-    run(&store)
 }
 
 #[cfg(test)]
@@ -932,5 +946,41 @@ mod tests {
         );
         let quarter = place_vertex(up_forward, 64, [0.0; 3]);
         assert!((quarter[0] - 1.0).abs() < 1e-5 && quarter[2].abs() < 1e-5);
+    }
+}
+
+#[cfg(test)]
+mod narrowing_tests {
+    use super::*;
+
+    #[test]
+    fn narrowed_rows_match_the_bounding_box_scan() {
+        let mut seed = 0x9e37_79b9_u32;
+        let mut next = move || {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (seed >> 8) as f32 / 16_777_216.0
+        };
+        let triangles: Vec<_> = (0..300)
+            .map(|_| {
+                let mut vertex = || ScreenVertex {
+                    xy: [next() * 40.0, next() * 50.0],
+                    depth: next() * 10.0,
+                    uv: [0.0, 0.0],
+                    color: [next(), next(), next(), 1.0],
+                };
+                ([vertex(), vertex(), vertex()], None)
+            })
+            .collect();
+        let fragment = |texel: [u8; 4], shade: [f32; 4]| {
+            Some([
+                (shade[0].clamp(0.0, 1.0) * f32::from(texel[0])) as u8,
+                (shade[1].clamp(0.0, 1.0) * f32::from(texel[1])) as u8,
+                (shade[2].clamp(0.0, 1.0) * f32::from(texel[2])) as u8,
+                255,
+            ])
+        };
+        let narrow = rasterize_rows(&triangles, fragment, true).expect("raster");
+        let full = rasterize_rows(&triangles, fragment, false).expect("raster");
+        assert_eq!(narrow.rgba, full.rgba);
     }
 }
