@@ -133,7 +133,7 @@ fn meteorite(v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), CalcError> {
     v.penalty_command_divided_attack();
     v.bonus_element();
     if v.can_attack_magic() {
-        v.calc_hp_damage();
+        v.calc_hp_damage(&mut *rng);
         v.try_alter_magic_statuses(rng);
     }
     Ok(())
