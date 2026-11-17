@@ -133,3 +133,28 @@ fn the_script_places_the_chocobo_by_story_point() {
     assert!((narciss[2] - -248_612.0 / 256.0).abs() < 0.5);
     assert_eq!(facing, 250);
 }
+
+#[test]
+fn the_script_places_zidane_and_keeps_the_ship_at_its_anchorage() {
+    let Some(bundle) = bundle() else { return };
+    for story in [0, 6000, 11_100] {
+        let mut world = tantalus_game::FieldWorld::new();
+        world
+            .global_memory
+            .set(0, tantalus_legacy::VariableType::UInt16, story);
+        let mut script = WorldScript::start(&bundle, "EVT_WORLD_WORLD00", 9000, world).unwrap();
+        for _ in 0..tantalus_tools::world_script::START_FRAMES {
+            script.tick(0).unwrap();
+        }
+        // New game: function 0 defaults the saved position to (241934,
+        // -254154) and facing 77.
+        let (pos, facing) = script.zidane_start().unwrap();
+        eprintln!("story {story}: zidane {pos:?} facing {facing}");
+        assert!((pos[0] - 241_934.0 / 256.0).abs() < 0.5);
+        assert!((pos[2] - -254_154.0 / 256.0).abs() < 0.5);
+        assert_eq!(facing, 77);
+        assert_eq!(script.start_ride(), 0);
+        // No chocobo kind owned: no chocobo object.
+        assert_eq!(script.chocobo_start(), None);
+    }
+}

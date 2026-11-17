@@ -245,3 +245,44 @@ fn chocobos_and_the_airship_move_the_player() {
     play.set_ride(0);
     assert!(!play.flying());
 }
+
+#[test]
+fn the_world_script_stands_the_chocobo_at_its_story_point_spot() {
+    let Some(dir) = streaming() else { return };
+    let bundle = dir.join("p0data7.bin");
+    let assets = Arc::new(WorldAssets::load(&dir, 1).expect("world assets"));
+    let events = event_places(&bundle, "EVT_WORLD_WORLD00").expect("place events");
+    for (story, x, z, facing) in [
+        (0, 243_177.0, -251_993.0, 77.0),
+        (11_100, 279_017.0, -248_612.0, 250.0),
+    ] {
+        let mut world = tantalus_game::FieldWorld::new();
+        world
+            .global_memory
+            .set(0, tantalus_legacy::VariableType::UInt16, story);
+        world
+            .global_memory
+            .set(191, tantalus_legacy::VariableType::Byte, 2);
+        let mut script = tantalus_tools::world_script::WorldScript::start(
+            &bundle,
+            "EVT_WORLD_WORLD00",
+            9000,
+            world,
+        )
+        .unwrap();
+        for _ in 0..tantalus_tools::world_script::START_FRAMES {
+            script.tick(0).unwrap();
+        }
+        let mut play = WorldPlay::new(assets.clone(), events.clone(), 0.0, 0.0, 1).unwrap();
+        play.set_script(script);
+        let chocobo = play.chocobo.expect("a chocobo");
+        eprintln!("story {story}: {chocobo:?}");
+        assert!((chocobo.pos.x - x / 256.0).abs() < 0.5);
+        assert!((chocobo.pos.z - z / 256.0).abs() < 0.5);
+        assert!((chocobo.rot_y - facing / 256.0 * 360.0).abs() < 0.01);
+        assert_eq!(chocobo.kind, 2);
+        let start = play.script_start().unwrap();
+        assert_eq!(start.ride, 0);
+        assert!(start.zidane.is_some());
+    }
+}

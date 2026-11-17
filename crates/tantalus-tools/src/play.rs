@@ -1658,6 +1658,21 @@ impl PlayGame {
         }
     }
 
+    /// Sets the chocobo kind the player owns (`gEventGlobal` 191, 0 none,
+    /// 1 to 5 yellow to gold), which makes the world script create its
+    /// chocobo.
+    pub fn set_chocobo_kind(&mut self, kind: i32) {
+        let mut worlds = vec![&mut self.world];
+        if let Some(session) = self.session.as_mut() {
+            worlds.push(session.director.world_mut());
+        }
+        for world in worlds {
+            world
+                .global_memory
+                .set(191, tantalus_legacy::VariableType::Byte, kind);
+        }
+    }
+
     /// The overworld assets, loaded on first use.
     pub fn world_assets(&mut self) -> Result<std::sync::Arc<WorldAssets>, String> {
         if let Some(assets) = &self.world_assets {
@@ -1670,6 +1685,17 @@ impl PlayGame {
 
     /// Starts walking the world map at world `(x, z)`.
     pub fn begin_world(&mut self, x: f32, z: f32) -> Result<(), String> {
+        self.begin_world_at(Some((x, z)))
+    }
+
+    /// Starts walking the world map where the world script put the
+    /// controlled character: the saved position, or the new-game default
+    /// when none was saved (entry 11 of `EVT_WORLD_WORLD00`).
+    pub fn resume_world(&mut self) -> Result<(), String> {
+        self.begin_world_at(None)
+    }
+
+    fn begin_world_at(&mut self, at: Option<(f32, f32)>) -> Result<(), String> {
         let assets = self.world_assets()?;
         let name = self
             .data
@@ -1680,7 +1706,6 @@ impl PlayGame {
         let places = crate::world_places::event_places(&self.data.bundle, &name)?;
         let exit = WorldExit::load(&self.data.bundle, &name)?;
         let seed = 0x9E37_79B9_u32 ^ (self.ticks as u32).wrapping_mul(2_654_435_761);
-        let mut play = WorldPlay::new(assets, places, x, z, seed)?;
         let globals = self
             .session
             .as_ref()
@@ -1701,15 +1726,36 @@ impl PlayGame {
                     .unwrap_or(0);
                 bits | (u64::from(value as u16) << (16 * word))
             });
-        play.set_progress(scenario, visited);
         // The world script runs beside the walk and picks the place under
-        // the actor from the story state, as the original does.
+        // the actor from the story state, as the original does. A few
+        // frames first, so its objects have their positions.
         let mut script_world = self.world.clone();
         script_world.global_memory = globals.clone();
-        if let Ok(script) =
+        let mut script =
             crate::world_script::WorldScript::start(&self.data.bundle, &name, 9000, script_world)
-        {
+                .ok();
+        if let Some(script) = script.as_mut() {
+            for _ in 0..crate::world_script::START_FRAMES {
+                if script.tick(0).is_err() {
+                    break;
+                }
+            }
+        }
+        let (x, z) = match (at, script.as_ref().and_then(|s| s.zidane_start())) {
+            (Some(at), _) => at,
+            (None, Some((pos, _))) => (pos[0], pos[2]),
+            (None, None) => return Err("the world script gave no start position".to_owned()),
+        };
+        let mut play = WorldPlay::new(assets, places, x, z, seed)?;
+        play.set_progress(scenario, visited);
+        if let Some(script) = script {
             play.set_script(script);
+        }
+        if at.is_none()
+            && let Some((_, _, yaw)) = play.script_start().and_then(|start| start.zidane)
+        {
+            play.walker.rot_y = yaw;
+            play.walker.rot_true = yaw;
         }
         play.set_forms(&crate::world_data::alternate_form_blocks(
             scenario, discovered,

@@ -62,6 +62,28 @@ pub struct WorldCamera {
     pub fov: f32,
 }
 
+/// A chocobo standing in the world, waiting to be ridden.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ParkedChocobo {
+    pub pos: Vec3,
+    /// Yaw in degrees (`WMActor.rot1`).
+    pub rot_y: f32,
+    /// The kind (gEventGlobal 191): 1 yellow, 2 light blue, 3 red, 4 deep
+    /// blue, 5 gold.
+    pub kind: u8,
+}
+
+/// What the world script's object setup puts where, read once the script
+/// has run its first frames.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct ScriptStart {
+    /// The controlled character (entry 11) at `(x, z)` with its yaw.
+    pub zidane: Option<(f32, f32, f32)>,
+    pub chocobo: Option<ParkedChocobo>,
+    /// `w_moveCHRControl_No` at the start.
+    pub ride: u8,
+}
+
 pub struct WorldPlay {
     pub assets: Arc<WorldAssets>,
     /// The walk meshes with this play's block forms applied.
@@ -84,6 +106,9 @@ pub struct WorldPlay {
     /// The world script, run every frame; when present its place handlers
     /// decide the place under the actor (`events` is the fallback).
     script: Option<crate::world_script::WorldScript>,
+    /// The chocobo the script placed (by story point), if the player owns
+    /// one and is not riding it.
+    pub chocobo: Option<ParkedChocobo>,
     friendly: BTreeSet<u16>,
     /// The place under the actor, if any.
     pub place: Option<i32>,
@@ -122,6 +147,39 @@ impl WorldPlay {
     /// place cell requests the cell's handler (`ff9.WorldEvent`).
     pub fn set_script(&mut self, script: crate::world_script::WorldScript) {
         self.script = Some(script);
+        self.chocobo = self.script_start().and_then(|start| start.chocobo);
+        // `ff9.w_movementChrInitSlice`: the chocobo stands on the ground.
+        if let Some(chocobo) = self.chocobo.as_mut() {
+            let mut walker = FootWalker::new(0, chocobo.pos, chocobo.rot_y).ok();
+            if let Some(walker) = walker.as_mut() {
+                walker.place(&self.walk, chocobo.pos);
+                chocobo.pos = walker.pos;
+            }
+        }
+    }
+
+    /// What the world script's objects were given at the start: the
+    /// controlled character's position (the saved one, or the script's
+    /// new-game default), the chocobo's story-point position, and the ride
+    /// the player starts on. `None` without a script.
+    pub fn script_start(&self) -> Option<ScriptStart> {
+        let script = self.script.as_ref()?;
+        // `SetActorFacing` to degrees (`EventEngine.DoEventCode`, `ROT`).
+        let degrees = |facing: u8| f32::from(facing) / 256.0 * 360.0;
+        Some(ScriptStart {
+            zidane: script
+                .zidane_start()
+                .map(|(pos, facing)| (pos[0], pos[2], degrees(facing))),
+            chocobo: script.chocobo_start().and_then(|(pos, facing)| {
+                let kind = script.chocobo_kind();
+                (kind != 0).then_some(ParkedChocobo {
+                    pos: Vec3::new(pos[0], pos[1], pos[2]),
+                    rot_y: degrees(facing),
+                    kind,
+                })
+            }),
+            ride: script.start_ride(),
+        })
     }
 
     /// The running world script, if any.
@@ -155,6 +213,7 @@ impl WorldPlay {
             walker,
             events,
             script: None,
+            chocobo: None,
             friendly,
             place: None,
             frames: 0,

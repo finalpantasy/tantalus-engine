@@ -317,6 +317,22 @@ impl WorldRenderer {
                 drew
             }
         };
+        // The chocobo the world script left standing (its story-point spot).
+        if let Some(parked) = play.chocobo.filter(|_| play.ride == 0) {
+            draw_character(
+                &mut frame,
+                &camera,
+                &self.models,
+                (CHOCOBO_MODEL, CHOCOBO_IDLE),
+                &Placement {
+                    at: [parked.pos.x, parked.pos.y, parked.pos.z],
+                    yaw: parked.rot_y,
+                    scale: MODEL_SCALE,
+                    tint: CHOCOBO_TINTS[usize::from(parked.kind.clamp(1, 6)) - 1],
+                },
+                time,
+            );
+        }
         crate::live::bench::record("w_chars", chars_start.elapsed().as_secs_f64() * 1000.0);
         if !drawn_player {
             draw_marker(&mut frame, &camera, at, play.walker.rot_y);

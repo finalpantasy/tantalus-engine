@@ -78,6 +78,23 @@ impl WorldEffects {
     }
 }
 
+/// Script entry of the controlled character (Zidane, model 310).
+pub const ZIDANE_ENTRY: u32 = 11;
+/// Script entry of the chocobo object (model 308).
+pub const CHOCOBO_ENTRY: u32 = 5;
+/// `WMActor.Initialize` (`WMActor.cs`): where the Blue Narciss stands when
+/// the world loads, in fixed point (the script's entry 8 gives it no
+/// position of its own; its place function 36 moves it to the player when
+/// he casts off), as world units `[x, height, z]`.
+pub const NARCISS_ANCHORAGE: [f32; 3] = [280_576.0 / 256.0, 327.0 / 256.0, -261_120.0 / 256.0];
+/// `WMActor.Initialize`: where the Invincible and Hilda Garde III stand
+/// when the world loads.
+pub const INVINCIBLE_ANCHORAGE: [f32; 3] = [272_866.0 / 256.0, 8550.0 / 256.0, -244_552.0 / 256.0];
+pub const HILDA_GARDE_ANCHORAGE: [f32; 3] = [775.1, 39.9, -317.3];
+
+/// Frames the script runs before its objects have their start positions.
+pub const START_FRAMES: u32 = 10;
+
 /// The world script, live.
 pub struct WorldScript {
     session: FieldSession,
@@ -195,29 +212,62 @@ impl WorldScript {
         rerun(&mut self.session.director, &self.session.pool, entry, tag)
     }
 
-    /// Where the script put the chocobo object (entry 5, created when the
-    /// player owns a chocobo kind, global 191): `SetActorPositionXzy` over
-    /// the saved world position (globals 83, 86, 88 and facing 91), which
-    /// the script itself defaults for a new game and moves for story point
-    /// 11100 (the Blue Narciss's first anchorage, bit 851). X, height and Z
-    /// in world units (the script's fixed point is 256 to the unit), and the
-    /// facing byte. `None` without a chocobo object.
-    pub fn chocobo_start(&self) -> Option<([f32; 3], u8)> {
+    /// Where the script put the world object `entry`: `SetActorPositionXzy`
+    /// leaves the position in fixed point (256 to the world unit; X, height,
+    /// Z) and `SetActorFacing` the 0..=255 facing
+    /// (`EventEngine.DoEventCode`, `SETROT`/`SETPOS`). `None` while the
+    /// object has no position yet.
+    pub fn object_start(&self, entry: u32) -> Option<([f32; 3], u8)> {
         use tantalus_contracts::EntityId;
-        let world = self.world();
-        let actor = world.actors.get(&EntityId::new(5))?;
+        let actor = self.world().actors.get(&EntityId::new(u64::from(entry)))?;
         if actor.position == [0.0; 3] {
             return None;
         }
-        let facing = world.global_memory.get(91, VariableType::Byte).unwrap_or(0);
         Some((
             [
                 actor.position[0] / 256.0,
                 actor.position[1] / 256.0,
                 actor.position[2] / 256.0,
             ],
-            facing as u8,
+            (actor.facing & 0xFF) as u8,
         ))
+    }
+
+    /// Where the script put the chocobo object (entry 5, created when the
+    /// player owns a chocobo kind, global 191): the saved world position
+    /// (globals 83, 86, 88 and facing 91), which the script itself defaults
+    /// for a new game and moves for story point 11100 (the Blue Narciss's
+    /// first anchorage, bit 851). X, height and Z in world units and the
+    /// facing byte. `None` without a chocobo object.
+    pub fn chocobo_start(&self) -> Option<([f32; 3], u8)> {
+        let (pos, _) = self.object_start(CHOCOBO_ENTRY)?;
+        let world = self.world();
+        let facing = world.global_memory.get(91, VariableType::Byte).unwrap_or(0);
+        Some((pos, facing as u8))
+    }
+
+    /// Where the script put the controlled character (entry 11, Zidane's
+    /// world model): the saved position in globals 64, 67, 69 and facing
+    /// 72, which function 0 defaults for a new game (global 2 clear) to
+    /// (945.1, -992.8) facing 77. While the player rides a vehicle (global
+    /// 190) this is the vehicle's position too.
+    pub fn zidane_start(&self) -> Option<([f32; 3], u8)> {
+        self.object_start(ZIDANE_ENTRY)
+    }
+
+    /// `w_moveCHRControl_No` at the start (`ff9.w_movementChange` reads
+    /// gEventGlobal 190): 0 on foot, 1 to 5 the chocobos, 6 the gold
+    /// chocobo in the air, 7 the Blue Narciss, 8 and 9 the airships.
+    pub fn start_ride(&self) -> u8 {
+        let global = self.world().global_memory.get(190, VariableType::Byte);
+        global.unwrap_or(0) as u8
+    }
+
+    /// The chocobo kind the player owns (gEventGlobal 191; the script
+    /// creates the chocobo object for kinds 1 and up).
+    pub fn chocobo_kind(&self) -> u8 {
+        let global = self.world().global_memory.get(191, VariableType::Byte);
+        global.unwrap_or(0) as u8
     }
 
     /// The scheduled functions and their state (for probes).

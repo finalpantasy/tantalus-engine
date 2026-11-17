@@ -996,7 +996,7 @@ impl CaptureAudio {
     }
 }
 
-/// `capture-world <play flags> [--world-at X,Z] --ticks N [--hold ...]
+/// `capture-world <play flags> [--world-at X,Z|script] --ticks N [--hold ...]
 /// [--shots T,T] --output <png> [--size WxH]`: walks the world map
 /// headlessly with scripted input and renders what the world camera sees.
 fn run_world_capture(args: &[std::ffi::OsString]) -> ExitCode {
@@ -1015,6 +1015,7 @@ fn run_world_capture(args: &[std::ffi::OsString]) -> ExitCode {
         "--discovered",
         "--visited",
         "--ride",
+        "--chocobo",
     ]);
     let Some(values) = flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
@@ -1048,7 +1049,9 @@ fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<
         .get("--shots")
         .map(|list| list.split(',').filter_map(|t| t.parse().ok()).collect())
         .unwrap_or_default();
-    let (x, z) = match values.get("--world-at") {
+    // `--world-at script`: where the world script puts the character.
+    let from_script = values.get("--world-at").is_some_and(|at| at == "script");
+    let (x, z) = match values.get("--world-at").filter(|at| *at != "script") {
         Some(at) => at
             .split_once(',')
             .and_then(|(x, z)| Some((x.parse::<f32>().ok()?, z.parse::<f32>().ok()?)))
@@ -1070,6 +1073,9 @@ fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<
         })?;
         game.set_story(number("--scenario")?, number("--discovered")?, visited);
     }
+    if let Some(kind) = values.get("--chocobo") {
+        game.set_chocobo_kind(kind.parse().map_err(|_| "bad --chocobo")?);
+    }
     if let Some(from) = values.get("--arrive-from") {
         // Arrive as if leaving field `from` for the world map.
         let from: i32 = from.parse().map_err(|_| "bad --arrive-from")?;
@@ -1078,6 +1084,8 @@ fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<
         for event in &events {
             println!("{}", tantalus_client::live::describe(event));
         }
+    } else if from_script {
+        game.resume_world()?;
     } else {
         game.begin_world(x, z)?;
     }
