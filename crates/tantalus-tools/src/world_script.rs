@@ -195,6 +195,31 @@ impl WorldScript {
         rerun(&mut self.session.director, &self.session.pool, entry, tag)
     }
 
+    /// Where the script put the chocobo object (entry 5, created when the
+    /// player owns a chocobo kind, global 191): `SetActorPositionXzy` over
+    /// the saved world position (globals 83, 86, 88 and facing 91), which
+    /// the script itself defaults for a new game and moves for story point
+    /// 11100 (the Blue Narciss's first anchorage, bit 851). X, height and Z
+    /// in world units (the script's fixed point is 256 to the unit), and the
+    /// facing byte. `None` without a chocobo object.
+    pub fn chocobo_start(&self) -> Option<([f32; 3], u8)> {
+        use tantalus_contracts::EntityId;
+        let world = self.world();
+        let actor = world.actors.get(&EntityId::new(5))?;
+        if actor.position == [0.0; 3] {
+            return None;
+        }
+        let facing = world.global_memory.get(91, VariableType::Byte).unwrap_or(0);
+        Some((
+            [
+                actor.position[0] / 256.0,
+                actor.position[1] / 256.0,
+                actor.position[2] / 256.0,
+            ],
+            facing as u8,
+        ))
+    }
+
     /// The scheduled functions and their state (for probes).
     pub fn running(
         &self,

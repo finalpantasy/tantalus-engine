@@ -100,3 +100,36 @@ fn the_real_enter_path_leaves_for_the_same_fields_as_the_stand_in() {
     assert!(differing.iter().all(|(_, _, new)| new.is_none()));
     assert_eq!(same, 97);
 }
+
+fn story_start(bundle: &std::path::Path, story: i32) -> ([f32; 3], u8) {
+    let mut world = tantalus_game::FieldWorld::new();
+    world
+        .global_memory
+        .set(0, tantalus_legacy::VariableType::UInt16, story);
+    // A chocobo kind owned, so the script creates the chocobo object.
+    world
+        .global_memory
+        .set(191, tantalus_legacy::VariableType::Byte, 1);
+    let mut script = WorldScript::start(bundle, "EVT_WORLD_WORLD00", 9000, world).unwrap();
+    for _ in 0..10 {
+        script.tick(0).unwrap();
+    }
+    script.chocobo_start().unwrap()
+}
+
+#[test]
+fn the_script_places_the_chocobo_by_story_point() {
+    let Some(bundle) = bundle() else { return };
+    let (start, facing) = story_start(&bundle, 0);
+    eprintln!("story 0: {start:?} facing {facing}");
+    // The script's new-game defaults: 243177, -1039, -251993 and facing 77.
+    assert!((start[0] - 243_177.0 / 256.0).abs() < 0.5);
+    assert!((start[2] - -251_993.0 / 256.0).abs() < 0.5);
+    assert_eq!(facing, 77);
+    // Story point 11100 moves it (the script's own branch for that point).
+    let (narciss, facing) = story_start(&bundle, 11_100);
+    eprintln!("story 11100: {narciss:?} facing {facing}");
+    assert!((narciss[0] - 279_017.0 / 256.0).abs() < 0.5);
+    assert!((narciss[2] - -248_612.0 / 256.0).abs() < 0.5);
+    assert_eq!(facing, 250);
+}
