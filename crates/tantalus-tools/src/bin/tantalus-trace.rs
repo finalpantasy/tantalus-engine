@@ -1445,6 +1445,26 @@ fn chain(
                     texts_shown.push((ticks_run, *text));
                 }
             }
+            // A menu the script reads while its window is open (the moogle's
+            // "Can I help you?" polls `GetDialogChoice` after a key press)
+            // takes the configured answer for the text on screen.
+            if explore {
+                let scenario = scenario_counter(director.world());
+                let answer = director
+                    .world()
+                    .window_texts
+                    .iter()
+                    .filter(|(window, _)| director.world().windows.get(window) == Some(&true))
+                    .find_map(|(_, text)| {
+                        choices
+                            .range((map, *text, i32::MIN)..=(map, *text, scenario))
+                            .next_back()
+                            .map(|(_, answer)| *answer)
+                    });
+                if let Some(answer) = answer {
+                    director.world_mut().dialog_choice = answer;
+                }
+            }
             let control = director.world().user_control;
             if control != last_control {
                 let stage = director.world().map_memory.bytes()[24];

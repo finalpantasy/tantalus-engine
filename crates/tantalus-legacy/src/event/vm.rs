@@ -167,7 +167,14 @@ impl EventVm {
         offset: u32,
         opcode: u32,
     ) -> Result<i32, VmError> {
-        match host.variable_memory(variable.scope) {
+        let object = (variable.scope == VariableScope::Instance)
+            .then_some(self.entity)
+            .flatten();
+        let memory = match object {
+            Some(entity) => host.instance_memory(entity),
+            None => host.variable_memory(variable.scope),
+        };
+        match memory {
             Some(memory) => memory
                 .get(variable.index, variable.value_type)
                 .ok_or_else(|| variable_range_error(variable, offset, opcode)),
@@ -185,7 +192,14 @@ impl EventVm {
         offset: u32,
         opcode: u32,
     ) -> Result<i32, VmError> {
-        match host.variable_memory(variable.scope) {
+        let object = (variable.scope == VariableScope::Instance)
+            .then_some(self.entity)
+            .flatten();
+        let memory = match object {
+            Some(entity) => host.instance_memory(entity),
+            None => host.variable_memory(variable.scope),
+        };
+        match memory {
             Some(memory) => {
                 memory
                     .set(variable.index, variable.value_type, value)
@@ -3889,13 +3903,11 @@ impl EventVm {
                                 host.write_system_list(index, system_list_value(value))
                                     .map_err(|error| VmError::host(error, offset, opcode))?;
                             }
-                            None => {
-                                return Err(expression_error(
-                                    offset,
-                                    opcode,
-                                    "arithmetic-assignment target is not writable",
-                                ));
-                            }
+                            // Memoria's SetVariableValue ignores a source it has no
+                            // writer for (an object member read, a plain value): the
+                            // expression yields the value and nothing is stored.
+                            // EVT_ALEX1_TS_ENGIN_UP adds to a facing read this way.
+                            None => {}
                         }
                     }
                     stack.push(StackValue {

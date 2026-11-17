@@ -2061,6 +2061,14 @@ pub trait LegacyEventHost {
         let _ = scope;
         None
     }
+    /// The object's own variable buffer (`Obj.buffer`, which
+    /// `EBin.EnterFunctionLoop` makes `_instance`): shared by every function
+    /// of the object and by the requests that run on it. `None` keeps the
+    /// VM's private storage for the Instance scope.
+    fn instance_memory(&mut self, entity: EntityId) -> Option<&mut super::VariableMemory> {
+        let _ = entity;
+        None
+    }
     /// Script uid of an object entity, for resolving the local uid 255
     /// (the running object, `GetUIDFromLocalUID`) in script requests.
     /// `None` falls back to the entity number.

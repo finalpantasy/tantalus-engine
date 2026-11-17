@@ -1653,6 +1653,10 @@ impl LegacyEventHost for FieldHost<'_> {
         Err(Self::unknown("custom variable"))
     }
 
+    fn instance_memory(&mut self, entity: EntityId) -> Option<&mut VariableMemory> {
+        Some(self.world.instance_memory(entity))
+    }
+
     fn variable_memory(&mut self, scope: VariableScope) -> Option<&mut VariableMemory> {
         match scope {
             VariableScope::Global => Some(&mut self.world.global_memory),

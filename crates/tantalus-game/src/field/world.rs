@@ -855,6 +855,10 @@ pub struct FieldWorld {
     /// (runtime-only).
     #[serde(skip)]
     pub here_icon_timer: i32,
+    /// `Obj.buffer` per object (`EBin._instance`): the Instance variables
+    /// every function of an object shares (runtime-only).
+    #[serde(skip)]
+    instance_memory: BTreeMap<EntityId, tantalus_legacy::VariableMemory>,
     /// `SetActiveTimeEventIcon` (`EIcon.sAIconMode`): the ATE prompt's mode (runtime-only).
     #[serde(skip)]
     pub ate_icon_mode: i32,
@@ -1065,6 +1069,7 @@ impl FieldWorld {
             idle_disabled: false,
             here_icon: 0,
             here_icon_timer: 0,
+            instance_memory: BTreeMap::new(),
             ate_icon_mode: 0,
             fade_current: [[0; 3]; 2],
             tile_shade: BTreeMap::new(),
@@ -1087,6 +1092,7 @@ impl FieldWorld {
         if first || already == Some(base) || self.is_object_deleted(base) {
             self.map_uid(i32::from(uid), base);
             self.restore_object(base);
+            self.instance_memory.remove(&base);
             return base;
         }
         if let Some(existing) = already {
@@ -1097,6 +1103,7 @@ impl FieldWorld {
         self.add_actor(entity, [0.0; 3]);
         self.map_uid(i32::from(uid), entity);
         self.instance_sources.insert(entity, source);
+        self.instance_memory.remove(&entity);
         self.new_instances.push((entity, source));
         entity
     }
@@ -1143,6 +1150,7 @@ impl FieldWorld {
         self.bubble_icon = None;
         self.here_icon = 0;
         self.here_icon_timer = 0;
+        self.instance_memory.clear();
         self.ate_icon_mode = 0;
         self.fade_current = [[0; 3]; 2];
         self.tile_shade.clear();
@@ -1177,6 +1185,15 @@ impl FieldWorld {
     }
 
     /// `NEW` of a deleted object makes it run again.
+    /// The object's variable buffer, zeroed on first use (`Obj.Clear`). The
+    /// reference sizes it `varn` bytes rounded up plus the script stack; a
+    /// full 256 bytes covers every `varn` (a byte) without the stack.
+    pub fn instance_memory(&mut self, entity: EntityId) -> &mut tantalus_legacy::VariableMemory {
+        self.instance_memory
+            .entry(entity)
+            .or_insert_with(|| tantalus_legacy::VariableMemory::zeroed(256))
+    }
+
     pub fn restore_object(&mut self, entity: EntityId) {
         self.deleted_objects.remove(&entity);
     }
@@ -2196,5 +2213,25 @@ mod timer_tests {
         assert_eq!(timer.time_int(), 0);
         timer.elapsed_ticks = 10_000;
         assert_eq!(timer.time(), 0.0);
+    }
+}
+
+#[cfg(test)]
+mod instance_memory_tests {
+    use super::FieldWorld;
+    use tantalus_contracts::EntityId;
+    use tantalus_legacy::VariableType;
+
+    #[test]
+    fn instance_memory_is_per_object_and_zeroed_on_first_use() {
+        let mut world = FieldWorld::new();
+        let a = EntityId::new(1);
+        let b = EntityId::new(2);
+        assert_eq!(world.instance_memory(a).get(4, VariableType::Byte), Some(0));
+        world.instance_memory(a).set(4, VariableType::Byte, 9);
+        // Same object (another function or request) sees the value.
+        assert_eq!(world.instance_memory(a).get(4, VariableType::Byte), Some(9));
+        // Another object does not.
+        assert_eq!(world.instance_memory(b).get(4, VariableType::Byte), Some(0));
     }
 }
