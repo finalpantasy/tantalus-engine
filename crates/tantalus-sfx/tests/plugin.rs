@@ -643,3 +643,61 @@ fn probe_commands() {
         println!("cmd {command}: {count} calls, first frame {first}, args {args:?}");
     }
 }
+
+/// Effects that draw the screen (`Batch::screen`) and how many frames
+/// (`TANTALUS_SFX_FROM`..`TANTALUS_SFX_TO`).
+#[test]
+#[ignore = "probe"]
+fn probe_screen() {
+    let range = |name: &str, default: i32| {
+        std::env::var(name)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    };
+    let mut file = tantalus_assets::pc::serialized_inventory::StandaloneSerialized::open(
+        &common::install().join("x64/FF9_Data/resources.assets"),
+    )
+    .expect("assets");
+    let names: std::collections::HashSet<String> = file
+        .text_assets()
+        .expect("text assets")
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+    for id in range("TANTALUS_SFX_FROM", 0)..range("TANTALUS_SFX_TO", 512) {
+        let short =
+            (100..=118).contains(&id) || (313..=376).contains(&id) || (461..=485).contains(&id);
+        if !short && !names.contains(&format!("ef{id:03}")) {
+            continue;
+        }
+        let Ok(run) = std::panic::catch_unwind(|| run_port(id, 900, 0x1_8000_0000)) else {
+            continue;
+        };
+        let mut vram = tantalus_sfx::vram::Vram::default();
+        let (mut frames, mut triangles, mut moves) = (0, 0, 0);
+        for frame in &run.frames {
+            let list = tantalus_sfx::render::render_list(id, frame, &mut vram);
+            let n: usize = list
+                .batches
+                .iter()
+                .filter(|b| b.screen)
+                .map(|b| b.triangles.len())
+                .sum();
+            if n > 0 {
+                frames += 1;
+                triangles += n;
+            }
+            moves += frame
+                .iter()
+                .filter(|(_, w)| w.get(1).is_some_and(|w| w >> 24 == 0xE7))
+                .count();
+        }
+        if frames > 0 || moves > 0 {
+            println!(
+                "effect {id}: screen on {frames} of {} frames, {triangles} triangles, {moves} DR_MOVE",
+                run.frames.len()
+            );
+        }
+    }
+}

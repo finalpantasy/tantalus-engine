@@ -1220,7 +1220,7 @@ pub fn frame_image(frame: &Frame) -> bevy::image::Image {
         TextureFormat::Rgba8UnormSrgb,
         bevy::asset::RenderAssetUsages::default(),
     );
-    image.texture_descriptor.usage |= TextureUsages::RENDER_ATTACHMENT;
+    image.texture_descriptor.usage |= TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC;
     image.texture_descriptor.view_formats = &[TextureFormat::Rgba8Unorm];
     image
 }

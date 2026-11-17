@@ -87,6 +87,17 @@ pub struct ViewVertex {
     pub uv: [f32; 2],
 }
 
+/// The frame as it was (see [`Frame::capture`]).
+#[derive(Debug, Clone)]
+pub struct Capture {
+    pub width: usize,
+    pub height: usize,
+    /// The pixels; empty for a GPU capture.
+    pub rgba: Vec<u8>,
+    /// The recording's texture index of a GPU capture.
+    pub gpu: Option<u32>,
+}
+
 /// RGBA texels, rows top-down, `v = 0` the last row.
 #[derive(Debug, Clone, Copy)]
 pub struct Texture<'a> {
@@ -475,6 +486,74 @@ impl Frame {
                 }
             }
         }
+    }
+
+    /// What the frame shows so far, for draws that sample the screen
+    /// ([`Frame::draw_captured`]): a copy of the pixels, or on the GPU a
+    /// capture made when the recording reaches this point.
+    pub fn capture(&mut self) -> Option<Capture> {
+        if let Some(recording) = self.recording.as_deref_mut() {
+            return Some(Capture {
+                width: self.width as usize,
+                height: self.height as usize,
+                rgba: Vec::new(),
+                gpu: Some(recording.capture()),
+            });
+        }
+        Some(Capture {
+            width: self.width as usize,
+            height: self.height as usize,
+            rgba: self.rgba.clone(),
+            gpu: None,
+        })
+    }
+
+    /// [`Frame::draw_screen`] sampling a [`Frame::capture`]. Texel
+    /// coordinates are 0 to 1 over the frame, `v = 0` the last row.
+    pub fn draw_captured(&mut self, corners: [ScreenCorner; 3], capture: &Capture, blend: Blend) {
+        if let (Some(index), Some(recording)) = (capture.gpu, self.recording.as_deref_mut()) {
+            use crate::frame_gpu::{BlendKind, PipelineKey, Sampling};
+            if edge(corners[0].xy, corners[1].xy, corners[2].xy).abs() < 1e-6 {
+                return;
+            }
+            let kind = match blend {
+                Blend::Opaque => BlendKind::Replace,
+                Blend::Screen => BlendKind::Screen,
+                Blend::Multiply => BlendKind::Multiply,
+                Blend::Alpha(_) => BlendKind::Over,
+                Blend::Add => BlendKind::Add,
+                Blend::Subtract => BlendKind::Subtract,
+            };
+            let alpha = match blend {
+                Blend::Alpha(opacity) => f32::from(opacity) / 255.0,
+                _ => 1.0,
+            };
+            let key = PipelineKey {
+                blend: kind,
+                depth_test: false,
+                depth_write: false,
+                cull_back: false,
+            };
+            let vertices = corners.map(|corner| {
+                let [r, g, b] = corner.color;
+                recording.flat(
+                    corner.xy[0],
+                    corner.xy[1],
+                    [corner.uv[0], 1.0 - corner.uv[1]],
+                    [r, g, b, alpha],
+                    [0.0, 0.0],
+                )
+            });
+            recording.push(key, index, Sampling::Clamp, &vertices);
+            return;
+        }
+        let texture = Texture {
+            width: capture.width,
+            height: capture.height,
+            rgba: &capture.rgba,
+            clamp: true,
+        };
+        self.draw_screen(corners, Some(texture), blend);
     }
 
     /// A triangle already on screen (the special effects' packets), drawn

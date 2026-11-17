@@ -666,6 +666,15 @@ pub fn draw_list(frame: &mut Frame, list: &tantalus_sfx::render::RenderList) {
         frame.width as f32 / crate::battle_raster::PSX_WIDTH,
         frame.height as f32 / crate::battle_raster::PSX_HEIGHT,
     );
+    // The screen the scene left, for the batches that sample it
+    // (`PSXTextureMgr.blurTexture`, captured before the effects draw): taken
+    // once, from the frame as it is now.
+    let screen = list
+        .batches
+        .iter()
+        .any(|batch| batch.screen)
+        .then(|| frame.capture())
+        .flatten();
     for batch in &list.batches {
         let blend = match batch.blend {
             PsxBlend::Opaque => Blend::Opaque,
@@ -681,14 +690,31 @@ pub fn draw_list(frame: &mut Frame, list: &tantalus_sfx::render::RenderList) {
                 rgba: &page.rgba,
                 clamp: true,
             });
+        if batch.screen && screen.is_none() {
+            continue;
+        }
+        // Page texels run 0..256; the screen's are PSX pixels of the 320 x
+        // 220 frame (the packets' own coordinates), so a texel is the pixel
+        // the same packet corner covers.
+        let (tw, th) = if batch.screen {
+            (
+                crate::battle_raster::PSX_WIDTH,
+                crate::battle_raster::PSX_HEIGHT,
+            )
+        } else {
+            (256.0, 256.0)
+        };
         for triangle in &batch.triangles {
             let corners = triangle.map(|corner| ScreenCorner {
                 xy: [corner.xy[0] * sx, corner.xy[1] * sy],
                 // Page rows run top-down; a `Texture`'s `v = 0` is its last.
-                uv: [corner.uv[0] / 256.0, 1.0 - corner.uv[1] / 256.0],
+                uv: [corner.uv[0] / tw, 1.0 - corner.uv[1] / th],
                 color: corner.color,
             });
-            frame.draw_screen(corners, texture, blend);
+            match screen.as_ref().filter(|_| batch.screen) {
+                Some(screen) => frame.draw_captured(corners, screen, blend),
+                None => frame.draw_screen(corners, texture, blend),
+            }
         }
     }
 }

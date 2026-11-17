@@ -19,9 +19,13 @@
 //! Texels are 15-bit colors shifted to 8 bits with alpha 0 only for the
 //! value 0 (`PSXTexture.ConvertABGR16toABGR32`; the STP bit is ignored).
 //!
-//! Not drawn yet: screen captures (`DR_MOVE` from the frame buffer,
-//! `SFXScreenShot`) and the packets between a `DR_AREA` begin and end,
-//! which the game draws into a texture.
+//! The blur texture (a 15-bit page in the frame buffer area) is the screen
+//! the scene left; those batches carry `screen` and the host samples its
+//! own frame (`SFXMesh.GetTexture`, `PSXTextureMgr.blurTexture`).
+//!
+//! Not drawn yet: `DR_MOVE` screen shots into a texture (`SFXScreenShot`,
+//! Slow and Silent Voice) and the packets between a `DR_AREA` begin and
+//! end, which the game draws into a texture.
 
 use std::collections::HashMap;
 
@@ -61,6 +65,11 @@ pub struct Batch {
     pub blend: Blend,
     /// Index into [`RenderList::pages`].
     pub page: Option<usize>,
+    /// The texture is the screen as the scene left it (`PSXTextureMgr`'s
+    /// blur texture, `SFXMesh.GetTexture`): a 15-bit page in the frame
+    /// buffer area (page x below 6). Corner texels are PSX screen pixels
+    /// (320 x 240), and `page` is `None`.
+    pub screen: bool,
     pub triangles: Vec<[Corner; 3]>,
 }
 
@@ -147,6 +156,16 @@ fn uv(word: u32) -> [f32; 2] {
 
 fn rgb(word: u32) -> [u8; 3] {
     [word as u8, (word >> 8) as u8, (word >> 16) as u8]
+}
+
+/// `SFXMesh.PolyBft4` / `PolyBgt4`: the plugin's blurred packets (0x44 and
+/// 0x48) shift u by 128 on any page but the first.
+fn blur_shift(code: u8, tpage: u16) -> f32 {
+    if matches!(code & 0xFC, 0x44 | 0x48) && tpage & 0x1F != 0 {
+        128.0
+    } else {
+        0.0
+    }
 }
 
 /// `SFXMesh.AbrAlphaData`.
@@ -289,8 +308,13 @@ impl Builder<'_> {
                 let (list, alpha) = self.kind(code, tpage, true, false);
                 let scale = alpha * self.intensity;
                 let color = rgb(w(0));
+                let shift = blur_shift(code, tpage);
                 let c: Vec<Corner> = (0..4)
-                    .map(|i| self.corner(xy(w(1 + 2 * i)), uv(w(2 + 2 * i)), color, scale))
+                    .map(|i| {
+                        let mut texel = uv(w(2 + 2 * i));
+                        texel[0] += shift;
+                        self.corner(xy(w(1 + 2 * i)), texel, color, scale)
+                    })
                     .collect();
                 self.quad(list, Some((tpage, clut)), [c[0], c[1], c[2], c[3]]);
             }
@@ -309,8 +333,13 @@ impl Builder<'_> {
                 let (clut, tpage) = ((w(2) >> 16) as u16, (w(5) >> 16) as u16);
                 let (list, alpha) = self.kind(code, tpage, true, false);
                 let scale = alpha * self.intensity;
+                let shift = blur_shift(code, tpage);
                 let c: Vec<Corner> = (0..4)
-                    .map(|i| self.corner(xy(w(1 + 3 * i)), uv(w(2 + 3 * i)), rgb(w(3 * i)), scale))
+                    .map(|i| {
+                        let mut texel = uv(w(2 + 3 * i));
+                        texel[0] += shift;
+                        self.corner(xy(w(1 + 3 * i)), texel, rgb(w(3 * i)), scale)
+                    })
                     .collect();
                 self.quad(list, Some((tpage, clut)), [c[0], c[1], c[2], c[3]]);
             }
@@ -463,10 +492,17 @@ impl Builder<'_> {
         };
         meshes.sort_by_key(|mesh| order(mesh.list));
         for mesh in meshes {
-            let page = mesh.texture.map(|key| self.page(key));
+            // `SFXMesh.GetTexture`: a 15-bit page (mode 2) left of page 6
+            // is the screen (`SFXKey.IsBlurTexture`); the packets' texels
+            // address the captured screen, not VRAM.
+            let screen = mesh
+                .texture
+                .is_some_and(|(tpage, _)| (tpage >> 7) & 3 == 2 && tpage & 0xF < 6);
+            let page = mesh.texture.filter(|_| !screen).map(|key| self.page(key));
             self.out.batches.push(Batch {
                 blend: mesh.list.blend(),
                 page,
+                screen,
                 triangles: mesh.triangles,
             });
         }
@@ -554,4 +590,45 @@ pub fn render_list(effect: i32, prims: &[Prim], vram: &mut Vram) -> RenderList {
     }
     builder.flush();
     builder.out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A POLY_FT4 packet: code, color, four corners (x, y, u, v), CLUT, tpage.
+    fn quad(code: u8, tpage: u16, corners: [[u8; 4]; 4]) -> (i32, Vec<u32>) {
+        let mut words = vec![0, u32::from(code) << 24 | 0x80_8080];
+        for (i, [x, y, u, v]) in corners.into_iter().enumerate() {
+            words.push(u32::from(y) << 16 | u32::from(x));
+            let high = match i {
+                0 => 0,
+                1 => u32::from(tpage) << 16,
+                _ => 0,
+            };
+            words.push(high | u32::from(v) << 8 | u32::from(u));
+        }
+        (0, words)
+    }
+
+    #[test]
+    fn a_15_bit_page_left_of_page_6_is_the_screen() {
+        let corners = [[0, 0, 0, 0], [8, 0, 8, 0], [0, 8, 0, 8], [8, 8, 8, 8]];
+        let mut vram = Vram::default();
+        // 15-bit (mode 2) pages 1 and 6.
+        let screen = render_list(0, &[quad(0x2C, 0x101, corners)], &mut vram);
+        assert!(screen.batches[0].screen && screen.batches[0].page.is_none());
+        let page = render_list(0, &[quad(0x2C, 0x106, corners)], &mut vram);
+        assert!(!page.batches[0].screen && page.batches[0].page.is_some());
+    }
+
+    #[test]
+    fn the_plugins_blurred_packets_shift_u_on_later_pages() {
+        let corners = [[0, 0, 0, 0], [8, 0, 8, 0], [0, 8, 0, 8], [8, 8, 8, 8]];
+        let mut vram = Vram::default();
+        let list = render_list(0, &[quad(0x44, 0x101, corners)], &mut vram);
+        assert_eq!(list.batches[0].triangles[0][0].uv, [128.0, 0.0]);
+        let list = render_list(0, &[quad(0x44, 0x100, corners)], &mut vram);
+        assert_eq!(list.batches[0].triangles[0][0].uv, [0.0, 0.0]);
+    }
 }

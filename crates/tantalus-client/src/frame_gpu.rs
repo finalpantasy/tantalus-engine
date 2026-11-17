@@ -111,7 +111,14 @@ pub enum Command {
         matrix: u32,
     },
     Fog(Fog),
+    /// Copies what the frame holds so far into the screen texture
+    /// ([`SCREEN_KEY`]), which later draws sample (the effects that distort
+    /// the screen).
+    Capture,
 }
+
+/// The key of the screen texture a [`Command::Capture`] fills.
+pub const SCREEN_KEY: u64 = 0x5343_5245_454e_5f31;
 
 /// Vertices that do not change from frame to frame (a world block's
 /// submesh): positions in the mesh's own space, kept on the GPU by `key`.
@@ -251,6 +258,18 @@ impl Recording {
             mesh: mesh_index as u32,
             matrix: matrix_index as u32,
         });
+    }
+
+    /// Copies the frame so far into the screen texture and returns its
+    /// index: draws after this sample the scene as it is now.
+    pub fn capture(&mut self) -> u32 {
+        self.commands.push(Command::Capture);
+        self.add_texture(TextureData {
+            key: SCREEN_KEY,
+            width: self.width,
+            height: self.height,
+            rgba: Arc::from(Vec::new()),
+        })
     }
 
     fn add_texture(&mut self, data: TextureData) -> u32 {
@@ -580,6 +599,8 @@ pub struct GpuRaster {
     /// Static mesh vertex buffers and the render that last drew each.
     meshes: HashMap<u64, (wgpu::Buffer, u64)>,
     depth: Option<(u32, u32, wgpu::TextureView)>,
+    /// What a [`Command::Capture`] copies the frame into.
+    screen: Option<(u32, u32, wgpu::Texture)>,
     renders: u64,
 }
 
@@ -710,6 +731,7 @@ impl GpuRaster {
             textures: HashMap::new(),
             meshes: HashMap::new(),
             depth: None,
+            screen: None,
             renders: 0,
         }
     }
@@ -778,6 +800,43 @@ impl GpuRaster {
     }
 
     fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, data: &TextureData) {
+        if data.key == SCREEN_KEY {
+            // The screen texture a capture fills, the frame's size.
+            if self
+                .screen
+                .as_ref()
+                .is_some_and(|(w, h, _)| (*w, *h) == (data.width, data.height))
+                && let Some(texture) = self.textures.get_mut(&data.key)
+            {
+                texture.used = self.renders;
+                return;
+            }
+            let texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("tantalus-frame-gpu-screen"),
+                size: wgpu::Extent3d {
+                    width: data.width.max(1),
+                    height: data.height.max(1),
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: TARGET_FORMAT,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            self.screen = Some((data.width, data.height, texture));
+            self.textures.insert(
+                data.key,
+                GpuTexture {
+                    view,
+                    groups: [None, None],
+                    used: self.renders,
+                },
+            );
+            return;
+        }
         if let Some(texture) = self.textures.get_mut(&data.key) {
             texture.used = self.renders;
             return;
@@ -869,6 +928,7 @@ impl GpuRaster {
         queue: &wgpu::Queue,
         recording: &Recording,
         target: &wgpu::TextureView,
+        target_texture: &wgpu::Texture,
     ) {
         self.renders += 1;
         for data in &recording.textures {
@@ -940,7 +1000,7 @@ impl GpuRaster {
         loop {
             let end = recording.commands[start..]
                 .iter()
-                .position(|command| matches!(command, Command::Fog(_)))
+                .position(|command| matches!(command, Command::Fog(_) | Command::Capture))
                 .map_or(recording.commands.len(), |at| start + at);
             {
                 let load = |clear| {
@@ -1011,7 +1071,7 @@ impl GpuRaster {
                                 *matrix,
                             )
                         }
-                        Command::Fog(_) => continue,
+                        Command::Fog(_) | Command::Capture => continue,
                     };
                     let data_key = recording.textures[*texture as usize].key;
                     let slot = usize::from(*sampling == Sampling::Repeat);
@@ -1039,8 +1099,25 @@ impl GpuRaster {
                 }
             }
             first_pass = false;
-            let Some(Command::Fog(fog)) = recording.commands.get(end) else {
-                break;
+            let fog = match recording.commands.get(end) {
+                Some(Command::Fog(fog)) => fog,
+                Some(Command::Capture) => {
+                    // The frame so far, for the draws that sample the screen.
+                    if let Some((width, height, screen)) = &self.screen {
+                        encoder.copy_texture_to_texture(
+                            target_texture.as_image_copy(),
+                            screen.as_image_copy(),
+                            wgpu::Extent3d {
+                                width: (*width).min(recording.width),
+                                height: (*height).min(recording.height),
+                                depth_or_array_layers: 1,
+                            },
+                        );
+                    }
+                    start = end + 1;
+                    continue;
+                }
+                _ => break,
             };
             let color = |c: [u8; 3]| c.map(|v| f32::from(v) / 255.0);
             let (sky, tint) = (color(fog.sky), color(fog.fog));
@@ -1235,9 +1312,13 @@ pub fn read_back(recording: &Recording) -> Result<Vec<u8>, String> {
         view_formats: &[],
     });
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-    headless
-        .raster
-        .render(&headless.device, &headless.queue, recording, &view);
+    headless.raster.render(
+        &headless.device,
+        &headless.queue,
+        recording,
+        &view,
+        &texture,
+    );
     let row = (width * 4).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
         * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
     let buffer = headless.device.create_buffer(&wgpu::BufferDescriptor {
@@ -1373,7 +1454,7 @@ mod plugin {
                         format: Some(TARGET_FORMAT),
                         ..Default::default()
                     });
-            raster.render(device, &queue, recording, &view);
+            raster.render(device, &queue, recording, &view, &image.texture);
             false
         });
     }
