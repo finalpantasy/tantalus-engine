@@ -427,12 +427,14 @@ pub fn dim(frame: &mut Frame, intensity: f32) {
 }
 
 /// Where a unit is now: its feet, height and facing (world, y up).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct UnitSpot {
     pub feet: [f32; 3],
     pub height: f32,
     /// Degrees about y.
     pub turn: f32,
+    /// The posed model's bones (callback 14).
+    pub bones: std::sync::Arc<Vec<Option<tantalus_sfx::player::Bone>>>,
 }
 
 pub use tantalus_tools::battle_effects::{MAX_FRAMES, is_drawn};
@@ -462,7 +464,7 @@ pub fn plugin_units(stage: &BattleStage, spots: &[Option<UnitSpot>]) -> Vec<Unit
                 StageModel::Player { character, serial } => (character, serial),
                 _ => (index.saturating_sub(party) as u8, 0),
             };
-            let spot = spots.get(index).copied().flatten();
+            let spot = spots.get(index).cloned().flatten();
             let base = psx(unit.position);
             Unit {
                 btl_id: if player {
@@ -473,11 +475,14 @@ pub fn plugin_units(stage: &BattleStage, spots: &[Option<UnitSpot>]) -> Vec<Unit
                 player,
                 slot,
                 serial,
-                position: spot.map_or(base, |spot| psx(spot.feet)),
+                position: spot.as_ref().map_or(base, |spot| psx(spot.feet)),
                 base,
                 // `rot.eulerAngles.y * 11.38`, 4096 to a turn.
-                yaw: (spot.map_or(unit.turn, |spot| spot.turn) * 4096.0 / 360.0).round() as i16,
-                height: spot.map_or(0, |spot| spot.height.round().clamp(0.0, 32767.0) as i16),
+                yaw: (spot.as_ref().map_or(unit.turn, |spot| spot.turn) * 4096.0 / 360.0).round()
+                    as i16,
+                height: spot
+                    .as_ref()
+                    .map_or(0, |spot| spot.height.round().clamp(0.0, 32767.0) as i16),
                 // `SFX.InitBtlData`: `radius_collision` (256 for a player),
                 // and an enemy's `geo_radius` the first enemy's
                 // `radius_effect`.
@@ -488,6 +493,7 @@ pub fn plugin_units(stage: &BattleStage, spots: &[Option<UnitSpot>]) -> Vec<Unit
                 },
                 geo_radius: if player { 256 } else { stage.enemy_radius },
                 tar_bone: stage.tar_bones.get(index).copied().flatten().unwrap_or(0),
+                bones: spot.map(|spot| spot.bones).unwrap_or_default(),
             }
         })
         .collect()
@@ -839,6 +845,7 @@ mod tests {
                     feet: unit.position,
                     height: 600.0,
                     turn: 0.0,
+                    bones: Default::default(),
                 })
             })
             .collect();
@@ -914,6 +921,7 @@ mod tests {
                         radius: int(&unit[8]) as i32,
                         geo_radius: int(&unit[10]) as i32,
                         tar_bone: int(&unit[9]) as u8,
+                        bones: Default::default(),
                     }
                 })
                 .collect()

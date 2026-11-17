@@ -28,8 +28,46 @@ use crate::plugin::{Host, Plugin};
 use crate::render::{RenderList, render_list};
 use crate::vram::{Rect, Vram};
 
+/// One bone's place now, as callback 14 (`SFX.BattleCallback`, "Get Bone
+/// Stance") hands it to the plugin: the world matrix of the model's
+/// `bone<NNN>` object, in the PSX form (`PSXMAT`: nine 4096ths and the
+/// translation, y down).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Bone {
+    pub r: [i16; 9],
+    pub t: [i32; 3],
+}
+
+impl Bone {
+    /// The identity matrix `SFX.BattleCallback` answers for a bone the model
+    /// does not have (`Matrix4x4.identity`).
+    pub const IDENTITY: Bone = Bone {
+        r: [-4096, 0, 0, 0, 4096, 0, 0, 0, 4096],
+        t: [0; 3],
+    };
+
+    /// From a Unity `localToWorldMatrix` (`m[row][column]`, y up), by the
+    /// reference's own scalings and casts (`SFXData.BattleCallback`, case 14).
+    pub fn from_world(m: [[f32; 4]; 4]) -> Bone {
+        Bone {
+            r: [
+                (m[0][0] * -4096.0) as i16,
+                (m[0][1] * -4096.0) as i16,
+                (m[0][2] * 4096.0) as i16,
+                (m[1][0] * -4096.0) as i16,
+                (m[1][1] * 4096.0) as i16,
+                (m[1][2] * -4096.0) as i16,
+                (m[2][0] * 4096.0) as i16,
+                (m[2][1] * 4096.0) as i16,
+                (m[2][2] * 4096.0) as i16,
+            ],
+            t: [m[0][3] as i32, (-m[1][3]) as i32, m[2][3] as i32],
+        }
+    }
+}
+
 /// One battle unit as the plugin sees it (PSX battle space: y down).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Unit {
     /// `btl_id`: 1, 2, 4, 8 for the party, 0x10 and up for enemies.
     pub btl_id: u16,
@@ -52,6 +90,10 @@ pub struct Unit {
     /// enemy's `radius_effect`.
     pub geo_radius: i32,
     pub tar_bone: u8,
+    /// The posed model's bones by number (`bone000`...), `None` for one the
+    /// model lacks. Empty when the model is not known: callback 14 then
+    /// answers the unit's feet (bone 0) or middle.
+    pub bones: std::sync::Arc<Vec<Option<Bone>>>,
 }
 
 /// Who casts on whom.
@@ -196,7 +238,7 @@ impl BattleHost {
             _ => {}
         }
         let btl_id = code as u32 & 0xFF;
-        let Some(unit) = self.unit(btl_id).copied() else {
+        let Some(unit) = self.unit(btl_id).cloned() else {
             // `BattleCallbackWithBtl`: no such unit.
             return i32::from(command == 9);
         };
@@ -240,18 +282,37 @@ impl BattleHost {
             }
             9 => 1,
             14 => {
-                let at = if a1 == 0 { unit.position } else { middle };
+                // The model's own bone when its pose is known; a missing
+                // bone is `Matrix4x4.identity`.
+                let bone = (!unit.bones.is_empty()).then(|| {
+                    usize::try_from(a1)
+                        .ok()
+                        .and_then(|bone| unit.bones.get(bone).copied().flatten())
+                        .unwrap_or(Bone::IDENTITY)
+                });
+                let at = match bone {
+                    Some(bone) => bone.t.map(|v| v as i16),
+                    None if a1 == 0 => unit.position,
+                    None => middle,
+                };
                 match a0 {
                     0 if p != 0 => write_i16(memory, p, &at),
-                    1 => return i32::from(at[1]),
+                    1 => {
+                        return match bone {
+                            Some(bone) => bone.t[1],
+                            None => i32::from(at[1]),
+                        };
+                    }
                     2 if p != 0 => {
-                        // `PSXMAT` of the identity transform: r, pad, t.
+                        // `PSXMAT`: r, pad, t.
+                        let r = bone.map_or(Bone::IDENTITY.r, |bone| bone.r);
+                        let t = bone.map_or_else(|| at.map(i32::from), |bone| bone.t);
                         let mut bytes = Vec::with_capacity(32);
-                        for value in [-4096i16, 0, 0, 0, 4096, 0, 0, 0, 4096, 0] {
+                        for value in r.iter().copied().chain([0]) {
                             bytes.extend_from_slice(&value.to_le_bytes());
                         }
-                        for value in at {
-                            bytes.extend_from_slice(&i32::from(value).to_le_bytes());
+                        for value in t {
+                            bytes.extend_from_slice(&value.to_le_bytes());
                         }
                         memory.write(p, &bytes);
                     }

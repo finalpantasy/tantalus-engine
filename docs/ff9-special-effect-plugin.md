@@ -327,8 +327,8 @@ match the DLL (`battle_effects::is_drawn`: 212-224 and Photon 299):
   `btl_id` in those records and falls back to slot 0, the caster, when it finds none.
 - The host (`tantalus_sfx::player::BattleHost`) answers `SFX.BattleCallback` from the units'
   places this frame: positions, angles, sizes, the party member flags, the background
-  intensity, and records the Effect and Figure points and the sounds. Bones are not modeled
-  (`sfx-battle-bones`).
+  intensity, and records the Effect and Figure points and the sounds. Bones are the posed model's `bone<NNN>`
+  world matrices (`Unit::bones`, `sfx-battle-bones`).
 - Camera: the view's camera, converted back to the PSX camera
   (`battle_effects::psx_camera`, the inverse of `battle_camera_play::unity_camera`), is
   written where `SFX_Update` reads it before every frame, so the packets line up with the

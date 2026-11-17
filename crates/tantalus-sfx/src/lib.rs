@@ -71,6 +71,7 @@ impl SfxRuntime {
             radius: 200,
             geo_radius: 200,
             tar_bone: 0,
+            bones: Default::default(),
         };
         let setup = player::Setup {
             units: vec![unit(1, true, 1000), unit(0x10, false, -1000)],

@@ -118,6 +118,7 @@ pub fn plugin_timing(
         radius: 256,
         geo_radius: 256,
         tar_bone: 0,
+        bones: Default::default(),
     };
     let setup = Setup {
         units: vec![unit(1, true, -1500), unit(0x10, false, 500)],

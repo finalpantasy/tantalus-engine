@@ -45,6 +45,7 @@ use crate::battle_camera_play::CameraDirector;
 use crate::battle_hud::{BattleHud, HudDraw, MenuDraw, PartyRow};
 use crate::battle_motion::{ClipKey, Motions, UnitMotion, damage_numbers, unit_motion};
 use crate::battle_raster::{BattleCamera, Blend, DrawState, Frame, Texture, ViewVertex};
+use tantalus_sfx::player::Bone;
 
 /// Container folder of the battle backgrounds.
 const BACKGROUND_PREFIX: &str = "assets/resources/battlemap/battlemodel/battlemap_all/";
@@ -484,7 +485,7 @@ fn draw_unit(
     motion: &UnitMotion,
     (position, turn): ([f32; 3], f32),
     glow: Option<[u8; 3]>,
-) -> Option<(f32, Option<Vec3>)> {
+) -> Option<(f32, Option<Vec3>, Vec<Option<Bone>>)> {
     let Some(Some(model)) = assets.models.get(&geo) else {
         return None;
     };
@@ -516,16 +517,45 @@ fn draw_unit(
     let rotation =
         Quat::from_rotation_y(turn.to_radians()) * Quat::from_rotation_z(std::f32::consts::PI);
     let origin = Vec3::from_array(position) + Vec3::from_array(motion.offset);
+    let world = tantalus_assets::pc::model_assembly::pose::world_matrices(&model.nodes, &poses);
     // `GetChildByName("bone" + tar_bone)`: that bone's place in the pose.
     let bone_at = bone.and_then(|bone| {
         let name = format!("bone{bone:03}");
         let index = model.nodes.iter().position(|node| node.name == name)?;
-        let world = tantalus_assets::pc::model_assembly::pose::world_matrices(&model.nodes, &poses);
         // Row-major: the translation is the last column.
         let m = world.get(index)?;
         let local = Vec3::new(m[3], m[7], m[11]);
         Some(origin + rotation * local)
     });
+    // Every `bone<NNN>` object's world matrix, for the effects' bone queries
+    // (`SFXData.BattleCallback` case 14: `localToWorldMatrix`).
+    let turn_matrix = bevy::math::Mat3::from_quat(rotation);
+    let mut bones: Vec<Option<Bone>> = Vec::new();
+    for (node, m) in model.nodes.iter().zip(&world) {
+        let Some(number) = node
+            .name
+            .strip_prefix("bone")
+            .and_then(|number| number.parse::<usize>().ok())
+        else {
+            continue;
+        };
+        let local = bevy::math::Mat3::from_cols_array(&[
+            m[0], m[4], m[8], m[1], m[5], m[9], m[2], m[6], m[10],
+        ]);
+        let turned = turn_matrix * local;
+        let place = origin + rotation * Vec3::new(m[3], m[7], m[11]);
+        let column = |c: usize| turned.col(c).to_array();
+        let (c0, c1, c2) = (column(0), column(1), column(2));
+        if bones.len() <= number {
+            bones.resize(number + 1, None);
+        }
+        bones[number] = Some(Bone::from_world([
+            [c0[0], c1[0], c2[0], place.x],
+            [c0[1], c1[1], c2[1], place.y],
+            [c0[2], c1[2], c2[2], place.z],
+            [0.0, 0.0, 0.0, 1.0],
+        ]));
+    }
     let mut top = 0.0f32;
     // The glowing model's textures, tinted once per texture.
     let mut tinted: HashMap<usize, Vec<u8>> = HashMap::new();
@@ -605,7 +635,7 @@ fn draw_unit(
             }
         }
     }
-    Some((top, bone_at))
+    Some((top, bone_at, bones))
 }
 
 /// The last key time over every curve.
@@ -717,7 +747,7 @@ impl BattleScene {
                     (unit.position, unit.turn),
                     None,
                 )
-                .map_or(0.0, |(top, _)| top)
+                .map_or(0.0, |(top, _, _)| top)
             })
             .collect();
         let director = CameraDirector::new(stage, &heights, Some(&assets.effects));
@@ -864,7 +894,7 @@ impl BattleScene {
                 }
                 _ => None,
             };
-            if let Some((top, bone)) = time("b_unit", || {
+            if let Some((top, bone, bones)) = time("b_unit", || {
                 draw_unit(
                     &mut frame,
                     &camera,
@@ -886,6 +916,7 @@ impl BattleScene {
                     feet: feet.to_array(),
                     height: top,
                     turn: motion.facing.unwrap_or(unit.turn),
+                    bones: std::sync::Arc::new(bones),
                 });
             }
         }
