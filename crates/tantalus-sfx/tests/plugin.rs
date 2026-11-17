@@ -926,6 +926,140 @@ fn translated_gte_matches_the_dll() {
     assert!(differing.is_empty());
 }
 
+/// Frame by frame, the module data of the DLL and the port for
+/// `TANTALUS_SFX_EFFECT`: prints the offsets that first differ.
+#[test]
+#[ignore = "probe"]
+fn probe_state_diff() {
+    let id: i32 = std::env::var("TANTALUS_SFX_EFFECT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(341);
+    let bytes = effect_bytes(id);
+    let mut oracle = Oracle::load(&dll()).expect("load");
+    oracle.init_battle(&init_param()).expect("init");
+    oracle.play(id, &bytes, &request()).expect("play");
+    let image =
+        tantalus_sfx::image::PluginImage::parse(std::fs::read(dll()).expect("dll")).expect("pe");
+    let host = Arc::new(Mutex::new(DebugHost::default()));
+    let mut plugin = Plugin::load(&image, Box::new(Shared(host.clone()))).expect("image");
+    plugin.module_base = oracle.base() as u64;
+    plugin.init_system();
+    plugin.init_battle(&init_param());
+    plugin.play(id, &bytes, &request());
+    let (from, len) = (0x66000usize, 0x1AD000usize);
+    for frame in 1..=8 {
+        host.lock().unwrap().frame += 1;
+        oracle.frame().expect("frame");
+        plugin.frame();
+        let theirs = oracle.module_bytes(from as u32, len);
+        let ours = plugin
+            .m
+            .bytes(0x1_8000_0000 + from as u64, len)
+            .expect("read")
+            .to_vec();
+        // Pointers into the module differ by the load address; skip the
+        // qwords that are one on either side.
+        let pointer = |b: &[u8], i: usize| {
+            let q = i & !7;
+            let high = u32::from_le_bytes(b[q + 4..q + 8].try_into().unwrap());
+            matches!(high, 0x7FF0..=0x7FFF | 0x1 | 0x7FF00000..=0x7FFFFFFF)
+        };
+        let diffs: Vec<usize> = (0..len)
+            .filter(|&i| theirs[i] != ours[i] && !pointer(&theirs, i) && !pointer(&ours, i))
+            .collect();
+        println!("frame {frame}: {} bytes differ", diffs.len());
+        for chunk in diffs.chunks(1).take(30) {
+            let at = chunk[0];
+            println!(
+                "  {:#x}: dll {:02x} port {:02x}",
+                from + at,
+                theirs[at],
+                ours[at]
+            );
+        }
+        if !diffs.is_empty() {
+            break;
+        }
+    }
+}
+
+/// The functions the port runs in frame `TANTALUS_SFX_FRAME` of
+/// `TANTALUS_SFX_EFFECT`, in order (consecutive repeats counted).
+#[test]
+#[ignore = "probe"]
+fn probe_call_order() {
+    let var = |name: &str, default: i32| {
+        std::env::var(name)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    };
+    let (id, frame) = (
+        var("TANTALUS_SFX_EFFECT", 341),
+        var("TANTALUS_SFX_FRAME", 5),
+    );
+    let bytes = effect_bytes(id);
+    let image =
+        tantalus_sfx::image::PluginImage::parse(std::fs::read(dll()).expect("dll")).expect("pe");
+    let host = Arc::new(Mutex::new(DebugHost::default()));
+    let mut plugin = Plugin::load(&image, Box::new(Shared(host.clone()))).expect("image");
+    plugin.module_base = 0x1_8000_0000;
+    plugin.init_system();
+    plugin.init_battle(&init_param());
+    plugin.play(id, &bytes, &request());
+    for _ in 1..frame {
+        host.lock().unwrap().frame += 1;
+        plugin.frame();
+    }
+    plugin.tracing = true;
+    plugin.calls.clear();
+    plugin.frame();
+    let mut last = "";
+    let mut count = 0;
+    for name in plugin.calls.iter() {
+        if *name == last {
+            count += 1;
+            continue;
+        }
+        if count > 0 {
+            println!("  x{}", count + 1);
+        }
+        println!("{name}");
+        last = name;
+        count = 0;
+    }
+}
+
+/// The host calls of frames `TANTALUS_SFX_FROM`..`TANTALUS_SFX_TO` of
+/// `TANTALUS_SFX_EFFECT`.
+#[test]
+#[ignore = "probe"]
+fn probe_calls_in_frames() {
+    let var = |name: &str, default: i32| {
+        std::env::var(name)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    };
+    let (id, from, to) = (
+        var("TANTALUS_SFX_EFFECT", 299),
+        var("TANTALUS_SFX_FROM", 79),
+        var("TANTALUS_SFX_TO", 80),
+    );
+    let run = run_port(id, to as usize + 1, 0x1_8000_0000);
+    for call in run
+        .calls
+        .iter()
+        .filter(|c| (from..=to).contains(&(c.frame as i32)))
+    {
+        println!(
+            "frame {} cmd {} low {:#x} args {:?}",
+            call.frame, call.command, call.low, call.args
+        );
+    }
+}
+
 /// The port's primitive count and a hash of its frames for
 /// `TANTALUS_SFX_EFFECT` (run with different fills to see whether the port
 /// reads uninitialized memory).
