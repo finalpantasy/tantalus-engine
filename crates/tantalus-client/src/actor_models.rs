@@ -70,6 +70,14 @@ pub struct ScreenVertex {
     pub color: [f32; 4],
 }
 
+/// An actor's shadow: the quad's corners (-1,-1), (1,-1), (1,1), (-1,1)
+/// in x, z and the shadow color strength.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ShadowQuad {
+    pub corners: [ScreenVertex; 4],
+    pub strength: f32,
+}
+
 /// RGBA texels, rows top-down as `Texture2D::rgba_bytes` returns them, so
 /// `v = 0` (Unity's bottom row) is the last row.
 #[derive(Debug, Clone, Copy)]
@@ -377,22 +385,16 @@ impl ActorModels {
         })
     }
 
-    /// Rasterizes `pose`'s shadow quad (`FieldMapActor.CreateShadowMesh`)
-    /// baked for a reverse-subtract draw, or `None` when the actor casts
-    /// none.
-    pub fn render_shadow(
+    /// `pose`'s shadow quad (`FieldMapActor.CreateShadowMesh`) projected
+    /// to the field, or `None` when the actor casts none.
+    pub fn shadow_quad(
         &self,
         camera: &LegacyFieldCamera,
         position: [f32; 3],
         pose: &ActorPose,
-    ) -> Option<Raster> {
+    ) -> Option<ShadowQuad> {
         let shadow = self.light(pose).shadow?;
-        let (width, height, rgba) = self.shadow_plate.as_ref()?;
-        let texels = Texels {
-            width: *width,
-            height: *height,
-            rgba,
-        };
+        self.shadow_plate.as_ref()?;
         // `FieldMapActor`: the shadow sits at the actor plus `xOffset`,
         // `zOffset` (`SHADOWOFFSET`).
         let center = [
@@ -414,19 +416,46 @@ impl ActorModels {
                 color: [1.0; 4],
             })
         };
-        let quad = [
-            corner(-1.0, -1.0)?,
-            corner(1.0, -1.0)?,
-            corner(1.0, 1.0)?,
-            corner(-1.0, 1.0)?,
-        ];
+        Some(ShadowQuad {
+            corners: [
+                corner(-1.0, -1.0)?,
+                corner(1.0, -1.0)?,
+                corner(1.0, 1.0)?,
+                corner(-1.0, 1.0)?,
+            ],
+            strength: shadow.strength,
+        })
+    }
+
+    /// The shadow texture: width, height and RGBA rows top-down.
+    pub fn shadow_plate(&self) -> Option<&crate::field_light::ShadowPlate> {
+        self.shadow_plate.as_ref()
+    }
+
+    /// Rasterizes `pose`'s shadow quad baked for a reverse-subtract draw
+    /// (the CPU path; the GPU path draws [`Self::shadow_quad`]), or `None`
+    /// when the actor casts none.
+    pub fn render_shadow(
+        &self,
+        camera: &LegacyFieldCamera,
+        position: [f32; 3],
+        pose: &ActorPose,
+    ) -> Option<Raster> {
+        let quad = self.shadow_quad(camera, position, pose)?;
+        let (width, height, rgba) = self.shadow_plate.as_ref()?;
+        let texels = Texels {
+            width: *width,
+            height: *height,
+            rgba,
+        };
+        let q = quad.corners;
         rasterize_with(
             &[
-                ([quad[2], quad[1], quad[0]], Some(texels)),
-                ([quad[3], quad[2], quad[0]], Some(texels)),
+                ([q[2], q[1], q[0]], Some(texels)),
+                ([q[3], q[2], q[0]], Some(texels)),
             ],
             |texel, _| {
-                let pixel = crate::field_light::shadow_texel(texel, shadow.strength);
+                let pixel = crate::field_light::shadow_texel(texel, quad.strength);
                 (pixel[3] != 0).then_some(pixel)
             },
         )

@@ -131,9 +131,14 @@ pub fn spawn_frame_markers(
     // The software rasterizer is the frame's cost: each actor's body and
     // shadow rasters are independent, so they run on their own threads.
     let mut rasters: BTreeMap<u64, (Option<Raster>, Option<Raster>)> = BTreeMap::new();
+    let mut quads: BTreeMap<u64, crate::actor_models::ShadowQuad> = BTreeMap::new();
     // With the GPU plugin the body is drawn as a mesh from its triangles.
     let gpu = world.contains_resource::<crate::actor_gpu::ActorGpuCache>()
         && std::env::var_os("TANTALUS_ACTOR_CPU").is_none();
+    // TANTALUS_SHADOW_CPU keeps the shadows on the CPU raster (comparison).
+    let cpu_shadow = std::env::var_os("TANTALUS_SHADOW_CPU").is_some();
+    // TANTALUS_SHADOW_OFF draws none (GPU path only; comparison).
+    let no_shadow = std::env::var_os("TANTALUS_SHADOW_OFF").is_some();
     let mut triangles: BTreeMap<u64, Vec<crate::actor_models::Triangle<'_>>> = BTreeMap::new();
     // Carried actors are drawn on their carrier's bone, not where they stand.
     let carried_ids: BTreeSet<u64> = frame
@@ -183,23 +188,33 @@ pub fn spawn_frame_markers(
                     scope.spawn(move || {
                         if gpu {
                             let body = models.carrying_triangles(camera, position, pose, carried);
-                            let shadow = body
-                                .as_ref()
-                                .filter(|body| !body.is_empty())
-                                .and_then(|_| models.render_shadow(camera, position, pose));
-                            return (id, None, body, shadow);
+                            let casts =
+                                !no_shadow && body.as_ref().is_some_and(|body| !body.is_empty());
+                            if cpu_shadow {
+                                let shadow = casts
+                                    .then(|| models.render_shadow(camera, position, pose))
+                                    .flatten();
+                                return (id, None, body, shadow, None);
+                            }
+                            let quad = casts
+                                .then(|| models.shadow_quad(camera, position, pose))
+                                .flatten();
+                            return (id, None, body, None, quad);
                         }
                         let body = models.render_carrying(camera, position, pose, carried);
                         let shadow = body
                             .as_ref()
                             .and_then(|_| models.render_shadow(camera, position, pose));
-                        (id, body, None, shadow)
+                        (id, body, None, shadow, None)
                     })
                 })
                 .collect();
             for handle in handles {
-                if let Ok((id, body, mesh, shadow)) = handle.join() {
+                if let Ok((id, body, mesh, shadow, quad)) = handle.join() {
                     rasters.insert(id, (body, shadow));
+                    if let Some(quad) = quad {
+                        quads.insert(id, quad);
+                    }
                     if let Some(mesh) = mesh {
                         triangles.insert(id, mesh);
                     }
@@ -233,6 +248,17 @@ pub fn spawn_frame_markers(
             let z = crate::projection::layer_z(depth) + 0.01 / (1.0 + actor.depth.max(0.0));
             if let Some(shadow) = shadow {
                 spawn_shadow(world, shadow, z - 0.005);
+            }
+            if let Some(quad) = quads.remove(id)
+                && let Some(plate) = models.and_then(|models| models.shadow_plate())
+            {
+                let (mesh, material) = crate::actor_gpu::build_shadow(world, plate, &quad);
+                world.spawn((
+                    Mesh2d(mesh),
+                    MeshMaterial2d(material),
+                    Transform::from_xyz(0.0, 0.0, z - 0.005),
+                    TrackMarker,
+                ));
             }
             world.spawn((
                 Mesh2d(actor.mesh),

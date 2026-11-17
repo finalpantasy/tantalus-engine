@@ -9,13 +9,17 @@ use std::collections::HashMap;
 use bevy::asset::{AssetPath, RenderAssetUsages, embedded_asset, embedded_path};
 use bevy::image::ImageSampler;
 use bevy::mesh::PrimitiveTopology;
+use bevy::mesh::{Indices, MeshVertexBufferLayoutRef};
 use bevy::prelude::*;
 use bevy::reflect::TypePath;
-use bevy::render::render_resource::{AsBindGroup, Extent3d, TextureDimension, TextureFormat};
+use bevy::render::render_resource::{
+    AsBindGroup, Extent3d, RenderPipelineDescriptor, SpecializedMeshPipelineError,
+    TextureDimension, TextureFormat,
+};
 use bevy::shader::ShaderRef;
-use bevy::sprite_render::{AlphaMode2d, Material2d, Material2dPlugin};
+use bevy::sprite_render::{AlphaMode2d, Material2d, Material2dKey, Material2dPlugin};
 
-use crate::actor_models::{Texels, Triangle};
+use crate::actor_models::{ShadowQuad, Texels, Triangle};
 
 /// Registers the shader, the material and the atlas cache.
 pub struct ActorGpuPlugin;
@@ -23,7 +27,9 @@ pub struct ActorGpuPlugin;
 impl Plugin for ActorGpuPlugin {
     fn build(&self, app: &mut App) {
         embedded_asset!(app, "shaders/actor_gpu.wgsl");
+        embedded_asset!(app, "shaders/actor_shadow.wgsl");
         app.add_plugins(Material2dPlugin::<ActorGpuMaterial>::default());
+        app.add_plugins(Material2dPlugin::<ActorShadowMaterial>::default());
         app.init_resource::<ActorGpuCache>();
     }
 }
@@ -50,6 +56,41 @@ impl Material2d for ActorGpuMaterial {
     }
 }
 
+/// The shadow texture, drawn as a reverse-subtract quad per actor
+/// (`PSX/FieldMapActorShadow`: `Blend One One`, `BlendOp RevSub`).
+#[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
+pub struct ActorShadowMaterial {
+    #[texture(0)]
+    #[sampler(1)]
+    pub plate: Handle<Image>,
+}
+
+impl Material2d for ActorShadowMaterial {
+    fn fragment_shader() -> ShaderRef {
+        ShaderRef::Path(
+            AssetPath::from_path_buf(embedded_path!("shaders/actor_shadow.wgsl"))
+                .with_source("embedded"),
+        )
+    }
+
+    fn alpha_mode(&self) -> AlphaMode2d {
+        AlphaMode2d::Blend
+    }
+
+    fn specialize(
+        descriptor: &mut RenderPipelineDescriptor,
+        _layout: &MeshVertexBufferLayoutRef,
+        _key: Material2dKey<Self>,
+    ) -> Result<(), SpecializedMeshPipelineError> {
+        if let Some(fragment) = descriptor.fragment.as_mut() {
+            for target in fragment.targets.iter_mut().flatten() {
+                target.blend = Some(crate::psx_blend::blend_state(2));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// A texture as the atlas key: where its texels live and how big it is.
 type TextureKey = (usize, usize, usize, u64);
 
@@ -63,6 +104,8 @@ struct Atlas {
 #[derive(Resource, Default)]
 pub struct ActorGpuCache {
     atlases: HashMap<Vec<TextureKey>, Atlas>,
+    /// The shadow material and the plate size it was made from.
+    shadow: Option<((usize, usize), Handle<ActorShadowMaterial>)>,
 }
 
 /// An actor ready to spawn.
@@ -88,6 +131,72 @@ fn key_of(texels: &Texels<'_>) -> TextureKey {
         texels.height,
         sample,
     )
+}
+
+/// The mesh (two triangles) and material for one shadow quad, over
+/// `plate` (width, height, RGBA rows top-down). The shared material holds
+/// the plate; the strength rides in the vertex color.
+pub fn build_shadow(
+    world: &mut World,
+    plate: &crate::field_light::ShadowPlate,
+    quad: &ShadowQuad,
+) -> (Handle<Mesh>, Handle<ActorShadowMaterial>) {
+    let size = (plate.0, plate.1);
+    let known = world
+        .resource::<ActorGpuCache>()
+        .shadow
+        .as_ref()
+        .filter(|(known, _)| *known == size)
+        .map(|(_, material)| material.clone());
+    let material = known.unwrap_or_else(|| {
+        let mut image = Image::new(
+            Extent3d {
+                width: plate.0 as u32,
+                height: plate.1 as u32,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            plate.2.clone(),
+            TextureFormat::Rgba8Unorm,
+            RenderAssetUsages::default(),
+        );
+        image.sampler = ImageSampler::nearest();
+        let image = world.resource_mut::<Assets<Image>>().add(image);
+        let material = world
+            .resource_mut::<Assets<ActorShadowMaterial>>()
+            .add(ActorShadowMaterial { plate: image });
+        world.resource_mut::<ActorGpuCache>().shadow = Some((size, material.clone()));
+        material
+    });
+    let color = [
+        quad.strength,
+        0.0,
+        0.0,
+        crate::field_light::SHADOW_VERTEX_ALPHA,
+    ];
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    );
+    mesh.insert_attribute(
+        Mesh::ATTRIBUTE_POSITION,
+        quad.corners
+            .iter()
+            .map(|vertex| [vertex.xy[0], vertex.xy[1], 0.0])
+            .collect::<Vec<_>>(),
+    );
+    // The plate's rows run top-down: v = 0 is the last row.
+    mesh.insert_attribute(
+        Mesh::ATTRIBUTE_UV_0,
+        quad.corners
+            .iter()
+            .map(|vertex| [vertex.uv[0], 1.0 - vertex.uv[1]])
+            .collect::<Vec<_>>(),
+    );
+    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, vec![color; 4]);
+    mesh.insert_indices(Indices::U32(vec![0, 1, 2, 0, 2, 3]));
+    let mesh = world.resource_mut::<Assets<Mesh>>().add(mesh);
+    (mesh, material)
 }
 
 /// Builds the mesh and atlas for `triangles`. `None` when there is nothing to draw.
@@ -240,4 +349,62 @@ fn build_atlas(world: &mut World, textures: &[(TextureKey, Texels<'_>)]) -> Atla
         .resource_mut::<Assets<ActorGpuMaterial>>()
         .add(ActorGpuMaterial { atlas: image });
     Atlas { material, rects }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actor_models::ScreenVertex;
+
+    fn vertex(x: f32, y: f32, u: f32, v: f32) -> ScreenVertex {
+        ScreenVertex {
+            xy: [x, y],
+            depth: 1.0,
+            uv: [u, v],
+            color: [1.0; 4],
+        }
+    }
+
+    #[test]
+    fn shadow_quad_is_one_mesh_with_a_shared_plate_material() {
+        let mut app = App::new();
+        app.add_plugins(AssetPlugin::default());
+        app.init_asset::<Mesh>();
+        app.init_asset::<Image>();
+        app.init_asset::<ActorShadowMaterial>();
+        app.init_resource::<ActorGpuCache>();
+        let plate = (2usize, 2usize, vec![255u8; 16]);
+        let quad = |strength| ShadowQuad {
+            corners: [
+                vertex(0.0, 0.0, 0.0, 0.0),
+                vertex(4.0, 0.0, 1.0, 0.0),
+                vertex(4.0, 4.0, 1.0, 1.0),
+                vertex(0.0, 4.0, 0.0, 1.0),
+            ],
+            strength,
+        };
+        let world = app.world_mut();
+        let (mesh, first) = build_shadow(world, &plate, &quad(0.5));
+        let (_, second) = build_shadow(world, &plate, &quad(0.25));
+        assert_eq!(first, second, "one plate material for every actor");
+        let mesh = world.resource::<Assets<Mesh>>().get(&mesh).unwrap();
+        assert_eq!(mesh.count_vertices(), 4);
+        assert_eq!(mesh.indices().unwrap().len(), 6);
+        let colors = mesh.attribute(Mesh::ATTRIBUTE_COLOR).unwrap();
+        let bevy::mesh::VertexAttributeValues::Float32x4(colors) = colors else {
+            panic!("color attribute is not Float32x4");
+        };
+        assert_eq!(
+            colors[0],
+            [0.5, 0.0, 0.0, crate::field_light::SHADOW_VERTEX_ALPHA]
+        );
+        // The plate's top row is v = 1 (rows run top-down).
+        let bevy::mesh::VertexAttributeValues::Float32x2(uvs) =
+            mesh.attribute(Mesh::ATTRIBUTE_UV_0).unwrap()
+        else {
+            panic!("uv attribute is not Float32x2");
+        };
+        assert_eq!(uvs[0], [0.0, 1.0]);
+        assert_eq!(uvs[2], [1.0, 0.0]);
+    }
 }

@@ -29,7 +29,7 @@ const LIGHT_LADDER: i8 = 2;
 /// `FieldMapActor.shadowHeightOffset`.
 pub const SHADOW_HEIGHT_OFFSET: f32 = 5.0;
 /// `CreateShadowMesh` vertex color alpha.
-const SHADOW_VERTEX_ALPHA: f32 = 0.6;
+pub const SHADOW_VERTEX_ALPHA: f32 = 0.6;
 
 /// How one actor is lit this frame.
 #[derive(Debug, Clone, Copy, PartialEq)]

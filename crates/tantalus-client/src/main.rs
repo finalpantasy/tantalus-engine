@@ -777,6 +777,21 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                     "perf spawn_frame_markers (rasters on threads + spawn): {:.3} ms",
                     started.elapsed().as_secs_f64() * 1000.0
                 );
+                // Mean of 20 more runs (each replaces the markers).
+                let again = std::time::Instant::now();
+                for _ in 0..20 {
+                    tantalus_client::track::spawn_frame_markers(
+                        world,
+                        &field.scene.camera,
+                        &frame,
+                        &placed,
+                        Some(&models),
+                    );
+                }
+                println!(
+                    "perf spawn_frame_markers mean of 20: {:.3} ms",
+                    again.elapsed().as_secs_f64() * 1000.0 / 20.0
+                );
             }
             tantalus_client::scene_adapter::apply_overlay_changes(
                 world,
@@ -876,6 +891,16 @@ fn play_perf(
             for (id, position) in &frame.actors {
                 if let Some(pose) = frame.poses.get(id) {
                     std::hint::black_box(models.render_shadow(camera, *position, pose));
+                }
+            }
+        }),
+    );
+    mean(
+        "shadow_quad all actors",
+        Box::new(|| {
+            for (id, position) in &frame.actors {
+                if let Some(pose) = frame.poses.get(id) {
+                    std::hint::black_box(models.shadow_quad(camera, *position, pose));
                 }
             }
         }),
