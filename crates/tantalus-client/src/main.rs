@@ -511,6 +511,8 @@ fn parse_holds(list: Option<&String>) -> Result<Vec<(u64, u64, i32)>, String> {
 /// `--auto-confirm` ticks), then renders the field it ends on with its
 /// actors to a PNG.
 fn run_play_capture(args: &[std::ffi::OsString]) -> ExitCode {
+    // Battle and world frames draw on the GPU (`TANTALUS_RASTER_CPU=1`: the CPU).
+    tantalus_client::frame_gpu::enable_headless();
     // `--audio-log` prints each sound request with its tick; no device is ever opened.
     let (audio_log, args) = take_switch(args, "--audio-log");
     let args = &args[..];
@@ -973,6 +975,8 @@ impl CaptureAudio {
 /// [--shots T,T] --output <png> [--size WxH]`: walks the world map
 /// headlessly with scripted input and renders what the world camera sees.
 fn run_world_capture(args: &[std::ffi::OsString]) -> ExitCode {
+    // Battle and world frames draw on the GPU (`TANTALUS_RASTER_CPU=1`: the CPU).
+    tantalus_client::frame_gpu::enable_headless();
     let mut allowed = PLAY_FLAGS.to_vec();
     allowed.extend([
         "--ticks",

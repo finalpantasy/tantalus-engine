@@ -5929,6 +5929,7 @@ name = "tantalus-client"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bytemuck",
  "cpal",
  "crossbeam-channel",
  "image",
@@ -5941,6 +5942,7 @@ dependencies = [
  "tantalus-legacy",
  "tantalus-tools",
  "tempfile",
+ "wgpu",
 ]
 
 [[package]]

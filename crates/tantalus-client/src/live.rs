@@ -311,6 +311,7 @@ pub fn play(
         )
         .add_plugins(crate::psx_blend::PsxBlendPlugin)
         .add_plugins(crate::actor_gpu::ActorGpuPlugin)
+        .add_plugins(crate::frame_gpu::FrameGpuPlugin)
         .insert_resource(Live {
             game: std::sync::Mutex::new(game),
             streaming_assets,
@@ -469,8 +470,20 @@ fn live_tick(world: &mut World) {
     );
     bench::time("live_tick", || live_tick_inner(world));
     static COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    if COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1 >= limit {
+    let count = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+    // `TANTALUS_BENCH_SHOT=out.png`: a screenshot of the window after the
+    // last timed frame, a few frames before the exit so it can save.
+    let shot = std::env::var("TANTALUS_BENCH_SHOT").ok();
+    if count == limit {
         bench::report();
+        if let Some(path) = &shot {
+            use bevy::render::view::screenshot::{Screenshot, save_to_disk};
+            world
+                .spawn(Screenshot::primary_window())
+                .observe(save_to_disk(path.clone()));
+        }
+    }
+    if count >= limit + if shot.is_some() { 20 } else { 0 } {
         std::process::exit(0);
     }
 }
@@ -484,6 +497,9 @@ fn live_tick_inner(world: &mut World) {
     // part of a frame, and skipping it leaves the tick untouched.
     live.render_gap += delta;
     let redraw = live.render_gap >= REDRAW_INTERVAL;
+    // The GPU-drawn battle and world views cost little to record, so they
+    // redraw every display frame.
+    let gpu_redraw = redraw || crate::frame_gpu::active();
     if let Some((mut player, before)) = live.movie.take() {
         // Start skips; a Start held since before the movie began does not.
         let skipped = held & pad::START != 0 && before & pad::START == 0;
@@ -513,7 +529,7 @@ fn live_tick_inner(world: &mut World) {
             live.elapsed = 0.0;
         } else {
             let hud = live.battle_hud.lock().expect("hud lock");
-            if redraw {
+            if gpu_redraw {
                 live.render_gap = 0.0;
                 bench::time("battle_show", || {
                     view.show(
@@ -635,7 +651,7 @@ fn live_tick_inner(world: &mut World) {
         if let Some(play) = game.world_play.as_ref() {
             match live.world_view.as_mut() {
                 Some(view) => {
-                    if redraw {
+                    if gpu_redraw {
                         live.render_gap = 0.0;
                         bench::time("world_map", || view.update(world, play));
                     }

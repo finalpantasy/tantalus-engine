@@ -19,12 +19,7 @@ pub const MOVIE_FPS: f64 = 15.0;
 
 /// A decoded movie frame as a window frame.
 fn to_frame(width: u32, height: u32, rgba: Vec<u8>) -> Frame {
-    Frame {
-        width,
-        height,
-        rgba,
-        depth: Vec::new(),
-    }
+    Frame::from_rgba(width, height, rgba)
 }
 
 /// Starts decoding `path` on a thread; frames arrive in order, a few ahead of need.

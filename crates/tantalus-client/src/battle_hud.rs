@@ -95,6 +95,8 @@ pub struct BattleHud {
     assets: DialogAssets,
     baseline: i32,
     windows: RefCell<HashMap<(i32, i32), Image>>,
+    /// Text lines drawn lately, by text and color.
+    texts: RefCell<HashMap<(String, [u8; 3]), Image>>,
 }
 
 impl BattleHud {
@@ -108,6 +110,7 @@ impl BattleHud {
             assets,
             baseline,
             windows: RefCell::new(HashMap::new()),
+            texts: RefCell::new(HashMap::new()),
         })
     }
 
@@ -325,6 +328,18 @@ impl Ui<'_> {
 
     /// `text` with its top at `y` (UI pixels), the label shadow under it.
     fn text(&mut self, x: f32, y: f32, text: &str, color: [u8; 3]) {
+        let mut texts = self.hud.texts.borrow_mut();
+        // Damage numbers and gauges change the lines; keep the cache small.
+        if texts.len() > 256 {
+            texts.clear();
+        }
+        let image = texts
+            .entry((text.to_owned(), color))
+            .or_insert_with(|| self.text_image(text, color));
+        blit_scaled(self.frame, image, x, y, self.scale);
+    }
+
+    fn text_image(&self, text: &str, color: [u8; 3]) -> Image {
         let glyphs = self.hud.assets.glyphs();
         let width = self.measure(text).ceil() as usize + 8;
         let height = (FONT_SIZE + 16) as usize;
@@ -353,7 +368,7 @@ impl Ui<'_> {
                 pen += glyph.advance;
             }
         }
-        blit_scaled(self.frame, &image, x, y, self.scale);
+        image
     }
 
     fn text_right(&mut self, right: f32, y: f32, text: &str, color: [u8; 3]) {
@@ -417,6 +432,10 @@ impl Ui<'_> {
 /// Draws `image` (UI pixels, straight alpha) with its top left at `(x, y)`
 /// UI pixels, scaled by `scale` with a box filter.
 fn blit_scaled(frame: &mut Frame, image: &Image, x: f32, y: f32, scale: f32) {
+    if let Some(recording) = frame.recording_mut() {
+        recording.image(x, y, scale, &image.rgba, image.width, image.height);
+        return;
+    }
     let (fw, fh) = (frame.width as i32, frame.height as i32);
     let x0 = (x * scale).floor() as i32;
     let y0 = (y * scale).floor() as i32;

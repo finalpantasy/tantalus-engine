@@ -78,6 +78,8 @@ pub struct WorldRenderer {
     models: ActorModels,
     minimap: Minimap,
     blocks: HashMap<(usize, usize), Option<Arc<BattleBackground>>>,
+    /// Loaded blocks' submeshes as GPU meshes.
+    meshes: BlockMeshes,
     /// Blocks that failed, for reports.
     pub problems: Vec<String>,
 }
@@ -107,6 +109,7 @@ impl WorldRenderer {
             models,
             minimap: Minimap::default(),
             blocks: HashMap::new(),
+            meshes: HashMap::new(),
             problems,
         }
     }
@@ -209,7 +212,7 @@ impl WorldRenderer {
     pub fn render(&mut self, play: &WorldPlay, width: u32, height: u32) -> Frame {
         let camera = camera_for(play);
         let weather = Weather::at(play.walker.pos.x, play.walker.pos.z);
-        let mut frame = Frame::new(
+        let mut frame = Frame::for_view(
             width,
             height,
             [weather.sky[0], weather.sky[1], weather.sky[2], 255],
@@ -226,7 +229,10 @@ impl WorldRenderer {
         self.blocks.retain(|&(x, y), _| {
             apart(x as i32, here.0, 24) <= KEEP && apart(y as i32, here.1, 20) <= KEEP
         });
-        self.load_missing(play, here);
+        crate::live::bench::time("w_load", || self.load_missing(play, here));
+        // Meshes of blocks no longer loaded go.
+        self.meshes
+            .retain(|_, (block, _)| Arc::strong_count(block) > 1);
         let mut drawn: Vec<Drawn> = Vec::new();
         for dy in -RADIUS..=RADIUS {
             for dx in -RADIUS..=RADIUS {
@@ -247,11 +253,13 @@ impl WorldRenderer {
                 }
             }
         }
-        for pass in [Pass::Land, Pass::Water] {
-            for item in &drawn {
-                draw_block(&mut frame, &camera, item, pass);
+        crate::live::bench::time("w_blocks", || {
+            for pass in [Pass::Land, Pass::Water] {
+                for item in &drawn {
+                    draw_block(&mut frame, &camera, item, pass, &mut self.meshes);
+                }
             }
-        }
+        });
         let moving = play.walker.moved;
         let time = play.frames as f32 / 30.0;
         let at = [pos.x, pos.y, pos.z];
@@ -262,6 +270,7 @@ impl WorldRenderer {
             tint,
         };
         let plain = (0.0, 1.0);
+        let chars_start = std::time::Instant::now();
         let drawn_player = match play.ride {
             0 => {
                 let clip = if moving { ZIDANE_RUN } else { ZIDANE_IDLE };
@@ -308,6 +317,7 @@ impl WorldRenderer {
                 drew
             }
         };
+        crate::live::bench::record("w_chars", chars_start.elapsed().as_secs_f64() * 1000.0);
         if !drawn_player {
             draw_marker(&mut frame, &camera, at, play.walker.rot_y);
         }
@@ -322,8 +332,10 @@ impl WorldRenderer {
         let horizon = frame
             .project(&camera, camera.to_view(far))
             .map_or(height as f32 * 0.4, |p| p[1]);
-        weather.apply(&mut frame, horizon);
-        self.minimap.draw(&mut frame, play);
+        crate::live::bench::time("w_post", || {
+            weather.apply(&mut frame, horizon);
+            self.minimap.draw(&mut frame, play);
+        });
         frame
     }
 }
@@ -336,18 +348,38 @@ struct Drawn {
     form: u8,
 }
 
-fn draw_block(frame: &mut Frame, camera: &BattleCamera, item: &Drawn, pass: Pass) {
+/// Block submeshes as GPU meshes ([`crate::frame_gpu::MeshData`]), by
+/// block, mesh and submesh; each holds its block so the key stays its own.
+type BlockMeshes =
+    HashMap<(usize, usize, usize), (Arc<BattleBackground>, crate::frame_gpu::MeshData)>;
+
+fn draw_block(
+    frame: &mut Frame,
+    camera: &BattleCamera,
+    item: &Drawn,
+    pass: Pass,
+    meshes: &mut BlockMeshes,
+) {
     let (block, origin) = (&item.block, item.origin);
-    for mesh in &block.meshes {
+    let gpu = frame.recording().is_some();
+    // The GPU draws a block's static meshes through one transform.
+    let matrix = gpu.then(|| {
+        (camera.clip_matrix() * bevy::math::Mat4::from_translation(Vec3::from_array(origin)))
+            .to_cols_array()
+    });
+    for (mesh_index, mesh) in block.meshes.iter().enumerate() {
         if !mesh_in_form(&mesh.name, item.form, item.key) {
             continue;
         }
-        let view: Vec<Vec3> = mesh
-            .positions
-            .iter()
-            .map(|p| camera.to_view([p[0] + origin[0], p[1] + origin[1], p[2] + origin[2]]))
-            .collect();
-        for submesh in &mesh.submeshes {
+        let view: Vec<Vec3> = if gpu {
+            Vec::new()
+        } else {
+            mesh.positions
+                .iter()
+                .map(|p| camera.to_view([p[0] + origin[0], p[1] + origin[1], p[2] + origin[2]]))
+                .collect()
+        };
+        for (submesh_index, submesh) in mesh.submeshes.iter().enumerate() {
             if submesh.topology != 0 {
                 continue;
             }
@@ -383,6 +415,37 @@ fn draw_block(frame: &mut Frame, camera: &BattleCamera, item: &Drawn, pass: Pass
             let Some(indices) = mesh.indices.get(first..end) else {
                 continue;
             };
+            if let (Some(matrix), Some(recording)) = (matrix, frame.recording_mut()) {
+                let (key, alpha) = crate::battle_raster::gpu_state(state);
+                let shade = if texture.is_some() {
+                    1.0
+                } else {
+                    200.0 / 255.0
+                };
+                let (_, data) = meshes
+                    .entry((Arc::as_ptr(block) as usize, mesh_index, submesh_index))
+                    .or_insert_with(|| {
+                        let mut vertices = Vec::with_capacity(indices.len());
+                        for corner in indices.chunks_exact(3) {
+                            let vertex = |at: u32| {
+                                Some(crate::frame_gpu::mesh_vertex(
+                                    *mesh.positions.get(at as usize)?,
+                                    mesh.uvs.get(at as usize).copied().unwrap_or_default(),
+                                    [shade, shade, shade, alpha],
+                                ))
+                            };
+                            if let (Some(a), Some(b), Some(c)) =
+                                (vertex(corner[0]), vertex(corner[1]), vertex(corner[2]))
+                            {
+                                vertices.extend([a, b, c]);
+                            }
+                        }
+                        (block.clone(), crate::frame_gpu::MeshData::new(vertices))
+                    });
+                let index = recording.texture(texture.map(|t| (t.rgba, t.width, t.height)));
+                recording.mesh(key, index, crate::frame_gpu::Sampling::Repeat, data, matrix);
+                continue;
+            }
             for corner in indices.chunks_exact(3) {
                 let vertex = |at: u32| {
                     Some(ViewVertex {
@@ -588,6 +651,9 @@ impl LiveWorld {
         let image = world
             .resource_mut::<Assets<Image>>()
             .add(crate::battle_view::frame_image(&frame));
+        if frame.recording().is_some() {
+            crate::battle_view::show_frame(world, &image, frame);
+        }
         let mut targets = world.query_filtered::<&RenderTarget, With<Camera2d>>();
         let target = targets.iter(world).next().cloned();
         let (width, height) = crate::window::FIELD_FRAME;
@@ -634,9 +700,7 @@ impl LiveWorld {
     pub fn update(&mut self, world: &mut bevy::ecs::world::World, play: &WorldPlay) {
         use bevy::prelude::*;
         let frame = self.renderer.render(play, LIVE_SIZE.0, LIVE_SIZE.1);
-        if let Some(mut image) = world.resource_mut::<Assets<Image>>().get_mut(&self.image) {
-            image.data = Some(frame.rgba);
-        }
+        crate::battle_view::show_frame(world, &self.image, frame);
         let at = world
             .get::<Transform>(self.camera)
             .map(|transform| transform.translation.truncate());

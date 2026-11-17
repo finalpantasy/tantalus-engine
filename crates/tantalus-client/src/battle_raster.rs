@@ -61,6 +61,23 @@ impl BattleCamera {
     pub fn to_view(&self, world: [f32; 3]) -> Vec3 {
         self.view.transform_point3(Vec3::from_array(world))
     }
+
+    /// World to clip space for the GPU frame ([`crate::frame_gpu`]): x and
+    /// y as [`Frame::project`] places them, w the view distance, and z 1, so
+    /// depth is 1 / distance and the GPU's `z <= w` clip is the CPU's
+    /// `distance >= NEAR_CLIP` (1).
+    pub fn clip_matrix(&self) -> Mat4 {
+        use bevy::math::Vec4;
+        let half = PSX_WIDTH / 2.0;
+        let offset = 1.0 - 2.0 * PSX_TOP / PSX_HEIGHT;
+        let projection = Mat4::from_cols(
+            Vec4::new(self.near / half, 0.0, 0.0, 0.0),
+            Vec4::new(0.0, 2.0 * self.near / PSX_HEIGHT, 0.0, 0.0),
+            Vec4::new(0.0, -offset, 0.0, -1.0),
+            Vec4::new(0.0, 0.0, 1.0, 0.0),
+        );
+        projection * self.view
+    }
 }
 
 /// A view-space vertex with its texture coordinate.
@@ -133,6 +150,9 @@ pub struct Frame {
     pub rgba: Vec<u8>,
     /// View distance per pixel (`f32::INFINITY` where nothing wrote).
     pub depth: Vec<f32>,
+    /// Set for a frame drawn on the GPU ([`Frame::for_view`]): the draws
+    /// are recorded instead, and `rgba` and `depth` stay empty.
+    recording: Option<Box<crate::frame_gpu::Recording>>,
 }
 
 #[derive(Clone, Copy)]
@@ -152,7 +172,55 @@ impl Frame {
             height,
             rgba: clear.repeat(pixels),
             depth: vec![f32::INFINITY; pixels],
+            recording: None,
         }
+    }
+
+    /// A frame of finished pixels (a movie frame), without depth.
+    pub fn from_rgba(width: u32, height: u32, rgba: Vec<u8>) -> Self {
+        Self {
+            width,
+            height,
+            rgba,
+            depth: Vec::new(),
+            recording: None,
+        }
+    }
+
+    /// A frame for the battle or world view: recorded for the GPU when
+    /// [`crate::frame_gpu::active`], drawn on the CPU otherwise.
+    pub fn for_view(width: u32, height: u32, clear: [u8; 4]) -> Self {
+        if crate::frame_gpu::active() {
+            Self::recorded(width, height, clear)
+        } else {
+            Self::new(width, height, clear)
+        }
+    }
+
+    /// A frame recorded for the GPU whether or not the backend is on.
+    pub fn recorded(width: u32, height: u32, clear: [u8; 4]) -> Self {
+        Self {
+            width,
+            height,
+            rgba: Vec::new(),
+            depth: Vec::new(),
+            recording: Some(Box::new(crate::frame_gpu::Recording::new(
+                width, height, clear,
+            ))),
+        }
+    }
+
+    /// The draws of a GPU frame.
+    pub fn recording(&self) -> Option<&crate::frame_gpu::Recording> {
+        self.recording.as_deref()
+    }
+
+    pub fn recording_mut(&mut self) -> Option<&mut crate::frame_gpu::Recording> {
+        self.recording.as_deref_mut()
+    }
+
+    pub fn into_recording(self) -> Option<crate::frame_gpu::Recording> {
+        self.recording.map(|recording| *recording)
     }
 
     /// Screen position of a view-space point in front of the camera.
@@ -222,7 +290,66 @@ impl Frame {
     }
 
     fn fill(&mut self, v: [ScreenVertex; 3], texture: Option<Texture<'_>>, state: DrawState) {
-        self.fill_with(v, texture, state, true);
+        if self.recording.is_some() {
+            self.record_fill(v, texture, state);
+        } else {
+            self.fill_with(v, texture, state, true);
+        }
+    }
+
+    /// [`Frame::fill_with`] for the GPU: the same cull, then the triangle
+    /// in clip space with w the view distance (so the GPU interpolates uv
+    /// as the CPU does) and depth 1 / distance.
+    fn record_fill(
+        &mut self,
+        v: [ScreenVertex; 3],
+        texture: Option<Texture<'_>>,
+        state: DrawState,
+    ) {
+        use crate::frame_gpu::Sampling;
+        let area = edge(v[0].xy, v[1].xy, v[2].xy);
+        if area.abs() < 1e-6 || (state.cull_back && area < 0.0) {
+            return;
+        }
+        let Some(recording) = self.recording.as_deref_mut() else {
+            return;
+        };
+        let index = recording.texture(texture.map(|t| (t.rgba, t.width, t.height)));
+        let sampling = match texture {
+            Some(texture) if !texture.clamp => Sampling::Repeat,
+            _ => Sampling::Clamp,
+        };
+        // Without a texture the CPU draws light gray.
+        let shade = if texture.is_some() {
+            1.0
+        } else {
+            200.0 / 255.0
+        };
+        // Culled above.
+        let (key, alpha) = gpu_state(DrawState {
+            cull_back: false,
+            ..state
+        });
+        let vertices = v.map(|vertex| {
+            let distance = 1.0 / vertex.w;
+            let (x, y) = recording.ndc(vertex.xy[0], vertex.xy[1]);
+            [
+                x * distance,
+                y * distance,
+                1.0,
+                distance,
+                vertex.uv[0] * distance,
+                // Texel rows run top-down on the GPU; `v = 0` is the last.
+                1.0 - vertex.uv[1] * distance,
+                shade,
+                shade,
+                shade,
+                alpha,
+                0.0,
+                0.0,
+            ]
+        });
+        recording.push(key, index, sampling, &vertices);
     }
 
     /// `narrow` limits each row to the columns the triangle can cover; off,
@@ -324,8 +451,31 @@ impl Frame {
         }
     }
 
+    /// Copies `rgba` (opaque, `width` x `height`) with its top left at
+    /// `(x, y)`.
+    pub fn blit(&mut self, x: i32, y: i32, width: i32, height: i32, rgba: &[u8]) {
+        if width <= 0 || height <= 0 || rgba.len() < (width * height * 4) as usize {
+            return;
+        }
+        if let Some(recording) = self.recording.as_deref_mut() {
+            recording.blit(x, y, width, height, rgba);
+            return;
+        }
+        for row in y.max(0)..(y + height).min(self.height as i32) {
+            for column in x.max(0)..(x + width).min(self.width as i32) {
+                let at = (row as usize * self.width as usize + column as usize) * 4;
+                let from = (((row - y) * width + (column - x)) * 4) as usize;
+                self.rgba[at..at + 3].copy_from_slice(&rgba[from..from + 3]);
+            }
+        }
+    }
+
     /// A filled rectangle blended at `alpha`.
     pub fn rect(&mut self, x: i32, y: i32, width: i32, height: i32, color: [u8; 3], alpha: f32) {
+        if let Some(recording) = self.recording.as_deref_mut() {
+            recording.rect(x, y, width, height, color, alpha);
+            return;
+        }
         for row in y.max(0)..(y + height).min(self.height as i32) {
             for column in x.max(0)..(x + width).min(self.width as i32) {
                 let at = (row as usize * self.width as usize + column as usize) * 4;
@@ -363,6 +513,26 @@ impl Frame {
         }
         text.chars().count() as i32 * 6 * scale
     }
+}
+
+/// `state` as a GPU pipeline, and the vertex alpha its blend takes.
+pub fn gpu_state(state: DrawState) -> (crate::frame_gpu::PipelineKey, f32) {
+    use crate::frame_gpu::{BlendKind, PipelineKey};
+    let (blend, alpha) = match state.blend {
+        Blend::Opaque => (BlendKind::Replace, 1.0),
+        Blend::Screen => (BlendKind::Screen, 1.0),
+        Blend::Multiply => (BlendKind::Multiply, 1.0),
+        Blend::Alpha(opacity) => (BlendKind::Over, f32::from(opacity) / 255.0),
+    };
+    (
+        PipelineKey {
+            blend,
+            depth_test: state.depth_test,
+            depth_write: state.depth_write,
+            cull_back: state.cull_back,
+        },
+        alpha,
+    )
 }
 
 fn edge(a: [f32; 2], b: [f32; 2], c: [f32; 2]) -> f32 {

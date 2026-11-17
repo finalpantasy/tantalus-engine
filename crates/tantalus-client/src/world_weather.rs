@@ -93,6 +93,16 @@ impl Weather {
     /// Fills the pixels nothing drew on with the sky and fades the far
     /// ground into the fog.
     pub fn apply(&self, frame: &mut Frame, horizon: f32) {
+        if let Some(recording) = frame.recording_mut() {
+            recording.fog(crate::frame_gpu::Fog {
+                sky: self.sky,
+                fog: self.fog,
+                horizon,
+                start: FOG_START,
+                end: FOG_END,
+            });
+            return;
+        }
         let width = frame.width as usize;
         let height = frame.height as usize;
         for y in 0..height {

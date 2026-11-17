@@ -614,7 +614,7 @@ pub struct Overlay {
 impl BattleScene {
     pub fn new(assets: &BattleAssets, stage: &BattleStage, width: u32, height: u32) -> Self {
         let camera = stage_camera(stage);
-        let mut base = Frame::new(width, height, CLEAR);
+        let mut base = Frame::for_view(width, height, CLEAR);
         let mut background_triangles = 0;
         if let Some(background) = assets.background(stage) {
             draw_background(&mut base, &camera, background, false);
@@ -748,7 +748,7 @@ impl BattleScene {
             if camera == self.camera {
                 self.base.clone()
             } else {
-                let mut frame = Frame::new(self.base.width, self.base.height, CLEAR);
+                let mut frame = Frame::for_view(self.base.width, self.base.height, CLEAR);
                 if let Some(background) = assets.background(stage) {
                     draw_background(&mut frame, &camera, background, false);
                 }
@@ -1080,20 +1080,55 @@ impl BattlePlayback {
     }
 }
 
-/// `frame` as a Bevy image (sRGB RGBA).
+/// `frame` as a Bevy image (sRGB RGBA). A GPU frame's image starts black;
+/// [`show_frame`] draws into it. Either can be drawn into through a plain
+/// RGBA8 view ([`crate::frame_gpu`]).
 pub fn frame_image(frame: &Frame) -> bevy::image::Image {
-    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-    bevy::image::Image::new(
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
+    let data = if frame.recording().is_some() {
+        vec![0; (frame.width * frame.height * 4) as usize]
+    } else {
+        frame.rgba.clone()
+    };
+    let mut image = bevy::image::Image::new(
         Extent3d {
             width: frame.width,
             height: frame.height,
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
-        frame.rgba.clone(),
+        data,
         TextureFormat::Rgba8UnormSrgb,
         bevy::asset::RenderAssetUsages::default(),
-    )
+    );
+    image.texture_descriptor.usage |= TextureUsages::RENDER_ATTACHMENT;
+    image.texture_descriptor.view_formats = &[TextureFormat::Rgba8Unorm];
+    image
+}
+
+/// Puts `frame` in `image` (made by [`frame_image`]): a GPU frame is drawn
+/// on the next render, a CPU frame's pixels are copied in.
+pub fn show_frame(
+    world: &mut bevy::ecs::world::World,
+    image: &bevy::asset::Handle<bevy::image::Image>,
+    frame: Frame,
+) {
+    use bevy::prelude::*;
+    if frame.recording().is_some() {
+        if let Some(recording) = frame.into_recording() {
+            crate::frame_gpu::submit(world, image, recording);
+        }
+    } else if let Some(mut target) = world.resource_mut::<Assets<Image>>().get_mut(image) {
+        target.data = Some(frame.rgba);
+    }
+}
+
+/// The frame's pixels: a GPU frame drawn on the headless device.
+pub fn frame_pixels(frame: &Frame) -> Result<std::borrow::Cow<'_, [u8]>, String> {
+    match frame.recording() {
+        Some(recording) => crate::frame_gpu::read_back(recording).map(std::borrow::Cow::Owned),
+        None => Ok(std::borrow::Cow::Borrowed(&frame.rgba)),
+    }
 }
 
 /// Saves `frame` as a PNG.
@@ -1102,7 +1137,10 @@ pub fn save_png(frame: &Frame, output: &Path) -> Result<(), String> {
         std::fs::create_dir_all(parent)
             .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
     }
-    frame_image(frame)
+    let pixels = frame_pixels(frame)?.into_owned();
+    let mut image = frame_image(frame);
+    image.data = Some(pixels);
+    image
         .try_into_dynamic()
         .map_err(|error| format!("cannot convert the frame: {error}"))?
         .to_rgba8()
@@ -1134,6 +1172,9 @@ impl BattleWindow {
         let image = world
             .resource_mut::<Assets<Image>>()
             .add(frame_image(frame));
+        if frame.recording().is_some() {
+            show_frame(world, &image, frame.clone());
+        }
         // Draw where the field camera draws (the window, or an offscreen
         // image in a capture).
         let mut targets = world.query_filtered::<&RenderTarget, With<Camera2d>>();
@@ -1181,9 +1222,7 @@ impl BattleWindow {
     /// Shows `frame`.
     pub fn show(&self, world: &mut bevy::ecs::world::World, frame: Frame) {
         use bevy::prelude::*;
-        if let Some(mut image) = world.resource_mut::<Assets<Image>>().get_mut(&self.image) {
-            image.data = Some(frame.rgba);
-        }
+        show_frame(world, &self.image, frame);
         // Other code moves every 2D camera; keep the sprite in front of ours.
         let at = world
             .get::<Transform>(self.camera)
@@ -1452,7 +1491,7 @@ impl FightView {
                 .render_with(assets, stage, seconds, hud, &overlay);
         }
         let Some(fight) = game.battle() else {
-            return Frame::new(LIVE_SIZE.0, LIVE_SIZE.1, CLEAR);
+            return Frame::for_view(LIVE_SIZE.0, LIVE_SIZE.1, CLEAR);
         };
         let stage = fight.stage();
         let seconds = self.seconds(stage);

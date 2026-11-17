@@ -18,6 +18,7 @@ pub mod effects;
 pub mod encounter_presentation;
 pub mod field_assets;
 pub mod field_light;
+pub mod frame_gpu;
 pub mod legacy_compositor;
 pub mod live;
 pub mod menu_view;

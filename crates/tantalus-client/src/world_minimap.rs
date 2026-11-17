@@ -127,9 +127,9 @@ pub fn navi_position(map: u8, x: f32, z: f32) -> (f32, f32) {
 /// The land picture of one map, built from the walk meshes.
 struct Picture {
     map: u8,
-    width: usize,
-    height: usize,
-    pixels: Vec<[u8; 3]>,
+    /// The picture scaled to the panel (RGBA, `PANEL_WIDTH` wide).
+    panel: Vec<u8>,
+    panel_height: i32,
 }
 
 #[derive(Default)]
@@ -157,11 +157,21 @@ impl Minimap {
                     });
                 }
             }
+            let panel_w = PANEL_WIDTH;
+            let panel_h = (panel_w as f32 * height as f32 / width as f32) as i32;
+            let mut panel = Vec::with_capacity((panel_w * panel_h.max(0) * 4) as usize);
+            for y in 0..panel_h {
+                for x in 0..panel_w {
+                    let px = (x as usize * width / panel_w as usize).min(width - 1);
+                    let py = (y as usize * height / panel_h as usize).min(height - 1);
+                    let [r, g, b] = pixels[py * width + px];
+                    panel.extend_from_slice(&[r, g, b, 255]);
+                }
+            }
             self.picture = Some(Picture {
                 map,
-                width,
-                height,
-                pixels,
+                panel,
+                panel_height: panel_h,
             });
         }
         self.picture.as_ref().expect("picture")
@@ -171,7 +181,7 @@ impl Minimap {
     pub fn draw(&mut self, frame: &mut Frame, play: &WorldPlay) {
         let picture = self.picture(play);
         let panel_w = PANEL_WIDTH;
-        let panel_h = (panel_w as f32 * picture.height as f32 / picture.width as f32) as i32;
+        let panel_h = picture.panel_height;
         let left = MARGIN;
         let top = frame.height as i32 - MARGIN - panel_h;
         frame.rect(
@@ -182,20 +192,7 @@ impl Minimap {
             FRAME_COLOR,
             1.0,
         );
-        for y in 0..panel_h {
-            for x in 0..panel_w {
-                let px = (x as usize * picture.width / panel_w as usize).min(picture.width - 1);
-                let py = (y as usize * picture.height / panel_h as usize).min(picture.height - 1);
-                frame.rect(
-                    left + x,
-                    top + y,
-                    1,
-                    1,
-                    picture.pixels[py * picture.width + px],
-                    1.0,
-                );
-            }
-        }
+        frame.blit(left, top, panel_w, panel_h, &picture.panel);
         let at = |x: f32, z: f32| {
             let (u, v) = navi_position(picture.map, x, z);
             (

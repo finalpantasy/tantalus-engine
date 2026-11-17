@@ -20,6 +20,8 @@ use tantalus_tools::battle_stage::BATTLE_TICKS_PER_SECOND;
 use tantalus_tools::play::{PlayEvent, pad};
 
 pub fn run(args: &[std::ffi::OsString]) -> ExitCode {
+    // Battle and world frames draw on the GPU (`TANTALUS_RASTER_CPU=1`: the CPU).
+    tantalus_client::frame_gpu::enable_headless();
     let mut allowed = super::PLAY_FLAGS.to_vec();
     allowed.extend([
         "--ticks",
@@ -36,6 +38,7 @@ pub fn run(args: &[std::ffi::OsString]) -> ExitCode {
         "--recast",
         "--trance",
         "--enter-trance",
+        "--party",
     ]);
     let Some(values) = super::flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
@@ -103,6 +106,22 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
     let live = values.get("--live").is_some_and(|value| value != "0");
     let mut game = super::load_game(values)?;
     game.live_battles = live;
+    // With `--live 1`, the frame-rate bench's battle
+    // (`TANTALUS_BENCH_SCENE=battle:ID`) starts at once, for captures
+    // beside the bench.
+    if let Some(party) = values.get("--party") {
+        let ids: Vec<i32> = party.split(',').filter_map(|id| id.parse().ok()).collect();
+        game.set_party(&ids);
+    }
+    if live
+        && let Some(id) = std::env::var("TANTALUS_BENCH_SCENE")
+            .ok()
+            .and_then(|scene| scene.strip_prefix("battle:")?.parse::<i32>().ok())
+    {
+        for event in game.bench_battle(id) {
+            println!("{}", tantalus_client::live::describe(&event));
+        }
+    }
     let mut open_for = 0u64;
     let mut last_confirm = false;
     let mut seen = 0usize;
