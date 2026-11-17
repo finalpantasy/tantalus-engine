@@ -503,3 +503,51 @@ fn gte_matches_the_dll() {
     }
     assert!(differing.is_empty());
 }
+
+/// Which plugin functions an effect runs (`TANTALUS_SFX_EFFECT`, default
+/// Fire), in first-call order, named from Memoria's `CodeAddresses.g.cs`
+/// (`TANTALUS_MEMORIA_PLUGIN`: its `FF9SpecialEffectPlugin` folder).
+#[test]
+#[ignore = "probe; needs the DLL and Memoria's sources"]
+fn coverage_probe() {
+    let folder = std::env::var("TANTALUS_MEMORIA_PLUGIN").expect("TANTALUS_MEMORIA_PLUGIN");
+    let text = std::fs::read_to_string(std::path::Path::new(&folder).join("CodeAddresses.g.cs"))
+        .expect("CodeAddresses.g.cs");
+    let mut names = std::collections::BTreeMap::new();
+    for line in text.lines() {
+        // "... (Name @ 0x18000d140) ..."
+        if let Some(at) = line.find(" @ 0x18") {
+            let name = line[..at].rsplit('(').next().unwrap_or("").to_string();
+            let hex: String = line[at + 5..]
+                .chars()
+                .take_while(|c| c.is_ascii_hexdigit())
+                .collect();
+            if let Ok(va) = u64::from_str_radix(&hex, 16) {
+                names.insert((va - 0x1_8000_0000) as u32, name);
+            }
+        }
+    }
+    let id: i32 = std::env::var("TANTALUS_SFX_EFFECT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    let image =
+        tantalus_sfx::image::PluginImage::parse(std::fs::read(dll()).expect("dll")).expect("image");
+    let text_section = image.section_of(0x1000).expect("text");
+    let bytes = effect_bytes(id);
+    let mut oracle = Oracle::load(&dll()).expect("load");
+    oracle.init_battle(&init_param()).expect("init");
+    let rvas: Vec<u32> = names.keys().copied().collect();
+    // SAFETY: test-only; every RVA is a function start Memoria names.
+    unsafe { tantalus_sfx::coverage::arm(oracle.base(), text_section, &rvas) };
+    oracle.play(id, &bytes, &request()).expect("play");
+    let mut frames = 0;
+    while frames < 900 && oracle.frame().expect("frame").is_some() {
+        frames += 1;
+    }
+    let hits = tantalus_sfx::coverage::take();
+    println!("effect {id}: {frames} frames, {} functions", hits.len());
+    for rva in hits {
+        println!("  {rva:#07x} {}", names[&rva]);
+    }
+}

@@ -10,9 +10,12 @@ pub mod gte;
 pub mod image;
 pub mod interp;
 pub mod loader;
+pub mod mem;
 pub mod mips;
 pub mod vram;
 
+#[cfg(feature = "dll-oracle")]
+pub mod coverage;
 #[cfg(feature = "dll-oracle")]
 pub mod oracle;
 

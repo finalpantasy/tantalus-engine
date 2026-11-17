@@ -69,6 +69,30 @@ impl PluginImage {
         Some(out)
     }
 
+    /// (RVA, mapped size) of every section.
+    pub fn section_ranges(&self) -> Vec<(u32, u32)> {
+        self.sections
+            .iter()
+            .map(|&(start, size, _, raw)| (start, size.max(raw)))
+            .collect()
+    }
+
+    /// One past the last mapped byte.
+    pub fn image_end(&self) -> Option<u32> {
+        self.section_ranges()
+            .iter()
+            .map(|(start, size)| start + size)
+            .max()
+    }
+
+    /// (RVA, virtual size) of the section holding `rva`.
+    pub fn section_of(&self, rva: u32) -> Option<(u32, u32)> {
+        self.sections
+            .iter()
+            .find(|(start, size, _, raw)| rva >= *start && rva < start + (*size).max(*raw))
+            .map(|&(start, size, _, raw)| (start, size.max(raw)))
+    }
+
     /// The RVA of virtual address `va` (`0x1800xxxxx` in Memoria's names).
     pub fn rva(&self, va: u64) -> Option<u32> {
         u32::try_from(va.checked_sub(self.image_base)?).ok()

@@ -251,13 +251,30 @@ test-only and never a runtime fallback; CI builds neither the feature nor the te
 | `MipsDecodeAll` with the table read from the DLL | `mips` | 381 of 381 scripts decode to the same records (a fresh plugin per effect) |
 | GTE: RTPS, RTPT, RTV0TR, NCLIP, AVSZ3, DPCS, MFC2/MTC2 | `gte` | 8,000 random register files give the same results from the DLL's own functions |
 | `PsxInterpreterRun` | `interp` | unit tests only; frame-level checks need the native calls |
+| Flat memory (module image at 0x180000000, heap), PSX address mapper | `mem` | unit tests only |
 
-Not ported yet: the sequencer (`SeqStateUpdate`), the PSX memory mapper and segments, the
-native call table and the primitive emitters. Until the sequencer is ported, the loader picks
+Not ported yet: the sequencer (`SeqStateUpdate`), the native call table and the primitive
+emitters. Until the sequencer is ported, the loader picks
 record groups by the order of the sequence's LOAD_CHUNK ops. Two effects still differ there:
 
 - 149 (Stop) makes extra 192x64 uploads through native calls 0, 1 and 166 while it plays.
 - 381 (Ark__Full) loads groups the sequencer picks at run time.
+
+What Fire and Cure run, from `coverage_probe` (an INT3 on each of the 268 functions Memoria
+gives an address for; first calls only, so callees without an address are not listed):
+
+- Fire (ef000, 126 frames), 59 functions: `ResetSfxWorkArea`, `SfxPoolsReset`, `SeqStateBegin`,
+  `SeqStateUpdate`, `SfxLoaderStep`, `SfxTickEffectTasks`, `sub_1800354E0`,
+  `SfxUpdateParticles`, `SfxUpdateKeyframeTracks`, `StartPsxTask`, `PsxTaskScriptHandler`,
+  `SfxObjectStrikeSequence`, `SfxTrailSequenceHandler`, `PsxObjectAlloc`, the `Host*` object
+  queries and commands, `SfxObjTurnTowardsPoint`, `SfxTurnTowards`, `CreateRibbonEffectSlot`,
+  `CreateTrailEffect`, `GteIntplVector`, `RotateDepthVector`, `TransformPointByAngles`,
+  `SfxRotTransPointZ`, `ComputeLocalYawDistance`, `DrawRingMeshEffect`, `SfxEmitParticles`,
+  `EmitWorldSpriteList`, `EmitSpriteCellFrame`, `EmitWorldSpriteFrame`, `PsxAllocDrawMode`,
+  `SfxOpVoicePlay`, `SfxVoicePlay`, `SfxOpObjMessage`, `SfxOpHostLevelFade`,
+  `SfxOpMoveObjToPoint`, `FindPairSlot`, `DetachSfxObject` and the MIPS decoders.
+- Cure (ef008, 121 frames) adds `DrawFacingRibbon`, `DrawRibbonTrail`,
+  `EmitInterpolatedSpriteTrail`, `EmitScreenSpriteList` and `SfxIndexedRecordPtr`.
 
 Harness notes:
 
