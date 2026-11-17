@@ -95,6 +95,9 @@ pub struct WorldRenderer {
     blocks: HashMap<(usize, usize), Option<Arc<BattleBackground>>>,
     /// Loaded blocks' submeshes as GPU meshes.
     meshes: BlockMeshes,
+    /// The disc `blocks` were built from; the story crossing to disc 4
+    /// (`WMWorld.SetDisc`) drops them.
+    disc: u32,
     /// Blocks that failed, for reports.
     pub problems: Vec<String>,
 }
@@ -127,6 +130,7 @@ impl WorldRenderer {
             minimap: Minimap::default(),
             blocks: HashMap::new(),
             meshes: HashMap::new(),
+            disc: 0,
             problems,
         }
     }
@@ -227,6 +231,11 @@ impl WorldRenderer {
 
     /// Draws the world around `play`.
     pub fn render(&mut self, play: &WorldPlay, width: u32, height: u32) -> Frame {
+        if self.disc != play.assets.disc() {
+            self.disc = play.assets.disc();
+            self.blocks.clear();
+            self.meshes.clear();
+        }
         let camera = camera_for(play);
         let weather = Weather::at(play.walker.pos.x, play.walker.pos.z);
         let mut frame = Frame::for_view(

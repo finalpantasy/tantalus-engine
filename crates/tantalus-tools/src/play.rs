@@ -367,7 +367,7 @@ pub struct PlayGame {
     pub world_play: Option<WorldPlay>,
     /// The Chocograph list the world script opened (`ChocographUI`).
     pub chocograph_screen: Option<crate::chocograph_menu::ChocographScreen>,
-    /// The world map whose script runs while walking (9000 to 9009, the
+    /// The world map whose script runs while walking (9000 to 9012, the
     /// number the field that left for the world asked for).
     pub world_script_map: i32,
     world_assets: Option<std::sync::Arc<WorldAssets>>,
@@ -1408,7 +1408,7 @@ impl PlayGame {
             && self.world_exits.is_empty()
             && world_map.is_some()
         {
-            if let Some(map) = world_map.filter(|map| (9000..=9009).contains(map))
+            if let Some(map) = world_map.filter(|map| (9000..=9012).contains(map))
                 && self.data.db.contains_key(&map)
             {
                 self.world_script_map = map;
@@ -1716,12 +1716,25 @@ impl PlayGame {
         }
     }
 
-    /// The overworld assets, loaded on first use.
+    /// The overworld assets of the disc the story point calls for, loaded
+    /// on first use and again when the story crosses to the other disc.
     pub fn world_assets(&mut self) -> Result<std::sync::Arc<WorldAssets>, String> {
-        if let Some(assets) = &self.world_assets {
+        // `WorldConfiguration.GetDisc`: the story counter (`Global` UInt16
+        // 0, `w_frameScenePtr`) from 11090 on picks disc 4, else disc 1;
+        // the world has only those two (`WMWorld.SetDisc`).
+        let scenario = self
+            .session
+            .as_ref()
+            .map(|session| session.director.world())
+            .unwrap_or(&self.world)
+            .global_memory
+            .get(0, tantalus_legacy::VariableType::UInt16)
+            .unwrap_or(0);
+        let disc = if scenario >= 11090 { 4 } else { 1 };
+        if let Some(assets) = self.world_assets.as_ref().filter(|a| a.disc() == disc) {
             return Ok(assets.clone());
         }
-        let assets = std::sync::Arc::new(WorldAssets::load(&self.data.streaming, 1)?);
+        let assets = std::sync::Arc::new(WorldAssets::load(&self.data.streaming, disc)?);
         self.world_assets = Some(assets.clone());
         Ok(assets)
     }
