@@ -94,6 +94,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut waypoints: BTreeMap<i32, Vec<[f32; 2]>> = BTreeMap::new();
     let mut save_at: BTreeMap<i32, PathBuf> = BTreeMap::new();
     let mut load_world: Option<PathBuf> = None;
+    let mut load_save: Option<PathBuf> = None;
+    let mut save_slot: Option<String> = None;
     let mut animation_frames: Option<PathBuf> = None;
     let mut give_items: Vec<(i32, i32)> = Vec::new();
     while let Some(flag) = iter.next() {
@@ -257,6 +259,12 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 save_at.insert(map, path);
             }
             "--load-world" => load_world = Some(PathBuf::from(value()?)),
+            // A Steam save file (`SavedData_ww.dat`, read only): the chain starts from its
+            // party, items, gil and event globals, at the field it was saved in. `--slot` is
+            // `auto`, N (0 to 149) or SLOT:SAVE; without it the file's latest save. Needs
+            // `--character-data` (its Memoria `Data/Characters` folder) for levels and abilities.
+            "--load-save" => load_save = Some(PathBuf::from(value()?)),
+            "--slot" => save_slot = Some(value()?),
             // Real animation lengths (`animation-frames` writes the table).
             "--animation-frames" => animation_frames = Some(PathBuf::from(value()?)),
             "--give-items" => {
@@ -605,6 +613,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     waypoints,
                     save_at,
                     load_world,
+                    load_save: load_save.map(|path| (path, save_slot)),
+                    characters: character_data.clone(),
                     animation_frames,
                     give_items,
                     battles: match battle_ids {
@@ -1187,6 +1197,10 @@ struct ChainOptions {
     save_at: BTreeMap<i32, PathBuf>,
     /// A world written by `--save-at`, to continue from.
     load_world: Option<PathBuf>,
+    /// A Steam save file and its slot text (`--load-save`, `--slot`).
+    load_save: Option<(PathBuf, Option<String>)>,
+    /// Memoria `Data/Characters` (`--character-data`), for the save's levels and abilities.
+    characters: Option<PathBuf>,
     /// Animation id to frame count table (`--animation-frames`).
     animation_frames: Option<PathBuf>,
     give_items: Vec<(i32, i32)>,
@@ -1290,6 +1304,8 @@ fn chain(
         waypoints,
         save_at,
         load_world,
+        load_save,
+        characters,
         animation_frames,
         give_items,
         battles: field_battles,
@@ -1422,6 +1438,47 @@ fn chain(
             .map_err(|error| format!("cannot decode {}: {error}", path.display()))?;
         loaded.copy_providers_from(&world);
         world = loaded;
+    }
+    let mut start = start;
+    if let Some((path, slot)) = &load_save {
+        let bytes = std::fs::read(path)
+            .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+        let location = match slot {
+            Some(text) => tantalus_tools::steam_save::parse_location(text)?,
+            None => tantalus_tools::steam_save::latest_location(&bytes)?,
+        };
+        let save = tantalus_tools::steam_save::read_slot_bytes(&bytes, &location)?;
+        // The tables the save needs: BaseStats, Leveling and the ability lists, all under the
+        // Memoria data root that holds `Characters`.
+        let dir = characters
+            .as_ref()
+            .ok_or("--load-save needs --character-data")?;
+        let read = |name: &str| {
+            let path = dir.join(name);
+            std::fs::read_to_string(&path)
+                .map_err(|error| format!("cannot read {}: {error}", path.display()))
+        };
+        let mut tables = tantalus_tools::field_menu::MenuTables {
+            base: tantalus_game::new_game::parse_base_stats(&read("BaseStats.csv")?)?,
+            exp: tantalus_game::new_game::parse_leveling(&read("Leveling.csv")?)?
+                .iter()
+                .map(|row| row.experience)
+                .collect(),
+            ..Default::default()
+        };
+        if let Some(data) = dir.parent() {
+            tables.abilities = tantalus_tools::ability_menu::AbilityTables::load(
+                data,
+                Default::default(),
+                Default::default(),
+            )?;
+        }
+        let resume = tantalus_tools::steam_save::apply(&save.state, &mut world, &tables)?;
+        start = resume.map;
+        println!(
+            "{}",
+            serde_json::json!({"load_save": path.file_name().and_then(|n| n.to_str()), "map": start, "party": world.party})
+        );
     }
     for (item, count) in &give_items {
         world.add_item_amount(*item, *count);

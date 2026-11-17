@@ -25,8 +25,11 @@ pub const BASE_SAVE_BLOCK_OFFSET: usize =
 
 const AES_BLOCK_BYTES: usize = 16;
 const PBKDF2_ROUNDS: u32 = 1_000;
-const PBKDF2_PASSWORD: &[u8] =
-    b"67434cd0-1ca3-11e5-9a21-1697f925ec7b7a5313a0-1ca3-11e5-b939-0800200c9a66";
+/// `AESCryptography.GetPassword` appends two GUID strings to a `SecureString` and then calls
+/// `password.ToString()`. `SecureString` does not override `ToString`, so the key material is the
+/// UTF-8 of the type name, not the GUIDs. Verified against real Steam save files: the GUID
+/// password does not decrypt them and this one does.
+const PBKDF2_PASSWORD: &[u8] = b"System.Security.SecureString";
 const PBKDF2_SALT: [u8; 8] = [3, 3, 1, 4, 7, 0, 9, 7];
 const METADATA_FIXED_BYTES: usize = 39;
 

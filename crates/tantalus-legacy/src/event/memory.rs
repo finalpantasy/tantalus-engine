@@ -36,6 +36,14 @@ impl VariableMemory {
         Self::zeroed(MAP_VARIABLE_BYTES)
     }
 
+    /// A memory holding `bytes` (a save file's `gEventGlobal`); `None` when the length is not
+    /// `len`.
+    pub fn from_bytes(bytes: &[u8], len: usize) -> Option<Self> {
+        (bytes.len() == len).then(|| Self {
+            bytes: bytes.to_vec(),
+        })
+    }
+
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }

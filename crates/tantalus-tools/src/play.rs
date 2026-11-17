@@ -29,6 +29,7 @@ use crate::field_session::{
 use crate::play_audio::{AudioCue, menu_sound};
 use crate::play_save::{self, PlaySave, SAVE_FORMAT, SLOTS};
 use crate::shop_menu::ShopMenu;
+use crate::steam_save::{self, Resume, SteamSave};
 use crate::world_data::WorldAssets;
 use crate::world_play::WorldPlay;
 use tantalus_game::battle::BattleCommand;
@@ -414,6 +415,23 @@ pub struct PlayGame {
     audio: Vec<(u64, AudioCue)>,
     /// The Tetra Master game being played; the field waits until it ends.
     card: Option<tantalus_game::cards::CardGame>,
+    /// The Steam save file the game came from; when set the save and load screens use it
+    /// instead of the JSON slots.
+    steam: Option<SteamFile>,
+}
+
+/// A Steam save file (`SavedData_ww.dat`) the play window loaded from and saves to.
+#[derive(Debug, Clone)]
+pub struct SteamFile {
+    /// The file the game was loaded from. Never written.
+    pub source: PathBuf,
+    /// The file saves go to: a copy of `source` made on the first save, so the original
+    /// file stays as it was.
+    pub output: PathBuf,
+    /// The file's slot (0 to 9) whose save positions the save and load screens show.
+    pub slot: i32,
+    /// The state the game came from; sections Tantalus does not model are saved from it.
+    pub base: tantalus_legacy::saves::state::SaveState,
 }
 
 /// Battles a field tick started, fought live, and the rest of that tick.
@@ -480,6 +498,7 @@ impl PlayGame {
             pending: None,
             audio: Vec::new(),
             card: None,
+            steam: None,
         };
         let mut events = Vec::new();
         game.enter(start, &mut events)?;
@@ -859,6 +878,9 @@ impl PlayGame {
     /// Writes the game to `slot` (1-based): the map, the player's position
     /// and the world.
     pub fn save_slot(&mut self, slot: usize) -> Result<(), String> {
+        if self.steam.is_some() {
+            return self.save_steam_slot(slot);
+        }
         let map = self.map().ok_or("there is no field to save")?;
         let world = self.world();
         let save = PlaySave {
@@ -874,6 +896,9 @@ impl PlayGame {
     /// Replaces the game with `slot`: enters the saved map with the saved
     /// world and puts the player back.
     pub fn load_slot(&mut self, slot: usize, events: &mut Vec<PlayEvent>) -> Result<(), String> {
+        if self.steam.is_some() {
+            return self.load_steam_slot(slot, events);
+        }
         let save = play_save::read(&self.save_dir, slot)?.ok_or("that slot is empty")?;
         let mut world = save.world;
         world.copy_providers_from(&self.data.new_game);
@@ -887,6 +912,141 @@ impl PlayGame {
         self.enter(save.map, events)
     }
 
+    /// Starts from a save of a Steam save file (`--load-save`): the saved party, items, gil,
+    /// event globals and the rest replace the new game, and the saved field is entered.
+    /// Saves from the menu go to `<file>.tantalus.dat`, not to `path`.
+    pub fn load_steam_save(
+        &mut self,
+        path: &Path,
+        location: &tantalus_legacy::saves::LegacySaveLocation,
+        events: &mut Vec<PlayEvent>,
+    ) -> Result<Resume, String> {
+        let save = steam_save::read_slot(path, location)?;
+        self.steam = Some(SteamFile {
+            source: path.to_path_buf(),
+            output: path.with_extension("tantalus.dat"),
+            slot: if location.is_autosave {
+                0
+            } else {
+                location.slot_id
+            },
+            base: save.state.clone(),
+        });
+        self.enter_steam_save(save, events)
+    }
+
+    /// Where saves from the menu go, instead of the default copy next to the loaded file.
+    pub fn set_steam_output(&mut self, path: PathBuf) {
+        if let Some(steam) = self.steam.as_mut() {
+            steam.output = path;
+        }
+    }
+
+    fn enter_steam_save(
+        &mut self,
+        save: SteamSave,
+        events: &mut Vec<PlayEvent>,
+    ) -> Result<Resume, String> {
+        let mut world = self.data.new_game.clone();
+        let resume = steam_save::apply(&save.state, &mut world, &self.data.menu)?;
+        self.world = world;
+        self.session = None;
+        self.menu = None;
+        self.shop = None;
+        self.stopped = None;
+        self.ticks = (save.state.play_time_seconds * 60.0) as u64;
+        self.pending_position = None;
+        if let Some(steam) = self.steam.as_mut() {
+            steam.base = save.state;
+        }
+        self.enter(resume.map, events)?;
+        Ok(resume)
+    }
+
+    /// The file the save and load screens read: the output once it exists, else the source.
+    fn steam_file(steam: &SteamFile) -> &Path {
+        if steam.output.is_file() {
+            &steam.output
+        } else {
+            &steam.source
+        }
+    }
+
+    fn steam_location(
+        steam: &SteamFile,
+        slot: usize,
+    ) -> tantalus_legacy::saves::LegacySaveLocation {
+        tantalus_legacy::saves::LegacySaveLocation {
+            is_autosave: false,
+            slot_id: steam.slot,
+            save_id: slot.saturating_sub(1) as i32,
+        }
+    }
+
+    fn save_steam_slot(&mut self, slot: usize) -> Result<(), String> {
+        let map = self.map().ok_or("there is no field to save")?;
+        let steam = self.steam.as_ref().ok_or("no save file")?;
+        let state =
+            steam_save::capture(self.world(), map, self.ticks, &self.data.menu, &steam.base)?;
+        if !steam.output.exists() && steam.source.is_file() {
+            // The first save copies the original file, so the other saves in it carry over.
+            if let Some(dir) = steam.output.parent() {
+                std::fs::create_dir_all(dir)
+                    .map_err(|error| format!("cannot create {}: {error}", dir.display()))?;
+            }
+            std::fs::copy(&steam.source, &steam.output)
+                .map_err(|error| format!("cannot copy {}: {error}", steam.source.display()))?;
+        }
+        let place = self.data.field_name(map).unwrap_or("?").to_owned();
+        steam_save::write_slot(
+            &steam.output,
+            &Self::steam_location(steam, slot),
+            &state,
+            &place,
+        )?;
+        if let Some(steam) = self.steam.as_mut() {
+            steam.base = state;
+        }
+        Ok(())
+    }
+
+    fn load_steam_slot(&mut self, slot: usize, events: &mut Vec<PlayEvent>) -> Result<(), String> {
+        let steam = self.steam.as_ref().ok_or("no save file")?;
+        let save =
+            steam_save::read_slot(Self::steam_file(steam), &Self::steam_location(steam, slot))?;
+        self.enter_steam_save(save, events).map(|_| ())
+    }
+
+    fn steam_slot_labels(&self, steam: &SteamFile) -> Vec<String> {
+        let bytes = std::fs::read(Self::steam_file(steam)).unwrap_or_default();
+        (1..=SLOTS)
+            .map(|slot| {
+                let location = Self::steam_location(steam, slot);
+                match steam_save::read_slot_bytes(&bytes, &location) {
+                    Ok(save) => {
+                        let state = &save.state;
+                        let lead = state
+                            .party
+                            .members
+                            .iter()
+                            .flatten()
+                            .find_map(|&index| state.party.characters.get(usize::from(index)));
+                        let who = lead.map_or(String::new(), |record| {
+                            format!("{} Lv {}  ", record.name, record.level)
+                        });
+                        let place = self
+                            .data
+                            .field_name(i32::from(state.field.fld_map_no))
+                            .unwrap_or("?");
+                        format!("{slot}  {who}{} Gil  {place}", state.party.gil)
+                    }
+                    Err(message) if message == steam_save::EMPTY_SLOT => format!("{slot}  Empty"),
+                    Err(_) => format!("{slot}  Unreadable"),
+                }
+            })
+            .collect()
+    }
+
     /// Opens the load screen (a play window started without a field to
     /// resume).
     pub fn open_load_screen(&mut self) {
@@ -898,6 +1058,9 @@ impl PlayGame {
 
     /// One line per save slot for the save and load screens.
     pub fn slot_labels(&self) -> Vec<String> {
+        if let Some(steam) = &self.steam {
+            return self.steam_slot_labels(steam);
+        }
         (1..=SLOTS)
             .map(|slot| match play_save::read(&self.save_dir, slot) {
                 Ok(Some(save)) => {

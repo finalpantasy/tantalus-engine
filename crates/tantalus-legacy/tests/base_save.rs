@@ -177,10 +177,11 @@ fn corrupt_data_reports_errors_instead_of_guessing() {
 
 #[test]
 fn key_derivation_matches_an_independent_known_answer() {
-    // Key/IV from Python hashlib.pbkdf2_hmac('sha1', password, salt, 1000, 48); ciphertext from
+    // Password is the text `SecureString.ToString()` returns (see `PBKDF2_PASSWORD`), confirmed
+    // against real Steam saves. Key/IV from Python hashlib.pbkdf2_hmac('sha1', password, salt, 1000, 48); ciphertext from
     // `openssl enc -aes-256-cbc` with that key/IV. Neither uses this crate.
     let plain = b"SAVE tantalus known answer";
-    let expected = "80392231c8995753ca174f449fbcd06c2c03cf9a93e6f43edc05d242db88d3ca";
+    let expected = "c5f78948c2f741ce6b03f5cf2c87866facbbc630c42e649e43f2666e8819c905";
     let cipher = LegacyAesCodec::encrypt(plain);
     let hex: String = cipher.iter().map(|byte| format!("{byte:02x}")).collect();
     assert_eq!(hex, expected);
@@ -749,4 +750,55 @@ fn inspect_slot_file_rejects_corrupt_sidecar_without_partial_commit() {
 
     let error = LegacySaveImporter::inspect_slot_file(&base_path, &at).unwrap_err();
     assert!(error.context.contains("unsupported SimpleJSON binary tag"));
+}
+
+#[test]
+fn blank_container_is_all_empty_and_write_save_fills_one_slot() {
+    use tantalus_legacy::saves::{BaseSavePreview, blank_container, write_save};
+    let mut container = blank_container(40);
+    assert_eq!(container.len(), BASE_SAVE_CONTAINER_BYTES);
+    let metadata = BaseSaveMetadata::decode(&container).unwrap();
+    assert_eq!((metadata.data_size, metadata.latest_slot), (40, -1));
+    for at in [
+        location(true, -1, -1),
+        location(false, 0, 0),
+        location(false, 9, 14),
+    ] {
+        let decoded = LegacySaveImporter::decode_base(&container, &at).unwrap();
+        assert_eq!(decoded.block.state, BaseSaveBlockState::Empty);
+    }
+    assert!(BaseSavePreview::decode(&container, 3, 3).unwrap().is_none());
+
+    let at = location(false, 3, 4);
+    let preview = BaseSavePreview {
+        has_data: true,
+        gil: 99,
+        play_duration: 5,
+        win_type: 0,
+        location: "Field".to_owned(),
+        timestamp: 1.5,
+        characters: Default::default(),
+    };
+    write_save(
+        &mut container,
+        &at,
+        (0..40).collect(),
+        Some(&preview),
+        1234.5,
+    )
+    .unwrap();
+    let decoded = LegacySaveImporter::decode_base(&container, &at).unwrap();
+    assert_eq!(decoded.block.state, BaseSaveBlockState::Saved);
+    assert_eq!(decoded.block.payload, (0..40).collect::<Vec<u8>>());
+    assert_eq!(decoded.metadata.latest_slot, 3);
+    assert_eq!(decoded.metadata.latest_save, 4);
+    assert_eq!(decoded.metadata.latest_timestamp, 1234.5);
+    assert_eq!(
+        BaseSavePreview::decode(&container, 3, 4).unwrap().unwrap(),
+        preview
+    );
+    // The neighbours stay empty, and a payload of the wrong size is refused.
+    let next = LegacySaveImporter::decode_base(&container, &location(false, 3, 5)).unwrap();
+    assert_eq!(next.block.state, BaseSaveBlockState::Empty);
+    assert!(write_save(&mut container, &at, vec![0; 3], None, 0.0).is_err());
 }

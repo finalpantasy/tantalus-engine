@@ -12,7 +12,7 @@ fn main() -> ExitCode {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--load SLOT|menu] [--save-dir DIR] [--scale N] [--mute]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] [--party 0,1,2,3] [--hurt 1] [--give 2,3] [--presentation BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE[:ATE]]] [--audio-log] [--audio-wav FILE] --output <png> [--size WxH]
+            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--load SLOT|menu] [--save-dir DIR] [--load-save SavedData_ww.dat [--slot auto|N|SLOT:SAVE|list] [--save-to FILE]] [--scale N] [--mute]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] [--party 0,1,2,3] [--hurt 1] [--give 2,3] [--presentation BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE[:ATE]]] [--audio-log] [--audio-wav FILE] --output <png> [--size WxH]
 tantalus-client capture-battle <play flags> --battles <tsv> [--ticks N] [--hold ...] [--auto-confirm N] [--battle N] [--at SECONDS,...] [--camera N] [--window-frame <png>] [--live 1] --output <png> [--size WxH]"
         );
         return ExitCode::SUCCESS;
@@ -362,7 +362,7 @@ fn run_track_capture(args: &[std::ffi::OsString]) -> ExitCode {
     }
 }
 
-const PLAY_FLAGS: [&str; 12] = [
+const PLAY_FLAGS: [&str; 15] = [
     "--world-map",
     "--assets",
     "--game-data",
@@ -375,6 +375,9 @@ const PLAY_FLAGS: [&str; 12] = [
     "--load",
     "--save-dir",
     "--set-global",
+    "--load-save",
+    "--slot",
+    "--save-to",
 ];
 
 /// New game from the `play` flags, on its first field (events printed).
@@ -451,6 +454,47 @@ fn load_game(
             for event in &events {
                 println!("{}", tantalus_client::live::describe(event));
             }
+        }
+    }
+    if let Some(path) = values.get("--load-save") {
+        // A Steam save file (`SavedData_ww.dat`, read-only). `--slot` is the file's own numbering:
+        // `auto` (the autosave), a number 0 to 149 (`slot * 15 + save`), `SLOT:SAVE`, or `list` to
+        // print the saves in the file. Without it the file's latest save. Saves from the menu go
+        // to `--save-to`, by default `<file>.tantalus.dat` next to it.
+        let path = PathBuf::from(path);
+        let bytes = std::fs::read(&path)
+            .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+        let location = match values.get("--slot").map(String::as_str) {
+            Some("list") => {
+                for (location, line) in tantalus_tools::steam_save::list_saves(&bytes)? {
+                    let name = if location.is_autosave {
+                        "auto".to_owned()
+                    } else {
+                        format!(
+                            "{} ({}:{})",
+                            location.slot_id * 15 + location.save_id,
+                            location.slot_id,
+                            location.save_id
+                        )
+                    };
+                    println!("slot {name}: {line}");
+                }
+                return Err("listed the saves; start one with --slot".to_owned());
+            }
+            Some(text) => tantalus_tools::steam_save::parse_location(text)?,
+            None => tantalus_tools::steam_save::latest_location(&bytes)?,
+        };
+        let mut events = Vec::new();
+        let resume = game.load_steam_save(&path, &location, &mut events)?;
+        if let Some(output) = values.get("--save-to") {
+            game.set_steam_output(PathBuf::from(output));
+        }
+        println!("loaded save: field {}", resume.map);
+        if let Some((map, place)) = resume.world {
+            println!("saved on the world map ({map}, {place}); entering its last field instead");
+        }
+        for event in &events {
+            println!("{}", tantalus_client::live::describe(event));
         }
     }
     game.world_mode = values.contains_key("--world-map");

@@ -1,4 +1,5 @@
 mod base;
+mod container;
 pub mod ff9_tree;
 mod importer;
 mod preview;
@@ -13,6 +14,7 @@ pub use base::{
     BASE_SAVE_TOTAL_COUNT, BaseSaveBlock, BaseSaveBlockState, BaseSaveMetadata, LegacyAesCodec,
     base_save_block_offset,
 };
+pub use container::{blank_container, new_metadata, write_save};
 pub use importer::{
     BASE_SAVE_CONTAINER_BYTES, BaseSaveObservation, DecodedBaseSave, DecodedLegacySlot,
     LegacySaveImporter, LegacySaveLocation, LegacySaveReport, PairingStatus,

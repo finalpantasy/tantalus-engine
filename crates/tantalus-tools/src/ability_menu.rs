@@ -44,6 +44,19 @@ pub struct AbilityTables {
     pub heal_power: BTreeMap<i32, i32>,
     pub active_names: BTreeMap<i32, String>,
     pub support_names: BTreeMap<i32, String>,
+    /// Character id -> new-game parameters (`CharacterParameters.csv`), for save files.
+    pub defaults: BTreeMap<i32, CharacterDefaults>,
+}
+
+/// One row of `CharacterParameters.csv` (`Id;DefaultRow;DefaultWinPose;DefaultCategory;
+/// DefaultCommandSet`): what a character's record starts with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CharacterDefaults {
+    pub row: u8,
+    pub win_pose: u8,
+    pub category: u8,
+    /// `CharacterPresetId`: the menu and ability preset.
+    pub menu_type: u8,
 }
 
 /// `CharacterPresetId` names, which are the ability file names.
@@ -90,9 +103,20 @@ impl AbilityTables {
     ) -> Result<Self, String> {
         let characters = data.join("Characters");
         let mut presets = BTreeMap::new();
+        let mut defaults = BTreeMap::new();
         for row in rows(&read(&characters.join("CharacterParameters.csv"))?) {
             if let (Some(id), Some(preset)) = (int(&row, 0), int(&row, 4)) {
                 presets.insert(id, preset);
+                let byte = |index| int(&row, index).unwrap_or(0) as u8;
+                defaults.insert(
+                    id,
+                    CharacterDefaults {
+                        row: byte(1),
+                        win_pose: byte(2),
+                        category: byte(3),
+                        menu_type: preset as u8,
+                    },
+                );
             }
         }
         let mut by_preset: BTreeMap<i32, Vec<PaEntry>> = BTreeMap::new();
@@ -161,6 +185,7 @@ impl AbilityTables {
             heal_power,
             active_names,
             support_names,
+            defaults,
         })
     }
 

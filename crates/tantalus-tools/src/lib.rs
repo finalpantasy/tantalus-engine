@@ -28,6 +28,7 @@ pub mod shop_menu;
 pub mod sound_bank;
 pub mod sound_view;
 pub mod special_effects_cli;
+pub mod steam_save;
 pub mod sweep_compare;
 pub mod system_menu;
 pub mod world_data;
