@@ -78,13 +78,16 @@ fn run(
         .ok_or("no audio output device")?;
     let (channels, rate) = pick_config(&device)?;
     let mut bank = SoundBank::open(streaming_assets, game_data)?;
-    // PS1 renders from the owner's discs (`tantalus-tools psx-audio`) replace the Steam clips
-    // they cover; without them, or with `TANTALUS_NO_PSX_AUDIO` set, the Steam audio plays.
+    // PS1 renders from the owner's discs (`tantalus-tools psx-audio`, music and spell/ability
+    // effect sounds) replace the Steam clips they cover; without them, or with `TANTALUS_NO_PSX_AUDIO` set, the Steam audio plays.
     if std::env::var_os("TANTALUS_NO_PSX_AUDIO").is_none() {
         let dir = tantalus_tools::psx_audio::default_dir();
         let found = bank.use_psx_audio(&dir);
         if found > 0 {
-            eprintln!("audio: {found} PS1 music renders from {}", dir.display());
+            eprintln!(
+                "audio: {found} PS1 music and effect renders from {}",
+                dir.display()
+            );
         }
     }
     let mut director = AudioDirector::new(bank, rate)?;

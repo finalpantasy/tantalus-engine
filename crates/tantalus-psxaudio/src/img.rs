@@ -33,6 +33,10 @@ pub enum GroupKind {
 pub struct Img {
     pub base_lba: u32,
     pub files: Vec<ImgFile>,
+    /// The effect archive (the group of kind 3): file `index` is the special-effect id. Its
+    /// directory is a table of `u16` block offsets from the group's first block (`0xFFFF` for an
+    /// effect the disc does not carry), not the `(id, block)` pairs of the other groups.
+    pub effects: Vec<ImgFile>,
 }
 
 fn word(data: &[u8], at: usize) -> u32 {
@@ -57,17 +61,52 @@ impl Img {
                 (word(&head, at + 4) as usize, word(&head, at + 8))
             })
             .collect();
+        // (kind, first block) of each group.
+        let kinds: Vec<(u32, u32)> = (0..groups)
+            .map(|g| {
+                let at = 0x10 + g * 16;
+                (word(&head, at), word(&head, at + 12))
+            })
+            .collect();
+        let table_bytes = |kind: u32, n: usize| {
+            if kind == 3 { (n + 1) * 2 } else { (n + 1) * 8 }.div_ceil(DATA_SECTOR) * DATA_SECTOR
+        };
         let table_blocks: usize = records
             .iter()
-            .map(|(n, _)| ((n + 1) * 8).div_ceil(DATA_SECTOR))
+            .zip(&kinds)
+            .map(|((n, _), (kind, _))| table_bytes(*kind, *n) / DATA_SECTOR)
             .sum();
         let tables = disc.read(file.lba + 1, table_blocks * DATA_SECTOR)?;
         let mut files = Vec::new();
+        let mut effects = Vec::new();
         let mut pos = 0usize;
-        for &(count, group) in &records {
-            let size = ((count + 1) * 8).div_ceil(DATA_SECTOR) * DATA_SECTOR;
+        for (&(count, group), &(kind, first_block)) in records.iter().zip(&kinds) {
+            let size = table_bytes(kind, count);
             let table = &tables[pos..pos + size];
             pos += size;
+            if kind == 3 {
+                let offsets: Vec<u16> = (0..=count)
+                    .map(|i| u16::from_le_bytes([table[i * 2], table[i * 2 + 1]]))
+                    .collect();
+                for index in 0..count {
+                    if offsets[index] == 0xFFFF {
+                        continue;
+                    }
+                    let end = offsets[index + 1..]
+                        .iter()
+                        .copied()
+                        .find(|o| *o != 0xFFFF)
+                        .unwrap_or(offsets[index]);
+                    effects.push(ImgFile {
+                        group,
+                        index,
+                        id: index as u32,
+                        start_block: first_block + u32::from(offsets[index]),
+                        blocks: u32::from(end.saturating_sub(offsets[index])),
+                    });
+                }
+                continue;
+            }
             let pair = |i: usize| (word(table, i * 8), word(table, i * 8 + 4));
             for index in 0..count {
                 let (id, start) = pair(index);
@@ -84,6 +123,7 @@ impl Img {
         Ok(Self {
             base_lba: file.lba,
             files,
+            effects,
         })
     }
 

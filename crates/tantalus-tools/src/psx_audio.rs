@@ -7,6 +7,11 @@
 //! The mapping to the Steam game is by sound id: the music file ids in `FF9.IMG` are the music
 //! ids the game scripts use, and `MusicMetaData.txt` maps each to its `Sounds01/BGM_/musicNNN`
 //! resource. A rendered track replaces the Steam resource of the same music id.
+//!
+//! Effect sounds (`render-sfx`) map by effect: the Steam `ef<NNN>` effect files are the PS1
+//! effect files byte for byte (the archive is `FF9.IMG`'s kind-3 group, file index = effect id),
+//! and `SpecialEffectMetaData.txt` lists each effect's sound resources by the rank of the
+//! effect's sound files. A rendered program replaces the Steam resource at its rank.
 
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -259,6 +264,24 @@ pub fn read_sfx_banks(disc_dir: &Path) -> Result<BTreeMap<u16, SampleBank>, Stri
     Ok(banks)
 }
 
+/// The `SfxBanks` collections by the archive file id (which is the special-effect id they belong to).
+pub fn read_sfx_banks_by_file(disc_dir: &Path) -> Result<BTreeMap<u32, SampleBank>, String> {
+    let mut banks = BTreeMap::new();
+    for (_, path) in find_discs(disc_dir) {
+        let mut disc = Disc::open(&path)?;
+        let img = Img::open(&mut disc)?;
+        for g in img.groups_of(&mut disc, tantalus_psxaudio::img::GroupKind::SfxBanks)? {
+            for f in img.group(g) {
+                let data = img.read(&mut disc, f)?;
+                if let Ok(bank) = SampleBank::parse(&data, 64) {
+                    banks.entry(f.id).or_insert(bank);
+                }
+            }
+        }
+    }
+    Ok(banks)
+}
+
 /// Every distinct sound-effect script with the collection it plays: `(entry, script, bank id)`.
 pub fn read_sfx_units(
     disc_dir: &Path,
@@ -440,13 +463,12 @@ fn parse(args: &[String]) -> Result<Args, String> {
                         .collect::<Result<_, _>>()?,
                 )
             }
-            "render" | "compare" | "coverage" | "verify" | "sfx-dump" | "sfx-dump-steam" => {
-                a.command = arg.clone()
-            }
+            "render" | "compare" | "coverage" | "verify" | "sfx-dump" | "sfx-dump-steam"
+            | "render-sfx" | "sfx-coverage" | "sfx-compare" => a.command = arg.clone(),
             other => return Err(format!("unknown argument `{other}`")),
         }
     }
-    if a.disc_dir.as_os_str().is_empty() {
+    if a.disc_dir.as_os_str().is_empty() && !matches!(a.command.as_str(), "sfx-compare") {
         return Err("--disc-dir <folder with the four .bin images> is required".to_owned());
     }
     Ok(a)
@@ -456,6 +478,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let a = parse(args)?;
     if a.command == "verify" {
         return verify(&a.out);
+    }
+    if a.command == "render-sfx" || a.command == "sfx-coverage" {
+        return render_sfx(&a);
+    }
+    if a.command == "sfx-compare" {
+        return sfx_compare(&a);
     }
     let steam = SoundBank::open(
         &a.steam.join("StreamingAssets"),
@@ -588,14 +616,17 @@ fn render_all(a: &Args, steam: &SoundBank, discs: &DiscSongs) -> Result<(), Stri
             ps1_sequence_id: song.sequence.id,
         });
     }
-    // A partial run (--ids) adds to an existing manifest instead of replacing it.
+    // A partial run (--ids) adds to an existing manifest instead of replacing it, and a full
+    // music run keeps the sound-effect entries.
     let path = a.out.join(MANIFEST);
-    if a.ids.is_some()
-        && let Ok(text) = std::fs::read_to_string(&path)
+    if let Ok(text) = std::fs::read_to_string(&path)
         && let Ok(mut old) = serde_json::from_str::<Manifest>(&text)
     {
-        old.entries
-            .retain(|e| !manifest.entries.iter().any(|n| n.resource == e.resource));
+        let partial = a.ids.is_some();
+        old.entries.retain(|e| {
+            (partial || e.kind != "music")
+                && !manifest.entries.iter().any(|n| n.resource == e.resource)
+        });
         old.entries.extend(manifest.entries);
         manifest = old;
     }
@@ -686,4 +717,263 @@ fn verify(dir: &Path) -> Result<(), String> {
     } else {
         Ok(())
     }
+}
+
+/// One Steam sound resource and the disc effect file that holds its program.
+struct EffectSound {
+    resource: String,
+    effect: i32,
+    rank: usize,
+    disc: u8,
+    bytes: Vec<u8>,
+}
+
+/// Walks the discs' effect archives and the Steam effect sound lists together.
+///
+/// The Steam `ef<NNN>` effect files are the PS1 effect files byte for byte, and
+/// `SpecialEffectMetaData.txt` lists each effect's sound resources by the rank of the effect's
+/// sound files (`battle_sound::effect_timeline`: `PLAY_SOUND` numbers sound files by their rank
+/// among the files the sequence plays). So effect E's rank-N sound file is the program behind
+/// list entry N. Only effects whose list length equals their number of sound files are used.
+fn effect_sounds(a: &Args, stats: &mut String) -> Result<(Vec<EffectSound>, usize), String> {
+    use tantalus_assets::pc::special_effect::{EffectFile, RecordDetail};
+    let (lists, _resident) =
+        crate::battle_sound::effect_sound_lists(&a.steam.join("x64/FF9_Data"))?;
+    let mut effects: BTreeMap<usize, (u8, Vec<u8>)> = BTreeMap::new();
+    for (n, path) in find_discs(&a.disc_dir) {
+        let mut disc = Disc::open(&path)?;
+        let img = Img::open(&mut disc)?;
+        for f in &img.effects {
+            if let std::collections::btree_map::Entry::Vacant(v) = effects.entry(f.index) {
+                v.insert((n, img.read(&mut disc, f)?));
+            }
+        }
+    }
+    let mut out = Vec::new();
+    let mut skipped = 0;
+    let (mut used, mut length_mismatch, mut unparsed, mut no_disc) = (0, 0, 0, 0);
+    for (effect, list) in &lists {
+        let Some((n, bytes)) = usize::try_from(*effect).ok().and_then(|i| effects.get(&i)) else {
+            no_disc += 1;
+            continue;
+        };
+        let name = format!("ef{effect:03}");
+        let Ok(mut file) = EffectFile::parse(bytes, &name) else {
+            unparsed += 1;
+            continue;
+        };
+        if file.resolve_small_files(bytes, &name).is_err() {
+            unparsed += 1;
+            continue;
+        }
+        let files: BTreeMap<usize, usize> = file
+            .sequence_summary
+            .sound_refs
+            .iter()
+            .filter_map(|r| Some((r.file?, r.group)))
+            .collect();
+        if files.len() != list.len() {
+            length_mismatch += 1;
+            skipped += list.len();
+            continue;
+        }
+        used += 1;
+        for (rank, (index, group)) in files.iter().enumerate() {
+            let Some(table) = file
+                .records
+                .iter()
+                .filter(|r| r.group == *group)
+                .find_map(|r| match &r.detail {
+                    RecordDetail::SmallFiles(t) => Some(t),
+                    _ => None,
+                })
+            else {
+                continue;
+            };
+            let Some(small) = table.files.get(*index) else {
+                continue;
+            };
+            let start = table.base_offset + small.offset;
+            let Some(slice) = bytes.get(start..start + small.size) else {
+                continue;
+            };
+            out.push(EffectSound {
+                resource: list[rank].clone(),
+                effect: *effect,
+                rank,
+                disc: *n,
+                bytes: slice.to_vec(),
+            });
+        }
+    }
+    stats.push_str(&format!(
+        "effects with a Steam list {}, used {used}, list length differs from the sound file count {length_mismatch}, no disc file {no_disc}, unparsed {unparsed}\n",
+        lists.len()
+    ));
+    Ok((out, skipped))
+}
+
+fn render_sfx(a: &Args) -> Result<(), String> {
+    let mut stats = String::new();
+    let (sounds, skipped) = effect_sounds(a, &mut stats)?;
+    let by_file = read_sfx_banks_by_file(&a.disc_dir)?;
+    let bank_ids: std::collections::BTreeSet<u16> = by_file.values().map(|b| b.id).collect();
+    let common = by_file
+        .get(&COMMON_EFFECT_BANK)
+        .ok_or("the discs have no common effect sound collection")?;
+    // The articulations a program selects must exist in the collections its effect had loaded.
+    let loaded = |effect: i32| -> (SampleBank, bool) {
+        match u32::try_from(effect).ok().and_then(|e| by_file.get(&e)) {
+            Some(own) if effect as u32 != COMMON_EFFECT_BANK => common.merged(own),
+            _ => (common.clone(), false),
+        }
+    };
+    // Resource -> program, checking that every effect naming the same resource agrees.
+    let mut chosen: BTreeMap<String, (SfxEntry, &EffectSound)> = BTreeMap::new();
+    let (mut agree, mut differ) = (0, 0);
+    let (mut not_akao, mut no_art) = (0, 0);
+    for s in &sounds {
+        let Some(entry) = tantalus_psxaudio::sfx::parse_sound_file(&s.bytes, &bank_ids) else {
+            not_akao += 1;
+            continue;
+        };
+        let (bank, _) = loaded(s.effect);
+        if entry
+            .first_articulation(0)
+            .is_none_or(|art| bank.art(art).is_none())
+        {
+            no_art += 1;
+            continue;
+        }
+        match chosen.get(&s.resource) {
+            Some((other, _)) => {
+                if other.data == entry.data {
+                    agree += 1;
+                } else {
+                    differ += 1;
+                }
+            }
+            None => {
+                chosen.insert(s.resource.clone(), (entry, s));
+            }
+        }
+    }
+    stats.push_str(&format!(
+        "sound files {}, resources {}, resource repeated with identical program {agree}, with a variant program {differ}, not a program {not_akao}, first articulation missing {no_art}, resources of effects left out {}\n",
+        sounds.len(),
+        chosen.len(),
+        skipped
+    ));
+    print!("{stats}");
+    if a.command == "sfx-coverage" {
+        return Ok(());
+    }
+    let dir = a.out.join("sfx");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let steam = SoundBank::open(
+        &a.steam.join("StreamingAssets"),
+        &a.steam.join("x64/FF9_Data"),
+    )?;
+    let by_name: BTreeMap<&str, i32> = steam
+        .metadata
+        .sound_effect
+        .iter()
+        .map(|(id, r)| (r.as_str(), *id))
+        .collect();
+    let mut manifest = Manifest {
+        version: 1,
+        entries: Vec::new(),
+    };
+    let (mut silent, mut runaway, mut overlapping) = (0, 0, 0);
+    for (resource, (entry, s)) in &chosen {
+        let (bank, overlap) = loaded(s.effect);
+        overlapping += usize::from(overlap);
+        let rendered = render_capped(&entry.sequence_all(), &bank, SFX_CAP_SECONDS);
+        if rendered.peak < 1.0e-4 {
+            silent += 1;
+            continue;
+        }
+        // A program that is still playing at the length cap and has no loop never ended.
+        if rendered.loop_frames.is_none() && rendered.seconds() >= SFX_CAP_SECONDS as f64 - 0.01 {
+            runaway += 1;
+            continue;
+        }
+        let name = format!("sfx/{}.ogg", basename(resource));
+        encode_ogg(&rendered.samples, &a.out.join(&name))?;
+        manifest.entries.push(ManifestEntry {
+            kind: "sfx".to_owned(),
+            resource: resource.clone(),
+            sound_id: by_name.get(resource.as_str()).copied().unwrap_or(-1),
+            file: name,
+            sample_rate: 44_100,
+            frames: rendered.frames() as u32,
+            loop_frames: rendered.loop_frames,
+            peak: rendered.peak,
+            disc: s.disc,
+            ps1_sequence_id: u16::try_from(s.effect * 16 + s.rank as i32).unwrap_or(u16::MAX),
+        });
+    }
+    println!(
+        "silent renders left out {silent}, never-ending renders left out {runaway}, collections overlapping in SPU memory {overlapping}"
+    );
+    let path = a.out.join(MANIFEST);
+    if let Ok(text) = std::fs::read_to_string(&path)
+        && let Ok(mut old) = serde_json::from_str::<Manifest>(&text)
+    {
+        old.entries.retain(|e| e.kind != "sfx");
+        old.entries.extend(manifest.entries);
+        manifest = old;
+    }
+    manifest.entries.sort_by(|x, y| {
+        (&x.kind, x.sound_id, &x.resource).cmp(&(&y.kind, y.sound_id, &y.resource))
+    });
+    let text = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
+    std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))?;
+    println!(
+        "wrote {} clips to {}",
+        manifest.entries.len(),
+        a.out.display()
+    );
+    Ok(())
+}
+
+/// The `SfxBanks` file id of the collection every effect's sound programs draw on besides the
+/// effect's own (file id = effect id): the programs select articulations 128 and up, which this
+/// collection holds (all 1433 programs checked have their first articulation in it or in their
+/// effect's own collection).
+const COMMON_EFFECT_BANK: u32 = 132;
+
+/// Longest effect sound rendered, in seconds.
+const SFX_CAP_SECONDS: u64 = 10;
+
+/// `sfx-compare`: the length and peak of each rendered effect against the Steam clip it replaces,
+/// as tab-separated rows (an objective check that the mapping pairs like sounds).
+fn sfx_compare(a: &Args) -> Result<(), String> {
+    let mut steam = SoundBank::open(
+        &a.steam.join("StreamingAssets"),
+        &a.steam.join("x64/FF9_Data"),
+    )?;
+    let clips = PsxClips::open(&a.out).ok_or("no psx-audio.json in the output folder")?;
+    for (resource, entry) in &clips.by_resource {
+        if entry.kind != "sfx" {
+            continue;
+        }
+        let Ok(clip) = steam.load_clip(resource) else {
+            continue;
+        };
+        let peak = clip
+            .samples
+            .iter()
+            .map(|s| i32::from(*s).abs())
+            .max()
+            .unwrap_or(0);
+        println!(
+            "{resource}\t{:.3}\t{:.3}\t{:.3}\t{:.3}",
+            f64::from(entry.frames) / 44_100.0,
+            clip.frames() as f64 / f64::from(clip.sample_rate),
+            entry.peak,
+            f64::from(peak) / 32768.0
+        );
+    }
+    Ok(())
 }

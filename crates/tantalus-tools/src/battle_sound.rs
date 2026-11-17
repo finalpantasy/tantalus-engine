@@ -261,6 +261,28 @@ pub fn plugin_sounds(
     out
 }
 
+/// Effect id to its sound resources, in rank order.
+pub type SoundLists = BTreeMap<i32, Vec<String>>;
+
+/// The effect sound lists and the resident list, straight from `resources.assets`.
+pub fn effect_sound_lists(game_data: &Path) -> Result<(SoundLists, Vec<String>), String> {
+    let mut file = StandaloneSerialized::open(&game_data.join("resources.assets"))
+        .map_err(|error| error.to_string())?;
+    let assets = file.text_assets().map_err(|error| error.to_string())?;
+    let mut lists = BTreeMap::new();
+    let mut resident = Vec::new();
+    for (name, object) in &assets {
+        if name == "ResidentSpecialEffectMetaData.txt" {
+            let text = file.read_text_asset(object).map_err(|e| e.to_string())?;
+            resident = parse_resident_list(&text.script);
+        } else if name == "SpecialEffectMetaData.txt" {
+            let text = file.read_text_asset(object).map_err(|e| e.to_string())?;
+            lists = parse_sound_lists(&text.script)?;
+        }
+    }
+    Ok((lists, resident))
+}
+
 impl EffectSounds {
     /// Reads the effect files and their sound lists from `<game_data>/resources.assets` and the
     /// ability table from `Actions.csv`.

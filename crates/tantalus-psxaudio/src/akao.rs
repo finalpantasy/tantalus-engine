@@ -50,6 +50,9 @@ pub struct SampleBank {
     pub start_art: u32,
     pub arts: Vec<Articulation>,
     pub adpcm: Vec<u8>,
+    /// Articulations merged in from other collections ([`SampleBank::merged`]); they win over
+    /// `arts` when an id is in both.
+    pub extra: Vec<Articulation>,
 }
 
 impl SampleBank {
@@ -89,12 +92,53 @@ impl SampleBank {
             start_art,
             arts,
             adpcm: data[section.min(end)..end].to_vec(),
+            extra: Vec::new(),
         })
     }
 
     pub fn art(&self, id: u32) -> Option<&Articulation> {
-        id.checked_sub(self.start_art)
-            .and_then(|i| self.arts.get(i as usize))
+        self.extra.iter().find(|a| a.id == id).or_else(|| {
+            id.checked_sub(self.start_art)
+                .and_then(|i| self.arts.get(i as usize))
+        })
+    }
+
+    /// The collection with `other` loaded next to it, as the console had both in SPU memory:
+    /// one sample image holding each at its own address, and the articulations of both (those
+    /// of `other` win when an id is in both). The second value is true when the two sample
+    /// sections overlap in memory (then `other` overwrites `self` there).
+    pub fn merged(&self, other: &SampleBank) -> (SampleBank, bool) {
+        let low = self.spu_dest.min(other.spu_dest);
+        let end = (self.spu_dest as usize + self.adpcm.len())
+            .max(other.spu_dest as usize + other.adpcm.len());
+        let mut image = vec![0u8; end - low as usize];
+        let overlap = (self.spu_dest as usize) < other.spu_dest as usize + other.adpcm.len()
+            && (other.spu_dest as usize) < self.spu_dest as usize + self.adpcm.len();
+        let mut place = |bank: &SampleBank| {
+            let at = (bank.spu_dest - low) as usize;
+            image[at..at + bank.adpcm.len()].copy_from_slice(&bank.adpcm);
+        };
+        place(self);
+        place(other);
+        let shift = |bank: &SampleBank, a: &Articulation| Articulation {
+            sample_offset: a.sample_offset + (bank.spu_dest - low),
+            loop_offset: a.loop_offset + (bank.spu_dest - low),
+            ..*a
+        };
+        let mut extra: Vec<Articulation> = other.arts.iter().map(|a| shift(other, a)).collect();
+        extra.extend(other.extra.iter().map(|a| shift(other, a)));
+        extra.extend(self.extra.iter().map(|a| shift(self, a)));
+        (
+            SampleBank {
+                id: self.id,
+                spu_dest: low,
+                start_art: self.start_art,
+                arts: self.arts.iter().map(|a| shift(self, a)).collect(),
+                adpcm: image,
+                extra,
+            },
+            overlap,
+        )
     }
 }
 
@@ -208,4 +252,55 @@ pub fn read_songs(disc_no: u8, disc: &mut Disc, img: &Img) -> Vec<Result<Song, S
                 .map_err(|e| format!("disc {disc_no} music file {}: {e}", file.id))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn art(id: u32, offset: u32) -> Articulation {
+        Articulation {
+            id,
+            sample_offset: offset,
+            loop_offset: offset + 16,
+            fine_tune: 0,
+            unity_key: 60,
+            adsr1: 0,
+            adsr2: 0,
+        }
+    }
+
+    fn bank(spu_dest: u32, start_art: u32, ids: u32, len: usize) -> SampleBank {
+        SampleBank {
+            id: 0,
+            spu_dest,
+            start_art,
+            arts: (0..ids).map(|i| art(start_art + i, i * 32)).collect(),
+            adpcm: vec![spu_dest as u8; len],
+            extra: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn merged_collections_keep_their_own_samples_and_ids() {
+        let common = bank(0x1000, 128, 2, 64);
+        let own = bank(0x2000, 192, 2, 64);
+        let (m, overlap) = common.merged(&own);
+        assert!(!overlap);
+        assert_eq!(m.spu_dest, 0x1000);
+        let a = m.art(129).expect("common art");
+        assert_eq!(a.sample_offset, 32);
+        let b = m.art(193).expect("own art");
+        // 0x2000 - 0x1000 into the combined image, then the art's own offset of 32.
+        assert_eq!(b.sample_offset, 0x1000 + 32);
+        assert_eq!(m.adpcm[b.sample_offset as usize], 0x2000u32 as u8);
+        assert_eq!(m.adpcm[0], 0x1000u32 as u8);
+        assert!(m.art(200).is_none());
+    }
+
+    #[test]
+    fn overlapping_collections_are_reported() {
+        let (_, overlap) = bank(0x1000, 0, 1, 64).merged(&bank(0x1020, 8, 1, 64));
+        assert!(overlap);
+    }
 }

@@ -137,6 +137,28 @@ fn parse_entry(data: &[u8], at: usize, end: usize, banks: &BTreeSet<u16>) -> Opt
     }
 }
 
+/// Parses one stand-alone sound file (an effect's small file): the `AKAO` tag at byte 0 and the
+/// program filling the rest.
+pub fn parse_sound_file(data: &[u8], banks: &BTreeSet<u16>) -> Option<SfxEntry> {
+    parse_entry(data, 0, data.len(), banks)
+}
+
+impl SfxEntry {
+    /// Every script of the entry as the channels of one sequence, so a container's voices play
+    /// together as the console played the file.
+    pub fn sequence_all(&self) -> Sequence {
+        Sequence {
+            id: u16::from_le_bytes([self.data[4], self.data[5]]),
+            reverb_type: 0,
+            sample_set: self.bank_hint.unwrap_or(0),
+            data: self.data.clone(),
+            channels: self.scripts.clone(),
+            instrument_map: None,
+            drum_map: None,
+        }
+    }
+}
+
 /// All sound-effect programs of one disc, in file order. `banks` are the collection ids that
 /// exist (kind-1 entries naming anything else are rejected as false matches).
 pub fn read_sfx_entries(
@@ -237,5 +259,26 @@ mod tests {
         assert_eq!(e.scripts, vec![0x20, 0x23, 0x2D, 0x30]);
         assert_eq!(e.first_articulation(1), Some(0xAD));
         assert_eq!(e.first_articulation(2), Some(0xAD));
+    }
+
+    #[test]
+    fn a_stand_alone_sound_file_carries_all_its_voices() {
+        let s1 = [0xA1, 0x8B, 0xA0];
+        let s2 = [0xA1, 0xAD, 0xA0];
+        let mut d = header(3);
+        d.resize(0x14, 0);
+        d.extend_from_slice(&0x0Du32.to_le_bytes());
+        d.extend_from_slice(&0u32.to_le_bytes());
+        d.extend_from_slice(&[0, 0, s1.len() as u8, 0]);
+        d.extend_from_slice(&s1);
+        d.extend_from_slice(&s2);
+        d.extend_from_slice(&[0xFF; 3]);
+        d.extend_from_slice(&[0, 0, s2.len() as u8, 0]);
+        d.extend_from_slice(&s2);
+        d.extend_from_slice(&s1);
+        d.resize(d.len() + 8, 0);
+        let e = parse_sound_file(&d, &BTreeSet::new()).expect("parses");
+        assert_eq!(e.sequence_all().channels, e.scripts);
+        assert!(parse_sound_file(&d[4..], &BTreeSet::new()).is_none());
     }
 }

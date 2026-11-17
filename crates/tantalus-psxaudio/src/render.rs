@@ -186,6 +186,7 @@ mod tests {
             id: 1,
             spu_dest: 0x1000,
             start_art: 0,
+            extra: Vec::new(),
             arts: vec![Articulation {
                 id: 0,
                 sample_offset: 0,
