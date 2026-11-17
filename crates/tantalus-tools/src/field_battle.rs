@@ -658,7 +658,7 @@ impl Equipment {
                         target: paren_or_number(field(3)).parse().unwrap_or(0),
                         default_ally: flag(4),
                         for_dead: flag(5),
-                        script_id: int(&row, 10).unwrap_or(0),
+                        script_id: vanilla_script_id(id, int(&row, 10).unwrap_or(0)),
                         power: int(&row, 11).unwrap_or(0),
                         elements: status_mask(field(12)) as u8,
                         rate: int(&row, 13).unwrap_or(0),
@@ -2505,5 +2505,28 @@ mod tests {
         assert_eq!(serial(10, 0, 1550), Some(17));
         assert_eq!(serial(10, 0, 2000), Some(16));
         assert_eq!(serial(12, 0, 0), None);
+    }
+}
+
+/// The ability script of action `id`: the installed game's `FF9BattleDB.aa_data`
+/// value where Memoria's `Actions.csv` differs and the difference is not a bug
+/// fix (`audit/approved-differences.csv`, `memoria-actions-thunder-slash-script`).
+/// Memoria gives Thunder Slash (149) `OriginalMagicAttackScript` (20); the
+/// original runs script 17.
+fn vanilla_script_id(id: i32, memoria: i32) -> i32 {
+    match id {
+        149 => 17,
+        _ => memoria,
+    }
+}
+
+#[cfg(test)]
+mod vanilla_script_tests {
+    use super::vanilla_script_id;
+
+    #[test]
+    fn thunder_slash_keeps_the_original_script() {
+        assert_eq!(vanilla_script_id(149, 20), 17);
+        assert_eq!(vanilla_script_id(150, 20), 20);
     }
 }
