@@ -529,6 +529,7 @@ fn run_play_capture(args: &[std::ffi::OsString]) -> ExitCode {
         "--learn",
         "--save-point",
         "--shop",
+        "--chocograph",
         "--moogle-save",
         "--gil",
         "--audio-wav",
@@ -602,6 +603,14 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     if let Some(give) = values.get("--give") {
         let ids: Vec<i32> = give.split(',').filter_map(|id| id.parse().ok()).collect();
         game.give_items(&ids);
+    }
+    if let Some(spec) = values.get("--chocograph") {
+        // FOUND_MASK[:REACH], a test aid: the world list with those pictures found.
+        let (mask, reach) = spec.split_once(':').unwrap_or((spec.as_str(), "2"));
+        let mask = parse_number::<u32>(mask).ok_or("bad --chocograph mask")?;
+        let reach = reach.parse().map_err(|_| "bad --chocograph reach")?;
+        let mut events = Vec::new();
+        game.open_chocograph(mask, reach, &mut events)?;
     }
     if values.contains_key("--hurt") {
         game.hurt_party();
@@ -714,6 +723,7 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         ));
         let frame = renderer.render(play, width, height);
         tantalus_client::battle_view::save_png(&frame, &output)?;
+        overlay_menu(&game, &output)?;
         return Ok(format!(
             "saved the world map at ({:.1}, {:.1}) after {} ticks, to {}",
             play.walker.pos.x,
@@ -1016,6 +1026,7 @@ fn run_world_capture(args: &[std::ffi::OsString]) -> ExitCode {
         "--visited",
         "--ride",
         "--chocobo",
+        "--world-script",
     ]);
     let Some(values) = flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
@@ -1073,6 +1084,10 @@ fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<
         })?;
         game.set_story(number("--scenario")?, number("--discovered")?, visited);
     }
+    if let Some(map) = values.get("--world-script") {
+        // 9000 to 9009: which world's script runs (its ships and objects).
+        game.world_script_map = map.parse().map_err(|_| "bad --world-script")?;
+    }
     if let Some(kind) = values.get("--chocobo") {
         game.set_chocobo_kind(kind.parse().map_err(|_| "bad --chocobo")?);
     }
@@ -1093,6 +1108,11 @@ fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<
         && let Some(play) = game.world_play.as_mut()
     {
         play.set_ride(ride.parse().map_err(|_| "bad --ride")?);
+    }
+    if let Some(play) = game.world_play.as_ref() {
+        for parked in play.parked_ships() {
+            println!("parked {:?} at {:?}", parked.ship, parked.pos);
+        }
     }
     let mut renderer =
         tantalus_client::world_view::WorldRenderer::new(std::path::Path::new(&values["--assets"]));
@@ -1149,4 +1169,104 @@ fn world_capture(values: &std::collections::BTreeMap<String, String>) -> Result<
         renderer.problems.len(),
         output.display()
     ))
+}
+
+/// A decimal or `0x` hexadecimal number.
+fn parse_number<T: TryFrom<u64>>(text: &str) -> Option<T> {
+    let value = match text.strip_prefix("0x") {
+        Some(hex) => u64::from_str_radix(hex, 16).ok()?,
+        None => text.parse().ok()?,
+    };
+    T::try_from(value).ok()
+}
+
+/// Draws the open menu (the Chocograph list) over a saved world capture,
+/// each window as `DialogAssets::render_window` pictures laid out in PSX
+/// pixels on the 320x240 frame, as the window's menu view does.
+fn overlay_menu(
+    game: &tantalus_tools::play::PlayGame,
+    output: &std::path::Path,
+) -> Result<(), String> {
+    use tantalus_assets::pc::dialog_render::{
+        BORDER_PADDING, DEFAULT_TEXT_COLOR, DialogAssets, RESOURCE_X_MULTIPLIER,
+        RESOURCE_Y_MULTIPLIER, WindowAtlasChoice, WindowText,
+    };
+    use tantalus_tools::field_menu::Tint;
+    let Some((_, frame)) = game.menu_frame() else {
+        return Ok(());
+    };
+    let assets = DialogAssets::load(
+        &game.game_data().join("resources.assets"),
+        WindowAtlasChoice::Blue,
+    )
+    .map_err(|error| format!("menu art: {error}"))?;
+    let mut base = image::open(output)
+        .map_err(|error| format!("cannot read {}: {error}", output.display()))?
+        .to_rgba8();
+    let (sx, sy) = (base.width() as f32 / 320.0, base.height() as f32 / 240.0);
+    let border = BORDER_PADDING as f32 / RESOURCE_X_MULTIPLIER;
+    let color = |tint: Tint| {
+        let [r, g, b, a] = DEFAULT_TEXT_COLOR;
+        match tint {
+            Tint::White => [r, g, b, a],
+            Tint::Dim => [0.45, 0.45, 0.5, 1.0],
+            Tint::Yellow => [0.96, 0.82, 0.4, 1.0],
+            Tint::Green => [0.45, 0.95, 0.5, 1.0],
+            Tint::Red => [1.0, 0.45, 0.4, 1.0],
+        }
+    };
+    for window in &frame.windows {
+        let texts: Vec<WindowText> = window
+            .texts
+            .iter()
+            .map(|run| WindowText {
+                x: run.x * RESOURCE_X_MULTIPLIER,
+                y: run.y * RESOURCE_Y_MULTIPLIER,
+                text: run.text.clone(),
+                color: color(run.tint),
+                right: run.right,
+            })
+            .collect();
+        let picture = assets.render_window(
+            (window.w * RESOURCE_X_MULTIPLIER).round() as i32,
+            (window.h * RESOURCE_Y_MULTIPLIER).round() as i32,
+            &texts,
+        );
+        let Some(source) = image::RgbaImage::from_raw(
+            picture.width as u32,
+            picture.height as u32,
+            picture.rgba.clone(),
+        ) else {
+            continue;
+        };
+        let width = (picture.width as f32 / RESOURCE_X_MULTIPLIER * sx)
+            .round()
+            .max(1.0) as u32;
+        let height = (picture.height as f32 / RESOURCE_Y_MULTIPLIER * 224.0 / 240.0 * sy)
+            .round()
+            .max(1.0) as u32;
+        let scaled = image::imageops::resize(
+            &source,
+            width,
+            height,
+            image::imageops::FilterType::Triangle,
+        );
+        let x = ((window.x - border) * sx).round() as i64;
+        let y = (((window.y - border) + 8.0) * sy).round() as i64;
+        image::imageops::overlay(&mut base, &scaled, x, y);
+    }
+    if let Some((px, py)) = frame.pointer {
+        let (cx, cy) = ((px * sx) as i64, ((py + 8.0) * sy) as i64);
+        for (dx, dy) in (-5i64..=5).flat_map(|dx| (-5i64..=5).map(move |dy| (dx, dy))) {
+            if dx.abs() + dy.abs() <= 5
+                && let (Ok(x), Ok(y)) = (u32::try_from(cx + dx), u32::try_from(cy + dy))
+                && x < base.width()
+                && y < base.height()
+            {
+                base.put_pixel(x, y, image::Rgba([255, 242, 153, 255]));
+            }
+        }
+    }
+    base.save(output)
+        .map_err(|error| format!("cannot write {}: {error}", output.display()))
 }

@@ -115,6 +115,8 @@ pub struct MenuTables {
     /// (`ETC/minista.mes`, `ETC/card.mes`).
     pub card_names: BTreeMap<i32, String>,
     pub card_levels: BTreeMap<i32, String>,
+    /// The Chocograph list's text by id (`FF9TextTool.ChocoboUIText`, `etc/ff9choco`).
+    pub chocograph_text: BTreeMap<i32, String>,
 }
 
 fn rows(text: &str) -> impl Iterator<Item = Vec<&str>> {
@@ -281,6 +283,7 @@ impl MenuTables {
             abilities: AbilityTables::load(&data, active_names, support_names)?,
             card_names: BTreeMap::new(),
             card_levels: BTreeMap::new(),
+            chocograph_text: BTreeMap::new(),
         })
     }
 

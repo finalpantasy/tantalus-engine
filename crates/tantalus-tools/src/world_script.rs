@@ -107,7 +107,9 @@ pub fn script_pad(held: i32) -> i32 {
 
 /// Script entry of the controlled character (Zidane, model 310).
 pub const ZIDANE_ENTRY: u32 = 11;
-/// Script entry of the Blue Narciss object (model 311).
+/// Script entry 8 of `EVT_WORLD_WORLD00`: object index 13, the tent (model
+/// 311); the walking world moves it with the Blue Narciss ride. The ships
+/// themselves are objects of the later worlds, see [`Ship`].
 pub const NARCISS_ENTRY: u32 = 8;
 /// Script entry of the chocobo object (model 308).
 pub const CHOCOBO_ENTRY: u32 = 5;
@@ -120,6 +122,45 @@ pub const NARCISS_ANCHORAGE: [f32; 3] = [280_576.0 / 256.0, 327.0 / 256.0, -261_
 /// when the world loads.
 pub const INVINCIBLE_ANCHORAGE: [f32; 3] = [272_866.0 / 256.0, 8550.0 / 256.0, -244_552.0 / 256.0];
 pub const HILDA_GARDE_ANCHORAGE: [f32; 3] = [775.1, 39.9, -317.3];
+
+/// A ship the world script keeps parked: the objects with the airship
+/// models of `EVT_WORLD_WORLD03` to `09` (`SetObjectIndex` 8, 9 and 10).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ship {
+    BlueNarciss,
+    HildaGarde3,
+    Invincible,
+}
+
+impl Ship {
+    /// The script's model id (`GEO_SUB_W0_008`, `_009`, `_010`).
+    pub fn from_model(model: u16) -> Option<Self> {
+        match model {
+            321 => Some(Self::BlueNarciss),
+            320 => Some(Self::HildaGarde3),
+            317 => Some(Self::Invincible),
+            _ => None,
+        }
+    }
+
+    /// `WMActor.Initialize`: where the ship stands when the world loads.
+    pub fn anchorage(self) -> [f32; 3] {
+        match self {
+            Self::BlueNarciss => NARCISS_ANCHORAGE,
+            Self::HildaGarde3 => HILDA_GARDE_ANCHORAGE,
+            Self::Invincible => INVINCIBLE_ANCHORAGE,
+        }
+    }
+}
+
+/// A ship standing at its anchorage.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ParkedShip {
+    pub ship: Ship,
+    pub pos: [f32; 3],
+    /// The script's facing byte.
+    pub facing: u8,
+}
 
 /// Frames the script runs before its objects have their start positions.
 pub const START_FRAMES: u32 = 10;
@@ -323,6 +364,43 @@ impl WorldScript {
     /// 190) this is the vehicle's position too.
     pub fn zidane_start(&self) -> Option<([f32; 3], u8)> {
         self.object_start(ZIDANE_ENTRY)
+    }
+
+    /// The ships this world's script keeps parked: its objects with a
+    /// ship's model whose flags show them (`SetObjectFlags` bit 0; the
+    /// script hides an object it does not want on the map) and that are not
+    /// the one the player flies (`w_moveCHRControl_No`, 7 to 9). They stand
+    /// where `WMActor.Initialize` puts them (`SetPosition`), turned as the
+    /// script faces them.
+    pub fn parked_ships(&self, flown: u8) -> Vec<ParkedShip> {
+        let mut ships: Vec<_> = self
+            .world()
+            .actors
+            .values()
+            .filter_map(|actor| {
+                let ship = Ship::from_model(actor.look.model?)?;
+                let flown = match flown {
+                    7 => Some(Ship::BlueNarciss),
+                    8 => Some(Ship::HildaGarde3),
+                    9 => Some(Ship::Invincible),
+                    _ => None,
+                };
+                // Its own position when the script placed it
+                // (`SetActorPositionXzy`), else `WMActor.Initialize`'s.
+                let pos = if actor.position == [0.0; 3] {
+                    ship.anchorage()
+                } else {
+                    actor.position.map(|value| value / 256.0)
+                };
+                (actor.flags & 1 != 0 && Some(ship) != flown).then_some(ParkedShip {
+                    ship,
+                    pos,
+                    facing: (actor.facing & 0xFF) as u8,
+                })
+            })
+            .collect();
+        ships.sort_by_key(|parked| parked.ship as u8);
+        ships
     }
 
     /// `w_moveCHRControl_No` at the start (`ff9.w_movementChange` reads

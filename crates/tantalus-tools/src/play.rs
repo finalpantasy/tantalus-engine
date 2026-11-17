@@ -150,6 +150,7 @@ impl PlayData {
         )?;
         menu.card_names = text.names("etc/minista").unwrap_or_default();
         menu.card_levels = text.names("etc/card").unwrap_or_default();
+        menu.chocograph_text = text.names("etc/ff9choco").unwrap_or_default();
         menu.seed_equipment(&mut new_game);
         let shops = crate::shop_menu::ShopTables::load(memoria)?;
         new_game.items = tantalus_game::new_game::parse_initial_items(&read_text(
@@ -364,6 +365,11 @@ pub struct PlayGame {
     pub world_mode: bool,
     /// The overworld while the player walks it.
     pub world_play: Option<WorldPlay>,
+    /// The Chocograph list the world script opened (`ChocographUI`).
+    pub chocograph_screen: Option<crate::chocograph_menu::ChocographScreen>,
+    /// The world map whose script runs while walking (9000 to 9009, the
+    /// number the field that left for the world asked for).
+    pub world_script_map: i32,
     world_assets: Option<std::sync::Arc<WorldAssets>>,
     world_exit: Option<WorldExit>,
     pub stopped: Option<String>,
@@ -436,6 +442,8 @@ impl PlayGame {
             world_exits: Vec::new(),
             world_mode: false,
             world_play: None,
+            chocograph_screen: None,
+            world_script_map: 9000,
             world_assets: None,
             world_exit: None,
             stopped: None,
@@ -940,6 +948,32 @@ impl PlayGame {
         Some((info, self.party_select))
     }
 
+    /// Walks the world with the pictures in `found` (bit `n` for picture
+    /// `n`) found and a chocobo that reaches `reach`, and has the world
+    /// script open the Chocograph list as its prompt does (a test aid).
+    pub fn open_chocograph(
+        &mut self,
+        found: u32,
+        reach: u8,
+        events: &mut Vec<PlayEvent>,
+    ) -> Result<(), String> {
+        use tantalus_legacy::VariableType::Byte;
+        {
+            let world = self.world_mut_any();
+            for index in 0..3u16 {
+                let byte = (found >> (8 * index)) as u8;
+                world.global_memory.set(187 + index, Byte, i32::from(byte));
+            }
+            world.global_memory.set(190, Byte, 1);
+            world.global_memory.set(191, Byte, i32::from(reach));
+        }
+        self.start_world(None, events)?;
+        if let Some(play) = self.world_play.as_mut() {
+            play.script_mut_for_tests().world_mut().chocograph_requested = true;
+        }
+        Ok(())
+    }
+
     pub fn open_shop(&mut self, id: i32) {
         self.world_mut_any().shop_requested = Some(id);
     }
@@ -1141,6 +1175,10 @@ impl PlayGame {
 
     /// The main menu to draw, with a number that changes when it does.
     pub fn menu_frame(&self) -> Option<(u64, crate::field_menu::MenuFrame)> {
+        if let Some(screen) = &self.chocograph_screen {
+            // Offset so it never matches a shop's or the menu's revision.
+            return Some((screen.revision | 1 << 40, screen.frame()));
+        }
         if let Some(shop) = &self.shop {
             return Some((
                 shop.revision,
@@ -1370,6 +1408,11 @@ impl PlayGame {
             && self.world_exits.is_empty()
             && world_map.is_some()
         {
+            if let Some(map) = world_map.filter(|map| (9000..=9009).contains(map))
+                && self.data.db.contains_key(&map)
+            {
+                self.world_script_map = map;
+            }
             return self.start_world(None, events);
         }
         let session = self.session.as_mut().expect("session");
@@ -1700,7 +1743,7 @@ impl PlayGame {
         let name = self
             .data
             .db
-            .get(&9000)
+            .get(&self.world_script_map)
             .cloned()
             .ok_or("no world script in the event db")?;
         let places = crate::world_places::event_places(&self.data.bundle, &name)?;
@@ -1731,9 +1774,13 @@ impl PlayGame {
         // frames first, so its objects have their positions.
         let mut script_world = self.world.clone();
         script_world.global_memory = globals.clone();
-        let mut script =
-            crate::world_script::WorldScript::start(&self.data.bundle, &name, 9000, script_world)
-                .ok();
+        let mut script = crate::world_script::WorldScript::start(
+            &self.data.bundle,
+            &name,
+            self.world_script_map,
+            script_world,
+        )
+        .ok();
         if let Some(script) = script.as_mut() {
             for _ in 0..crate::world_script::START_FRAMES {
                 if script.tick(0).is_err() {
@@ -1775,7 +1822,7 @@ impl PlayGame {
         let name = self
             .data
             .db
-            .get(&9000)
+            .get(&self.world_script_map)
             .cloned()
             .ok_or("no world script in the event db")?;
         let places = crate::world_places::event_place_options(&self.data.bundle, &name)?;
@@ -1818,6 +1865,27 @@ impl PlayGame {
         let Some(play) = self.world_play.as_mut() else {
             return Ok(());
         };
+        if let Some(screen) = self.chocograph_screen.as_mut() {
+            // The list takes the pad while it is open (`ChocographUI`).
+            use crate::chocograph_menu::ChocographEvent;
+            let event = screen.press(pressed);
+            play.hintmap = screen.book.hintmap_id;
+            let sound = match event {
+                ChocographEvent::Moved => Some(menu_sound::CURSOR),
+                ChocographEvent::Confirmed => Some(menu_sound::CONFIRM),
+                ChocographEvent::Cancelled | ChocographEvent::Closed => Some(menu_sound::CANCEL),
+                ChocographEvent::Refused => Some(menu_sound::REFUSE),
+                ChocographEvent::Nothing => None,
+            };
+            if let Some(id) = sound {
+                self.audio.push((self.ticks, AudioCue::Effect { id }));
+            }
+            if event == ChocographEvent::Closed {
+                self.chocograph_screen = None;
+                play.chocograph_close();
+            }
+            return Ok(());
+        }
         if pressed & pad::SQUARE != 0 {
             // Square gets off whatever the player rides, or else boards the
             // anchored Blue Narciss, or calls the yellow chocobo.
@@ -1842,6 +1910,12 @@ impl PlayGame {
         let tick = play.tick(held, pressed, CONFIRM, false);
         if let Some(session) = self.session.as_mut() {
             play.sync_out_of_script(session.director.world_mut());
+        }
+        if let Some(book) = play.chocograph.clone() {
+            // `OpenMenu 5` from the script: the list opens over the world.
+            let texts = self.data.menu.chocograph_text.clone();
+            self.chocograph_screen =
+                Some(crate::chocograph_menu::ChocographScreen::new(book, texts));
         }
         if let Some(field) = tick.field {
             // The world script changed field by itself (its own prompt).

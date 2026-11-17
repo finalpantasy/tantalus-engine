@@ -13,6 +13,7 @@ use bevy::math::{Quat, Vec3};
 use tantalus_assets::pc::battle_background::BattleBackground;
 use tantalus_tools::world_data::mesh_in_form;
 use tantalus_tools::world_play::WorldPlay;
+use tantalus_tools::world_script::Ship;
 
 use crate::actor_models::{ActorModels, ActorPose};
 use crate::battle_raster::{
@@ -59,6 +60,16 @@ const RIDER_FLY: u16 = 1143;
 const NARCISS_MODEL: u16 = 321;
 const NARCISS_IDLE: u16 = 5144;
 const NARCISS_SCALE: f32 = 106.0 / 64.0 / 256.0;
+/// `GEO_SUB_W0_009`, Hilda Garde III (`ANH_SUB_W0_009_IDLE1_H3`,
+/// `WMActor.SetScale(110, 95, 110)`: drawn at the width scale), and
+/// `GEO_SUB_W0_010`, the Invincible (`ANH_SUB_W0_010_IDLE1_IV`,
+/// `SetScale(64, 64, 64)`).
+const HILDA_MODEL: u16 = 320;
+const HILDA_IDLE: u16 = 5134;
+const HILDA_SCALE: f32 = 110.0 / 64.0 / 256.0;
+const INVINCIBLE_MODEL: u16 = 317;
+const INVINCIBLE_IDLE: u16 = 5127;
+const INVINCIBLE_SCALE: f32 = 1.0 / 256.0;
 /// `WMActor.SetScale(67, 67, 67)`: 67 / 64 of 1/256.
 const MODEL_SCALE: f32 = 67.0 / 64.0 / 256.0;
 /// Hue turn in degrees and brightness that stand in for the other chocobo
@@ -98,6 +109,8 @@ impl WorldRenderer {
             (ZIDANE_MODEL, RIDER_RUN),
             (ZIDANE_MODEL, RIDER_FLY),
             (NARCISS_MODEL, NARCISS_IDLE),
+            (HILDA_MODEL, HILDA_IDLE),
+            (INVINCIBLE_MODEL, INVINCIBLE_IDLE),
         ]
         .map(|(model, animation)| ActorPose {
             model: Some(model),
@@ -329,6 +342,27 @@ impl WorldRenderer {
                     yaw: parked.rot_y,
                     scale: MODEL_SCALE,
                     tint: CHOCOBO_TINTS[usize::from(parked.kind.clamp(1, 6)) - 1],
+                },
+                time,
+            );
+        }
+        // The ships the script keeps parked (`WMActor.Initialize` places them).
+        for parked in play.parked_ships() {
+            let (clip, scale) = match parked.ship {
+                Ship::BlueNarciss => ((NARCISS_MODEL, NARCISS_IDLE), NARCISS_SCALE),
+                Ship::HildaGarde3 => ((HILDA_MODEL, HILDA_IDLE), HILDA_SCALE),
+                Ship::Invincible => ((INVINCIBLE_MODEL, INVINCIBLE_IDLE), INVINCIBLE_SCALE),
+            };
+            draw_character(
+                &mut frame,
+                &camera,
+                &self.models,
+                clip,
+                &Placement {
+                    at: parked.pos,
+                    yaw: f32::from(parked.facing) * 360.0 / 256.0,
+                    scale,
+                    tint: plain,
                 },
                 time,
             );

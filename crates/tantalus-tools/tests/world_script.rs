@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use tantalus_tools::world_places::event_place_options;
-use tantalus_tools::world_script::WorldScript;
+use tantalus_tools::world_script::{Ship, WorldScript};
 
 fn bundle() -> Option<PathBuf> {
     let dir = std::env::var_os("TANTALUS_FFIX_STREAMING_ASSETS")
@@ -157,4 +157,67 @@ fn the_script_places_zidane_and_keeps_the_ship_at_its_anchorage() {
         // No chocobo kind owned: no chocobo object.
         assert_eq!(script.chocobo_start(), None);
     }
+}
+
+/// The ships `parked_ships` finds in world `name` at story point `story`.
+fn ships_at(bundle: &std::path::Path, name: &str, map: i32, story: i32) -> Vec<Ship> {
+    let mut world = tantalus_game::FieldWorld::new();
+    world
+        .global_memory
+        .set(0, tantalus_legacy::VariableType::UInt16, story);
+    world
+        .global_memory
+        .set(2, tantalus_legacy::VariableType::Byte, 1);
+    let mut script = WorldScript::start(bundle, name, map, world).unwrap();
+    for _ in 0..tantalus_tools::world_script::START_FRAMES {
+        script.tick(0).unwrap();
+    }
+    script
+        .parked_ships(0)
+        .iter()
+        .map(|ship| ship.ship)
+        .collect()
+}
+
+#[test]
+fn the_world_scripts_park_each_airship_only_at_its_story_points() {
+    let Some(bundle) = bundle() else { return };
+    // Disc 1's world has no ship objects at all (its entry 8 is the tent).
+    for story in [3000, 9990, 11500] {
+        assert!(ships_at(&bundle, "EVT_WORLD_WORLD00", 9000, story).is_empty());
+    }
+    // The Blue Narciss: parked from 9990 in its world, not before.
+    let narciss = |story| ships_at(&bundle, "EVT_WORLD_WORLD03", 9003, story);
+    assert!(narciss(9000).is_empty());
+    assert_eq!(narciss(9990), [Ship::BlueNarciss]);
+    assert_eq!(narciss(12000), [Ship::BlueNarciss]);
+    // Hilda Garde III from 10400.
+    let hilda = |story| ships_at(&bundle, "EVT_WORLD_WORLD07", 9007, story);
+    assert!(hilda(10000).is_empty());
+    assert_eq!(hilda(10400), [Ship::HildaGarde3]);
+    // The Invincible from 11100 in world 8, and always in the last world.
+    let invincible = |story| ships_at(&bundle, "EVT_WORLD_WORLD08", 9008, story);
+    assert!(invincible(11000).is_empty());
+    assert_eq!(invincible(11100), [Ship::Invincible]);
+    assert_eq!(
+        ships_at(&bundle, "EVT_WORLD_WORLD09", 9009, 3000),
+        [Ship::Invincible]
+    );
+    // `WMActor.Initialize` positions: the Invincible in the last world is
+    // moved by the script itself (to ground level).
+    let mut world = tantalus_game::FieldWorld::new();
+    world
+        .global_memory
+        .set(0, tantalus_legacy::VariableType::UInt16, 11500);
+    let mut script = WorldScript::start(&bundle, "EVT_WORLD_WORLD09", 9009, world).unwrap();
+    for _ in 0..tantalus_tools::world_script::START_FRAMES {
+        script.tick(0).unwrap();
+    }
+    let parked = script.parked_ships(0);
+    assert!(
+        (parked[0].pos[0] - 238_344.0 / 256.0).abs() < 1.0,
+        "{parked:?}"
+    );
+    // A flown ship is not parked.
+    assert!(script.parked_ships(9).is_empty());
 }

@@ -117,6 +117,8 @@ pub struct WorldPlay {
     /// The chocobo the script placed (by story point), if the player owns
     /// one and is not riding it.
     pub chocobo: Option<ParkedChocobo>,
+    /// The ships the world script keeps parked at this story point.
+    pub ships: Vec<crate::world_script::ParkedShip>,
     /// `FF9StateGlobal.hintmap_id`: the selected Chocograph picture (0
     /// none, else index + 1). The script reads it as system variable 198
     /// and digs at that picture's spot (entry 5 function 14, entry 3).
@@ -162,6 +164,7 @@ impl WorldPlay {
     /// place cell requests the cell's handler (`ff9.WorldEvent`).
     pub fn set_script(&mut self, script: crate::world_script::WorldScript) {
         self.hintmap = script.world().hintmap_id;
+        self.ships = script.parked_ships(0);
         self.script = Some(script);
         self.chocobo = self.script_start().and_then(|start| start.chocobo);
         // `ff9.w_movementChrInitSlice`: the chocobo stands on the ground.
@@ -172,6 +175,22 @@ impl WorldPlay {
                 chocobo.pos = walker.pos;
             }
         }
+    }
+
+    /// The parked ships to draw: all but the one the player is flying
+    /// (`w_moveCHRControl_No` 7 Blue Narciss, 8 Hilda Garde III, 9
+    /// Invincible).
+    pub fn parked_ships(&self) -> impl Iterator<Item = &crate::world_script::ParkedShip> {
+        use crate::world_script::Ship;
+        let flown = match self.ride {
+            7 => Some(Ship::BlueNarciss),
+            8 => Some(Ship::HildaGarde3),
+            9 => Some(Ship::Invincible),
+            _ => None,
+        };
+        self.ships
+            .iter()
+            .filter(move |parked| Some(parked.ship) != flown)
     }
 
     /// What the world script's objects were given at the start: the
@@ -237,6 +256,7 @@ impl WorldPlay {
             script: None,
             script_held: 0,
             chocobo: None,
+            ships: Vec::new(),
             hintmap: 0,
             chocograph: None,
             friendly,
