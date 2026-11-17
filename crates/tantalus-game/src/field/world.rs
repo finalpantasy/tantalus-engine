@@ -330,6 +330,10 @@ pub struct CharacterStats {
 
 pub(crate) const MAX_GIL: u32 = 9_999_999;
 
+fn lose_result() -> i32 {
+    1
+}
+
 /// Tetra Master collection size (`Configuration.TetraMaster.MaxCardCount`).
 pub const MAX_CARDS: usize = 100;
 
@@ -532,6 +536,25 @@ pub struct FieldWorld {
     /// (`QuadMistDatabase.MiniGame_SetCard`).
     #[serde(default)]
     pub cards: Vec<u32>,
+    /// Stats of each card in `cards` (same order), made when the collection first
+    /// meets a card game (`QuadMistCard`: attack, defense, arrows, type).
+    #[serde(default)]
+    pub card_records: Vec<crate::cards::CardRecord>,
+    /// Tetra Master record (`QuadMistDatabase` win, lose and draw counts).
+    #[serde(default)]
+    pub card_stats: crate::cards::CardCounts,
+    /// The last card the player lost (`StackCardInfo`), handed back to the next opponent.
+    #[serde(default)]
+    pub card_stack: Option<crate::cards::CardRecord>,
+    /// `GetTetraMasterResult`: 0 win, 1 lose, 2 draw.
+    #[serde(default = "lose_result")]
+    pub last_card_result: i32,
+    /// An opponent a script asked to play (`MINIGAME`); the play loop starts the game.
+    #[serde(default)]
+    pub pending_card_game: Option<u16>,
+    /// Random stream of the card game.
+    #[serde(default)]
+    pub card_seed: u64,
     /// Config screen values (`FF9CFG` and the ini options), saved with the game.
     #[serde(default)]
     pub settings: super::settings::GameSettings,
@@ -615,6 +638,13 @@ impl PartialEq for FieldWorld {
             && self.items == other.items
             && self.gil == other.gil
             && self.party == other.party
+            && self.cards == other.cards
+            && self.card_records == other.card_records
+            && self.card_stats == other.card_stats
+            && self.card_stack == other.card_stack
+            && self.last_card_result == other.last_card_result
+            && self.pending_card_game == other.pending_card_game
+            && self.card_seed == other.card_seed
             && self.settings == other.settings
             && self.back_row == other.back_row
             && self.character_stats == other.character_stats
@@ -733,6 +763,12 @@ impl FieldWorld {
             learned_abilities: BTreeMap::new(),
             equipment: BTreeMap::new(),
             cards: Vec::new(),
+            card_records: Vec::new(),
+            card_stats: crate::cards::CardCounts::default(),
+            card_stack: None,
+            last_card_result: 1,
+            pending_card_game: None,
+            card_seed: 0x9E37_79B9_7F4A_7C15,
             settings: super::settings::GameSettings::default(),
             back_row: std::collections::BTreeSet::new(),
             overlays: BTreeMap::new(),

@@ -809,6 +809,9 @@ impl LegacyEventHost for FieldHost<'_> {
                         self.world.random_battles.base = 0;
                     }
                 }
+                HostEvent::StartCardGame { opponent } => {
+                    self.world.pending_card_game = Some(*opponent);
+                }
                 HostEvent::OpenPartyMenu { .. } => {
                     self.world.open_party_menu();
                 }
@@ -997,6 +1000,10 @@ impl LegacyEventHost for FieldHost<'_> {
             9 => return Ok(self.world.dialog_choice),
             14 => return Ok(self.world.fmv.frame),
             15 => return Ok(self.world.fmv.sync()),
+            // 18 GetTetraMasterResult, 19 GetCardAmount (`GetSysvar.cs`: scripts read at most
+            // 95 so a full collection still reads as one that can take a card).
+            18 => return Ok(self.world.last_card_result),
+            19 => return Ok(self.world.cards.len().min(95) as i32),
             _ => {}
         }
         // Engine state is zero-initialized in the reference, so unset

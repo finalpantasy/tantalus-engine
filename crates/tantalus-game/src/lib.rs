@@ -1,5 +1,6 @@
 pub mod actor;
 pub mod battle;
+pub mod cards;
 pub mod field;
 pub mod navigation;
 pub mod new_game;

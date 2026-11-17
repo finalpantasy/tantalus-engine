@@ -8,10 +8,8 @@
 //! * Config (`ConfigUI`): the rules for each row come from
 //!   `tantalus_legacy::party_menu::config`; the values live in
 //!   `FieldWorld::settings` and are saved with the game.
-//! * Card (`CardUI`): the Tetra Master collection. Stand-ins: the collector's
-//!   points count only the kinds owned (10 each; the reference adds points for
-//!   each card's type and arrow pattern, which the world does not keep), and
-//!   wins, losses and draws read 0 because there is no Tetra Master game yet.
+//! * Card (`CardUI`): the Tetra Master collection, with the collector's points and the
+//!   win, lose and draw counts the card games keep (`tantalus_game::cards`).
 
 use tantalus_game::FieldWorld;
 use tantalus_game::field::GameSettings;
@@ -304,11 +302,6 @@ impl ConfigState {
 
 // --- Card -------------------------------------------------------------------------------
 
-/// `MiniGame_GetCollectorLevel` thresholds (`QuadMistDatabase.cs:204`).
-const COLLECTOR_LEVELS: [i32; 32] = [
-    0, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1250, 1300, 1320, 1330, 1340, 1350,
-    1360, 1370, 1380, 1390, 1400, 1420, 1470, 1510, 1550, 1600, 1650, 1680, 1690, 1698, 1700,
-];
 /// `TetraMasterCardId` count.
 pub const CARD_KINDS: usize = 100;
 const CARD_VISIBLE: usize = 9;
@@ -322,17 +315,14 @@ fn owned(world: &FieldWorld, id: usize) -> usize {
         .count()
 }
 
-/// Collector points (see the module note).
+/// Collector points (`tantalus_game::cards::collector_points`).
 pub fn collector_points(world: &FieldWorld) -> i32 {
-    let kinds = (0..CARD_KINDS).filter(|id| owned(world, *id) > 0).count();
-    kinds as i32 * 10
+    tantalus_game::cards::collector_points(world)
 }
 
 /// `MiniGame_GetCollectorLevel`.
 pub fn collector_level(points: i32) -> usize {
-    (1..COLLECTOR_LEVELS.len())
-        .find(|i| points < COLLECTOR_LEVELS[*i])
-        .map_or(COLLECTOR_LEVELS.len() - 1, |i| i - 1)
+    tantalus_game::cards::collector_level(points)
 }
 
 /// The Card screen: the card kind under the cursor and which copy is shown.
@@ -384,7 +374,15 @@ impl CardState {
                     Tint::White,
                 ),
                 right(292.0, 0.0, class, Tint::Yellow),
-                text(8.0, 1.0, "Win 0   Lose 0   Draw 0", Tint::White),
+                text(
+                    8.0,
+                    1.0,
+                    format!(
+                        "Win {}   Lose {}   Draw {}",
+                        world.card_stats.win, world.card_stats.lose, world.card_stats.draw
+                    ),
+                    Tint::White,
+                ),
             ],
         ));
         let top = self

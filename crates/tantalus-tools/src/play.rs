@@ -103,6 +103,8 @@ pub struct PlayData {
     effect_sounds: std::sync::OnceLock<Option<crate::battle_sound::EffectSounds>>,
     /// `MBG.MBGDiscTable`: `(disc, fmv)` to movie name; empty without `MBG.cs`.
     movies: BTreeMap<(i32, i32), String>,
+    /// The Tetra Master tables; `None` when the install's `resources.assets` has none.
+    cards: Option<std::sync::Arc<tantalus_game::cards::CardTables>>,
 }
 
 fn read_text(path: &Path) -> Result<String, String> {
@@ -177,6 +179,9 @@ impl PlayData {
             movies: std::fs::read_to_string(memoria.join("Assembly-CSharp/Global/MBG.cs"))
                 .map(|source| crate::movie::parse_disc_table(&source))
                 .unwrap_or_default(),
+            cards: crate::card_play::load_tables(&paths.game_data)
+                .ok()
+                .map(std::sync::Arc::new),
         })
     }
 
@@ -382,6 +387,8 @@ pub struct PlayGame {
     /// Sound requests made since the last [`PlayGame::take_audio`], with the tick of each.
     /// Runtime-only: the run never reads them back.
     audio: Vec<(u64, AudioCue)>,
+    /// The Tetra Master game being played; the field waits until it ends.
+    card: Option<tantalus_game::cards::CardGame>,
 }
 
 /// Battles a field tick started, fought live, and the rest of that tick.
@@ -430,6 +437,7 @@ impl PlayGame {
             sent_volumes: None,
             pending: None,
             audio: Vec::new(),
+            card: None,
         };
         let mut events = Vec::new();
         game.enter(start, &mut events)?;
@@ -944,6 +952,44 @@ impl PlayGame {
         }
     }
 
+    /// The Tetra Master game being played, for the window to draw.
+    pub fn card_game(&self) -> Option<&tantalus_game::cards::CardGame> {
+        self.card.as_ref()
+    }
+
+    /// One field tick of a card game (30 a second): the pad, two game ticks, the sounds, and
+    /// the hand-back to the world when it ends.
+    fn tick_card(&mut self, pressed: i32) {
+        use tantalus_game::cards::Input;
+        let Some(card) = self.card.as_mut() else {
+            return;
+        };
+        for (bit, input) in [
+            (pad::UP, Input::Up),
+            (pad::DOWN, Input::Down),
+            (pad::LEFT, Input::Left),
+            (pad::RIGHT, Input::Right),
+            (CONFIRM, Input::Confirm),
+            (pad::CANCEL, Input::Cancel),
+        ] {
+            if pressed & bit != 0 {
+                card.press(input);
+            }
+        }
+        card.advance(2);
+        if card.is_done()
+            && let Some(session) = self.session.as_mut()
+        {
+            card.finish(session.director.world_mut());
+        }
+        for event in card.take_events() {
+            self.audio.push((self.ticks, crate::card_play::cue(event)));
+        }
+        if self.card.as_ref().is_some_and(|card| card.is_done()) {
+            self.card = None;
+        }
+    }
+
     /// Drains the sound requests made so far (script opcodes, field changes, battles, menu and
     /// choice presses), each with the game tick it happened on.
     pub fn take_audio(&mut self) -> Vec<(u64, AudioCue)> {
@@ -973,6 +1019,10 @@ impl PlayGame {
         let pressed = held & !self.previous;
         self.previous = held;
         self.ticks += 1;
+        if self.card.is_some() {
+            self.tick_card(pressed);
+            return Ok(events);
+        }
         if self.tick_menu(held, pressed, &mut events)? {
             return Ok(events);
         }
@@ -1037,6 +1087,15 @@ impl PlayGame {
         }
         let before = player_position(session.director.world());
         let step = session.tick(input)?;
+        if let Some(opponent) = session.director.world_mut().pending_card_game.take()
+            && let Some(tables) = self.data.cards.clone()
+        {
+            self.card = tantalus_game::cards::CardGame::start(
+                session.director.world_mut(),
+                &tables,
+                opponent,
+            );
+        }
         for event in session.director.world_mut().take_sound_events() {
             let cue = Self::sound_position_cue(
                 self.sound_camera.as_ref(),

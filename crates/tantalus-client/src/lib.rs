@@ -7,6 +7,8 @@ pub mod battle_motion;
 pub mod battle_raster;
 pub mod battle_view;
 pub mod capture;
+pub mod card_draw;
+pub mod card_view;
 pub mod dialog_view;
 pub mod effects;
 pub mod encounter_presentation;

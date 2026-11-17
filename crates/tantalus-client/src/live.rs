@@ -255,6 +255,8 @@ struct Live {
     audio: Option<crate::audio::LiveAudio>,
     /// The cutscene movie on screen, with the pad bits held when it began or last changed.
     movie: Option<(crate::movie_view::MoviePlayer, i32)>,
+    /// The Tetra Master game on screen.
+    card: Option<crate::card_view::CardView>,
 }
 
 /// Opens the play window. `game` is already on its first field.
@@ -306,6 +308,7 @@ pub fn play(
             battle_assets,
             battle_hud: std::sync::Mutex::new(None),
             movie: None,
+            card: None,
             audio,
         })
         .add_systems(Update, live_tick);
@@ -491,6 +494,21 @@ fn live_tick(world: &mut World) {
                 }
             }
             send_audio(live.audio.as_ref(), &mut game);
+        }
+    }
+    {
+        let game = live.game.lock().expect("game lock");
+        match game.card_game() {
+            Some(card) => {
+                live.card
+                    .get_or_insert_with(|| crate::card_view::CardView::open(game.game_data()))
+                    .update(world, card);
+            }
+            None => {
+                if let Some(view) = live.card.take() {
+                    view.close(world);
+                }
+            }
         }
     }
     // The battle view covers the field from here; leave the field as it is

@@ -28,6 +28,8 @@ pub mod menu_sound {
     pub const ABILITY_LEARNED: i32 = 1043;
 }
 
+/// `QuadMistGame.MINIINT_SONG_DEFAULT`: the song a card game plays.
+pub const CARD_SONG: i32 = 66;
 /// Song ids `btl_util.ManageBattleSong` plays when a battle ends (`battle.cs:381`, `:276`).
 pub const VICTORY_SONG: i32 = 5;
 pub const DEFEAT_SONG: i32 = 6;
@@ -72,6 +74,11 @@ pub enum AudioCue {
     /// The battle view is gone and the field is back: the field song returns once any end song
     /// is over.
     BattleLeft,
+    /// A Tetra Master game opens: the field song is set aside and the card song plays
+    /// (`QuadMistGame.cs:156`, `ff9minisnd_song_play(66)`).
+    CardStarted,
+    /// The game is over: the card song stops and the field song returns (`QuadMistGame.cs:726`).
+    CardEnded,
     /// A user interface sound effect by id (`FF9SFX_Play`).
     Effect { id: i32 },
     /// `SetSoundPosition` or `SetSoundObjectPosition` with the point already put through the
@@ -154,6 +161,8 @@ pub fn describe_cue(cue: &AudioCue, bank: &SoundBank) -> String {
             }
         },
         AudioCue::BattleLeft => "back on the field: the field song returns".to_owned(),
+        AudioCue::CardStarted => format!("card game: play {}", music(CARD_SONG)),
+        AudioCue::CardEnded => "card game over: the field song returns".to_owned(),
         AudioCue::Effect { id } => format!("play {}", effect(*id)),
         AudioCue::EffectSound { resource } => format!("effect sound {resource}"),
         AudioCue::Volumes { music, sound } => format!("music volume {music}, sound volume {sound}"),
@@ -270,6 +279,8 @@ impl AudioDirector {
             AudioCue::BattleStarted { map, battle } => self.battle_started(*map, *battle),
             AudioCue::BattleEnded { end } => self.battle_ended(*end),
             AudioCue::BattleLeft => self.battle_left(),
+            AudioCue::CardStarted => self.card_started(),
+            AudioCue::CardEnded => self.card_ended(),
             AudioCue::Volumes { music, sound } => {
                 // `SoundLib.TryUpdateMusicVolume` / `TryUpdateSoundVolume`.
                 self.system.settings.music_volume = *music as f32 / 100.0;
@@ -360,6 +371,24 @@ impl AudioDirector {
             ticks_left: BATTLE_SONG_FADE_TICKS,
             song,
         });
+    }
+
+    /// `QuadMistGame` start: the field song is set aside and song 66 plays.
+    fn card_started(&mut self) {
+        self.system.dispatch_mode = DispatchMode::All;
+        let current = self.system.current_music_id();
+        if current == CARD_SONG {
+            return;
+        }
+        if current >= 0 {
+            self.system.song_suspend(current, false);
+        }
+        self.system.song_play(CARD_SONG, 127, 0);
+    }
+
+    /// `QuadMistGame` end: song 66 stops and the field song comes back.
+    fn card_ended(&mut self) {
+        self.finish_battle_return();
     }
 
     /// The battle view closed: the field returns once the end song is over.
@@ -585,5 +614,55 @@ mod tests {
                 .fold(0.0_f32, |peak, sample| peak.max(sample.abs()));
             assert!(peak > 0.005, "sound effect {id} is silent");
         }
+    }
+
+    #[test]
+    fn a_card_game_takes_the_song_and_the_field_song_returns() {
+        let mut d = director();
+        d.system
+            .metadata
+            .music
+            .insert(CARD_SONG, "battle".to_owned());
+        d.apply(&play(10));
+        let _ = d.render(5);
+        d.apply(&AudioCue::CardStarted);
+        assert_eq!(d.system.current_music_id(), CARD_SONG);
+        assert_eq!(d.system.suspend_song_id(), 10);
+        d.apply(&AudioCue::CardEnded);
+        assert_eq!(d.system.current_music_id(), 10);
+        assert_eq!(d.system.suspend_song_id(), -1);
+    }
+
+    /// Runs only with `FFIX_ASSETS` and `FFIX_GAME_DATA` set: every card game sound is heard,
+    /// and the card song plays.
+    #[test]
+    fn real_card_game_sounds_and_song_are_heard() {
+        let (Some(assets), Some(data)) = (
+            std::env::var_os("FFIX_ASSETS"),
+            std::env::var_os("FFIX_GAME_DATA"),
+        ) else {
+            return;
+        };
+        let bank =
+            SoundBank::open(std::path::Path::new(&assets), std::path::Path::new(&data)).unwrap();
+        let mut d = AudioDirector::new(bank, 48_000).unwrap();
+        for id in [
+            1852, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1861, 1862, 1863, 1864, 2331, 2332,
+            2333,
+        ] {
+            d.apply(&AudioCue::Effect { id });
+            let peak = d
+                .render(30)
+                .iter()
+                .fold(0.0_f32, |peak, sample| peak.max(sample.abs()));
+            assert!(peak > 0.005, "card sound {id} is silent");
+        }
+        d.apply(&AudioCue::CardStarted);
+        let peak = d
+            .render(120)
+            .iter()
+            .fold(0.0_f32, |peak, sample| peak.max(sample.abs()));
+        println!("CARD SONG PEAK {peak}");
+        assert!(peak > 0.005, "the card song is silent");
     }
 }
