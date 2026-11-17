@@ -25,6 +25,7 @@ impl Plugin for PsxBlendPlugin {
         embedded_asset!(app, "shaders/fade_blend.wgsl");
         app.add_plugins(Material2dPlugin::<PsxBlendMaterial>::default());
         app.add_plugins(Material2dPlugin::<FadeBlendMaterial>::default());
+        app.add_plugins(crate::sps_view::SpsPlugin);
     }
 }
 

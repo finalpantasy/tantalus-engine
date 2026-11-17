@@ -742,6 +742,26 @@ impl ActorModels {
         self.render_carrying(camera, position, pose, &[])
     }
 
+    /// Where bone `bone` (`bone<NNN>`) of `pose`'s model is in the field, for an actor standing
+    /// at `position` (`FieldSPSSystem.GenerateSPS`: `boneTran.position`).
+    pub fn bone_position(
+        &self,
+        pose: &ActorPose,
+        position: [f32; 3],
+        bone: i32,
+    ) -> Option<[f32; 3]> {
+        let model = self.models.get(&pose.model?)?.as_ref()?;
+        let poses = self.node_poses(model, pose);
+        let world = world_matrices(&model.nodes, &poses);
+        let name = format!("bone{bone:03}");
+        let index = model.nodes.iter().position(|node| node.name == name)?;
+        Some(place_vertex(
+            transform_point(&world[index], [0.0; 3]),
+            pose.facing,
+            position,
+        ))
+    }
+
     /// The node poses of `pose`'s model: the clip at its time, or the rest pose.
     fn node_poses(&self, model: &AssembledModel, pose: &ActorPose) -> Vec<NodePose> {
         let clip = pose

@@ -7,6 +7,7 @@ pub mod region;
 pub mod script_fixes;
 pub mod shop;
 pub mod snapshot;
+pub mod sps;
 pub mod tile_animation;
 pub mod view;
 pub mod world;

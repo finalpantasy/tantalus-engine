@@ -989,6 +989,12 @@ pub struct FieldWorld {
     /// The latest `ApplyFadeFilter` (runtime-only).
     #[serde(skip)]
     pub fade_filter: Option<FadeFilter>,
+    /// The field's SPS effect slots (`FieldSPSSystem`; runtime-only).
+    #[serde(skip)]
+    pub sps: super::sps::SpsState,
+    /// The frame count of each field's SPS files (runtime-only provider).
+    #[serde(skip)]
+    pub sps_frame_counts: Option<super::sps::SpsFrameCounts>,
     /// Experience-to-stats provider (runtime-only).
     #[serde(skip)]
     pub level_growth: Option<LevelGrowth>,
@@ -1207,6 +1213,8 @@ impl FieldWorld {
             ate_icon_mode: 0,
             fade_current: [[0; 3]; 2],
             tile_shade: BTreeMap::new(),
+            sps: super::sps::SpsState::default(),
+            sps_frame_counts: None,
             fade_filter: None,
             level_growth: None,
         }
@@ -1295,6 +1303,7 @@ impl FieldWorld {
         self.ate_icon_mode = 0;
         self.fade_current = [[0; 3]; 2];
         self.tile_shade.clear();
+        self.sps = super::sps::SpsState::default();
         self.fade_filter = None;
         self.regions.clear();
         self.windows.clear();
@@ -1709,6 +1718,7 @@ impl FieldWorld {
     /// (`ProcessEvents`), so a script reads the frame the animation reached this tick.
     pub fn advance_animations(&mut self) {
         self.tex_anim_clock += 1;
+        self.advance_sps();
         if let Some(fade) = self.fade_filter.as_mut() {
             fade.elapsed = fade.elapsed.saturating_add(1);
             self.fade_current[fade.slot()] = fade.color_now();
@@ -2117,6 +2127,7 @@ impl FieldWorld {
         self.level_growth = template.level_growth.clone();
         self.fmv_frame_counts = template.fmv_frame_counts.clone();
         self.animation_frame_counts = template.animation_frame_counts.clone();
+        self.sps_frame_counts = template.sps_frame_counts.clone();
         self.item_id_map = template.item_id_map.clone();
     }
 

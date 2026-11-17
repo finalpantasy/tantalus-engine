@@ -172,6 +172,30 @@ impl FieldHost<'_> {
         self.world.camera_log.push(request);
     }
 
+    /// `EventEngine.DoEventCode` `SPS` (0xB3) and `SPS2` (0xDA): `fieldSps.SetObjParm`.
+    fn record_sps(&mut self, event: &HostEvent) {
+        match *event {
+            HostEvent::SetSpsParameters {
+                object,
+                operation,
+                arguments,
+            } => self
+                .world
+                .sps_op(object, operation, arguments.map(i32::from)),
+            HostEvent::RunSpsCode {
+                object,
+                code,
+                argument,
+                value,
+            } => self.world.sps_op(
+                object,
+                code,
+                [argument, i32::from(value[0]), i32::from(value[1])],
+            ),
+            _ => {}
+        }
+    }
+
     /// Texture animation commands (`GeoTexAnim.geoTexAnimPlay`, `PlayOnce`, `Stop`) per actor:
     /// the opcodes `TEXPLAY` 0xC0, `TEXPLAY1` 0xC1, `TEXSTOP` 0xC2 and the commands the reference
     /// engine adds to specific fields (`EventEngine.DoEventCode.cs`: `AIDLE`, `ANIM`/`DANIM`,
@@ -716,6 +740,7 @@ impl LegacyEventHost for FieldHost<'_> {
             self.record_overlay_motion(event);
             self.record_light(event);
             self.record_tex_anim(event);
+            self.record_sps(event);
             if let HostEvent::SetFieldCamera { camera } = event {
                 self.world.view.set_camera(*camera);
             }

@@ -128,7 +128,7 @@ impl PlayData {
         // The event scripts follow the text tables' language (`Localization.CurrentSymbol`).
         crate::field_session::set_asset_language(&paths.language);
         let bundle = sa.join("p0data7.bin");
-        let field_bundles = (11..=19)
+        let field_bundles: Vec<PathBuf> = (11..=19)
             .map(|n| sa.join(format!("p0data{n}.bin")))
             .collect();
         let db = parse_event_db(&read_text(
@@ -148,6 +148,17 @@ impl PlayData {
         let atan = std::fs::read(&paths.atan_table)
             .map_err(|error| format!("cannot read {}: {error}", paths.atan_table.display()))?;
         let mut new_game = new_game_world(&base, &levels, atan);
+        {
+            // The frame count of each field's SPS files, for the effects scripts load.
+            let library = std::sync::Arc::new(
+                tantalus_assets::pc::field_sps::FieldSpsLibrary::new(field_bundles.clone()),
+            );
+            let names = backgrounds.clone();
+            new_game.sps_frame_counts = Some(std::sync::Arc::new(move |field, id| {
+                let sps = library.field(names.get(&field)?)?;
+                Some(sps.files.get(&id)?.frame_count)
+            }));
+        }
         let mut menu = crate::field_menu::MenuTables::load(
             memoria,
             base.clone(),
@@ -529,6 +540,11 @@ impl PlayGame {
     /// render bundle entry.
     pub fn background(&self) -> Option<&str> {
         self.data.backgrounds.get(&self.map()?).map(String::as_str)
+    }
+
+    /// Background (`FBG_...`) of field `map`, for effects that read another field's files.
+    pub fn background_of(&self, map: i32) -> Option<&str> {
+        self.data.backgrounds.get(&map).map(String::as_str)
     }
 
     /// The live world (the current field's, or the one between fields).

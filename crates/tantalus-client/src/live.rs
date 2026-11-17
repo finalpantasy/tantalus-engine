@@ -258,6 +258,8 @@ struct Live {
     /// Game tick the actor markers were last drawn for; they are redrawn
     /// only when the tick or the shown field changes, not every frame.
     markers_at: Option<u64>,
+    /// The field effect files (`FieldSPS`), read on first use.
+    sps: tantalus_assets::pc::field_sps::FieldSpsLibrary,
     /// Scrolling background layers (`BGLLOOP`, `BGLPARALLAX`, ...).
     motion: Option<crate::overlay_motion::OverlayMotionState>,
     /// The battle view, while a battle is fought.
@@ -292,6 +294,7 @@ pub fn play(
         (!mute).then(|| crate::audio::LiveAudio::start(&streaming_assets, game.game_data()));
     crate::dialog_view::preload(game.game_data());
     let models = crate::actor_models::ActorModels::new(&streaming_assets);
+    let streaming_assets_for_sps = streaming_assets.clone();
     let battle_assets = crate::battle_view::BattleAssets::new(&streaming_assets);
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb_u8(18, 24, 36)))
@@ -324,6 +327,7 @@ pub fn play(
             models,
             view: crate::view_scroll::ViewScroll::default(),
             markers_at: None,
+            sps: crate::sps_view::library(&streaming_assets_for_sps),
             motion: None,
             fight: None,
             world_view: None,
@@ -735,6 +739,16 @@ fn live_tick_inner(world: &mut World) {
             );
             bench::time("markers", || {
                 spawn_frame_markers(world, &scene.camera, &frame, &placed, Some(&live.models))
+            });
+            bench::time("sps", || {
+                crate::sps_view::sync_game_sps(
+                    world,
+                    &game,
+                    &scene.camera,
+                    &frame,
+                    Some(&live.models),
+                    &live.sps,
+                )
             });
             live.markers_at = Some(game.ticks);
         }

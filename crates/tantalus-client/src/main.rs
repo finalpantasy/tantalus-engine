@@ -750,6 +750,27 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         for event in game.tick(held)? {
             println!("{}", tantalus_client::live::describe(&event));
         }
+        if std::env::var_os("TANTALUS_SPS_LOG").is_some() {
+            let slots: Vec<String> = game
+                .world()
+                .sps
+                .slots
+                .iter()
+                .enumerate()
+                .filter(|(_, slot)| slot.loaded)
+                .map(|(index, slot)| {
+                    format!(
+                        "{index}:{}@{} attr {}",
+                        slot.id,
+                        slot.cur_frame >> 4,
+                        slot.attr
+                    )
+                })
+                .collect();
+            if tick % 10 == 0 || !slots.is_empty() && tick % 3 == 0 {
+                println!("tick {tick}: sps [{}]", slots.join(", "));
+            }
+        }
         audio.tick(&mut game)?;
         let now_open: Vec<(u8, u16)> = game
             .open_dialogs()
@@ -876,7 +897,9 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     if std::env::var_os("TANTALUS_PERF").is_some() {
         play_perf(&game, &models, &field.scene.camera);
     }
+    let sps_library = tantalus_client::sps_view::library(std::path::Path::new(&values["--assets"]));
     let mut drawn = tantalus_client::track::Drawn::default();
+    let mut sps_drawn = 0;
     tantalus_client::capture::capture_field_scene(
         &field,
         &output,
@@ -915,6 +938,14 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                     again.elapsed().as_secs_f64() * 1000.0 / 20.0
                 );
             }
+            sps_drawn = tantalus_client::sps_view::sync_game_sps(
+                world,
+                &game,
+                &field.scene.camera,
+                &frame,
+                Some(&models),
+                &sps_library,
+            );
             tantalus_client::scene_adapter::apply_overlay_changes(
                 world,
                 &field.scene,
@@ -952,6 +983,16 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         .player()
         .and_then(|player| game.world().actors.get(&player))
         .map(|actor| actor.position);
+    println!(
+        "sps drawn: {} of {} loaded slots",
+        sps_drawn,
+        game.world()
+            .sps
+            .slots
+            .iter()
+            .filter(|slot| slot.loaded)
+            .count()
+    );
     Ok(format!(
         "saved field {} ({}) after {} ticks with {} actors ({} as models), player at {player:?}, bubble {:?} here {} fade {:?}, {} attached, to {}",
         game.map().unwrap_or(-1),

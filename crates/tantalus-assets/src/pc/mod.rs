@@ -16,6 +16,7 @@ pub mod field;
 pub mod field_animation;
 pub mod field_composition;
 pub mod field_models;
+pub mod field_sps;
 pub mod font_bundle;
 pub mod geo_tex_anim;
 pub mod map_config;
