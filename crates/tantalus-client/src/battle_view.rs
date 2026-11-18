@@ -152,6 +152,10 @@ pub struct BattleAssets {
     effects: crate::battle_effects::EffectLibrary,
     /// The blinking eyes and other texture animations of each loaded model (`GeoTexAnim`).
     tex_anims: std::sync::Mutex<HashMap<u32, tantalus_assets::pc::geo_tex_anim::TexAnimPlayer>>,
+    /// `x64/FF9_Data`, where the status effects' textures are.
+    game_data: PathBuf,
+    /// The status effects drawn as SPS (`BattleSPSSystem`), read on first use.
+    status_sps: std::sync::OnceLock<Vec<Option<tantalus_assets::pc::battle_status_sps::StatusSps>>>,
 }
 
 impl BattleAssets {
@@ -177,6 +181,20 @@ impl BattleAssets {
         }
     }
 
+    /// The status effects drawn as SPS, by `SPS.csv` id (`None` where the data is missing).
+    pub fn status_sps(&self) -> &[Option<tantalus_assets::pc::battle_status_sps::StatusSps>] {
+        self.status_sps.get_or_init(|| {
+            tantalus_assets::pc::battle_status_sps::load_status_sps(
+                &self.battle_bundle,
+                &self.game_data,
+            )
+            .unwrap_or_else(|error| {
+                println!("!! battle status effects: {error}");
+                Vec::new()
+            })
+        })
+    }
+
     /// The special effects' data and the effects playing.
     pub fn effects(&self) -> &crate::battle_effects::EffectLibrary {
         &self.effects
@@ -194,6 +212,11 @@ impl BattleAssets {
             models: HashMap::new(),
             clips: HashMap::new(),
             tex_anims: std::sync::Mutex::new(HashMap::new()),
+            game_data: streaming_assets
+                .parent()
+                .unwrap_or(streaming_assets)
+                .join("x64/FF9_Data"),
+            status_sps: std::sync::OnceLock::new(),
             effects: crate::battle_effects::EffectLibrary::new(
                 streaming_assets
                     .parent()
@@ -1195,12 +1218,44 @@ impl BattleScene {
         } else {
             Default::default()
         };
-        let (heads, _spots) = place_units(&mut frame, true, &staged);
+        let (heads, spots) = place_units(&mut frame, true, &staged);
         time("b_front", || {
             if let Some(background) = assets.background(stage) {
                 draw_background(&mut frame, &camera, background, true);
             }
         });
+        // `btl2d.StatusUpdateVisuals`: each afflicted unit's status SPS at its icon position.
+        if let Some(record) = record
+            && std::env::var_os("TANTALUS_NO_STATUS_SPS").is_none()
+        {
+            let afflicted: Vec<crate::battle_status::Afflicted<'_>> = spots
+                .iter()
+                .enumerate()
+                .filter_map(|(index, spot)| {
+                    let spot = spot.as_ref()?;
+                    let status = record.status.get(index).copied().unwrap_or(0);
+                    (status != 0).then_some(())?;
+                    Some(crate::battle_status::Afflicted {
+                        status,
+                        icons: stage.status_icons.get(index).copied().flatten()?,
+                        bones: &spot.bones,
+                        turn: spot.turn,
+                    })
+                })
+                .collect();
+            if !afflicted.is_empty() {
+                let tick = (seconds.max(0.0) * BATTLE_TICKS_PER_SECOND) as u64;
+                time("b_status", || {
+                    crate::battle_status::draw(
+                        &mut frame,
+                        &camera,
+                        assets.status_sps(),
+                        &afflicted,
+                        tick,
+                    );
+                });
+            }
+        }
         time("b_effects", || {
             crate::battle_effects::show_effects(&mut frame, &assets.effects, &effects, seconds)
         });

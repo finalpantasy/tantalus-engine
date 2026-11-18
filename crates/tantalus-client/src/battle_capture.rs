@@ -37,6 +37,7 @@ pub fn run(args: &[std::ffi::OsString]) -> ExitCode {
         "--party-hp",
         "--recast",
         "--trance",
+        "--status",
         "--enter-trance",
         "--party",
         "--bench-hz",
@@ -437,6 +438,24 @@ fn live_capture(
         let trance: u8 = trance.parse().map_err(|_| "bad --trance")?;
         if let Some(fight) = game.battle_mut() {
             fight.preset_trance(trance);
+        }
+    }
+    // `--status UNIT:HEXMASK,...`: units start under those `BattleStatus` bits (shown
+    // afflicted; the statuses' side effects are not run).
+    if let Some(list) = values.get("--status") {
+        for entry in list.split(',') {
+            let (unit, mask) = entry
+                .split_once(':')
+                .and_then(|(unit, mask)| {
+                    Some((
+                        unit.parse::<usize>().ok()?,
+                        u64::from_str_radix(mask.trim_start_matches("0x"), 16).ok()?,
+                    ))
+                })
+                .ok_or_else(|| format!("bad --status entry `{entry}`, want UNIT:HEXMASK"))?;
+            if let Some(fight) = game.battle_mut() {
+                fight.preset_status(unit, mask);
+            }
         }
     }
     // `TANTALUS_BENCH_FRAMES=N --bench-hz H`: N display frames at H Hz of

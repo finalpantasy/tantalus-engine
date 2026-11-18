@@ -126,7 +126,19 @@ impl ViewScroll {
         {
             at[0] = at[0].clamp(range[0], range[1].max(range[0]));
         }
-        self.at
+        // Memoria's widescreen cases on the camera's y (`CenterCameraOnPlayer`), applied to the
+        // view drawn only: the scroll keeps its own position. Memoria does not bound the
+        // result; the 609/2159 parabola runs past the top of the art once the player is a
+        // few pixels higher on screen than it reckons with, so it is kept inside the
+        // camera's range here (unless a script unlocked the bounds).
+        self.at.map(|[x, y]| {
+            let moved = crate::widescreen::follow_y(y);
+            if moved == y || self.unlocked {
+                [x, moved]
+            } else {
+                [x, moved.clamp(range[2], range[3].max(range[2]).max(y))]
+            }
+        })
     }
 
     fn range(&self, camera: &LegacyFieldCamera, index: u32) -> [f32; 4] {

@@ -7,6 +7,7 @@ pub mod battle_camera;
 pub mod battle_models;
 pub mod battle_scene;
 pub mod battle_sequence;
+pub mod battle_status_sps;
 pub mod battle_tables;
 pub mod bgi;
 pub mod bgs;

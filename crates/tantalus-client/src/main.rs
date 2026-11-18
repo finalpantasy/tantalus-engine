@@ -831,6 +831,8 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         }
         if let Some((_, state, scene)) = &mut motion {
             let at = if state.needs_camera() {
+                // The scroll range reads the widescreen view of this field.
+                tantalus_client::live::note_field_view(&game);
                 let (frame, _) = tantalus_client::live::world_frame(game.world(), game.ticks);
                 view.view(
                     &game.world().camera_log,

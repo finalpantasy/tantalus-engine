@@ -24,11 +24,11 @@
 //!
 //! Assumptions the source does not settle, named instead of hidden:
 //!
-//! * Camera scroll is not modeled. Placement assumes the camera sits at its
-//!   reference point (`realVrp` equal to half the screen, `SmoothCamDelta`
-//!   zero), so the camera term of `UpdateOverlay` drops out and only the
-//!   viewport window position remains. Parallax reads the camera position the
-//!   caller supplies through [`FieldAnimation::set_camera_position`].
+//! * Camera scroll comes from the caller: placement reads the camera term of
+//!   `UpdateOverlay` from [`FieldAnimation::set_screen_offset`] (zero, the
+//!   camera at its reference point, until set; `SmoothCamDelta` is taken as
+//!   zero). Parallax reads the camera position the caller supplies through
+//!   [`FieldAnimation::set_camera_position`].
 //! * The 16x9 and per-map patches in `FieldMap` (`ActualPsxScreenWidth` cases,
 //!   `fieldmapExtraOffset`, fixes keyed on `fldMapNo`) and in
 //!   `EventEngine.DoEventCode` are not applied. Fast forward is off (factor 1).
@@ -205,6 +205,9 @@ pub struct FieldAnimation {
     pub viewports: [ViewportState; VIEWPORTS],
     camera: u8,
     camera_position: [f32; 2],
+    /// `HalfFieldWidth - realVrp.x`, `HalfFieldHeight - realVrp.y`: where the
+    /// background's origin sits on screen (`UpdateOverlay`'s camera term).
+    screen_offset: [f32; 2],
     parallax_origin: [f32; 2],
     origin_pending: bool,
     ticks: u64,
@@ -260,6 +263,7 @@ impl FieldAnimation {
             }; VIEWPORTS],
             camera: 0,
             camera_position: [0.0; 2],
+            screen_offset: [0.0; 2],
             parallax_origin: [0.0; 2],
             origin_pending: false,
             ticks: 0,
@@ -302,6 +306,15 @@ impl FieldAnimation {
     /// `FieldMap.curVRP`, read by parallax overlays.
     pub fn set_camera_position(&mut self, position: [f32; 2]) {
         self.camera_position = position;
+    }
+
+    /// The camera term of `UpdateOverlay` (`HalfFieldWidth - realVrp.x`,
+    /// `HalfFieldHeight - realVrp.y`): the screen position of background pixel
+    /// (0, 0), left 0 when the camera sits at its reference point. A screen
+    /// anchored looping layer stays put on screen, and every looping layer's
+    /// wrap is measured on screen, through it.
+    pub fn set_screen_offset(&mut self, offset: [f32; 2]) {
+        self.screen_offset = offset;
     }
 
     /// `FieldMap.parallaxOrg`.
@@ -800,8 +813,13 @@ impl FieldAnimation {
         let window = || -> Result<ViewportState, FieldAnimationError> {
             Ok(self.viewports[index("viewport", o.viewport as i64, VIEWPORTS)?])
         };
-        let mut screen_x = o.cur_x + scene_x;
-        let mut screen_y = o.cur_y + scene_y;
+        // `scene.scrX` is `scene.curX + HalfFieldWidth - realVrp.x`; the
+        // sprite's local position subtracts it again (`cacheLocalPos.x -=
+        // scrX + curX`), so the camera term `[cx, cy]` stays only where an
+        // anchor or a wrap does not take it back out.
+        let [cx, cy] = self.screen_offset;
+        let mut screen_x = o.cur_x + scene_x + cx;
+        let mut screen_y = o.cur_y + scene_y + cy;
         let anchored = o.flags & overlay_flag::SCREEN_ANCHORED != 0;
         let position = if o.flags & overlay_flag::LOOP != 0 {
             let window = window()?;
@@ -810,7 +828,7 @@ impl FieldAnimation {
             if o.scroll_x != 0 {
                 if o.scroll_x < 0 {
                     let delta = (256 - o.scroll_x as i32) as i16 as i32;
-                    screen_x = ((((o.cur_x as i32) << 8) + delta) >> 8) as f32 + scene_x;
+                    screen_x = ((((o.cur_x as i32) << 8) + delta) >> 8) as f32 + scene_x + cx;
                 }
                 screen_x = wrap_in_window(screen_x, dim_w, w);
             }
@@ -818,7 +836,7 @@ impl FieldAnimation {
                 if o.scroll_y < 0 {
                     // The source reads scrollX here.
                     let delta = (256 - o.scroll_x as i32) as i16 as i32;
-                    screen_y = ((((o.cur_y as i32) << 8) + delta) >> 8) as f32 + scene_y;
+                    screen_y = ((((o.cur_y as i32) << 8) + delta) >> 8) as f32 + scene_y + cy;
                 }
                 screen_y = wrap_in_window(screen_y, dim_h, h);
             }
@@ -830,25 +848,30 @@ impl FieldAnimation {
             if o.scroll_y != 0 {
                 y = wrap_sprite(y, h);
             }
+            // The anchor: the window alone when screen anchored, the window
+            // plus the camera term otherwise, and nothing on a still axis of
+            // a layer that is not anchored.
+            let place = |at: f32, scrolls: bool, window: f32, camera: f32| {
+                if anchored {
+                    at + window - camera
+                } else if scrolls {
+                    at + window
+                } else {
+                    at - camera
+                }
+            };
             [
-                if o.scroll_x != 0 || anchored {
-                    x + window_x
-                } else {
-                    x
-                },
-                if o.scroll_y != 0 || anchored {
-                    y + window_y
-                } else {
-                    y
-                },
+                place(x, o.scroll_x != 0, window_x, cx),
+                place(y, o.scroll_y != 0, window_y, cy),
             ]
         } else if o.flags & overlay_flag::SCROLL_WITH_OFFSET != 0 {
             let window = window()?;
             let (window_x, window_y) = (window.position[0] as f32, window.position[1] as f32);
             let (dim_w, dim_h) = (window.size[0] as f32, window.size[1] as f32);
-            let anchor_x = window_x;
-            // The non-anchored branch reads the window X for the Y anchor.
-            let anchor_y = if anchored { window_y } else { window_x };
+            // The non-anchored branch adds the camera term, and reads the
+            // window X for the Y anchor.
+            let anchor_x = if anchored { window_x } else { window_x + cx };
+            let anchor_y = if anchored { window_y } else { window_x + cy };
             if o.is_x_offset {
                 screen_y = wrap_in_window(screen_y, dim_h, h);
                 screen_x += float_mod(screen_y * o.scroll_x as f32 / h, w);
@@ -861,7 +884,7 @@ impl FieldAnimation {
                     y_offset += h;
                     x_offset = o.scroll_x as f32;
                 }
-                [screen_x + off_x + x_offset, y_offset + anchor_y]
+                [screen_x + off_x + x_offset - cx, y_offset + anchor_y - cy]
             } else {
                 screen_x = wrap_in_window(screen_x, dim_w, w);
                 screen_y += float_mod(screen_x * o.scroll_y as f32 / w, h);
@@ -874,10 +897,10 @@ impl FieldAnimation {
                     x_adjusted += w;
                     y_offset = o.scroll_y as f32;
                 }
-                [x_adjusted + anchor_x, screen_y + off_y + y_offset]
+                [x_adjusted + anchor_x - cx, screen_y + off_y + y_offset - cy]
             }
         } else {
-            [screen_x + off_x, screen_y + off_y]
+            [screen_x + off_x - cx, screen_y + off_y - cy]
         };
         Ok([
             (position[0] + 0.5).floor() as i32,
@@ -1654,6 +1677,29 @@ mod tests {
         assert_eq!(state.tile_position(0, [0, 0]).unwrap(), [138, 0]);
         // Offset 48: 202 + 48 = 250; 250 + 16 >= 64 so 186.
         assert_eq!(state.tile_position(0, [48, 0]).unwrap(), [186, 0]);
+    }
+
+    #[test]
+    fn a_screen_anchored_loop_follows_the_camera_and_a_plain_layer_does_not() {
+        let mut state =
+            FieldAnimation::new(&scene(vec![overlay(0, 2), overlay(1, 2)], vec![])).unwrap();
+        state.overlay_set_loop(0, true, [256, 0]).unwrap();
+        state.overlay_set_loop_type(0, true).unwrap();
+        state.overlays[0].cur_x = 10.0;
+        state.overlays[1].cur_x = 5.0;
+        let anchored = state.tile_position(0, [0, 0]).unwrap();
+        let plain = state.tile_position(1, [48, 16]).unwrap();
+        // The camera 128 right and 40 down of its reference point
+        // (`HalfFieldWidth - realVrp.x` = -128): an anchored layer keeps its
+        // place on screen along its looping axis, so it moves with the camera
+        // in background pixels; its still axis stays (the anchor and
+        // `scrY` cancel).
+        state.set_screen_offset([-128.0, -40.0]);
+        assert_eq!(
+            state.tile_position(0, [0, 0]).unwrap(),
+            [anchored[0] + 128, anchored[1]]
+        );
+        assert_eq!(state.tile_position(1, [48, 16]).unwrap(), plain);
     }
 
     #[test]

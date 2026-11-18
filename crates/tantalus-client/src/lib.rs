@@ -8,6 +8,7 @@ pub mod battle_hud;
 pub mod battle_menu;
 pub mod battle_motion;
 pub mod battle_raster;
+pub mod battle_status;
 pub mod battle_view;
 pub mod bundle_store;
 pub mod capture;

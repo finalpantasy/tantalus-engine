@@ -77,6 +77,8 @@ pub struct StageFrame {
     /// Each unit's Trance gauge (`trance`, 0 to 255) and whether it is in
     /// Trance; `None` without a gauge (`HasTrance`).
     pub trance: Vec<Option<(u8, bool)>>,
+    /// Each unit's `stat.cur` (`BattleStatus` bits), for the status effects drawn on it.
+    pub status: Vec<u64>,
 }
 
 /// A machine event a client animates.
@@ -332,6 +334,9 @@ pub struct BattleStage {
     /// Each unit's `mesh_banish` (`btl_init.cs:162`: `Mesh[1]` of an enemy's
     /// type, 65535 for the party), the meshes Vanish hides.
     pub banish_meshes: Vec<u16>,
+    /// Where each unit's status icons and effects sit (`btl2d.GetIconPosition`): the party's
+    /// from their battle parameters, an enemy's from its type (`ENEMY_TYPE.icon_*`).
+    pub status_icons: Vec<Option<tantalus_assets::pc::battle_status_sps::StatusIcons>>,
     pub frames: Vec<StageFrame>,
     pub outcome: Option<String>,
     /// [`attack_animations`] of the scene's sequence file, by enemy attack
@@ -547,6 +552,14 @@ impl BattleStage {
         let mut radii = vec![256.0; units.len()];
         let mut tar_bones = vec![None; units.len()];
         let mut banish_meshes = vec![u16::MAX; units.len()];
+        let mut status_icons: Vec<_> = party
+            .iter()
+            .map(|unit| {
+                tantalus_assets::pc::battle_status_sps::PLAYER_ICONS
+                    .get(usize::from(unit.serial_no))
+                    .copied()
+            })
+            .collect();
         if let Some(row) = scene.patterns.get(pattern) {
             let placements = row
                 .monsters
@@ -566,6 +579,13 @@ impl BattleStage {
                         .get(usize::from(placement.type_no))
                         .map_or(u16::MAX, |kind| kind.mesh[1]),
                 );
+                status_icons.push(scene.monster_types.get(usize::from(placement.type_no)).map(
+                    |kind| tantalus_assets::pc::battle_status_sps::StatusIcons {
+                        bone: kind.icon_bone,
+                        y: kind.icon_y,
+                        z: kind.icon_z,
+                    },
+                ));
                 radii.push(
                     scene
                         .monster_types
@@ -583,6 +603,7 @@ impl BattleStage {
             radii,
             tar_bones,
             banish_meshes,
+            status_icons,
             frames: Vec::new(),
             outcome: None,
             attack_anims: Vec::new(),
@@ -634,6 +655,7 @@ impl BattleStage {
                     })
                 })
                 .collect(),
+            status: units.iter().map(|unit| unit.status_current).collect(),
         });
     }
 

@@ -432,6 +432,8 @@ fn step_overlay_motion(
         return;
     }
     let at = if motion.needs_camera() {
+        // The scroll range reads the widescreen view of this field.
+        note_field_view(game);
         let (frame, _) = world_frame(game.world(), game.ticks);
         view.view(
             &game.world().camera_log,

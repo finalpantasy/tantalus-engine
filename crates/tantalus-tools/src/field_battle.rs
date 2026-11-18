@@ -1897,6 +1897,15 @@ impl LiveFight {
         }
     }
 
+    /// Sets status bits `mask` (`BattleStatus`) on unit `unit` as they are, with none of the
+    /// side effects an inflicted status has (capture tooling: a unit shown afflicted).
+    pub fn preset_status(&mut self, unit: usize, mask: u64) {
+        let battle = self.adapter.battle_mut();
+        if let Some(unit) = battle.units.get_mut(unit) {
+            unit.status_current |= mask;
+        }
+    }
+
     /// Turns every party member's Trance gauge on at `trance` (capture
     /// tooling: a hit or two away from Trance).
     pub fn preset_trance(&mut self, trance: u8) {

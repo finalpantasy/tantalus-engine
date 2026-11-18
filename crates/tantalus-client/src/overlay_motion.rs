@@ -54,6 +54,7 @@ impl OverlayMotionState {
         let range = crate::projection::view_range(&scene.camera);
         let center = [(range[0] + range[1]) / 2.0, -(range[2] + range[3]) / 2.0];
         animation.set_camera_position(center);
+        animation.set_screen_offset(screen_offset(center));
         animation.set_parallax_origin(center);
         Some(Self {
             animation,
@@ -76,12 +77,14 @@ impl OverlayMotionState {
         self.sampled = u64::MAX;
     }
 
-    /// Whether any layer follows the camera.
+    /// Whether any layer reads the camera: a parallax layer follows it, and a looping or
+    /// offset-scrolling layer wraps on screen (`UpdateOverlay`'s camera term).
     pub fn needs_camera(&self) -> bool {
+        let reads = overlay_flag::PARALLAX | overlay_flag::LOOP | overlay_flag::SCROLL_WITH_OFFSET;
         self.animation
             .overlays
             .iter()
-            .any(|overlay| overlay.flags & overlay_flag::PARALLAX != 0)
+            .any(|overlay| overlay.flags & reads != 0)
     }
 
     /// One game tick: applies the layer calls logged since the last one,
@@ -98,6 +101,7 @@ impl OverlayMotionState {
         self.ticks += 1;
         if let Some([x, y]) = view {
             self.animation.set_camera_position([x, -y]);
+            self.animation.set_screen_offset(screen_offset([x, -y]));
         }
         self.animation.scroll_service();
         if let Some(screen) = crate::widescreen::layer_screen_width() {
@@ -270,6 +274,17 @@ impl OverlayMotionState {
             }
         }
     }
+}
+
+/// `UpdateOverlay`'s camera term (`HalfFieldWidth - realVrp.x`, `HalfFieldHeight - realVrp.y`)
+/// for the camera at `position` (`[vx - 160, vy - 112]`, the frame center `(vx, vy)` in
+/// background pixels): where background pixel (0, 0) sits on a screen as wide as the view.
+fn screen_offset(position: [f32; 2]) -> [f32; 2] {
+    let half_width = crate::widescreen::field_width() / 2.0;
+    [
+        half_width - HALF_FRAME[0] as f32 - position[0],
+        -position[1],
+    ]
 }
 
 /// An offset `t` of the way from `before` to `now`, except past [`LAYER_SMOOTH_MAX`] on an

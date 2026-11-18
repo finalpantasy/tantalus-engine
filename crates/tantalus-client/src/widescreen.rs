@@ -75,6 +75,8 @@ static FIELD_WIDTH: AtomicU32 = AtomicU32::new(0);
 static FIELD_MAP: AtomicI32 = AtomicI32::new(-1);
 static FIELD_CAMERA: AtomicI32 = AtomicI32::new(0);
 static FIELD_MAP_WIDTH: AtomicI32 = AtomicI32::new(500);
+/// `EBin.SC_COUNTER_SVR` of the field drawn, for the story-dependent follow cases.
+static FIELD_COUNTER: AtomicI32 = AtomicI32::new(0);
 
 /// The config file's name, read from the working directory.
 pub const CONFIG_FILE: &str = "tantalus.toml";
@@ -335,6 +337,7 @@ pub fn set_field(map: i32, camera: i32, state: SceneState) {
     FIELD_WIDTH.store(width.to_bits(), Ordering::Relaxed);
     FIELD_MAP.store(map, Ordering::Relaxed);
     FIELD_CAMERA.store(camera, Ordering::Relaxed);
+    FIELD_COUNTER.store(state.counter, Ordering::Relaxed);
     FIELD_MAP_WIDTH.store(
         effective_map_width(map, state, PSX_SCREEN_HEIGHT * aspect),
         Ordering::Relaxed,
@@ -391,6 +394,34 @@ pub fn follow_center(center: f32, art: f32) -> f32 {
         FIELD_MAP_WIDTH.load(Ordering::Relaxed) as f32,
     );
     follow_center_in(field, (view_aspect(), field_width()), center, art)
+}
+
+/// `FieldMap.CenterCameraOnPlayer`'s widescreen cases on the camera's y for the field drawn
+/// ([`set_field`]). `y` is the view's center y in adapter space (0 with the frame's top at
+/// the art's top, down negative), which is Memoria's `CamPositionY` (`centerOffset[1] -
+/// charOffset.y`, that is `HalfFieldHeight - realVrp.y`).
+pub fn follow_y(y: f32) -> f32 {
+    follow_y_in(
+        FIELD_MAP.load(Ordering::Relaxed),
+        FIELD_COUNTER.load(Ordering::Relaxed),
+        view_aspect(),
+        y,
+    )
+}
+
+/// [`follow_y`] for field `map` at scenario counter `counter` and `aspect`.
+fn follow_y_in(map: i32, counter: i32, aspect: f32, y: f32) -> f32 {
+    if aspect < MIN_WIDE {
+        return y;
+    }
+    match map {
+        // Lindblum Castle/Castle Bridge, except the scene at counter 3110: the camera climbs
+        // along a parabola from the bottom of the art.
+        609 | 2159 if counter != 3110 => (y + 224.0) * (y + 224.0) / 2.0 - 224.0,
+        // Pandemonium: Kuja's descent, the camera kept from rising too high.
+        2716 => y.min(0.0),
+        _ => y,
+    }
 }
 
 /// [`follow_center`] for `(map, camera, map width)` at `(aspect, view width)`.
@@ -507,6 +538,19 @@ aspect = \"21:9\" # ultrawide
             follow_center_in((456, 0, 398.0), (4.0 / 3.0, 320.0), 7.0, 700.0),
             7.0
         );
+    }
+
+    #[test]
+    fn follow_y_cases() {
+        let a169 = 16.0 / 9.0;
+        // 609 and 2159 (Castle Bridge): the bottom of the art holds, then the parabola climbs.
+        assert_eq!(follow_y_in(609, 0, a169, -224.0), -224.0);
+        assert_eq!(follow_y_in(2159, 0, a169, -220.0), -216.0);
+        assert_eq!(follow_y_in(609, 3110, a169, -220.0), -220.0);
+        assert_eq!(follow_y_in(609, 0, 4.0 / 3.0, -220.0), -220.0);
+        // 2716: never above the top of the art.
+        assert_eq!(follow_y_in(2716, 0, a169, 16.0), 0.0);
+        assert_eq!(follow_y_in(2716, 0, a169, -40.0), -40.0);
     }
 
     #[test]
