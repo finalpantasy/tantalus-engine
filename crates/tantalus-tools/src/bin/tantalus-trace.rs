@@ -353,17 +353,54 @@ fn run(args: Vec<String>) -> Result<(), String> {
             }
             "--suspend-loops" => suspend_loops = true,
             "--press-when" => {
-                // MAP:INDEX:LO:HI:MASK[,...]: hold MASK while map byte INDEX is in LO..=HI.
+                // MAP:INDEX:LO:HI:MASK[:ENTRY:ANIM/ANIM...][,...]: hold MASK while map byte
+                // INDEX is in LO..=HI and, when given, object ENTRY plays none of the ANIMs.
                 for part in value()?.split(',') {
-                    let fields: Vec<i32> = part
-                        .trim()
-                        .split(':')
-                        .filter_map(|field| field.parse().ok())
-                        .collect();
-                    let [map, index, low, high, mask] = fields[..] else {
-                        return Err(format!(
-                            "bad --press-when entry `{part}`, want MAP:INDEX:LO:HI:MASK"
-                        ));
+                    let fields: Vec<&str> = part.trim().split(':').collect();
+                    let number = |field: &str| field.parse::<i32>().ok();
+                    let parsed = match fields[..] {
+                        [map, index, low, high, mask] => Some((
+                            [
+                                number(map),
+                                number(index),
+                                number(low),
+                                number(high),
+                                number(mask),
+                            ],
+                            None,
+                        )),
+                        [map, index, low, high, mask, entry, anims] => Some((
+                            [
+                                number(map),
+                                number(index),
+                                number(low),
+                                number(high),
+                                number(mask),
+                            ],
+                            Some((
+                                entry.parse::<u64>().ok(),
+                                anims
+                                    .split('/')
+                                    .map(|anim| anim.parse::<u16>().ok())
+                                    .collect::<Option<Vec<_>>>(),
+                            )),
+                        )),
+                        _ => None,
+                    };
+                    let bad = || {
+                        format!(
+                            "bad --press-when entry `{part}`, want MAP:INDEX:LO:HI:MASK[:ENTRY:ANIM/ANIM]"
+                        )
+                    };
+                    let (numbers, unless) = parsed.ok_or_else(bad)?;
+                    let [Some(map), Some(index), Some(low), Some(high), Some(mask)] = numbers
+                    else {
+                        return Err(bad());
+                    };
+                    let unless = match unless {
+                        None => None,
+                        Some((Some(entry), Some(anims))) => Some((entry, anims)),
+                        Some(_) => return Err(bad()),
                     };
                     press_when.push(PressWhen {
                         map,
@@ -371,6 +408,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                         low: low as u8,
                         high: high as u8,
                         mask,
+                        unless,
                     });
                 }
             }
@@ -762,13 +800,34 @@ fn nonzero(bytes: &[u8]) -> BTreeMap<usize, u8> {
         .collect()
 }
 
-/// `--press-when` rule: hold `mask` while map byte `index` is within `low..=high`.
+/// `--press-when` rule: hold `mask` while map byte `index` is within `low..=high`
+/// and, with `unless`, object `entry` plays none of the animations. A guard
+/// that watches the player's back: in map 2204 (`EVT_SUNA_SP_RFG_0`) frog Cid
+/// steps on each Circle (entry 2, function 12) and is caught when Circle is
+/// down while the creature (entry 3) looks (map byte 27 = 1, entry 4); the
+/// look starts with its turn animation 7470, which a player sees coming.
 struct PressWhen {
     map: i32,
     index: usize,
     low: u8,
     high: u8,
     mask: i32,
+    unless: Option<(u64, Vec<u16>)>,
+}
+
+impl PressWhen {
+    /// Whether the rule holds its mask now.
+    fn holds(&self, world: &tantalus_game::field::FieldWorld) -> bool {
+        let byte = world.map_memory.bytes()[self.index];
+        let animating = self.unless.as_ref().is_some_and(|(entry, anims)| {
+            world
+                .actors
+                .get(&EntityId::new(*entry))
+                .and_then(|state| state.look.playing)
+                .is_some_and(|playing| anims.contains(&playing))
+        });
+        (self.low..=self.high).contains(&byte) && !animating
+    }
 }
 
 /// `EventInput.Select`.
@@ -2105,8 +2164,7 @@ fn chain(
             scheduler.settle(&mut director, &pool)?;
             held = base_held;
             for rule in press_when.iter().filter(|rule| rule.map == map) {
-                let byte = director.world().map_memory.bytes()[rule.index];
-                if (rule.low..=rule.high).contains(&byte) {
+                if rule.holds(director.world()) {
                     held |= rule.mask;
                 }
             }
