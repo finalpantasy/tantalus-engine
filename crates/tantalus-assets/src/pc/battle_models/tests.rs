@@ -570,3 +570,12 @@ fn effect_report_matches_ids_to_assets() {
         assert!(special_effect_id(name).is_some(), "{name}");
     }
 }
+
+#[test]
+fn party_models_used_as_enemies_are_known_by_geo_id() {
+    // `FF9BattleDB.GEO`: 298 GEO_MON_B3_148, 639 GEO_MON_B3_195; 290 is Freya.
+    assert!(is_use_as_enemy_character(298));
+    assert!(is_use_as_enemy_character(639));
+    assert!(!is_use_as_enemy_character(290));
+    assert!(!is_use_as_enemy_character(-1));
+}

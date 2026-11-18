@@ -1250,3 +1250,143 @@ fn probe_clut_frames() {
         run.frames.len()
     );
 }
+
+/// Module bytes `TANTALUS_SFX_RVA` (hex) .. + `TANTALUS_SFX_LEN` of the DLL and the port after
+/// each of frames `TANTALUS_SFX_FROM`..=`TANTALUS_SFX_TO` of `TANTALUS_SFX_EFFECT`.
+#[test]
+#[ignore = "probe"]
+fn probe_dump() {
+    let var = |name: &str, default: i32| {
+        std::env::var(name)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    };
+    let (id, from, to, len) = (
+        var("TANTALUS_SFX_EFFECT", 341),
+        var("TANTALUS_SFX_FROM", 4),
+        var("TANTALUS_SFX_TO", 5),
+        var("TANTALUS_SFX_LEN", 96) as usize,
+    );
+    let rva = u32::from_str_radix(
+        std::env::var("TANTALUS_SFX_RVA")
+            .unwrap_or_else(|_| "6d840".into())
+            .trim_start_matches("0x"),
+        16,
+    )
+    .unwrap();
+    let bytes = effect_bytes(id);
+    let mut oracle = Oracle::load(&dll()).expect("load");
+    oracle.init_battle(&init_param()).expect("init");
+    oracle.play(id, &bytes, &request()).expect("play");
+    let image =
+        tantalus_sfx::image::PluginImage::parse(std::fs::read(dll()).expect("dll")).expect("pe");
+    let host = Arc::new(Mutex::new(DebugHost::default()));
+    let mut plugin = Plugin::load(&image, Box::new(Shared(host.clone()))).expect("image");
+    plugin.module_base = oracle.base() as u64;
+    plugin.init_system();
+    plugin.init_battle(&init_param());
+    plugin.play(id, &bytes, &request());
+    for frame in 1..=to {
+        host.lock().unwrap().frame += 1;
+        oracle.frame().expect("frame");
+        plugin.frame();
+        if frame < from {
+            continue;
+        }
+        let theirs = oracle.module_bytes(rva, len);
+        let ours = plugin
+            .m
+            .bytes(0x1_8000_0000 + u64::from(rva), len)
+            .expect("read")
+            .to_vec();
+        println!("frame {frame}");
+        for row in (0..len).step_by(16) {
+            let end = (row + 16).min(len);
+            println!(
+                "  {:#x} dll  {:02x?}\n  {:#x} port {:02x?}",
+                rva as usize + row,
+                &theirs[row..end],
+                rva as usize + row,
+                &ours[row..end]
+            );
+        }
+    }
+}
+
+/// The first call of the DLL function at `TANTALUS_SFX_HIT` (hex RVA) in frame `TANTALUS_SFX_FRAME`:
+/// its arguments, the memory they point at and the GTE registers; then the port's frame with tracing on.
+#[test]
+#[ignore = "probe"]
+fn probe_hit() {
+    let var = |name: &str, default: i32| {
+        std::env::var(name)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    };
+    let (id, target) = (
+        var("TANTALUS_SFX_EFFECT", 341),
+        var("TANTALUS_SFX_FRAME", 5),
+    );
+    let rvas: Vec<u32> = std::env::var("TANTALUS_SFX_HIT")
+        .unwrap_or_else(|_| "41b80".into())
+        .split(',')
+        .map(|v| u32::from_str_radix(v.trim_start_matches("0x"), 16).unwrap())
+        .collect();
+    let bytes = effect_bytes(id);
+    let image =
+        tantalus_sfx::image::PluginImage::parse(std::fs::read(dll()).expect("dll")).expect("pe");
+    let text_section = image.section_of(0x1000).expect("text");
+    let mut oracle = Oracle::load(&dll()).expect("load");
+    oracle.init_battle(&init_param()).expect("init");
+    oracle.play(id, &bytes, &request()).expect("play");
+    for _ in 1..target {
+        oracle.frame().expect("frame");
+    }
+    // SAFETY: test-only; the RVA is a function start.
+    unsafe { tantalus_sfx::coverage::arm(oracle.base(), text_section, &rvas) };
+    oracle.frame().expect("frame");
+    let hits = tantalus_sfx::coverage::take_with_memory();
+    if let (Ok(offset), Some((_, args, _))) = (std::env::var("TANTALUS_SFX_DEREF"), hits.first()) {
+        // After the frame: `TANTALUS_SFX_LEN` bytes at *(first argument + offset).
+        let offset: u64 = offset.parse().unwrap();
+        let len = var("TANTALUS_SFX_LEN", 112) as usize;
+        // SAFETY: test-only; the caller names a pointer field of a live object.
+        let at = unsafe { ((args[0] + offset) as *const u64).read_unaligned() };
+        let bytes = unsafe { std::slice::from_raw_parts(at as *const u8, len) };
+        for (i, row) in bytes.chunks(56).enumerate() {
+            println!("dll deref {i}: {row:02x?}");
+        }
+    }
+    for (rva, args, memory) in hits {
+        println!("dll hit {rva:#x} args {args:x?}");
+        for (i, chunk) in memory[..512].chunks(64).enumerate() {
+            println!(
+                "dll mem {i}: {:02x?}",
+                &chunk[..if i < 4 { 16 } else { 64 }]
+            );
+        }
+        let rsp = u64::from_le_bytes(memory[512..520].try_into().unwrap());
+        println!("dll rsp {rsp:#x}");
+        if let Ok(at) = std::env::var("TANTALUS_SFX_SLOT") {
+            // How far below RSP at the hit.
+            let below = usize::from_str_radix(at.trim_start_matches("0x"), 16).unwrap();
+            let off = 1024 - below;
+            println!("dll slot {:02x?}", &memory[520 + off..520 + off + 16]);
+        }
+    }
+    let host = Arc::new(Mutex::new(DebugHost::default()));
+    let mut plugin = Plugin::load(&image, Box::new(Shared(host.clone()))).expect("image");
+    plugin.module_base = oracle.base() as u64;
+    plugin.init_system();
+    plugin.init_battle(&init_param());
+    plugin.play(id, &bytes, &request());
+    for _ in 1..target {
+        host.lock().unwrap().frame += 1;
+        plugin.frame();
+    }
+    plugin.tracing = true;
+    host.lock().unwrap().frame += 1;
+    plugin.frame();
+}

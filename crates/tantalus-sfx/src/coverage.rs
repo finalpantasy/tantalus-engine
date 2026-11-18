@@ -15,6 +15,30 @@ unsafe extern "system" {
     fn RemoveVectoredExceptionHandler(handle: *mut c_void) -> u32;
     fn FlushInstructionCache(process: *mut c_void, address: *const c_void, size: usize) -> i32;
     fn GetCurrentProcess() -> *mut c_void;
+    fn ReadProcessMemory(
+        process: *mut c_void,
+        address: *const c_void,
+        buffer: *mut c_void,
+        size: usize,
+        read: *mut usize,
+    ) -> i32;
+}
+
+/// 64 bytes at `address`, zeros where unreadable.
+fn peek(address: u64) -> [u8; 64] {
+    let mut out = [0u8; 64];
+    let mut read = 0;
+    // SAFETY: ReadProcessMemory fails cleanly on unreadable addresses.
+    unsafe {
+        ReadProcessMemory(
+            GetCurrentProcess(),
+            address as *const c_void,
+            out.as_mut_ptr().cast(),
+            64,
+            &mut read,
+        )
+    };
+    out
 }
 
 struct Armed {
@@ -23,6 +47,9 @@ struct Armed {
     hits: Vec<u32>,
     /// RCX, RDX, R8, R9 and the fifth argument at each hit.
     args: Vec<[u64; 5]>,
+    /// 64 bytes at each of the four register arguments at each hit, then
+    /// 256 bytes of the module's GTE register file (RVA 0x211F40).
+    memory: Vec<Vec<u8>>,
 }
 
 static ARMED: Mutex<Option<Armed>> = Mutex::new(None);
@@ -55,13 +82,27 @@ unsafe extern "system" fn handler(pointers: *mut *mut c_void) -> i32 {
         armed.hits.push((address - armed.base) as u32);
         let reg = |offset: usize| *(context.add(offset) as *const u64);
         let rsp = reg(0x98) as usize;
-        armed.args.push([
+        let args = [
             reg(0x80),
             reg(0x88),
             reg(0xB8),
             reg(0xC0),
             *((rsp + 0x28) as *const u64),
-        ]);
+        ];
+        let mut memory = Vec::with_capacity(512);
+        for arg in &args[..4] {
+            memory.extend_from_slice(&peek(*arg));
+        }
+        for row in 0..4 {
+            memory.extend_from_slice(&peek((armed.base + 0x211F40 + 64 * row) as u64));
+        }
+        // RSP, then the 1 KiB below it (the callee's frame to be).
+        memory.extend_from_slice(&(rsp as u64).to_le_bytes());
+        for row in 0..16 {
+            memory.extend_from_slice(&peek((rsp - 1024 + 64 * row) as u64));
+        }
+        armed.memory.push(memory);
+        armed.args.push(args);
         *(context.add(RIP) as *mut usize) = address;
         -1
     }
@@ -85,6 +126,7 @@ pub unsafe fn arm(base: usize, text: (u32, u32), rvas: &[u32]) {
             original: Default::default(),
             hits: Vec::new(),
             args: Vec::new(),
+            memory: Vec::new(),
         };
         for &rva in rvas {
             let address = base + rva as usize;
@@ -107,6 +149,14 @@ pub fn take() -> Vec<u32> {
 
 /// [`take`] with the first five argument words of each first call.
 pub fn take_with_args() -> Vec<(u32, [u64; 5])> {
+    take_with_memory()
+        .into_iter()
+        .map(|(rva, args, _)| (rva, args))
+        .collect()
+}
+
+/// [`take_with_args`] with the memory each hit saw (see `Armed::memory`).
+pub fn take_with_memory() -> Vec<(u32, [u64; 5], Vec<u8>)> {
     let armed = ARMED.lock().unwrap().take();
     let Some(armed) = armed else {
         return Vec::new();
@@ -121,5 +171,11 @@ pub fn take_with_args() -> Vec<(u32, [u64; 5])> {
         unsafe { RemoveVectoredExceptionHandler(*handle as *mut c_void) };
         *handle = 0;
     }
-    armed.hits.into_iter().zip(armed.args).collect()
+    armed
+        .hits
+        .into_iter()
+        .zip(armed.args)
+        .zip(armed.memory)
+        .map(|((rva, args), memory)| (rva, args, memory))
+        .collect()
 }

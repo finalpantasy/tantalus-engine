@@ -85,6 +85,29 @@ pub fn geo_id_by_name(name: &str) -> Option<u32> {
         .map(|index| names::GEO_FIRST_ID[index].1)
 }
 
+/// `ModelFactory.IsUseAsEnemyCharacter(FF9BattleDB.GEO.GetValue(geo))`: the
+/// party models an enemy can be (Beatrix, Kuja, the Zidane and Steiner
+/// stand-ins...), whose whole model Vanish hides (`btl_mot.HideMesh`).
+pub fn is_use_as_enemy_character(geo: i64) -> bool {
+    const NAMES: [&str; 12] = [
+        "GEO_MON_B3_148",
+        "GEO_MON_B3_155",
+        "GEO_MON_B3_168",
+        "GEO_MON_B3_169",
+        "GEO_MON_B3_170",
+        "GEO_MON_B3_171",
+        "GEO_MON_B3_172",
+        "GEO_MON_B3_173",
+        "GEO_MON_B3_174",
+        "GEO_MON_B3_175",
+        "GEO_MON_B3_182",
+        "GEO_MON_B3_195",
+    ];
+    NAMES
+        .iter()
+        .any(|name| geo_id_by_name(name).is_some_and(|id| i64::from(id) == geo))
+}
+
 /// `FF9BattleDB.MapModel["BSC_<scene>"]` for a bare scene name (any case).
 pub fn background_name(scene: &str) -> Option<&'static str> {
     let key = format!("BSC_{}", scene.to_ascii_uppercase());

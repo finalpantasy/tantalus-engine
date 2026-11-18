@@ -148,6 +148,46 @@ pub struct UnitChange {
     /// The "semi-transparent fade" color (`SFX.fade`) and whether it also
     /// makes the model translucent (`GEO_POLYFLAGS_TRANS_100_PLUS_25`).
     pub fade: Option<(i32, bool)>,
+    /// Brought back by `Set Hidden` off (command 18, arg 0) over every hide
+    /// of no higher priority: Spear shows Freya again while she falls,
+    /// though the battle still has her in the air (`SetDisappear(false, 2)`).
+    pub appeared: bool,
+    /// The animation the effect set (command 12), see [`EffectMotion`].
+    pub motion: Option<EffectMotion>,
+}
+
+/// `Set Current Animation` (`SFX.BattleCallback` case 12: `btl_mot.setMotion`,
+/// looping, frame 0) and `Stop Animation` (case 13: `bi.stop_anim`).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct EffectMotion {
+    /// The effect that set it (`SFX.currentEffectID`: Jump and Spear swap
+    /// Freya's chant clips for her jump clips).
+    pub effect: i32,
+    /// `PlayerMotionIndex` (`-1`, the default idle, is kept as 0).
+    pub index: u8,
+    /// The plugin frame it was set in.
+    pub set: u32,
+    /// `(frame, stopped)` for each `Stop Animation` since.
+    pub stops: Vec<(u32, bool)>,
+    /// The plugin frames played so far.
+    pub now: u32,
+}
+
+impl EffectMotion {
+    /// Frames the animation has advanced by: one per plugin frame after the
+    /// one that set it, none while stopped.
+    pub fn frames(&self) -> u32 {
+        (self.set + 1..=self.now)
+            .filter(|&frame| {
+                !self
+                    .stops
+                    .iter()
+                    .rev()
+                    .find(|(at, _)| *at < frame)
+                    .is_some_and(|(_, stopped)| *stopped)
+            })
+            .count() as u32
+    }
 }
 
 impl UnitChange {
@@ -390,6 +430,30 @@ impl BattleHost {
                 }
                 0
             }
+            // `Set Current Animation`; `Stop Animation` (answers 0 like the
+            // oracle hosts, not the old `stop_anim`).
+            12 => {
+                let (effect, frame) = (self.effect, self.frame);
+                self.changes.entry(unit.btl_id).or_default().motion = Some(EffectMotion {
+                    effect,
+                    index: u8::try_from(a0).unwrap_or(0),
+                    set: frame + 1,
+                    stops: Vec::new(),
+                    now: frame + 1,
+                });
+                0
+            }
+            13 => {
+                let frame = self.frame;
+                if let Some(motion) = self
+                    .changes
+                    .get_mut(&unit.btl_id)
+                    .and_then(|change| change.motion.as_mut())
+                {
+                    motion.stops.push((frame + 1, a0 != 0));
+                }
+                0
+            }
             // `Is Hidden`.
             17 => i32::from(change.disappear != 0),
             18 => {
@@ -403,8 +467,10 @@ impl BattleHost {
                     };
                     let entry = self.changes.entry(unit.btl_id).or_default();
                     entry.disappear = if a0 != 0 {
+                        entry.appeared = false;
                         entry.disappear.max(priority)
                     } else if priority >= entry.disappear {
+                        entry.appeared = true;
                         0
                     } else {
                         entry.disappear
@@ -711,7 +777,13 @@ impl EffectRun {
             .changes
             .iter()
             .filter(|(_, change)| !change.is_empty())
-            .map(|(id, change)| (*id, change.clone()))
+            .map(|(id, change)| {
+                let mut change = change.clone();
+                if let Some(motion) = change.motion.as_mut() {
+                    motion.now = self.frame;
+                }
+                (*id, change)
+            })
             .collect()
     }
 
@@ -843,6 +915,23 @@ mod tests {
         host.answer(&mut angles, code(4, 1), [2, 0, 0, 0], 8);
         let euler = host.changes[&1].euler.expect("set");
         assert_eq!(euler, [90.0, 0.0, 180.0]);
+    }
+
+    #[test]
+    fn an_effect_motion_holds_while_stopped() {
+        // Jump: set at frame 0, stopped from frame 5, running again from frame 12.
+        let mut motion = EffectMotion {
+            effect: 393,
+            index: 26,
+            set: 0,
+            stops: vec![(5, true), (12, false)],
+            now: 4,
+        };
+        assert_eq!(motion.frames(), 4);
+        motion.now = 12;
+        assert_eq!(motion.frames(), 5);
+        motion.now = 15;
+        assert_eq!(motion.frames(), 8);
     }
 
     #[test]

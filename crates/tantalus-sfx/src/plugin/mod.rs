@@ -49,7 +49,7 @@ impl Plugin {
     /// `SFX_Play(effnum, bin, size, req)`.
     pub fn play(&mut self, effect: i32, bytes: &[u8], request: &[u8]) {
         // Photon (299): the stack garbage the DLL reads in `SfxUpdateParticles`.
-        self.particle_pos = if effect == 299 { 4 } else { 0 };
+        self.particle_pos = if effect == 299 { 2 } else { 0 };
         let bin = self.put(bytes);
         let req = self.put(request);
         self.SFX_Play_0(effect, bin, bytes.len() as i32, req);

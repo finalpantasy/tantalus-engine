@@ -110,7 +110,21 @@ fn unit_look(stage: &BattleStage, model: &StageModel) -> Option<UnitLook> {
                     *serial,
                 ))
                 .and_then(geo_id_by_name),
-                motions: Motions::Player(motions.iter().map(|name| named_clip(name)).collect()),
+                motions: Motions::Player(
+                    motions
+                        .iter()
+                        .map(|name| named_clip(name))
+                        // Freya's jump clips (`SFX.BattleCallback` case 12,
+                        // models 192 and 585: GEO_MAIN_B0_011 and its Trance).
+                        .chain(
+                            (model == "GEO_MAIN_B0_011")
+                                .then_some(["110", "111", "112"])
+                                .into_iter()
+                                .flatten()
+                                .map(|n| named_clip(&format!("ANH_MAIN_B0_011_{n}"))),
+                        )
+                        .collect(),
+                ),
             })
         }
         StageModel::Enemy {
@@ -1130,9 +1144,32 @@ impl BattleScene {
                 if !present {
                     continue;
                 }
-                let motion = unit_motion(stage, index, seconds, &look.motions, &length);
-                if motion.hidden {
+                let mut motion = unit_motion(stage, index, seconds, &look.motions, &length);
+                let change = staged.get(&index);
+                // Jump and Spear: the jumper shows while Jump plays (she leaves at the
+                // command's end, `JumpStatusScript.OnFinishCommand`) and once Spear
+                // brings her back (`Set Hidden` off, its frame 58) to fall; Spear sets
+                // her animation before that, while she is still away.
+                let effect_motion = change
+                    .and_then(|change| change.motion.as_ref())
+                    .filter(|motion| matches!(motion.effect, 388 | 389 | 393));
+                let leaping = effect_motion.is_some_and(|motion| motion.effect == 393);
+                if motion.hidden && !leaping && !change.is_some_and(|change| change.appeared) {
                     continue;
+                }
+                if let Some(set) = effect_motion {
+                    motion = crate::battle_motion::UnitMotion {
+                        clip: crate::battle_motion::effect_clip(
+                            &look.motions,
+                            set.effect,
+                            usize::from(set.index),
+                        ),
+                        time: set.frames() as f32
+                            / tantalus_tools::battle_stage::BATTLE_TICKS_PER_SECOND as f32,
+                        looping: true,
+                        hidden: false,
+                        ..motion
+                    };
                 }
                 // `btl_stat.SetStatusVfx`: a living member in Trance pulses.
                 let glow = match (&unit.model, record) {
@@ -1152,7 +1189,6 @@ impl BattleScene {
                     }
                     _ => None,
                 };
-                let change = staged.get(&index);
                 // Vanish (`HideMesh(mesh_banish, true)`): the unit's `Mesh[1]` mask hides some
                 // of its meshes; the full mask of a party member hides it all. The weapon
                 // stays, which the view does not draw apart from the model.

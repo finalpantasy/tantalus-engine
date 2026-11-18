@@ -332,7 +332,9 @@ pub struct BattleStage {
     /// (`btl2d.GetFreeEntry`); `None` for the party.
     pub tar_bones: Vec<Option<u8>>,
     /// Each unit's `mesh_banish` (`btl_init.cs:162`: `Mesh[1]` of an enemy's
-    /// type, 65535 for the party), the meshes Vanish hides.
+    /// type, 65535 for the party), the meshes Vanish hides; 65535 too for an
+    /// enemy drawn with a party model (`btl_mot.HideMesh`,
+    /// `ModelFactory.IsUseAsEnemyCharacter`).
     pub banish_meshes: Vec<u16>,
     /// Where each unit's status icons and effects sit (`btl2d.GetIconPosition`): the party's
     /// from their battle parameters, an enemy's from its type (`ENEMY_TYPE.icon_*`).
@@ -577,7 +579,17 @@ impl BattleStage {
                     scene
                         .monster_types
                         .get(usize::from(placement.type_no))
-                        .map_or(u16::MAX, |kind| kind.mesh[1]),
+                        .map_or(u16::MAX, |kind| {
+                            // `HideMesh(mesh_banish, isVanish: true)` hides every mesh of a
+                            // party model used as an enemy.
+                            if tantalus_assets::pc::battle_models::is_use_as_enemy_character(
+                                i64::from(kind.geo),
+                            ) {
+                                u16::MAX
+                            } else {
+                                kind.mesh[1]
+                            }
+                        }),
                 );
                 status_icons.push(scene.monster_types.get(usize::from(placement.type_no)).map(
                     |kind| tantalus_assets::pc::battle_status_sps::StatusIcons {

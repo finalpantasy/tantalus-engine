@@ -668,7 +668,10 @@ impl Builder<'_> {
             // `SFXMesh.Render`: "Make Detect's eye open; hacky fix". The eye texture's
             // texels move through the sheet's four frames, three frames apart.
             let mut eye_shift = [0.0f32; 2];
+            // The whole key must match: an opaque, unfiltered mesh (no ABR or filter bits).
             if self.effect == DETECT
+                && mesh.list == List::TexOpa
+                && mesh.filter == 0
                 && mesh.texture.is_some_and(|(tpage, clut)| {
                     tpage & 0x9F == DETECT_EYE_TPAGE && clut == DETECT_EYE_CLUT
                 })

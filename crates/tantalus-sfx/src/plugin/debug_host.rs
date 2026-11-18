@@ -40,6 +40,24 @@ pub fn position(btl_id: u32) -> [i16; 3] {
     }
 }
 
+/// GetMatrix mode 2 (`SFX.cs` battle callback case 14, "Get Bone Orientation &
+/// Position"): a whole `PSXMAT` (r, pad, t), here a missing bone
+/// (`Matrix4x4.identity`) at the unit's position. The host fills all 32 bytes;
+/// the plugin does not clear its buffer first, so a host that writes less
+/// leaves the DLL reading its own stack (effects 341-346 did).
+pub fn matrix(btl_id: u32) -> [u8; 32] {
+    let r = crate::player::Bone::IDENTITY.r;
+    let t = position(btl_id).map(i32::from);
+    let mut out = [0u8; 32];
+    for (i, value) in r.iter().enumerate() {
+        out[2 * i..2 * i + 2].copy_from_slice(&value.to_le_bytes());
+    }
+    for (i, value) in t.iter().enumerate() {
+        out[20 + 4 * i..24 + 4 * i].copy_from_slice(&value.to_le_bytes());
+    }
+    out
+}
+
 #[derive(Debug, Default)]
 pub struct DebugHost {
     pub vram: Vram,
@@ -130,7 +148,9 @@ impl DebugHost {
                 if a0 == 1 {
                     return (i32::from(at[1]), None);
                 }
-                if p != 0 {
+                if p != 0 && a0 == 2 {
+                    let _ = memory.write_bytes(p, &matrix(code as u32 & 0xFF));
+                } else if p != 0 {
                     write_i16(memory, p, &at);
                 }
                 (0, None)

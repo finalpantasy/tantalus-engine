@@ -131,7 +131,8 @@ unsafe extern "C" fn callback(code: i32, a0: i32, a1: i32, a2: i32, a3: i32, p: 
         }
         // GetMotionFrameMax and IsTarget answer 1.
         9 | 15 => return log(host, command, code, [a0, a1, a2, a3], None, 1),
-        // GetMatrix: mode 0 writes the position, mode 1 returns its y.
+        // GetMatrix: mode 0 writes the position, mode 1 returns its y, mode 2 a
+        // whole `PSXMAT` (see `debug_host::matrix`).
         14 => {
             let at = position(code as u32 & 0xFF);
             if a0 == 1 {
@@ -144,7 +145,11 @@ unsafe extern "C" fn callback(code: i32, a0: i32, a1: i32, a2: i32, a3: i32, p: 
                     i32::from(at[1]),
                 );
             }
-            if !p.is_null() {
+            if !p.is_null() && a0 == 2 {
+                let matrix = crate::plugin::debug_host::matrix(code as u32 & 0xFF);
+                // SAFETY: mode 2 passes a PSX MATRIX (32 bytes).
+                unsafe { std::ptr::copy_nonoverlapping(matrix.as_ptr(), p, 32) };
+            } else if !p.is_null() {
                 // SAFETY: an SVECTOR (3 i16).
                 unsafe { std::ptr::copy_nonoverlapping(at.as_ptr().cast::<u8>(), p, 6) };
             }

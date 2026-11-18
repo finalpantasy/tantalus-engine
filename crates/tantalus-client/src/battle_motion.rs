@@ -42,6 +42,27 @@ pub mod mp {
     pub const CHANT: usize = 27;
     pub const MAGIC: usize = 28;
     pub const ITEM1: usize = 31;
+    /// Freya's jump clips, after the 34 of her row: `ANH_MAIN_B0_011_110`,
+    /// `_111` and `_112`, which Jump and Spear play for `MP_IDLE_TO_CHANT`,
+    /// `MP_CHANT` and `MP_MAGIC` (`SFX.BattleCallback` case 12).
+    pub const JUMP: usize = 34;
+}
+
+/// The clip of `PlayerMotionIndex` `index` an effect sets
+/// (`SFX.BattleCallback` case 12): Jump (393) and Spear (388) swap the chant
+/// clips for Freya's jump clips when she has them.
+pub fn effect_clip(motions: &Motions, effect: i32, index: usize) -> Option<ClipKey> {
+    if let Motions::Player(clips) = motions
+        && matches!(effect, 388 | 393)
+        && (mp::IDLE_TO_CHANT..=mp::MAGIC).contains(&index)
+        && let Some(clip) = clips
+            .get(mp::JUMP + index - mp::IDLE_TO_CHANT)
+            .copied()
+            .flatten()
+    {
+        return Some(clip);
+    }
+    motions.player(index)
 }
 
 /// Machine ticks from a command's start to its effect and to its end

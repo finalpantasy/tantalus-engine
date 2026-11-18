@@ -269,9 +269,13 @@ Checks (`cargo test -p tantalus-sfx --features dll-oracle --test plugin -- --ign
 
 - Fire (ef000): 126 frames, 28,858 primitives and 208 host calls, all identical.
 - Cure (ef008, also Potion): 121 frames, 24,185 primitives and 191 host calls, all identical.
-- `sweep` over effects 0-511: 461 of 480 match (the run counts each effect id the DLL has; 19 differ: 212-224 and 341-346). 212-224 differ from frame 60 on, and the DLL
-  does not repeat itself there (two runs of 212 give different primitives), the port draws its clean result
-  (`sfx-effects-212-224-address-noise`). Photon (299) matched after pinning one stack word (see Known oracle differences).
+- `sweep` over effects 0-511: 480 of 480 match (the run counts each effect id the DLL has).
+  The last 19 (212-224 and 341-346) were a harness fault: for GetMatrix (host command 14, mode 2)
+  the oracle callback and `DebugHost` wrote only 6 bytes of the 32-byte `PSXMAT`, and the plugin
+  does not clear the buffer, so the DLL read its own stack (rotation and translation garbage that
+  moved with the address space; 341 got TRY = 16 and spawned its particle one pixel off). Both
+  hosts now write the whole matrix (identity rotation, translation at the unit), as `SFX.cs` and
+  `BattleHost` do. Photon (299) matches after pinning one stack word (see Known oracle differences).
   The sword skills Darkside, Minus Strike, Iai Strike, Thunder Slash (188-191, 409-412) and
   Lancer (401) now match: Memoria's `SfxOpCtx16MoveNearObj` init had the flag test inverted (the
   DLL keeps the task running; the rewrite ended it in its first frame), found with
@@ -281,8 +285,7 @@ Checks (`cargo test -p tantalus-sfx --features dll-oracle --test plugin -- --ign
   null buffer and size 0, and the plugin plays the effect's own script from its module data.
   The harness and the battle view do the same (an empty package), which is why the Player
   Attack effects had no timing (the lookup found no asset) and drew nothing. All 19 Player
-  Attack effects and 25 of 25 in 461-485 match the DLL; in 313-376, 341-346 differ by one pixel in one vertex
-  (frame 5), 58 of 64 match.
+  Attack effects, 64 of 64 in 313-376 and 25 of 25 in 461-485 match the DLL.
 - Until the 32-byte `BTL_DATA_INIT` fix (the harness wrote 36-byte records), no effect found
   its target and every one played on the caster; the earlier 359 of 372 was for that case.
 
@@ -319,8 +322,7 @@ Harness notes:
 ## In the battle view (tantalus-client)
 
 `battle_effects` plays every party spell and item effect through the translated plugin
-(`tantalus_sfx::SfxRuntime::play`, a fresh plugin per effect); effects 212-224 are drawn too
-(the DLL's own output varies per process, see Known oracle differences):
+(`tantalus_sfx::SfxRuntime::play`, a fresh plugin per effect), effects 212-224 included:
 
 - Background capture (host command 120): `BattleHost` keeps the seven capture words, the player
   sets the capture page (`Vram::background`), and the view renders the first ground mesh into
@@ -329,9 +331,16 @@ Harness notes:
 - Unit staging (commands 2-6, 17, 18, 25, 27): `UnitChange` records hide, move, turn, scale
   and fade per unit; the view applies it when it draws the units, so summons hide the party,
   Mini scales and Jump moves. Vanish (command 25, mode 1) hides the unit's `mesh_banish` meshes
-  (`BattleStage::banish_meshes`: the enemy type's `Mesh[1]`, 65535 for the party) by the model's
-  `mesh<N>` objects, and leaves the weapon (`btl_mot.HideMesh`); the exact fade curves are approximate.
+  (`BattleStage::banish_meshes`: the enemy type's `Mesh[1]`, 65535 for the party and for the
+  enemies that use a party model, `IsUseAsEnemyCharacter`) by the model's `mesh<N>` objects, and
+  leaves the weapon (`btl_mot.HideMesh`); the exact fade curves are approximate.
   Mini's glow on the caster is its charge phase; the ring on the target follows about 2.5 s later.
+- Jump and Spear (393, 388): the plugin drives Freya's animation (command 12, `Set Current
+  Animation`; command 13 stops it), and `SFX.cs` swaps MP 26-28 for her jump clips
+  (`ANH_MAIN_B0_011_110` to `112`). `EffectMotion` keeps the clip and its frames; the view draws
+  the jumper with it while Jump plays (she leaves when the command ends) and once Spear shows her
+  again (command 18 off, frame 58) to fall. Jump has no `EffectApplied` of its own, so its start
+  takes the default lead rather than Spear's.
 - Slow's clock and Stop's black sprite: `SFXMesh.End` swaps Slow's subtractive mesh for the
   clock texture (`slowClockUV`) and draws Stop's sprite subtractively, twice; both are drawn.
 - Sounds (command 32): the plugin's sound calls keep their frame and fall due that many ticks
@@ -381,18 +390,6 @@ Checks:
 
 - Photon (299): `SfxUpdateParticles` never clears its stack frame, and the attractor kinds 3 and 4
   read its first quadword (`Pos`) before any particle writes it. A zeroed frame is off by one pixel
-  in one vertex from frame 81. Photon matches the DLL on all 163 frames for any value of 2 to 8
-  (0, 1, -1 and 9 or more do not), so `Plugin::play` pins 4 for effect 299 only; effects 212 to
-  224 read the same word and match the DLL longest with 0. The real stack content is not
-  reproducible. Logged as `sfx-photon-particle-pos`.
-- Effects 212-224: the port is stable under every stack fill, but the DLL differs from process to
-  process (212: 28,858 or 30,146 primitives; from the first particle spawn, frame 59 in 212,
-  the particle coordinates and the depth of every primitive vary). Frames 0 to 58 repeat, the LCG
-  (`dword_1803231DC`) is 0 in every process (`SFX_Play`'s `srand(time)` does not touch it), and
-  filling the port's frames changes nothing, so the cause is not time or stack garbage. The data
-  that differs after the first spawn are PSX-mapped pointers (24-bit windows whose base follows
-  the native, ASLR-placed stack address), so the effects read data through windows that move
-  with the address space. There is no single DLL result to pin; the port draws its clean one
-  (frame and primitive counts equal the DLL's). Logged as `sfx-effects-212-224-address-noise`.
-- Effects 341-346 differ by one pixel at frame 5; not sensitive to stack fill,
-  cause not found.
+  in one vertex from frame 81. The DLL's slot holds 2 at frames 80 and 81 (read at an INT3 hit
+  with `probe_hit`), so `Plugin::play` pins 2 for effect 299 only (other effects keep 0). The
+  real stack content is not reproducible in general. Logged as `sfx-photon-particle-pos`.

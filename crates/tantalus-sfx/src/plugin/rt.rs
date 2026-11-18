@@ -102,10 +102,8 @@ pub struct Plugin {
     /// The first quadword of `SfxUpdateParticles`' stack frame (`Pos`, the particle position
     /// scratch). The original never clears that frame and the attractor kinds 3 and 4 read it
     /// before any particle writes it, so the DLL reads stack garbage there. A fresh frame reads
-    /// 0, which is what effects 212 to 224 read (their DLL output is address dependent, see
-    /// `sfx-effects-212-224-address-noise`) but not Photon
-    /// (299): from frame 80 its output matches the DLL for any value of 2 to 8
-    /// ([`Plugin::play`] pins 4 for it; see `sfx-photon-particle-pos`).
+    /// 0, which every effect but Photon (299) matches; the DLL's slot holds 2 for Photon at
+    /// frames 80 and 81 ([`Plugin::play`] pins 2 for it; see `sfx-photon-particle-pos`).
     pub particle_pos: i64,
     /// Debugging: the byte a new stack frame is filled with (0 like a clean stack).
     pub stack_fill: u8,

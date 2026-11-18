@@ -20,10 +20,6 @@
 //! attack camera. An enemy plays the effect its attack sequence starts
 //! (`SeqExecVfx` / `SeqExecSVfx`, `tantalus_tools::battle_stage::attack_vfx`)
 //! and a party member's Attack its `AttackSequence` effect.
-//!
-//! Effects 212 to 224 are drawn although the player's DLL does not play them the same way
-//! twice (its native stack addresses feed their particle maths; see the
-//! `sfx-effects-212-224-address-noise` approved difference).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -345,19 +341,26 @@ pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
     out
 }
 
-/// Stage tick of `caster`'s `EffectApplied` at or after `tick`.
+/// Stage tick of `caster`'s `EffectApplied` at or after `tick`, within the
+/// command: a command that ends without one (Jump, which leaves the field and
+/// lands with Spear's) takes the default lead, not the next command's.
 fn effect_applied(stage: &BattleStage, tick: usize, caster: usize) -> usize {
-    stage.frames[tick..]
-        .iter()
-        .enumerate()
-        .find_map(|(offset, frame)| {
-            frame
-                .events
-                .iter()
-                .any(|event| matches!(event, StageEvent::Effect { caster: who, .. } if *who == caster))
-                .then_some(tick + offset)
-        })
-        .unwrap_or(tick + crate::battle_motion::EFFECT_TICKS as usize)
+    for (offset, frame) in stage.frames[tick..].iter().enumerate() {
+        let has = |found: fn(&StageEvent, usize) -> bool| {
+            frame.events.iter().any(|event| found(event, caster))
+        };
+        if has(
+            |event, caster| matches!(event, StageEvent::Effect { caster: who, .. } if *who == caster),
+        ) {
+            return tick + offset;
+        }
+        if has(
+            |event, caster| matches!(event, StageEvent::Finished { unit, .. } if *unit == caster),
+        ) {
+            break;
+        }
+    }
+    tick + crate::battle_motion::EFFECT_TICKS as usize
 }
 
 /// An effect a command plays on its own (an enemy attack's, or a party
@@ -627,6 +630,8 @@ pub fn advance_effects(
             entry.meshes_hidden |= change.meshes_hidden;
             entry.vanished |= change.vanished;
             entry.fade = change.fade.or(entry.fade);
+            entry.appeared |= change.appeared;
+            entry.motion = change.motion.clone().or(entry.motion.take());
         }
     }
     staged
