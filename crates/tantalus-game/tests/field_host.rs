@@ -349,6 +349,37 @@ fn object_member_reads_answer_to_the_uid_an_object_was_created_with() {
 }
 
 #[test]
+fn object_member_reads_of_a_party_slot_read_the_member_object() {
+    use tantalus_legacy::ObjectMemberRef;
+
+    // `GetObjByUID(251)` goes through `GetUIDFromLocalUID` to `partyUID[0]`. Map 2201
+    // (20 entries, 11 to 18 linked to characters 0 to 7) with Eiko leading: slot 251 is
+    // entry 17, and its init gives itself the player when its uid equals slot 251's.
+    let mut world = FieldWorld::new();
+    world.set_entry_links(tantalus_legacy::event::party::vanilla_links(
+        std::iter::repeat_n(true, 20),
+    ));
+    world.party = vec![6, 4, 5, 7];
+    world.setup_party_uid();
+    for uid in 0..20 {
+        world.map_uid(uid, actor(uid as u64));
+    }
+    world.add_actor(actor(17), [-171.0, 0.0, 1138.0]);
+    let mut host = FieldHost::new(&mut world);
+    let read = |host: &mut FieldHost, object: u64, member: u8| {
+        host.read_object_member(ObjectMemberRef {
+            object: actor(object),
+            member,
+        })
+        .unwrap()
+    };
+    assert_eq!(read(&mut host, 251, 5), 17);
+    assert_eq!(read(&mut host, 251, 0), -171);
+    assert_eq!(read(&mut host, 17, 5), 17);
+    assert_eq!(read(&mut host, 252, 5), 15, "Freya's entry");
+}
+
+#[test]
 fn define_player_control_designates_the_interactive_player() {
     use tantalus_legacy::decode_program;
 

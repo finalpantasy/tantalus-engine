@@ -1572,12 +1572,19 @@ impl LegacyEventHost for FieldHost<'_> {
         }
         // `GetObjByUID`: the operand is a uid. An object created with another uid than its
         // entry id (`InitObject` source 9 uid 133, Madain Sari 1601's kitchen 1607) answers to
-        // that uid, and its `obj.uid` (member 5) is the uid asked for.
+        // that uid, and its `obj.uid` (member 5) is the uid asked for. A party slot (251-254)
+        // goes through `GetUIDFromLocalUID` to `partyUID[slot]`, so it reads the member's
+        // own object and member 5 is that object's uid: map 2201 at 9815 and 9820 gives the
+        // player to the party entry whose uid equals slot 251's.
         let asked = reference.object;
-        let mapped = i32::try_from(asked.get())
-            .ok()
-            .filter(|uid| !(251..=254).contains(uid))
-            .and_then(|uid| self.world.resolve_uid(uid).map(|entity| (uid, entity)));
+        let mapped = i32::try_from(asked.get()).ok().and_then(|uid| {
+            if (251..=254).contains(&uid) {
+                let entity = self.world.party_slot_object(uid)?;
+                Some((self.world.uid_of(entity)?, entity))
+            } else {
+                self.world.resolve_uid(uid).map(|entity| (uid, entity))
+            }
+        });
         if let Some((_, entity)) = mapped {
             reference.object = entity;
         }
