@@ -1152,6 +1152,8 @@ pub struct EnemyAiHooks<H: BattleHooks> {
     last_tick: Option<u32>,
     /// Script events already scanned for `SetBattleData` 32-35.
     codes_seen: usize,
+    /// `BTLSEQ` calls found by the last [`BattleHooks::frame`].
+    specials: Vec<(u16, i32, u16)>,
     outstanding: Vec<u16>,
     synced: BTreeMap<EntityId, UnitView>,
     pub error: Option<AiError>,
@@ -1165,6 +1167,7 @@ impl<H: BattleHooks> EnemyAiHooks<H> {
             overlay,
             last_tick: None,
             codes_seen: 0,
+            specials: Vec::new(),
             outstanding: Vec::new(),
             synced: BTreeMap::new(),
             error: None,
@@ -1221,6 +1224,18 @@ impl<H: BattleHooks> BattleHooks for EnemyAiHooks<H> {
 
     fn item(&mut self, item_id: i32) -> Option<super::command::ItemData> {
         self.inner.item(item_id)
+    }
+
+    fn attack_sequence(&mut self, attack: i32) -> Option<bool> {
+        self.inner.attack_sequence(attack)
+    }
+
+    fn attack_stand_animation(&mut self, attack: i32) -> Option<bool> {
+        self.inner.attack_stand_animation(attack)
+    }
+
+    fn special_attacks(&mut self) -> Vec<(u16, i32, u16)> {
+        std::mem::take(&mut self.specials)
     }
 
     fn item_weapon_power(&mut self, item_id: i32) -> Option<i32> {
@@ -1291,6 +1306,15 @@ impl<H: BattleHooks> BattleHooks for EnemyAiHooks<H> {
                 _ => None,
             })
             .collect();
+        self.specials
+            .extend(events.iter().filter_map(|event| match event {
+                AiEvent::SpecialAttack {
+                    caster,
+                    target_mask,
+                    attack,
+                } => Some((*caster, *attack, *target_mask)),
+                _ => None,
+            }));
         self.codes_seen = self.driver.state.events.len();
         codes
     }

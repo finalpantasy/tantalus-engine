@@ -702,3 +702,51 @@ fn battle_scripts_read_the_running_field_clock() {
     sync_state_from_battle(&mut script, &battle, &paused);
     assert_eq!(script.data.timer_seconds, 2);
 }
+
+/// `BTLSEQ` through the hooks: the main loop's `QueueSpecialAttack` reaches the machine as a
+/// script sequence (`btlseq.StartBtlSeq`) during the event phase, and the next frame's
+/// scripts read `IsAttacking` (sysvar 25, `BtlSeqBusy`) as 1, so a script waiting on it
+/// (BU_R004's opening, the Ragtime Mouse quiz) goes on.
+#[test]
+fn a_script_special_attack_starts_a_sequence_the_scripts_see_as_busy() {
+    let rows = (0..32)
+        .map(|_| StatusDataRow {
+            opr_cnt: 0,
+            conti_cnt: 0,
+            clear_on_apply: 0,
+            immunity_provided: 0,
+        })
+        .collect();
+    let mut config = BattleConfig::default();
+    config.timing.effect_after_loop_ticks = 20;
+    config.timing.loop_total_ticks = 40;
+    let units = [machine_unit(1, true), machine_unit(ENEMY, false)].map(|mut u| {
+        u.will = 10;
+        u
+    });
+    let mut battle = Battle::new(units.to_vec(), config, StatusTable::new(rows));
+    battle.begin_special_start();
+    let mut main = vec![
+        Kind::Evaluate(expr(vec![Op::SystemList(0), Op::Constant(1), Op::Assign])),
+        Kind::QueueSpecialAttack {
+            attack: expr(vec![Op::Constant(0)]),
+        },
+    ];
+    main.extend(idle_loop());
+    let ai = driver(vec![(0, vec![Kind::Return]), (1, main)], state(), &[]);
+    let mut hooks = EnemyAiHooks::new(Catalog, ai, SceneOverlay::default());
+    let mut machine_rng = SequenceRandom::r16(&[0; 16]);
+    let mut started = None;
+    let mut busy_seen = false;
+    for tick in 0..30 {
+        battle.tick(&mut hooks, &mut machine_rng).expect("tick");
+        if started.is_none() && !battle.event_sequences.is_empty() {
+            started = Some(tick);
+        }
+        busy_seen |= hooks.driver.state.data.seq_busy;
+    }
+    assert!(hooks.error.is_none(), "{:?}", hooks.error);
+    assert!(started.is_some(), "no sequence started");
+    assert!(busy_seen, "the scripts never read IsAttacking as 1");
+    assert!(battle.cmds.queue.is_empty() && battle.running.is_empty());
+}

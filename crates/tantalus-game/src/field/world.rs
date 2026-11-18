@@ -577,6 +577,33 @@ pub struct CharacterStats {
 
 pub(crate) const MAX_GIL: u32 = 9_999_999;
 
+/// `ff9play.FF9PLAY_HP_MAX` and `FF9PLAY_MP_MAX`: the default `maxHpLimit`
+/// and `maxMpLimit` (no vanilla support ability changes them).
+const PLAYER_HP_LIMIT: i32 = 9999;
+const PLAYER_MP_LIMIT: i32 = 999;
+
+/// The HP and MP half of `ff9play.FF9Play_Update` (`ff9play.cs:263-334`):
+/// from the level's `basis.max_hp` / `max_mp`, each enabled support ability
+/// in `enabled` order (`player.saExtended`, `GetEnabledSA`) runs its
+/// `Permanent` formula (`CharacterAbilityGems.TriggerOnEnable`,
+/// `AbilityFeatures.txt`): HP+10% (SA 5) `MaxHP + MaxHP / 10`, HP+20% (SA 6)
+/// `MaxHP + MaxHP / 5`, MP+10% (SA 7) and MP+20% (SA 8) the same on MP. The
+/// two sizes have no boosted hierarchy in `AbilityGems.csv`, so both
+/// stack. The results are capped at `maxHpLimit` 9999 and `maxMpLimit` 999.
+pub fn support_max_hp_mp(basis_hp: i32, basis_mp: i32, enabled: &[i32]) -> (i32, i32) {
+    let (mut hp, mut mp) = (basis_hp, basis_mp);
+    for &sa in enabled {
+        match sa {
+            5 => hp += hp / 10,
+            6 => hp += hp / 5,
+            7 => mp += mp / 10,
+            8 => mp += mp / 5,
+            _ => {}
+        }
+    }
+    (hp.min(PLAYER_HP_LIMIT), mp.min(PLAYER_MP_LIMIT))
+}
+
 fn lose_result() -> i32 {
     1
 }
@@ -2031,18 +2058,53 @@ impl FieldWorld {
             .is_some_and(|stats| stats.current_hp > 0)
     }
 
+    /// `max.hp` / `max.mp` of `character` rebuilt from the level's basis
+    /// (the level-growth provider at the character's experience) and the
+    /// enabled HP+/MP+ support abilities ([`support_max_hp_mp`],
+    /// `FF9Play_Update`); current HP and MP are capped at the new maximums.
+    /// Without a growth provider or stats nothing changes. Run after the
+    /// enabled support abilities change (`FF9Abil_SetEnableSA` ->
+    /// `FF9Play_Update`).
+    pub fn update_character_max(&mut self, character: i32) {
+        let Some(growth) = self.level_growth.clone() else {
+            return;
+        };
+        let exp = self.character_exp.get(&character).copied().unwrap_or(0);
+        let Some(basis) = growth(character, exp) else {
+            return;
+        };
+        let enabled = self
+            .support_enabled
+            .get(&character)
+            .cloned()
+            .unwrap_or_default();
+        let (max_hp, max_mp) = support_max_hp_mp(basis.max_hp, basis.max_mp, &enabled);
+        if let Some(stats) = self.character_stats.get_mut(&character) {
+            stats.max_hp = max_hp;
+            stats.max_mp = max_mp;
+            stats.current_hp = stats.current_hp.min(max_hp);
+            stats.current_mp = stats.current_mp.min(max_mp);
+        }
+    }
+
     /// Award experience to a character and recompute stats through the
     /// level-growth provider. On level-up the max HP/MP delta is added to
-    /// current values (reference level-up behavior).
+    /// current values (reference level-up behavior). The maximums include
+    /// the enabled HP+/MP+ abilities ([`support_max_hp_mp`]).
     pub fn apply_experience(&mut self, character: i32, experience: u64) {
         let total = self.character_exp.entry(character).or_insert(0);
         *total = total.saturating_add(experience);
         let Some(growth) = self.level_growth.clone() else {
             return;
         };
-        let Some(next) = growth(character, *self.character_exp.get(&character).unwrap()) else {
+        let Some(mut next) = growth(character, *self.character_exp.get(&character).unwrap()) else {
             return;
         };
+        if let Some(enabled) = self.support_enabled.get(&character) {
+            (next.max_hp, next.max_mp) = support_max_hp_mp(next.max_hp, next.max_mp, enabled);
+            next.current_hp = next.current_hp.min(next.max_hp);
+            next.current_mp = next.current_mp.min(next.max_mp);
+        }
         let merged = match self.character_stats.get(&character) {
             Some(current) => CharacterStats {
                 current_hp: (current.current_hp + (next.max_hp - current.max_hp))

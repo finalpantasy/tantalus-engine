@@ -299,7 +299,7 @@ pub fn apply(
 }
 
 /// `player.pa` and `player.sa`: ability progress by the preset's ability list, and the
-/// support abilities switched on (ids 192 + bit).
+/// support abilities switched on (`SupportAbility` index = bit, as `player.saExtended`).
 fn apply_abilities(world: &mut FieldWorld, tables: &MenuTables, id: i32, record: &CharacterState) {
     world.ability_pa.remove(&id);
     world.learned_abilities.remove(&id);
@@ -332,7 +332,7 @@ fn apply_abilities(world: &mut FieldWorld, tables: &MenuTables, id: i32, record:
     }
     let enabled: Vec<i32> = (0..64)
         .filter(|bit| record.support_abilities[bit / 32] & (1 << (bit % 32)) != 0)
-        .map(|bit| 192 + bit as i32)
+        .map(|bit| bit as i32)
         .collect();
     if !enabled.is_empty() {
         world.support_enabled.insert(id, enabled);
@@ -533,7 +533,8 @@ fn update_record(record: &mut CharacterState, world: &FieldWorld, tables: &MenuT
     record.ability_ap = points;
     let mut support = [0_u32; 2];
     for &ability in world.support_enabled.get(&id).into_iter().flatten() {
-        let bit = ability - 192;
+        // `support_enabled` holds `SupportAbility` indexes, the `player.sa` bits.
+        let bit = ability;
         if (0..64).contains(&bit) {
             support[(bit / 32) as usize] |= 1 << (bit % 32);
         }
@@ -661,7 +662,7 @@ mod tests {
         world.equip(4, 1, Some(130));
         world.apply_ap(0, 20, 30, 45);
         world.apply_ap(0, 193, 20, 7);
-        world.support_enabled.insert(0, vec![193]);
+        world.support_enabled.insert(0, vec![1]);
         world.trance.insert(0, 128);
         world.back_row.insert(4);
         world.cards = vec![3, 60];
@@ -779,7 +780,7 @@ mod tests {
         assert_eq!(restored.equipment[&4], world.equipment[&4]);
         assert_eq!(restored.ability_pa[&0], world.ability_pa[&0]);
         assert_eq!(restored.learned_abilities[&0], world.learned_abilities[&0]);
-        assert_eq!(restored.support_enabled[&0], vec![193]);
+        assert_eq!(restored.support_enabled[&0], vec![1]);
         assert_eq!(restored.trance[&0], 128);
         assert!(restored.back_row.contains(&4) && !restored.back_row.contains(&0));
         assert_eq!(restored.cards, world.cards);

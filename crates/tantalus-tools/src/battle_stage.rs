@@ -412,6 +412,53 @@ pub struct AttackVfx {
     pub args: [i16; 3],
 }
 
+/// Per attack slot: `None` when the sequence file has no sequence for it
+/// (`seq_work_set.SeqData[n] == 0`, `btlseq.cs:89`), otherwise whether the
+/// sequence reaches an effect point: a `Calc` op (`SeqExecCalc` ->
+/// `ExecVfxCommand`) or an effect (`Vfx`, `SVfx`, whose `EffectPoint` runs
+/// `ExecVfxCommand`, `UnifiedBattleSequencer.cs:971-992`). Unparsable bytes
+/// give an empty list.
+pub fn attack_sequence_effects(bytes: &[u8]) -> Vec<Option<bool>> {
+    let Ok(file) = SequenceFile::parse(bytes, "raw17") else {
+        return Vec::new();
+    };
+    (0..file.slots.len())
+        .map(|index| {
+            file.sequence(index).map(|sequence| {
+                sequence.ops.iter().any(|placed| {
+                    matches!(
+                        placed.op,
+                        SeqOp::Calc | SeqOp::Vfx { .. } | SeqOp::SVfx { .. }
+                    )
+                })
+            })
+        })
+        .collect()
+}
+
+/// Per sequence in the scene's sequence file, the stand animation its last
+/// "Change Stand Animation" op (code 17) sets: `true` for the alternate one
+/// (`BattleActionThread.cs:369`), `None` without the op or the sequence.
+pub fn attack_stand_animations(bytes: &[u8]) -> Vec<Option<bool>> {
+    let Ok(file) = SequenceFile::parse(bytes, "raw17") else {
+        return Vec::new();
+    };
+    (0..file.slots.len())
+        .map(|index| {
+            file.sequence(index).and_then(|sequence| {
+                sequence
+                    .ops
+                    .iter()
+                    .rev()
+                    .find_map(|placed| match placed.op {
+                        SeqOp::DefaultIdle { enabled } => Some(enabled != 0),
+                        _ => None,
+                    })
+            })
+        })
+        .collect()
+}
+
 /// [`AttackVfx`] of every sequence in the scene's sequence file.
 pub fn attack_vfx(bytes: &[u8]) -> Vec<Option<AttackVfx>> {
     use tantalus_assets::pc::battle_sequence::{InterpretOptions, MarkerKind, interpret};

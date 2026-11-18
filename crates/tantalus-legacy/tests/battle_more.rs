@@ -198,6 +198,14 @@ struct Hooks {
     weapon_power: Vec<(i32, i32)>,
     requests: Vec<EnemyReactionRequest>,
     reaction_cmds: Vec<(u16, EnemyAction)>,
+    /// `BTLSEQ` calls the next frame delivers: `(caster, attack, targets)`.
+    specials: Vec<(u16, i32, u16)>,
+    /// Attacks with no sequence (`SeqData[n] == 0`).
+    no_sequence: Vec<i32>,
+    /// Attacks whose sequence has no effect point.
+    no_effect: Vec<i32>,
+    /// Attacks whose sequence ends on the alternate stand animation.
+    alternate_stand: Vec<i32>,
 }
 
 impl Hooks {
@@ -207,6 +215,10 @@ impl Hooks {
             weapon_power: Vec::new(),
             requests: Vec::new(),
             reaction_cmds: Vec::new(),
+            specials: Vec::new(),
+            no_sequence: Vec::new(),
+            no_effect: Vec::new(),
+            alternate_stand: Vec::new(),
         }
     }
 }
@@ -267,6 +279,18 @@ impl BattleHooks for Hooks {
 
     fn enemy_reaction_commands(&mut self, _battle: &Battle) -> Vec<(u16, EnemyAction)> {
         std::mem::take(&mut self.reaction_cmds)
+    }
+
+    fn special_attacks(&mut self) -> Vec<(u16, i32, u16)> {
+        std::mem::take(&mut self.specials)
+    }
+
+    fn attack_sequence(&mut self, attack: i32) -> Option<bool> {
+        (!self.no_sequence.contains(&attack)).then_some(!self.no_effect.contains(&attack))
+    }
+
+    fn attack_stand_animation(&mut self, attack: i32) -> Option<bool> {
+        self.alternate_stand.contains(&attack).then_some(true)
     }
 }
 
@@ -1453,4 +1477,102 @@ fn half_mp_halves_the_mp_cost_factor() {
     ]);
     assert_eq!(b.sched[0].mp_cost_factor, 50);
     assert_eq!(b.sched[1].mp_cost_factor, 100);
+}
+
+/// `BTLSEQ` (`btlseq.StartBtlSeq`, `btlseq.cs:87-118`; `BtlSeqBusy`, `:120-133`): a battle
+/// script's special attack plays in the event phase, outside the command queue, applies the
+/// scene attack's effect (`SeqExecCalc` -> `ExecVfxCommand`) and keeps `IsAttacking`
+/// (sysvar 25) at 1 until it ends; the phase stays Event. Battles 45 and 51 (BU_R004, BU_R002)
+/// and 941 to 944 (Ragtime Mouse) wait for that flag before their `SetBattleData` 35. An
+/// attack with no sequence (`SeqData[n] == 0`) does nothing; a sequence with no effect point
+/// (no `Calc`, no effect) is busy but changes no HP.
+#[test]
+fn a_script_sequence_runs_in_the_event_phase_and_holds_seq_busy() {
+    use tantalus_legacy::battle::host::battle_views;
+    use tantalus_legacy::battle::machine::{Phase, Timing};
+    let config = BattleConfig {
+        timing: Timing {
+            effect_after_loop_ticks: 3,
+            loop_total_ticks: 6,
+            ..Timing::default()
+        },
+        ..BattleConfig::default()
+    };
+    let mut b = Battle::new(
+        vec![unit(P1, true, 500), unit(E1, false, 500)],
+        config.clone(),
+        table(),
+    );
+    b.begin_special_start();
+    let mut h = Hooks::new();
+    let mut r = Rng::default();
+    assert!(!battle_views(&b).0.seq_busy);
+    h.specials.push((E1, 0, P1));
+    b.tick(&mut h, &mut r).expect("tick");
+    assert!(battle_views(&b).0.seq_busy);
+    assert!(b.cmds.queue.is_empty() && b.running.is_empty());
+    for _ in 0..60 {
+        if b.event_sequences.is_empty() {
+            break;
+        }
+        b.tick(&mut h, &mut r).expect("tick");
+    }
+    assert!(b.event_sequences.is_empty());
+    assert!(!battle_views(&b).0.seq_busy);
+    assert_eq!(b.units[0].cur_hp, 7, "script 25 sets the HP to the power");
+    assert_eq!(b.phase, Phase::Event);
+
+    let mut b = battle(vec![unit(P1, true, 500), unit(E1, false, 500)]);
+    b.begin_special_start();
+    h.no_sequence.push(0);
+    h.specials.push((E1, 0, P1));
+    b.tick(&mut h, &mut r).expect("tick");
+    assert!(b.event_sequences.is_empty() && !battle_views(&b).0.seq_busy);
+    assert_eq!(b.units[0].cur_hp, 500);
+
+    let mut b = Battle::new(
+        vec![unit(P1, true, 500), unit(E1, false, 500)],
+        config,
+        table(),
+    );
+    b.begin_special_start();
+    h.no_sequence.clear();
+    h.no_effect.push(0);
+    h.specials.push((E1, 0, P1));
+    b.tick(&mut h, &mut r).expect("tick");
+    assert!(battle_views(&b).0.seq_busy);
+    for _ in 0..60 {
+        b.tick(&mut h, &mut r).expect("tick");
+    }
+    assert!(b.event_sequences.is_empty());
+    assert_eq!(b.units[0].cur_hp, 500);
+}
+
+/// The Ragtime Mouse quiz (`EVT_BATTLE_WM_9900`) waits for the mouse's stand
+/// animation (member 69, `bi.def_idle`) to change after its question
+/// sequence: the sequence's "Change Stand Animation" op sets it when the
+/// sequence ends, and the scripts read it back.
+#[test]
+fn a_script_sequence_leaves_its_caster_on_the_alternate_stand_animation() {
+    use tantalus_legacy::battle::host::battle_views;
+    let mut b = battle(vec![unit(P1, true, 500), unit(E1, false, 500)]);
+    b.begin_special_start();
+    let mut h = Hooks::new();
+    let mut r = Rng::default();
+    h.no_effect.push(4);
+    h.alternate_stand.push(4);
+    h.specials.push((E1, 4, P1));
+    b.tick(&mut h, &mut r).expect("tick");
+    for _ in 0..60 {
+        if b.event_sequences.is_empty() {
+            break;
+        }
+        b.tick(&mut h, &mut r).expect("tick");
+    }
+    assert!(b.event_sequences.is_empty());
+    assert_eq!(b.sched[1].def_idle, 1);
+    assert_eq!(b.sched[0].def_idle, 0, "the player is not the caster");
+    let (_, views) = battle_views(&b);
+    let mouse = views.values().find(|v| !v.is_player).expect("enemy view");
+    assert_eq!(mouse.stand_animation, 1);
 }

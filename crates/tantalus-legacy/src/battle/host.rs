@@ -671,7 +671,8 @@ pub mod phase {
 /// [`BattleScriptHost::with_units`].
 ///
 /// Documented mappings and gaps (v1, read-only wiring):
-/// * `seq_busy` approximates `BtlSeqBusy()` with "a command is running";
+/// * `seq_busy` approximates `BtlSeqBusy()` with "a command or a script
+///   sequence (`BTLSEQ`) is running";
 ///   `result_mode` is the victory/defeat phases.
 /// * `btl_phase` uses the reference phase numbers; `btl_seq` stays 0 (the
 ///   machine tracks menu-off/closing sequences as enums, not numbers).
@@ -694,7 +695,7 @@ pub fn battle_views(battle: &Battle) -> (BattleDataView, BTreeMap<EntityId, Unit
         Phase::Close => phase::CLOSE,
     };
     let data = BattleDataView {
-        seq_busy: !battle.running.is_empty(),
+        seq_busy: !battle.running.is_empty() || !battle.event_sequences.is_empty(),
         result_mode: matches!(battle.phase, Phase::Victory | Phase::Defeat),
         battle_result: battle.result.map_or(0, i32::from),
         btl_phase,
@@ -781,6 +782,7 @@ fn unit_view(unit: &BattleUnit, sched: &UnitSched, index: usize) -> UnitView {
         } else {
             0
         },
+        stand_animation: i32::from(sched.def_idle),
         ..UnitView::default()
     }
 }
@@ -821,5 +823,6 @@ pub fn apply_unit_views(battle: &mut Battle, units: &BTreeMap<EntityId, UnitView
         sched.out_of_reach = view.out_of_reach;
         sched.die_fade_rate = view.die_fade_rate as u8;
         sched.bonus_exp = view.bonus_exp as u32;
+        sched.def_idle = view.stand_animation as u8;
     }
 }

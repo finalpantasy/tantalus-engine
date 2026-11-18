@@ -144,7 +144,8 @@ pub struct PartyFighter {
 impl PartyFighter {
     /// The gear and enabled support abilities the field world records for
     /// `character` (`PLAYER.equip`, `PLAYER.sa`); no equipment entry means
-    /// the default set.
+    /// the default set. `support_enabled` holds `SupportAbility` indexes
+    /// (`player.saExtended`, as the ability menu writes them).
     pub fn loadout(world: &FieldWorld, character: i32) -> (Option<[i32; 5]>, u64) {
         let equip = world
             .equipment
@@ -155,7 +156,7 @@ impl PartyFighter {
             .get(&character)
             .into_iter()
             .flatten()
-            .filter_map(|&ability| u32::try_from(ability - 192).ok())
+            .filter_map(|&ability| u32::try_from(ability).ok())
             .filter(|&bit| bit < 64)
             .fold(0_u64, |mask, bit| mask | 1 << bit);
         (equip, support)
@@ -386,6 +387,11 @@ struct SceneAttacks {
     item_effects: BTreeMap<i32, ItemRow>,
     /// Item id -> weapon power, for Throw (`Weapon.Find(item).Power`).
     weapon_power: BTreeMap<i32, i32>,
+    /// Per scene attack, [`crate::battle_stage::attack_sequence_effects`];
+    /// `None` without a sequence file.
+    sequences: Option<Vec<Option<bool>>>,
+    /// Per scene attack, [`crate::battle_stage::attack_stand_animations`].
+    stand_animations: Vec<Option<bool>>,
 }
 
 impl SceneAttacks {
@@ -415,6 +421,25 @@ impl SceneAttacks {
 }
 
 impl BattleHooks for SceneAttacks {
+    fn attack_sequence(&mut self, attack: i32) -> Option<bool> {
+        match &self.sequences {
+            Some(list) => usize::try_from(attack)
+                .ok()
+                .and_then(|index| list.get(index))
+                .copied()
+                .flatten(),
+            None => Some(true),
+        }
+    }
+
+    fn attack_stand_animation(&mut self, attack: i32) -> Option<bool> {
+        usize::try_from(attack)
+            .ok()
+            .and_then(|index| self.stand_animations.get(index))
+            .copied()
+            .flatten()
+    }
+
     fn spec(&mut self, cmd_no: u32, sub_no: i32, caster: &BattleUnit) -> Option<CommandSpec> {
         if caster.is_player && cmd_no != cmd::MAGIC_COUNTER {
             return match cmd_no {
@@ -1205,6 +1230,10 @@ impl FieldBattles {
                     .iter()
                     .map(|(&id, weapon)| (id, weapon.power))
                     .collect(),
+                sequences: sequence.map(crate::battle_stage::attack_sequence_effects),
+                stand_animations: sequence
+                    .map(crate::battle_stage::attack_stand_animations)
+                    .unwrap_or_default(),
             },
             driver,
             SceneOverlay {
@@ -2729,21 +2758,9 @@ fn apply_support_abilities(unit: &mut BattleUnit, support: u64) {
             _ => {}
         }
     }
-    // HP+10%/20% and MP+10%/20% (SA 5-8, `AbilityFeatures.txt` `Permanent` `MaxHP + MaxHP / 10`,
-    // `/ 5`): `CharacterAbilityGems.TriggerOnEnable` rewrites `play.max.hp` / `max.mp`; the
-    // dearer ability replaces the cheaper one (`ff9abil.GetHierarchyFromAnySA` banishes it).
-    // The limits are the default `maxHpLimit` 9999 and `maxMpLimit` 999.
-    let has = |bit: u8| support & (1 << bit) != 0;
-    if has(6) {
-        unit.max_hp = (unit.max_hp + unit.max_hp / 5).min(9999);
-    } else if has(5) {
-        unit.max_hp = (unit.max_hp + unit.max_hp / 10).min(9999);
-    }
-    if has(8) {
-        unit.max_mp = (unit.max_mp + unit.max_mp / 5).min(999);
-    } else if has(7) {
-        unit.max_mp = (unit.max_mp + unit.max_mp / 10).min(999);
-    }
+    // HP+10%/20% and MP+10%/20% (SA 5-8) are `Permanent` features: `FF9Play_Update` puts
+    // them in `play.max.hp` / `max.mp` (`FieldWorld::update_character_max`), which
+    // `btl_init` copies, so the fighter's maximums already carry them.
 }
 
 #[cfg(test)]
@@ -2935,23 +2952,16 @@ mod tests {
         );
     }
 
+    /// HP+/MP+ are in the field maximums already (`FF9Play_Update`), so the battle unit
+    /// keeps the fighter's maximums instead of raising them a second time.
     #[test]
-    fn hp_and_mp_percent_abilities_raise_the_maximums() {
+    fn hp_and_mp_percent_abilities_are_not_applied_twice() {
         let mut unit = BattleUnit::new(1, true);
-        unit.max_hp = 1000;
-        unit.max_mp = 100;
+        unit.max_hp = 1100;
+        unit.max_mp = 110;
         apply_support_abilities(&mut unit, 1 << 5 | 1 << 7);
         assert_eq!((unit.max_hp, unit.max_mp), (1100, 110));
-        let mut unit = BattleUnit::new(1, true);
-        unit.max_hp = 1000;
-        unit.max_mp = 100;
-        // HP+20% replaces HP+10%; the caps are 9999 and 999.
-        apply_support_abilities(&mut unit, 1 << 5 | 1 << 6 | 1 << 8);
-        assert_eq!((unit.max_hp, unit.max_mp), (1200, 120));
-        unit.max_hp = 9000;
-        unit.max_mp = 990;
-        apply_support_abilities(&mut unit, 1 << 6 | 1 << 8);
-        assert_eq!((unit.max_hp, unit.max_mp), (9999, 999));
+        assert!(unit.support_abilities.contains(&5));
     }
 
     #[test]
@@ -2981,7 +2991,7 @@ mod tests {
         assert_eq!(PartyFighter::loadout(&world, 0), (None, 0));
         world.equip(0, 0, Some(5));
         world.equip(0, 3, Some(120));
-        world.support_enabled.insert(0, vec![192, 241]);
+        world.support_enabled.insert(0, vec![0, 49]);
         let (equip, support) = PartyFighter::loadout(&world, 0);
         assert_eq!(equip, Some([5, -1, -1, 120, -1]));
         assert_eq!(support, 1 | 1 << 49);

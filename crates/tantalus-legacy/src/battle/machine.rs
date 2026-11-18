@@ -289,6 +289,9 @@ pub struct UnitSched {
     /// Experience this enemy adds to the battle bonus when it finishes dying
     /// (`btl_sys.SetBonus`, `btl_sys.cs:215`).
     pub bonus_exp: u32,
+    /// `bi.def_idle`: 1 while the alternate stand animation is on (member
+    /// 69, `btl_scrp.cs:281`).
+    pub def_idle: u8,
 }
 
 impl UnitSched {
@@ -312,6 +315,7 @@ impl UnitSched {
                 100
             },
             bonus_exp: 0,
+            def_idle: 0,
         }
     }
 }
@@ -362,6 +366,32 @@ pub trait BattleHooks {
     /// btl_id, action)`. Polled once per tick, before the ATB pass.
     fn enemy_reaction_commands(&mut self, _battle: &Battle) -> Vec<(u16, EnemyAction)> {
         Vec::new()
+    }
+
+    /// `BTLSEQ` (`AttackSpecial`) calls the battle scripts made during the
+    /// last [`BattleHooks::frame`]: `(caster btl_id mask, attack, target
+    /// mask)`, for [`Battle::start_event_sequence`]
+    /// (`btlseq.StartBtlSeq(GetSysList(1), GetSysList(0), attack)`,
+    /// `EventEngine.DoEventCode.cs:2930`).
+    fn special_attacks(&mut self) -> Vec<(u16, i32, u16)> {
+        Vec::new()
+    }
+
+    /// The scene's sequence for enemy attack `attack`: `None` when it has
+    /// none (`seq_work_set.SeqData[attack] == 0`; `StartBtlSeq` then does
+    /// nothing, `btlseq.cs:89`), otherwise whether it reaches an effect
+    /// point (`SeqExecCalc` or an effect's `EffectPoint`, which run
+    /// `ExecVfxCommand`). The default is a sequence with an effect.
+    fn attack_sequence(&mut self, _attack: i32) -> Option<bool> {
+        Some(true)
+    }
+
+    /// The stand animation enemy attack `attack`'s sequence leaves its
+    /// caster in: the last "Change Stand Animation" op (code 17,
+    /// `BattleActionThread.cs:369` -> `btl_mot.ToggleIdleAnimation`), `true`
+    /// for the alternate one; `None` when the sequence has no such op.
+    fn attack_stand_animation(&mut self, _attack: i32) -> Option<bool> {
+        None
     }
 
     /// The battle scripts' frame (`EventEngine.ServiceEvents`), once per
@@ -577,6 +607,20 @@ pub struct Jump {
     pub landing: bool,
 }
 
+/// An enemy sequence a battle script started with `BTLSEQ`
+/// (`btlseq.StartBtlSeq`, `btlseq.cs:87-118`): it runs in the unit's first
+/// command slot without entering the command queue (`Flags.EventMode`, so
+/// no `ReqFinishCommand`), applies its effect at the sequence's calc point
+/// (`SeqExecCalc` -> `ExecVfxCommand`) and keeps `BtlSeqBusy` true until it
+/// ends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EventSequence {
+    pub slot: CmdId,
+    pub ticks: u32,
+    /// The effect point passed, or the sequence has none.
+    pub effect_done: bool,
+}
+
 pub struct Battle {
     pub units: Vec<BattleUnit>,
     /// Units in the air after Jump (`JumpStatusScript`): the countdown to
@@ -586,6 +630,8 @@ pub struct Battle {
     pub cmds: CommandQueue,
     /// `cur_cmd_list`.
     pub running: Vec<CmdId>,
+    /// Script-started sequences in flight (`SEQ_WORK` with `EventMode`).
+    pub event_sequences: Vec<EventSequence>,
     /// `UIManager.Battle.ReadyQueue`: players waiting for input, in order.
     pub ready_players: Vec<usize>,
     pub phase: Phase,
@@ -648,6 +694,7 @@ impl Battle {
             sched,
             cmds,
             running: Vec::new(),
+            event_sequences: Vec::new(),
             ready_players: Vec::new(),
             phase: Phase::Normal,
             menu_off_seq: MenuOffSeq::Victory,
@@ -1529,6 +1576,9 @@ impl Battle {
         for (code, value) in hooks.frame(self) {
             self.battle_code(code, value);
         }
+        for (caster, attack, tar_id) in hooks.special_attacks() {
+            self.start_event_sequence(caster, attack, tar_id, hooks);
+        }
         let writes = hooks.unit_writes();
         if !writes.is_empty() {
             super::host::apply_unit_views(self, &writes);
@@ -1573,6 +1623,8 @@ impl Battle {
                 self.closing_phase();
             }
         }
+        // `BattleSubSystem` -> `btlseq.Sequencer` runs in every phase.
+        self.event_sequence_loop(hooks, rng)?;
         // `battle.cs:181-208`: every enemy gone without a victory sequence.
         if self.phase == Phase::Normal
             && self.running.is_empty()
@@ -1602,6 +1654,84 @@ impl Battle {
             self.emit(BattleEvent::PhaseChanged {
                 phase: Phase::Close,
             });
+        }
+        Ok(())
+    }
+
+    /// `btlseq.StartBtlSeq` (`btlseq.cs:87-118`): the first listed unit in
+    /// `caster` gets sequence `attack` on `tar_id` in its first command slot
+    /// (`cmd_no` None, the scene attack's data), outside the command queue.
+    /// No sequence for the attack, or no such unit, does nothing.
+    pub fn start_event_sequence(
+        &mut self,
+        caster: u16,
+        attack: i32,
+        tar_id: u16,
+        hooks: &mut dyn BattleHooks,
+    ) {
+        let Some(has_effect) = hooks.attack_sequence(attack) else {
+            return;
+        };
+        let Some(unit) = (0..self.units.len())
+            .find(|&i| self.sched[i].in_list && self.units[i].id & caster != 0)
+        else {
+            return;
+        };
+        let id = self.cmds.slot_of(unit, 0);
+        // `SetAAData(enemy_attack[attack])`: the catalog an enemy attack
+        // command reads.
+        let spec = hooks.spec(cmd::ENEMY_ATK, attack, &self.units[unit]);
+        // `cmd_DATA.info.Reset()`: no multi-target cursor.
+        self.raw_set_command(id, cmd::NONE, attack, tar_id, 0, spec);
+        self.cmds.slots[id].regist = Some(unit);
+        self.event_sequences.retain(|seq| seq.slot != id);
+        self.event_sequences.push(EventSequence {
+            slot: id,
+            ticks: 0,
+            effect_done: !has_effect,
+        });
+    }
+
+    /// One `btlseq.Sequencer` frame for the script-started sequences: the
+    /// effect at the attack's effect point, the end at its total (the same
+    /// timings an enemy attack command uses, [`Battle::command_ticks`]).
+    fn event_sequence_loop(
+        &mut self,
+        hooks: &mut dyn BattleHooks,
+        rng: &mut dyn BattleRandom,
+    ) -> Result<(), BattleError> {
+        let mut k = 0;
+        while k < self.event_sequences.len() {
+            let EventSequence {
+                slot,
+                ticks,
+                effect_done,
+            } = self.event_sequences[k];
+            let (effect_ticks, total_ticks) = self.command_ticks(slot);
+            if !effect_done && ticks >= effect_ticks {
+                self.event_sequences[k].effect_done = true;
+                // `EffectPoint` skips untargetable units (`bi.target == 0`,
+                // `UnifiedBattleSequencer.cs:983`).
+                let targetable = (0..self.units.len())
+                    .filter(|&i| self.sched[i].targetable)
+                    .fold(0_u16, |mask, i| mask | self.units[i].id);
+                self.cmds.slots[slot].tar_id &= targetable;
+                self.apply_effect(slot, hooks, rng)?;
+            }
+            if self.event_sequences[k].effect_done && ticks >= total_ticks {
+                // `ToggleIdleAnimation` changes enemies (and transformed
+                // players) only (`btl_mot.cs:275`).
+                let s = &self.cmds.slots[slot];
+                if let Some(unit) = s.regist.filter(|&r| !self.units[r].is_player)
+                    && let Some(alternate) = hooks.attack_stand_animation(s.sub_no)
+                {
+                    self.sched[unit].def_idle = u8::from(alternate);
+                }
+                self.event_sequences.remove(k);
+                continue;
+            }
+            self.event_sequences[k].ticks += 1;
+            k += 1;
         }
         Ok(())
     }

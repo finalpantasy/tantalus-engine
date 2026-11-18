@@ -354,6 +354,9 @@ impl AbilityState {
                         world
                             .support_enabled
                             .insert(self.member, ch.enabled.clone());
+                        // `FF9Abil_SetEnableSA` -> `FF9Play_Update`: HP+ and
+                        // MP+ change the maximums the menu shows.
+                        world.update_character_max(self.member);
                     }
                     Err(_) => {
                         *message = Some(if ty == AbilityType::CantSpell {
@@ -630,6 +633,51 @@ mod tests {
         assert_eq!(stat.current_mp, 14);
         assert!(stat.current_hp > 10);
         assert!(message.unwrap().contains("recovered"));
+    }
+
+    /// HP+10% (SA 5) switched on in the menu raises the maximum HP the field menu
+    /// shows (`FF9Abil_SetEnableSA` -> `FF9Play_Update`, `TriggerOnEnable`
+    /// `MaxHP + MaxHP / 10`); switched off it falls back and the current HP is capped.
+    #[test]
+    fn hp_plus_raises_the_field_maximum_while_it_is_on() {
+        let mut tables = tables();
+        tables
+            .abilities
+            .learnable
+            .get_mut(&0)
+            .unwrap()
+            .push(PaEntry {
+                id: 197,
+                max_ap: 20,
+            });
+        tables
+            .abilities
+            .support
+            .rows
+            .resize(6, SupportRow::default());
+        tables.abilities.support.rows[5].gems = 2;
+        let mut world = world();
+        world.apply_ap(0, 197, 20, 20);
+        world.level_growth = Some(std::sync::Arc::new(|_, _| {
+            Some(CharacterStats {
+                current_hp: 105,
+                max_hp: 105,
+                current_mp: 20,
+                max_mp: 20,
+            })
+        }));
+        let mut state = AbilityState::new(0);
+        let mut message = None;
+        state.press(pad::RIGHT, &mut world, &tables, &mut message, 0);
+        state.press(pad::DOWN, &mut world, &tables, &mut message, 0);
+        state.press(pad::CONFIRM, &mut world, &tables, &mut message, 0);
+        assert_eq!(world.support_enabled[&0], vec![5]);
+        assert_eq!(world.character_stats[&0].max_hp, 115);
+        world.character_stats.get_mut(&0).unwrap().current_hp = 115;
+        state.press(pad::CONFIRM, &mut world, &tables, &mut message, 0);
+        assert!(world.support_enabled[&0].is_empty());
+        let stats = world.character_stats[&0];
+        assert_eq!((stats.current_hp, stats.max_hp), (105, 105));
     }
 
     #[test]
