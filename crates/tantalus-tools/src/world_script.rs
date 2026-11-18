@@ -165,10 +165,43 @@ pub struct ParkedShip {
 /// Frames the script runs before its objects have their start positions.
 pub const START_FRAMES: u32 = 10;
 
+/// The continent title the world map shows as it opens on a story step
+/// (`ff9.w_naviTitle`, set by `w_worldSystemConstructor` for scenario 2400,
+/// 5990, 9605 and 9890). When the title starts to fade in
+/// (`w_naviTitleElement`, `w_frameCounterReady > w_naviFadeInTime`) the
+/// engine adds 10 to its copy of the scenario counter taken when the world
+/// loaded (`w_frameScenePtr`) and writes it back to global 0: 9605 becomes
+/// 9615, which Oeilvert's exterior (2250) needs to give the player control.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NaviTitle {
+    /// `w_frameScenePtr`: the counter when the world loaded.
+    pub scene: u16,
+    /// `w_frameCounterReady`: frames since the world loaded.
+    pub frames: u32,
+    /// The title has faded in and the counter was written.
+    pub shown: bool,
+}
+
+impl NaviTitle {
+    /// The title for a world loaded at `scenario`, when it has one.
+    pub fn for_scenario(scenario: i32) -> Option<Self> {
+        matches!(scenario, 2400 | 5990 | 9605 | 9890).then_some(Self {
+            scene: scenario as u16,
+            frames: 0,
+            shown: false,
+        })
+    }
+}
+
+/// `w_naviFadeInTime` when the script sets none (`w_naviSystemConstructor`).
+pub const NAVI_FADE_IN: i32 = 20;
+
 /// The world script, live.
 pub struct WorldScript {
     session: FieldSession,
     pub effects: WorldEffects,
+    /// The continent title, while the world has one to show.
+    pub title: Option<NaviTitle>,
 }
 
 impl WorldScript {
@@ -187,9 +220,14 @@ impl WorldScript {
         // The player walks the world: `IsMovementEnabled` (system variable
         // 2) is on, which the place prompt requires before it takes confirm.
         world.user_control = true;
+        let scenario = world
+            .global_memory
+            .get(0, VariableType::UInt16)
+            .unwrap_or(0);
         Ok(Self {
             session: FieldSession::start(map, world, pool)?,
             effects: WorldEffects::default(),
+            title: NaviTitle::for_scenario(scenario),
         })
     }
 
@@ -205,7 +243,38 @@ impl WorldScript {
         for (code, value) in self.session.director.world_mut().take_world_codes() {
             self.effects.apply(code, value);
         }
+        // `w_frameService` (`w_naviService`), then `w_frameCounterReady++`.
+        let fade_in = self.effects.navi_fade_in.unwrap_or(NAVI_FADE_IN);
+        if let Some(title) = self.title.as_mut() {
+            if !title.shown && i64::from(title.frames) > i64::from(fade_in) {
+                self.show_title();
+            }
+            if let Some(title) = self.title.as_mut() {
+                title.frames += 1;
+            }
+        }
         Ok(tick)
+    }
+
+    /// The continent title fades in now (`w_naviTitleElement`, first
+    /// fade-in frame): global 0 becomes the counter the world loaded with
+    /// plus 10. The world-map stand-in, which does not walk the world, calls
+    /// this before the party enters a place: the walking player can reach
+    /// no place before the title shows, and the value written does not
+    /// depend on when it shows. Does nothing when there is no title or it
+    /// has shown.
+    pub fn show_title(&mut self) {
+        let Some(title) = self.title.as_mut() else {
+            return;
+        };
+        if title.shown {
+            return;
+        }
+        title.shown = true;
+        let scene = i32::from(title.scene.wrapping_add(10));
+        self.world_mut()
+            .global_memory
+            .set(0, VariableType::UInt16, scene);
     }
 
     /// The pad the script reads this frame (`ETb.ProcessKeyEvents`): the

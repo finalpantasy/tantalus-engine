@@ -698,12 +698,21 @@ pub fn world_exit(
     // the VM. The stand-in below only serves places whose handler declines on
     // the current story state (the three chocobo grounds), which it forces.
     let mut script = crate::world_script::WorldScript::start(bundle, name, 9000, world.clone())?;
+    script.show_title();
     if let Some(field) = script.enter_place(location, 600)? {
         *world = script.world().clone();
         return Ok(Some(field));
     }
     match WorldExit::load(bundle, name) {
-        Ok(exit) => exit.run(location, world),
+        Ok(exit) => {
+            // The title's counter step (`WorldScript::show_title`) holds on
+            // this path too.
+            let scenario = tantalus_legacy::VariableType::UInt16;
+            if let Some(value) = script.world().global_memory.get(0, scenario) {
+                world.global_memory.set(0, scenario, value);
+            }
+            exit.run(location, world)
+        }
         // A world map with no place switch is a scripted flight
         // (`EVT_WORLD_WORLD04`, the Hilda Garde to Oeilvert): its main loop
         // changes the field by itself after a timer, so run it on.

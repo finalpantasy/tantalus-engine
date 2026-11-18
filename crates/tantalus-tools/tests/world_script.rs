@@ -221,3 +221,51 @@ fn the_world_scripts_park_each_airship_only_at_its_story_points() {
     // A flown ship is not parked.
     assert!(script.parked_ships(9).is_empty());
 }
+
+#[test]
+fn the_forgotten_continent_title_moves_the_story_from_9605_to_9615() {
+    // `ff9.w_naviTitleElement`: when the continent title fades in, the
+    // counter the world loaded with gains 10. `EVT_WORLD_WORLD05` at 9605
+    // (the Hilda Garde lands near Oeilvert) sets the fade-in time to 480 + 5
+    // frames (`RunWorldCode(11, 480)`), and Oeilvert's exterior (2250) gives
+    // the player control only from 9615.
+    let Some(bundle) = bundle() else { return };
+    let mut world = tantalus_game::FieldWorld::new();
+    world
+        .global_memory
+        .set(0, tantalus_legacy::VariableType::UInt16, 9605)
+        .unwrap();
+    let mut script = WorldScript::start(&bundle, "EVT_WORLD_WORLD05", 9005, world).unwrap();
+    let scenario = |script: &WorldScript| {
+        script
+            .world()
+            .global_memory
+            .get(0, tantalus_legacy::VariableType::UInt16)
+            .unwrap()
+    };
+    for _ in 0..480 {
+        script.tick(0).unwrap();
+    }
+    assert_eq!(script.effects.navi_fade_in, Some(485));
+    assert_eq!(scenario(&script), 9605);
+    for _ in 0..20 {
+        script.tick(0).unwrap();
+    }
+    assert_eq!(scenario(&script), 9615);
+    // Once only: the title does not step the counter again.
+    for _ in 0..100 {
+        script.tick(0).unwrap();
+    }
+    assert_eq!(scenario(&script), 9615);
+}
+
+#[test]
+fn only_the_four_title_scenarios_have_a_continent_title() {
+    use tantalus_tools::world_script::NaviTitle;
+    for scenario in [2400, 5990, 9605, 9890] {
+        assert!(NaviTitle::for_scenario(scenario).is_some(), "{scenario}");
+    }
+    for scenario in [0, 2410, 9600, 9615, 9900] {
+        assert!(NaviTitle::for_scenario(scenario).is_none(), "{scenario}");
+    }
+}
