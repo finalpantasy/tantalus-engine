@@ -324,9 +324,16 @@ pub fn command_effect(stage: &BattleStage, tick: usize, event: &StageEvent) -> O
             start: tick as f64,
         });
     }
-    let (id, timing) = stage
-        .effects
-        .effect_of(*cmd_no, *sub_no, targets.len(), *short_summon)?;
+    // Timed for this caster: the plugin plays its motions and waits on their
+    // frame counts ([`tantalus_tools::battle_effects::Caster`]).
+    let serial = match stage.units[*unit].model {
+        StageModel::Player { serial, .. } => Some(serial),
+        _ => None,
+    };
+    let (id, timing) =
+        stage
+            .effects
+            .effect_by(*cmd_no, *sub_no, targets.len(), *short_summon, serial)?;
     let item = matches!(
         *cmd_no,
         tantalus_legacy::battle::queue::cmd::ITEM
@@ -521,6 +528,12 @@ pub fn plugin_units(stage: &BattleStage, spots: &[Option<UnitSpot>]) -> Vec<Unit
                 geo_radius: if player { 256 } else { stage.enemy_radius },
                 tar_bone: stage.tar_bones.get(index).copied().flatten().unwrap_or(0),
                 bones: spot.map(|spot| spot.bones).unwrap_or_default(),
+                // The plugin times the caster's motions by their frame counts.
+                motion_frames: if player {
+                    tantalus_tools::battle_effects::motion_frames(serial)
+                } else {
+                    Default::default()
+                },
             }
         })
         .collect()
@@ -1351,6 +1364,7 @@ mod tests {
                         geo_radius: int(&unit[10]) as i32,
                         tar_bone: int(&unit[9]) as u8,
                         bones: Default::default(),
+                        motion_frames: Default::default(),
                     }
                 })
                 .collect()

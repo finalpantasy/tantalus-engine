@@ -372,16 +372,22 @@ impl EffectSounds {
     }
 
     /// The plugin's sounds for ability `id` (or Item command item `id`), as `(plugin frame,
-    /// sound)`, and the effect's `hit` frame; `None` when the plugin does not play that effect.
-    fn plugin_play(&self, id: i32, item: bool) -> Option<(Vec<(u32, PluginSound)>, u32)> {
+    /// sound)`, and the effect's `hit` frame, played for `caster`
+    /// ([`crate::battle_effects::Caster`]); `None` when the plugin does not play that effect.
+    fn plugin_play(
+        &self,
+        id: i32,
+        item: bool,
+        caster: Option<crate::battle_effects::Caster>,
+    ) -> Option<(Vec<(u32, PluginSound)>, u32)> {
         let effect = if item {
             *self.item_effect_of.get(&id)?
         } else {
             *self.effect_of.get(&id)?
         };
         let plugin = self.plugin.as_ref()?;
-        let calls = plugin.sounds(effect, item)?;
-        let hit = plugin.timing(effect, item)?.hit;
+        let calls = plugin.sounds(effect, item, caster)?;
+        let hit = plugin.timing_by(effect, item, caster)?.hit;
         let list = self.lists.get(&effect).map_or(&[][..], Vec::as_slice);
         Some((plugin_sounds(effect, &calls, list, &self.resident), hit))
     }
@@ -648,10 +654,11 @@ impl BattleSounds {
         effects: Option<&EffectSounds>,
         id: i32,
         item: bool,
-        lead: u32,
+        (lead, caster): (u32, Option<crate::battle_effects::Caster>),
         effect_in: Option<u32>,
     ) -> bool {
-        let Some((sounds, hit)) = effects.and_then(|effects| effects.plugin_play(id, item)) else {
+        let Some((sounds, hit)) = effects.and_then(|effects| effects.plugin_play(id, item, caster))
+        else {
             return false;
         };
         // The view starts the effect `hit` frames before the HP change. The machine schedules
@@ -699,6 +706,15 @@ impl BattleSounds {
                 effects.cast_lead(*serial, item, targets.len() > 1, step)
             })
         };
+        // The plugin plays the caster's motions, timed by their frame counts.
+        let caster_of =
+            |unit: usize, targets: &[usize]| match stage.units.get(unit).map(|u| &u.model) {
+                Some(StageModel::Player { serial, .. }) => Some(crate::battle_effects::Caster {
+                    serial: *serial,
+                    targets: targets.len().clamp(1, 8) as u8,
+                }),
+                _ => None,
+            };
         match *event {
             StageEvent::Command { unit, sub_no, .. } if unit >= party_len => {
                 let sounds = usize::try_from(sub_no)
@@ -720,7 +736,7 @@ impl BattleSounds {
                     effects,
                     sub_no,
                     true,
-                    lead_of(unit, true, targets),
+                    (lead_of(unit, true, targets), caster_of(unit, targets)),
                     effect_in,
                 ) {
                     return;
@@ -750,7 +766,7 @@ impl BattleSounds {
                     effects,
                     sub_no,
                     false,
-                    lead_of(unit, false, targets),
+                    (lead_of(unit, false, targets), caster_of(unit, targets)),
                     effect_in,
                 ) {
                     return;
@@ -898,7 +914,9 @@ mod tests {
             .with_plugin(table.plugin.clone());
         // Cure 1, Fire 25, Ifrit 51.
         for ability in [1, 25, 51] {
-            let (played, hit) = sounds.plugin_play(ability, false).expect("plugin plays it");
+            let (played, hit) = sounds
+                .plugin_play(ability, false, None)
+                .expect("plugin plays it");
             println!("ability {ability}: hit {hit} sounds {played:?}");
             assert!(!played.is_empty(), "ability {ability} plays sounds");
             assert!(played.iter().all(|(_, sound)| matches!(

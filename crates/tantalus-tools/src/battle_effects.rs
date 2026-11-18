@@ -95,7 +95,64 @@ pub fn plugin_timing(
     package: &[u8],
     item: bool,
 ) -> Option<EffectTiming> {
-    plugin_play(runtime, id, package, item).map(|(timing, _)| timing)
+    plugin_play(runtime, id, package, item, None).map(|(timing, _)| timing)
+}
+
+/// The party member an effect is timed for. The plugin plays the caster's
+/// motions itself (`SFX.BattleCallback` case 12: `MP_STEP_FORWARD`,
+/// `MP_IDLE_TO_CHANT`, `MP_CHANT`, `MP_MAGIC`...) and waits on each clip's
+/// frame count (case 9, `GeoAnim.geoAnimGetNumFrames`), so its Effect point
+/// moves with the caster's clips.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Caster {
+    /// `getSerialNumber`.
+    pub serial: u8,
+    /// Units the command aims at (1 to 8).
+    pub targets: u8,
+}
+
+/// Each party model's `GeoAnim.geoAnimGetNumFrames` by `PlayerMotionIndex`
+/// (`BattleParameters.csv` motions, frames from `audit/animation-frames.csv`),
+/// then for Freya (`GEO_MAIN_B0_011`) her jump clips at
+/// [`tantalus_sfx::player::JUMP_MOTIONS`]. 0 for a clip not known (the
+/// plugin is then told 1). Empty for an unknown serial.
+pub fn motion_frames(serial: u8) -> std::sync::Arc<Vec<u16>> {
+    static TABLE: std::sync::OnceLock<BTreeMap<u8, std::sync::Arc<Vec<u16>>>> =
+        std::sync::OnceLock::new();
+    TABLE
+        .get_or_init(|| {
+            use tantalus_assets::pc::battle_models::{
+                animation_db_key, player_attack_sequences, player_battle_motions, player_battle_row,
+            };
+            let frames = crate::animation_frames::table();
+            let length = |name: &str| -> u16 {
+                animation_db_key(name)
+                    .and_then(|key| u16::try_from(key).ok())
+                    .and_then(|key| frames.get(&key).copied())
+                    .unwrap_or(0)
+            };
+            let mut out = BTreeMap::new();
+            for (serial, _, _) in player_attack_sequences() {
+                let (Some(motions), Some((_, model, _)), Ok(key)) = (
+                    player_battle_motions(serial),
+                    player_battle_row(serial),
+                    u8::try_from(serial),
+                ) else {
+                    continue;
+                };
+                let mut row: Vec<u16> = motions.iter().map(|name| length(name)).collect();
+                if model == "GEO_MAIN_B0_011" {
+                    row.extend(
+                        ["110", "111", "112"].map(|n| length(&format!("ANH_MAIN_B0_011_{n}"))),
+                    );
+                }
+                out.insert(key, std::sync::Arc::new(row));
+            }
+            out
+        })
+        .get(&serial)
+        .cloned()
+        .unwrap_or_default()
 }
 
 /// One sound command the plugin issued (`SFX.BattleCallback` 32): the plugin frame and
@@ -103,31 +160,45 @@ pub fn plugin_timing(
 pub type SoundCall = (u32, [i32; 4]);
 
 /// [`plugin_timing`] and the sound commands the effect issued, by plugin frame.
+/// With a `caster`, the player has its motions' frame counts and the command
+/// that many enemy targets; without, every clip is one frame long.
 pub fn plugin_play(
     runtime: &tantalus_sfx::SfxRuntime,
     id: i32,
     package: &[u8],
     item: bool,
+    caster: Option<Caster>,
 ) -> Option<(EffectTiming, Vec<SoundCall>)> {
     use tantalus_sfx::player::{Setup, Unit};
-    let unit = |btl_id: u16, player: bool, z: i16| Unit {
+    let unit = |btl_id: u16, player: bool, z: i16, x: i16| Unit {
         btl_id,
         player,
         slot: 0,
-        serial: 0,
-        position: [0, 0, z],
-        base: [0, 0, z],
+        serial: caster.filter(|_| player).map_or(0, |caster| caster.serial),
+        position: [x, 0, z],
+        base: [x, 0, z],
         yaw: if player { 2048 } else { 0 },
         height: 512,
         radius: 256,
         geo_radius: 256,
         tar_bone: 0,
         bones: Default::default(),
+        motion_frames: match caster {
+            Some(caster) if player => motion_frames(caster.serial),
+            _ => Default::default(),
+        },
     };
+    // One enemy at z 500, or a row of them 600 apart.
+    let targets = caster.map_or(1, |caster| caster.targets.clamp(1, 8));
+    let mut units = vec![unit(1, true, -1500, 0)];
+    units.extend((0..targets).map(|n| {
+        let x = i16::from(n) * 600 - (i16::from(targets) - 1) * 300;
+        unit(0x10 << n, false, 500, x)
+    }));
     let setup = Setup {
-        units: vec![unit(1, true, -1500), unit(0x10, false, 500)],
+        units,
         caster: 0,
-        targets: vec![1],
+        targets: (1..=usize::from(targets)).collect(),
         item,
         args: [0; 3],
         put: [0, 0],
@@ -172,13 +243,16 @@ pub struct EffectTable {
 /// One played effect: its timing and the sound commands it issued.
 type Played = Option<(EffectTiming, Vec<SoundCall>)>;
 
+/// What a play is cached by: the effect, whether an item plays it, and who casts it.
+type PlayKey = (i32, bool, Option<Caster>);
+
 /// The translated plugin and the effect packages, timing each effect the
 /// first time a command needs it (the long summons take a second each).
 pub struct PluginTiming {
     runtime: tantalus_sfx::SfxRuntime,
     file: std::sync::Mutex<tantalus_assets::pc::serialized_inventory::StandaloneSerialized>,
     assets: Vec<(String, tantalus_assets::pc::serialized::SerializedObject)>,
-    done: std::sync::Mutex<std::collections::HashMap<(i32, bool), Played>>,
+    done: std::sync::Mutex<std::collections::HashMap<PlayKey, Played>>,
 }
 
 impl std::fmt::Debug for PluginTiming {
@@ -197,23 +271,30 @@ impl PartialEq for PluginTiming {
 impl PluginTiming {
     /// Effect `id`'s timing, played once per (effect, item).
     pub fn timing(&self, id: i32, item: bool) -> Option<EffectTiming> {
-        self.played(id, item).map(|(timing, _)| timing)
+        self.timing_by(id, item, None)
     }
 
-    /// The sound commands effect `id` issues, by plugin frame from the effect's start.
-    pub fn sounds(&self, id: i32, item: bool) -> Option<Vec<SoundCall>> {
-        self.played(id, item).map(|(_, sounds)| sounds)
+    /// Effect `id`'s timing for `caster` ([`plugin_play`]), played once per
+    /// (effect, item, caster).
+    pub fn timing_by(&self, id: i32, item: bool, caster: Option<Caster>) -> Option<EffectTiming> {
+        self.played(id, item, caster).map(|(timing, _)| timing)
     }
 
-    fn played(&self, id: i32, item: bool) -> Played {
+    /// The sound commands effect `id` issues for `caster`, by plugin frame from the effect's
+    /// start.
+    pub fn sounds(&self, id: i32, item: bool, caster: Option<Caster>) -> Option<Vec<SoundCall>> {
+        self.played(id, item, caster).map(|(_, sounds)| sounds)
+    }
+
+    fn played(&self, id: i32, item: bool, caster: Option<Caster>) -> Played {
         let mut done = self.done.lock().unwrap_or_else(|e| e.into_inner());
-        done.entry((id, item))
+        done.entry((id, item, caster))
             .or_insert_with(|| {
                 let name = format!("ef{id:03}");
                 // No package (Player_Attack 100-118, SFX_Attack 313 and on): the
                 // game plays the plugin's built-in script from a null buffer.
                 let Some((_, object)) = self.assets.iter().find(|(asset, _)| *asset == name) else {
-                    return plugin_play(&self.runtime, id, &[], item);
+                    return plugin_play(&self.runtime, id, &[], item, caster);
                 };
                 let text = self
                     .file
@@ -221,7 +302,7 @@ impl PluginTiming {
                     .unwrap_or_else(|e| e.into_inner())
                     .read_text_asset(object)
                     .ok()?;
-                plugin_play(&self.runtime, id, &text.script, item)
+                plugin_play(&self.runtime, id, &text.script, item, caster)
             })
             .clone()
     }
@@ -284,11 +365,16 @@ impl EffectTable {
 
     /// An effect's timing: the plugin's when it has one, else `Sequence.seq`.
     pub fn timing_of(&self, id: i32, item: bool) -> Option<EffectTiming> {
+        self.timing_by(id, item, None)
+    }
+
+    /// [`Self::timing_of`] for `caster` ([`plugin_play`]).
+    pub fn timing_by(&self, id: i32, item: bool, caster: Option<Caster>) -> Option<EffectTiming> {
         let seq = self.timing.get(&id).copied();
         match self
             .plugin
             .as_ref()
-            .and_then(|plugin| plugin.timing(id, item))
+            .and_then(|plugin| plugin.timing_by(id, item, caster))
         {
             // The scene dim is the sequence's (`SetBackgroundIntensity`).
             Some(timing) => Some(EffectTiming {
@@ -309,6 +395,22 @@ impl EffectTable {
         targets: usize,
         short_summon: bool,
     ) -> Option<(i32, EffectTiming)> {
+        self.effect_by(cmd_no, sub_no, targets, short_summon, None)
+    }
+
+    /// [`Self::effect_of`] cast by the party model `serial` ([`Caster`]).
+    pub fn effect_by(
+        &self,
+        cmd_no: u32,
+        sub_no: i32,
+        targets: usize,
+        short_summon: bool,
+        serial: Option<u8>,
+    ) -> Option<(i32, EffectTiming)> {
+        let caster = serial.map(|serial| Caster {
+            serial,
+            targets: targets.clamp(1, 8) as u8,
+        });
         // Attack plays the weapon's own effect (`GetPlayerAttackVfx`).
         if cmd_no == tantalus_legacy::battle::queue::cmd::ATTACK || sub_no == ABILITY_ATTACK {
             return None;
@@ -325,7 +427,11 @@ impl EffectTable {
         };
         Some((
             id,
-            self.timing_of(id, cmd_no == tantalus_legacy::battle::queue::cmd::ITEM)?,
+            self.timing_by(
+                id,
+                cmd_no == tantalus_legacy::battle::queue::cmd::ITEM,
+                caster,
+            )?,
         ))
     }
 }
@@ -416,6 +522,58 @@ impl EffectTable {
         let hit = (CAST_LEAD + timing.hit).max(MIN_EFFECT_TICKS);
         let total = (CAST_LEAD + timing.length).max(hit).max(MIN_COMMAND_TICKS);
         Some((hit, total))
+    }
+
+    /// A party command's wait for the battle machine
+    /// (`BattleConfig::command_timing_late`). With its caster known and an
+    /// effect the plugin plays, the game's own ticks (`LateTiming::exact`):
+    /// `CMD_MODE_SELECT_VFX` calls `SFX.Play` and `SFX.UpdatePlugin` runs the
+    /// plugin's frame 0 on that tick (`battle.BattleSubSystem` after
+    /// `btl_cmd.CommandEngine`), the plugin plays the caster's motions
+    /// ([`Caster`]), its Effect point at frame `hit` applies the HP change
+    /// on `CMD_MODE_LOOP` tick `hit - 1`, and the command ends on the loop
+    /// tick after the frame the plugin stops (`CheckCommandLoop`:
+    /// `SFX.isRunning`), loop tick `length`. Else [`Self::command_timing_of`]
+    /// (`Sequence.seq` timing, which the caster's cast lead moves).
+    pub fn command_timing_by(
+        &self,
+        ask: &tantalus_legacy::battle::machine::TimingAsk,
+    ) -> Option<tantalus_legacy::battle::machine::LateTiming> {
+        use tantalus_legacy::battle::machine::LateTiming;
+        let (item, id, variant) = ask.key;
+        let sys_trans = tantalus_legacy::battle::machine::sys_trans_key(true).1;
+        let exact = ask
+            .caster
+            .filter(|_| id != sys_trans && id != ABILITY_ATTACK);
+        if let (Some(serial), Some(plugin)) = (exact, self.plugin.as_ref()) {
+            let effect = if item {
+                self.items.get(&id).copied()
+            } else {
+                self.abilities.get(&id).map(|&(many, single, many_any)| {
+                    if (many_any && variant & 1 != 0) || variant & 2 != 0 {
+                        single
+                    } else {
+                        many
+                    }
+                })
+            };
+            let caster = Caster {
+                serial,
+                targets: ask.targets.clamp(1, 8),
+            };
+            if let Some(timing) =
+                effect.and_then(|effect| plugin.timing_by(effect, item, Some(caster)))
+            {
+                return Some(LateTiming {
+                    ticks: (timing.hit.saturating_sub(1), timing.length.max(timing.hit)),
+                    exact: true,
+                });
+            }
+        }
+        self.command_timing_of(&ask.key).map(|ticks| LateTiming {
+            ticks,
+            exact: false,
+        })
     }
 
     /// One command's wait (see [`Self::command_timings`]), played on the

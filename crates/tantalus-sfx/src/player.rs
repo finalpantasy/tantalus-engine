@@ -94,7 +94,21 @@ pub struct Unit {
     /// model lacks. Empty when the model is not known: callback 14 then
     /// answers the unit's feet (bone 0) or middle.
     pub bones: std::sync::Arc<Vec<Option<Bone>>>,
+    /// `GeoAnim.geoAnimGetNumFrames` of each motion by `PlayerMotionIndex`
+    /// (`round(length * frameRate) + 1`), and for Freya her three jump
+    /// clips after the 34 (see [`JUMP_MOTIONS`]). Empty when not known:
+    /// callback 9 then answers 1, as for a missing clip.
+    pub motion_frames: std::sync::Arc<Vec<u16>>,
 }
+
+/// Where Freya's jump clips sit in [`Unit::motion_frames`]: `SFX.BattleCallback`
+/// case 12 plays `ANH_MAIN_B0_011_110`, `_111` and `_112` for `MP_IDLE_TO_CHANT`,
+/// `MP_CHANT` and `MP_MAGIC` while Jump (393) or Spear (388) plays.
+pub const JUMP_MOTIONS: usize = 34;
+
+/// `PlayerMotionIndex.MP_IDLE_CMD`: a caster's motion when its effect starts
+/// (`CMD_MODE_SELECT_VFX` waits for the command stance).
+const MP_IDLE_CMD: u8 = 9;
 
 /// Who casts on whom.
 #[derive(Debug, Clone, PartialEq)]
@@ -508,7 +522,28 @@ impl BattleHost {
                 }
                 0
             }
-            9 => 1,
+            // `Get Current Animation's frame count` (`GeoAnim.geoAnimGetNumFrames`,
+            // at least 1): the plugin waits on it for each caster motion.
+            9 => {
+                let index = change
+                    .motion
+                    .as_ref()
+                    .map_or(if unit.player { MP_IDLE_CMD } else { 0 }, |motion| {
+                        motion.index
+                    });
+                let mut index = usize::from(index);
+                if matches!(self.effect, 388 | 393)
+                    && (26..=28).contains(&index)
+                    && unit.motion_frames.len() >= JUMP_MOTIONS + 3
+                {
+                    index = JUMP_MOTIONS + index - 26;
+                }
+                unit.motion_frames
+                    .get(index)
+                    .copied()
+                    .filter(|&frames| frames > 0)
+                    .map_or(1, i32::from)
+            }
             14 => {
                 // The model's own bone when its pose is known; a missing
                 // bone is `Matrix4x4.identity`.
@@ -863,6 +898,7 @@ mod tests {
             geo_radius: 256,
             tar_bone: 0,
             bones: Default::default(),
+            motion_frames: Default::default(),
         };
         BattleHost {
             units: vec![unit],
@@ -872,6 +908,31 @@ mod tests {
 
     fn code(command: u8, btl_id: u8) -> i32 {
         (i32::from(command) << 24) | i32::from(btl_id)
+    }
+
+    /// Callback 9 answers the current motion's frame count
+    /// (`GeoAnim.geoAnimGetNumFrames`, at least 1), Freya's jump clips for
+    /// the chant motions while Jump plays.
+    #[test]
+    fn frame_count_follows_the_motion_the_effect_set() {
+        let mut host = host();
+        let mut frames = vec![0u16; JUMP_MOTIONS + 3];
+        frames[9] = 21;
+        frames[27] = 13;
+        frames[JUMP_MOTIONS + 1] = 40;
+        host.units[0].player = true;
+        host.units[0].motion_frames = std::sync::Arc::new(frames);
+        let mut memory = Block(vec![0; 64]);
+        // Before the effect sets one: `MP_IDLE_CMD`.
+        assert_eq!(host.answer(&mut memory, code(9, 1), [0; 4], 0), 21);
+        host.answer(&mut memory, code(12, 1), [27, 0, 0, 0], 0);
+        assert_eq!(host.answer(&mut memory, code(9, 1), [0; 4], 0), 13);
+        // A clip not known answers 1.
+        host.answer(&mut memory, code(12, 1), [26, 0, 0, 0], 0);
+        assert_eq!(host.answer(&mut memory, code(9, 1), [0; 4], 0), 1);
+        host.effect = 393;
+        host.answer(&mut memory, code(12, 1), [27, 0, 0, 0], 0);
+        assert_eq!(host.answer(&mut memory, code(9, 1), [0; 4], 0), 40);
     }
 
     #[test]

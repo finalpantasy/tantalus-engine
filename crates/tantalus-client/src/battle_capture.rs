@@ -217,6 +217,14 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
         recasts.insert(index, to);
     }
     let table = stage.effects.clone();
+    let serials: Vec<Option<u8>> = stage
+        .units
+        .iter()
+        .map(|unit| match unit.model {
+            tantalus_tools::battle_stage::StageModel::Player { serial, .. } => Some(serial),
+            _ => None,
+        })
+        .collect();
     let mut seen_commands = 0usize;
     // (unit, command tick, new effect tick, new end tick)
     let mut moves = Vec::new();
@@ -237,10 +245,26 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
                     *sub_no = *to_sub;
                     *short_summon = *short;
                     let variant = u8::from(targets.len() == 1) | (u8::from(*short) << 1);
-                    if let Some((effect, total)) =
-                        table.command_timing_of(&(*to_cmd == 14, *to_sub, variant))
-                    {
-                        moves.push((*unit, tick, effect as usize, total as usize));
+                    let caster = match serials.get(*unit) {
+                        Some(Some(serial)) => Some(*serial),
+                        _ => None,
+                    };
+                    let ask = tantalus_legacy::battle::machine::TimingAsk {
+                        key: (*to_cmd == 14, *to_sub, variant),
+                        caster,
+                        targets: targets.len().min(8) as u8,
+                    };
+                    if let Some(timing) = table.command_timing_by(&ask) {
+                        // Loop ticks; the game's own start two ticks after the
+                        // command (`Battle::effect_delay`).
+                        let lead = if timing.exact { 2 } else { 0 };
+                        let (effect, total) = timing.ticks;
+                        moves.push((
+                            *unit,
+                            tick,
+                            (effect + lead) as usize,
+                            (total + lead) as usize,
+                        ));
                         // The moved `Effect` event places it now.
                         *effect_in = None;
                     }
@@ -443,8 +467,9 @@ fn live_capture(
             fight.preset_trance(trance);
         }
     }
-    // `--status UNIT:HEXMASK,...`: units start under those `BattleStatus` bits (shown
-    // afflicted; the statuses' side effects are not run).
+    // `--status UNIT:HEXMASK,...`: units start under those `BattleStatus` bits with the
+    // counters `AlterStatus` starts (Poison first ticks after its `OprCnt` wait); the
+    // statuses' scripts are not run.
     if let Some(list) = values.get("--status") {
         for entry in list.split(',') {
             let (unit, mask) = entry

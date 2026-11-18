@@ -1177,13 +1177,19 @@ impl FieldBattles {
                         .map(|vfx| vfx.map(|vfx| i32::from(vfx.effect)))
                         .collect();
                     tantalus_legacy::battle::machine::LateTimings(Some(std::sync::Arc::new(
-                        move |key| {
+                        move |ask| {
+                            let key = ask.key;
                             if key.2 == tantalus_legacy::battle::machine::ENEMY_ATTACK_VARIANT {
                                 let effect =
                                     (*attack_effects.get(usize::try_from(key.1).ok()?)?)?;
-                                return table.effect_timing_ticks(effect, false);
+                                return table.effect_timing_ticks(effect, false).map(|ticks| {
+                                    tantalus_legacy::battle::machine::LateTiming {
+                                        ticks,
+                                        exact: false,
+                                    }
+                                });
                             }
-                            table.command_timing_of(key)
+                            table.command_timing_by(ask)
                         },
                     )))
                 },
@@ -1940,13 +1946,10 @@ impl LiveFight {
         }
     }
 
-    /// Sets status bits `mask` (`BattleStatus`) on unit `unit` as they are, with none of the
-    /// side effects an inflicted status has (capture tooling: a unit shown afflicted).
+    /// Sets status bits `mask` (`BattleStatus`) on unit `unit` with the duration and tick
+    /// counters `AlterStatus` starts, but none of the statuses' scripts (capture tooling).
     pub fn preset_status(&mut self, unit: usize, mask: u64) {
-        let battle = self.adapter.battle_mut();
-        if let Some(unit) = battle.units.get_mut(unit) {
-            unit.status_current |= mask;
-        }
+        self.adapter.battle_mut().preset_status(unit, mask);
     }
 
     /// Turns every party member's Trance gauge on at `trance` (capture

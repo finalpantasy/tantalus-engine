@@ -376,6 +376,18 @@ pub fn alter_status(
     }
     unit.status_current |= status;
     remove_statuses(unit, row.clear_on_apply, ctx.env);
+    set_status_counts(unit, id, ctx);
+    AlterResult::Success
+}
+
+/// The counters `AlterStatus` starts once status `id` is on
+/// (`btl_stat.cs:96-124`): the `ContiCnt` duration of a timed status and
+/// [`set_opr_status_count`].
+pub fn set_status_counts(unit: &mut BattleUnit, id: u8, ctx: &StatusCtx<'_>) {
+    let Some(row) = ctx.table.row(id).copied() else {
+        return;
+    };
+    let status = 1u64 << id;
     if status & CONTI_COUNT != 0 {
         let will = i32::from(unit.will);
         let default_factor: i16 = if status & ANY_NEGATIVE != 0 {
@@ -391,7 +403,6 @@ pub fn alter_status(
         unit.conti.insert(id, conti);
     }
     set_opr_status_count(unit, id, ctx);
-    AlterResult::Success
 }
 
 /// `btl_stat.AlterStatuses` (`btl_stat.cs:116`): ascending id order, keeps the

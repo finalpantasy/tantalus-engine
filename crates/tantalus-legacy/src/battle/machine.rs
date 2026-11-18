@@ -123,9 +123,31 @@ pub type CommandTimings = std::collections::BTreeMap<(bool, i32, u8), (u32, u32)
 #[derive(Clone, Default)]
 pub struct LateTimings(pub Option<LateTimingFn>);
 
-/// Looks one [`CommandTimings`] key up.
-pub type LateTimingFn =
-    std::sync::Arc<dyn Fn(&(bool, i32, u8)) -> Option<(u32, u32)> + Send + Sync>;
+/// Looks one command's timing up.
+pub type LateTimingFn = std::sync::Arc<dyn Fn(&TimingAsk) -> Option<LateTiming> + Send + Sync>;
+
+/// What [`LateTimingFn`] is asked: the [`CommandTimings`] key and, for a
+/// party member's command, who casts it at how many units.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TimingAsk {
+    pub key: (bool, i32, u8),
+    /// The caster's `serial_no` (party commands only).
+    pub caster: Option<u8>,
+    /// Units the command aims at.
+    pub targets: u8,
+}
+
+/// A [`LateTimingFn`] answer: ticks in `CMD_MODE_LOOP` before the HP change
+/// and before the command ends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LateTiming {
+    pub ticks: (u32, u32),
+    /// The effect plays the caster's motions itself, as the game's plugin
+    /// does (`SFX.BattleCallback` case 12, timed by the clips' frame counts,
+    /// case 9): the ticks are the game's own, with no [`CastLead`]. Else the
+    /// ticks assume [`DEFAULT_CAST_LEAD`] and the caster's lead replaces it.
+    pub exact: bool,
+}
 
 impl std::fmt::Debug for LateTimings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -165,7 +187,10 @@ pub const DEFAULT_CAST_LEAD: u32 = 35;
 
 /// A party member's cast motions in battle frames, from the clip lengths
 /// (`round(length * frameRate) + 1`) of its `BattleParameters.csv` motions.
-/// Memoria's `PlayerSequence.seq` (for example `ef000`, Fire) plays, before
+/// Only for an effect timed by its `Sequence.seq` (one the plugin cannot
+/// play): the game's plugin plays these motions itself after `SFX.Play`,
+/// and a [`LateTiming::exact`] timing already holds them. Memoria's
+/// `PlayerSequence.seq` (for example `ef000`, Fire) plays, before
 /// `PlaySFX`: `MP_STEP_FORWARD` when `CasterRow == 0 &&
 /// AreCasterAndSelectedTargetsEnemies`, then `MP_IDLE_TO_CHANT`, `MP_CHANT`
 /// (one loop, two when the spell has more than one target) and `MP_MAGIC`,
@@ -917,6 +942,25 @@ impl Battle {
         let r = alter_status(&mut self.units[unit], id, false, &ctx, rng);
         self.sync(&prev);
         r
+    }
+
+    /// Puts `unit` under the `BattleStatus` bits of `mask` with the counters
+    /// `AlterStatus` starts ([`st::set_status_counts`]: the `ContiCnt`
+    /// duration, the `OprCnt` wait), so the first status tick comes when the
+    /// battle's would. The statuses' scripts are not run (capture tooling).
+    pub fn preset_status(&mut self, unit: usize, mask: u64) {
+        if unit >= self.units.len() {
+            return;
+        }
+        self.units[unit].status_current |= mask;
+        let env = self.status_env();
+        let ctx = StatusCtx {
+            table: &self.table,
+            env: &env,
+        };
+        for id in ids_of(mask) {
+            st::set_status_counts(&mut self.units[unit], id, &ctx);
+        }
     }
 
     /// `remove_status` plus the side effects, see [`Battle::alter_status_on`].
@@ -2443,27 +2487,40 @@ impl Battle {
             Some(_) if player.is_none() => (false, s.sub_no, ENEMY_ATTACK_VARIANT),
             _ => (s.cmd_no == cmd::ITEM, s.sub_no, variant),
         };
+        let ask = TimingAsk {
+            key,
+            caster: player.map(|r| self.units[r].serial_no),
+            targets: s.tar_id.count_ones() as u8,
+        };
+        let late = || {
+            self.config
+                .command_timing_late
+                .0
+                .as_ref()
+                .and_then(|late| late(&ask))
+        };
         // An enemy attack's effect takes as long as the effect plays, as in
         // the game (the SFX holds the command), with no cast lead.
         if s.regist.is_some()
             && player.is_none()
-            && let Some(value) = self
-                .config
-                .command_timing_late
-                .0
-                .as_ref()
-                .and_then(|late| late(&key))
+            && let Some(value) = late()
         {
-            return value;
+            return value.ticks;
+        }
+        // A party member's effect the plugin plays for this caster: the
+        // game's `SFX.Play` runs in `CMD_MODE_SELECT_VFX` and the plugin
+        // plays the step forward, chant and cast itself, so the HP change is
+        // its Effect point (`SFX.BattleCallback` case 23) with no lead.
+        let late = player.and_then(|_| late());
+        if let Some(value) = late.filter(|value| value.exact) {
+            return value.ticks;
         }
         let Some((effect, total)) = player.and_then(|_| {
-            self.config.command_timing.get(&key).copied().or_else(|| {
-                self.config
-                    .command_timing_late
-                    .0
-                    .as_ref()
-                    .and_then(|late| late(&key))
-            })
+            self.config
+                .command_timing
+                .get(&key)
+                .copied()
+                .or_else(|| late.map(|value| value.ticks))
         }) else {
             return (
                 self.config.timing.effect_after_loop_ticks,

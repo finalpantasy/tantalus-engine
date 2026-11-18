@@ -1146,13 +1146,15 @@ impl BattleScene {
                 }
                 let mut motion = unit_motion(stage, index, seconds, &look.motions, &length);
                 let change = staged.get(&index);
+                // A party member plays the motions its effect sets (`SFX.BattleCallback`
+                // case 12: the plugin steps forward, chants and casts, as the game does).
                 // Jump and Spear: the jumper shows while Jump plays (she leaves at the
                 // command's end, `JumpStatusScript.OnFinishCommand`) and once Spear
                 // brings her back (`Set Hidden` off, its frame 58) to fall; Spear sets
                 // her animation before that, while she is still away.
                 let effect_motion = change
                     .and_then(|change| change.motion.as_ref())
-                    .filter(|motion| matches!(motion.effect, 388 | 389 | 393));
+                    .filter(|_| matches!(look.motions, crate::battle_motion::Motions::Player(_)));
                 let leaping = effect_motion.is_some_and(|motion| motion.effect == 393);
                 if motion.hidden && !leaping && !change.is_some_and(|change| change.appeared) {
                     continue;

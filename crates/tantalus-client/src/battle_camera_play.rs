@@ -367,10 +367,16 @@ impl CameraDirector {
             // Attack plays a short effect with `UseCamera=False`
             // (`SFXData.IsShortSpecialEffect`) and sequence-only commands
             // (Steal, Jump) play none: the camera stays.
+            let serial = match stage.units.get(unit).map(|unit| &unit.model) {
+                Some(tantalus_tools::battle_stage::StageModel::Player { serial, .. }) => {
+                    Some(*serial)
+                }
+                _ => None,
+            };
             let Some((id, timing)) =
                 stage
                     .effects
-                    .effect_of(cmd_no, sub_no, targets.len(), short_summon)
+                    .effect_by(cmd_no, sub_no, targets.len(), short_summon, serial)
             else {
                 return;
             };

@@ -560,6 +560,91 @@ fn command_timing_delays_the_effect_and_the_end() {
     );
 }
 
+/// `Battle::preset_status` (capture `--status`) starts the counters
+/// `AlterStatus` does: Poison (id 16, `OprCnt` 10) waits 10 * (Will 20 << 2)
+/// = 800 ATB units before its first tick, and status 17 (`ContiCnt` 25)
+/// gets its duration, the same as an inflicted status.
+#[test]
+fn preset_status_starts_the_battle_counters() {
+    let mut preset = Battle::new(
+        vec![unit(1, true, 40), unit(16, false, 0)],
+        BattleConfig::default(),
+        table(),
+    );
+    preset.preset_status(0, (1 << 16) | (1 << 17));
+    assert_eq!(preset.units[0].opr.get(&16), Some(&800));
+    let mut inflicted = Battle::new(
+        vec![unit(1, true, 40), unit(16, false, 0)],
+        BattleConfig::default(),
+        table(),
+    );
+    let mut r = SequenceRandom::r16(&[7, 7, 7, 7]);
+    inflicted.alter_status_on(0, 16, &mut r);
+    inflicted.alter_status_on(0, 17, &mut r);
+    assert_eq!(preset.units[0].opr, inflicted.units[0].opr);
+    assert_eq!(preset.units[0].conti, inflicted.units[0].conti);
+    assert!(preset.units[0].conti.contains_key(&17));
+}
+
+/// A party effect the plugin plays for its caster (`LateTiming::exact`):
+/// Freya's Fire, whose plugin run with her clips' frame counts (callback 9)
+/// has its Effect point at frame 68 and stops after frame 131. Dequeued on
+/// tick 81 (`CMD_MODE_INSPECTION`), `SFX.Play` and the plugin's frame 0 run
+/// on tick 82 (`CMD_MODE_SELECT_VFX`, then `SFX.UpdatePlugin`), so the HP
+/// change (callback 23, `ExecVfxCommand`) is on tick 82 + 68 = 150 and the
+/// command ends on the next loop tick after the plugin stops (frame 132,
+/// tick 214): tick 215. Her cast lead is not added: the plugin plays the
+/// step forward, the chant and the cast itself (callback 12).
+#[test]
+fn plugin_timed_spell_lands_on_the_games_frame() {
+    use tantalus_legacy::battle::machine::{
+        CastLead, LateTiming, LateTimingFn, LateTimings, TimingAsk,
+    };
+    let late: LateTimingFn = Arc::new(|ask: &TimingAsk| {
+        (ask.caster == Some(12) && ask.key == (false, 179, 1)).then_some(LateTiming {
+            ticks: (68 - 1, 132),
+            exact: true,
+        })
+    });
+    let lead = CastLead {
+        step_forward: 9,
+        idle_to_chant: 12,
+        chant: 5,
+        magic: 26,
+        item: 21,
+    };
+    let mut freya = unit(1, true, 40);
+    freya.serial_no = 12;
+    let mut b = Battle::new(
+        vec![freya, unit(16, false, 0)],
+        BattleConfig {
+            command_timing_late: LateTimings(Some(late)),
+            cast_leads: Arc::new(BTreeMap::from([(12, lead)])),
+            ..BattleConfig::default()
+        },
+        table(),
+    );
+    let (mut h, mut r) = (hooks(), SequenceRandom::r16(&[7, 7, 7, 7]));
+    run(&mut b, &mut h, &mut r, 80);
+    assert!(b.player_command(0, cmd::DEFEND, 179, 1, 0, &mut h).unwrap());
+    run(&mut b, &mut h, &mut r, 1);
+    assert_eq!(
+        first_tick(&b, |e| matches!(e, BattleEvent::CommandStarted { .. })),
+        Some(81)
+    );
+    // `SFX.Play` one tick after the start, the hit 68 plugin frames on.
+    assert_eq!(b.effect_delay(b.running[0]), 1 + 68);
+    run(&mut b, &mut h, &mut r, 140);
+    assert_eq!(
+        first_tick(&b, |e| matches!(e, BattleEvent::EffectApplied { .. })),
+        Some(82 + 68)
+    );
+    assert_eq!(
+        first_tick(&b, |e| matches!(e, BattleEvent::CommandFinished { .. })),
+        Some(83 + 132)
+    );
+}
+
 /// `DecideSummonType`: Shiva's first cast plays in full and draws nothing;
 /// once seen, `random8() < 230` (more than twice its MP left) makes it
 /// short and picks the short effect's timing (variant bit 1).
