@@ -78,6 +78,8 @@ struct Host {
     script_request_complete: bool,
     caller_request_acceptable: bool,
     script_request_acceptable: bool,
+    /// An applied async request makes the target busy, as `EventEngine.Call` does.
+    request_marks_busy: bool,
     object_uids: BTreeMap<i32, EntityId>,
     object_positions: BTreeMap<EntityId, [f32; 3]>,
     item_counts: BTreeMap<i32, i32>,
@@ -113,6 +115,7 @@ impl Host {
             script_request_complete: false,
             caller_request_acceptable: false,
             script_request_acceptable: false,
+            request_marks_busy: false,
             object_uids: BTreeMap::new(),
             object_positions: BTreeMap::new(),
             item_counts: BTreeMap::new(),
@@ -217,7 +220,11 @@ impl LegacyEventHost for Host {
                 HostEvent::ShowBattleMessage { .. } => {}
                 HostEvent::SetObjectScale { .. } => {}
                 HostEvent::SetVibrationFrameRate { .. } => {}
-                HostEvent::RequestScriptAsync { .. } => {}
+                HostEvent::RequestScriptAsync { .. } => {
+                    if self.request_marks_busy {
+                        self.script_request_acceptable = false;
+                    }
+                }
                 HostEvent::DefineTileViewport { .. } => {}
                 HostEvent::PreserveAndHideAll => {}
                 HostEvent::RestoreAllVisibility => {}
@@ -5649,6 +5656,41 @@ fn reqsw_waits_for_target_acceptance_and_requests_once() {
     );
 
     assert!(decode_program(&[18, 0, 2, 7]).is_err());
+}
+
+#[test]
+fn a_sync_request_after_an_async_one_to_the_same_target_waits_in_the_same_step() {
+    // REQ 2 7 11, then REQEW 2 7 11: the first call makes the target busy at once
+    // (`EventEngine.Call`), so the second stays until it returns.
+    let program = decode_program(&[16, 0, 2, 7, 11, 20, 0, 2, 7, 11, 4]).unwrap();
+    let mut vm = EventVm::new(program);
+    let mut host = Host::new();
+    host.script_request_acceptable = true;
+    host.request_marks_busy = true;
+
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RequestScriptAsync {
+            level: 2,
+            target: EntityId::new(7),
+            tag: 11
+        }]
+    );
+    assert_eq!(vm.pc(), 5);
+    assert!(vm.step(Tick::new(1), &mut host).unwrap().events.is_empty());
+    assert_eq!(vm.pc(), 5);
+
+    host.script_request_acceptable = true;
+    let report = vm.step(Tick::new(2), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::RequestScriptSync {
+            level: 2,
+            target: EntityId::new(7),
+            tag: 11
+        }]
+    );
 }
 
 #[test]

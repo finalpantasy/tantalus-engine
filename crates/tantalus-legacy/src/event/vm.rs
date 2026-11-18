@@ -1481,6 +1481,14 @@ impl EventVm {
                             target: EntityId::new(target as u64),
                             tag,
                         });
+                        // `EventEngine.Call` sets the target's `level` at
+                        // once, so a later request in the same frame sees
+                        // it busy (the Desert Palace 2211 entry 4 asks entry
+                        // 5 for function 20 async and then sync: the sync
+                        // waits for the first run to return): apply now.
+                        host.apply(&events[flushed..])
+                            .map_err(|error| VmError::host(error, self.pc, opcode))?;
+                        flushed = events.len();
                     }
                 }
                 InstructionKind::RequestScriptSync { level, target, tag } => {
@@ -1505,6 +1513,10 @@ impl EventVm {
                         self.request_level = level;
                         self.status = VmStatus::Waiting;
                         events.push(HostEvent::RequestScriptSync { level, target, tag });
+                        // The target is busy from now (`EventEngine.Call`).
+                        host.apply(&events[flushed..])
+                            .map_err(|error| VmError::host(error, self.pc, opcode))?;
+                        flushed = events.len();
                     } else {
                         // Memoria stay(): retry this instruction on the next step.
                         self.pc = instruction.offset;
@@ -1529,6 +1541,10 @@ impl EventVm {
                     {
                         self.pc = next;
                         events.push(HostEvent::RequestScriptAsync { level, target, tag });
+                        // The target is busy from now (`EventEngine.Call`).
+                        host.apply(&events[flushed..])
+                            .map_err(|error| VmError::host(error, self.pc, opcode))?;
+                        flushed = events.len();
                     } else {
                         self.wait = Some(WaitState::ScriptReadiness { level, target, tag });
                         self.status = VmStatus::Waiting;
