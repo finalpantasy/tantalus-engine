@@ -1086,9 +1086,13 @@ impl LegacyEventHost for FieldHost<'_> {
                         };
                     self.actor_mut(*actor, "movement speed")?.move_speed = speed;
                 }
-                HostEvent::ResetWalkState { .. } => {
-                    // `CLRDIST` (EventEngine.clrdist) resets the reference's walk-distance
-                    // bookkeeping (`lastdist`, `actMove`); the walk here keeps no such state.
+                HostEvent::ResetWalkState { actor } => {
+                    // `CLRDIST` (DoEventCode.cs:878) sets `loopCount` to 255, so the next
+                    // walk runs to arrival, and resets the walk-distance bookkeeping
+                    // (`clrdist`: `lastdist`, `actMove`), which the walk here does not keep.
+                    if let Some(state) = self.world.actors.get_mut(actor) {
+                        state.walk_loops = u8::MAX;
+                    }
                 }
                 HostEvent::SetTurnSpeed { actor, speed } => {
                     // `TSPEED`: a speed of 0 means 16.
@@ -1185,6 +1189,11 @@ impl LegacyEventHost for FieldHost<'_> {
                         .animation_speed = *speed;
                 }
                 HostEvent::SetAnimationLoopCount { actor, count } => {
+                    // `MOVT` (DoEventCode.cs:2089) writes `loopCount`, which a walk also
+                    // counts down: field 2204's frog Cid hops one frame per press.
+                    if let Some(state) = self.world.actors.get_mut(actor) {
+                        state.walk_loops = *count;
+                    }
                     self.world
                         .actor_presentation
                         .entry(*actor)

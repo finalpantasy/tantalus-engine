@@ -14,4 +14,4 @@ pub use decode::decode_program;
 pub use memory::{GLOBAL_VARIABLE_BYTES, MAP_VARIABLE_BYTES, VariableMemory};
 pub use probe::{FunctionProbe, probe_program};
 pub use types::*;
-pub use vm::EventVm;
+pub use vm::{EventVm, angle_asm};

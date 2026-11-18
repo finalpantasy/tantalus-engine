@@ -918,3 +918,85 @@ fn memoria_widescreen_script_patches() {
     assert_eq!(flags(103, 18, 14), 14);
     assert_eq!(flags(104, 9, 14), 14);
 }
+
+#[test]
+fn a_walk_loop_count_ends_the_walk_after_that_many_frames() {
+    // `MoveToward_mixed_ex`: `MOVT` 1 makes the next walk a single frame; `CLRDIST`
+    // restores the walk to arrival. Field 2204's frog Cid hops one step per press.
+    use tantalus_legacy::HostEvent;
+    let mut world = FieldWorld::new();
+    world.add_actor(actor(1), [0.0; 3]);
+    let walk = HostEvent::WalkActor {
+        actor: actor(1),
+        destination: [1000, 0],
+    };
+    apply_events(
+        &mut world,
+        &[
+            HostEvent::ResetWalkState { actor: actor(1) },
+            HostEvent::SetAnimationLoopCount {
+                actor: actor(1),
+                count: 1,
+            },
+            walk.clone(),
+        ],
+    );
+    world.advance();
+    let state = &world.actors[&actor(1)];
+    assert_eq!(state.position[0], world.walk_speed);
+    assert!(state.movement.is_none(), "one frame, then the walk ends");
+    assert_eq!(state.walk_loops, 0);
+
+    apply_events(
+        &mut world,
+        &[HostEvent::ResetWalkState { actor: actor(1) }, walk],
+    );
+    for _ in 0..3 {
+        world.advance();
+    }
+    let state = &world.actors[&actor(1)];
+    assert_eq!(state.position[0], world.walk_speed * 4.0);
+    assert!(state.movement.is_some(), "255 walks until arrival");
+}
+
+#[test]
+fn field_2204_walks_keep_their_overshoot_in_whole_units() {
+    // `MoveToward_mixed_ex` snaps an arriving walk except in field 2204, where the step
+    // is `GetMoveVector`'s whole-unit vector and turns by at most `omega` (11.25 degrees).
+    use tantalus_legacy::HostEvent;
+    let mut world = FieldWorld::new();
+    world.field_map_no = 2204;
+    world.add_actor(actor(1), [480.0, 0.0, 210.0]);
+    // Facing east (192), the way the walk goes.
+    world.actors.get_mut(&actor(1)).unwrap().facing = 192;
+    apply_events(
+        &mut world,
+        &[
+            HostEvent::SetMovementSpeed {
+                actor: actor(1),
+                speed: 4,
+            },
+            HostEvent::WalkActor {
+                actor: actor(1),
+                destination: [482, 210],
+            },
+        ],
+    );
+    world.advance();
+    let state = &world.actors[&actor(1)];
+    assert_eq!(state.position, [484.0, 0.0, 210.0], "no snap back to 482");
+    assert!(state.movement.is_none());
+
+    // Elsewhere the same walk lands on its target.
+    world.field_map_no = 2203;
+    world.actors.get_mut(&actor(1)).unwrap().position = [480.0, 0.0, 210.0];
+    apply_events(
+        &mut world,
+        &[HostEvent::WalkActor {
+            actor: actor(1),
+            destination: [482, 210],
+        }],
+    );
+    world.advance();
+    assert_eq!(world.actors[&actor(1)].position, [482.0, 0.0, 210.0]);
+}

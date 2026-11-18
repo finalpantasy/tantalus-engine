@@ -5034,17 +5034,27 @@ fn angle2(
     offset: u32,
     opcode: u32,
 ) -> Result<i32, VmError> {
+    angle_asm(delta_x, delta_z, |table_offset| {
+        host.read_atan_entry(table_offset)
+            .map(i32::from)
+            .map_err(|error| VmError::host(error, offset, opcode))
+    })
+}
+
+/// `EBin.angleAsm` (EBin.cs:1480) on the 256-step facing scale: the direction of
+/// (`delta_x`, `delta_z`) from the `ratan_tbl` atan table, which `entry` reads at a
+/// byte offset. A zero delta is angle 0.
+pub fn angle_asm<E>(
+    delta_x: i32,
+    delta_z: i32,
+    mut entry: impl FnMut(i32) -> Result<i32, E>,
+) -> Result<i32, E> {
     if delta_x == 0 && delta_z == 0 {
         return Ok(0);
     }
     let scaled_z = delta_z.wrapping_shl(10);
     let scaled_x = delta_x.wrapping_shl(10);
     let delta = delta_x.wrapping_sub(delta_z);
-    let mut entry = |table_offset| {
-        host.read_atan_entry(table_offset)
-            .map(i32::from)
-            .map_err(|error| VmError::host(error, offset, opcode))
-    };
     let fixed = if delta_z >= 0 {
         if delta_x >= 0 {
             if delta >= 0 {

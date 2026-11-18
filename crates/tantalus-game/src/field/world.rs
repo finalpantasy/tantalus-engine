@@ -102,6 +102,14 @@ pub struct ActorState {
     /// `AMODE` repeat count (`loopCount`); 0 loops forever.
     #[serde(default)]
     pub anim_loops: u8,
+    /// `Actor.loopCount` as the walk reads it (`MoveToward_mixed_ex`): a walk ends once
+    /// a frame leaves it at 0, and 255 walks until arrival. `CLRDIST` sets 255, `MOVT`
+    /// sets its count, and each walk frame takes one off any other value. The reference
+    /// shares the byte with `AMODE` and the animation loop, and starts an actor at 0;
+    /// here only `MOVT` and `CLRDIST` write it and it starts at 255, which keeps every
+    /// other walk synchronous as before.
+    #[serde(default = "full_out_frame")]
+    pub walk_loops: u8,
     /// A held animation has ended: nothing advances until the next `ANIM` (`afFreeze`).
     #[serde(default)]
     pub anim_frozen: bool,
@@ -466,6 +474,7 @@ impl ActorState {
             anim_hold: false,
             anim_loop: false,
             anim_loops: 0,
+            walk_loops: u8::MAX,
             anim_frozen: false,
             act_jump: false,
             anim_span: 0,
@@ -1672,7 +1681,19 @@ impl FieldWorld {
             .as_ref()
             .and_then(|mesh| crate::navigation::FieldNavigation::new(mesh).ok());
         let player = self.player;
+        // `MoveToward_mixed_ex` snaps an arriving walk onto its target except in field 2204
+        // (the frog Cid chase, which waits for Cid's x to read 485 while he hops to 484)
+        // and in 2209 at scenario 9850. There the walk below follows the reference step
+        // for step; elsewhere it keeps the older straight-line walk.
+        let keeps_step = self.field_map_no == 2204
+            || (self.field_map_no == 2209
+                && self
+                    .global_memory
+                    .get(0, tantalus_legacy::VariableType::UInt16)
+                    == Some(9850));
+        let atan_table = self.atan_table.as_deref();
         for (id, state) in self.actors.iter_mut() {
+            let walked = state.movement.is_some();
             if let Some(movement) = &state.movement {
                 let [dx, dz] = [
                     movement.destination[0] - state.position[0],
@@ -1681,7 +1702,40 @@ impl FieldWorld {
                 let distance = f32::sqrt(dx * dx + dz * dz);
                 // `MoveToward_mixed_ex` moves `Actor.speed` units a frame (30 by default).
                 let walk_speed = self.walk_speed * f32::from(state.move_speed) / 30.0;
-                if distance <= walk_speed || distance == 0.0 {
+                if keeps_step {
+                    // `MoveToward_mixed_ex` as the reference runs it: the actor turns toward
+                    // the target (`angleAsm`, 0 when on it) by at most `omega` (16, 11.25
+                    // degrees) and steps `speed` along its facing as `GetMoveVector`'s
+                    // whole-unit vector; a target closer than one step ends the walk where
+                    // the step lands.
+                    let target = match atan_table {
+                        Some(table) => tantalus_legacy::angle_asm(dx as i32, dz as i32, |at| {
+                            let at = usize::try_from(at).map_err(|_| ())?;
+                            let entry = table.get(at..at + 2).ok_or(())?;
+                            Ok::<_, ()>(i32::from(u16::from_le_bytes([entry[0], entry[1]])))
+                        })
+                        .map_or(0.0, |angle| angle as f32),
+                        None if dx == 0.0 && dz == 0.0 => 0.0,
+                        None => facing_toward(dx, dz) as f32,
+                    } * 360.0
+                        / 256.0;
+                    let facing = f32::from(state.facing) * 360.0 / 256.0;
+                    let turn = (target - facing + 180.0).rem_euclid(360.0) - 180.0;
+                    // A walk that keeps its facing (flag 1) moves straight at the target.
+                    let angle = if movement.keep_facing {
+                        target.to_radians()
+                    } else {
+                        let angle = (facing + turn.clamp(-11.25, 11.25)).to_radians();
+                        state.facing =
+                            ((angle.to_degrees() * 256.0 / 360.0).round()).rem_euclid(256.0) as i16;
+                        angle
+                    };
+                    state.position[0] += (-angle.sin() * walk_speed).round();
+                    state.position[2] += (-angle.cos() * walk_speed).round();
+                    if distance < walk_speed {
+                        state.movement = None;
+                    }
+                } else if distance <= walk_speed || distance == 0.0 {
                     state.position[0] = movement.destination[0];
                     state.position[2] = movement.destination[1];
                     state.movement = None;
@@ -1743,6 +1797,16 @@ impl FieldWorld {
                     {
                         state.facing = facing_toward(dx, dz);
                     }
+                }
+            }
+            // `loopCount`: each walk frame takes one off a count other than 0 and 255, and
+            // the walk ends on a frame that leaves it at 0 (`syncMove = loopCount != 0`).
+            if walked {
+                if !matches!(state.walk_loops, 0 | u8::MAX) {
+                    state.walk_loops -= 1;
+                }
+                if state.walk_loops == 0 {
+                    state.movement = None;
                 }
             }
             if let Some(turn) = &mut state.turn {
