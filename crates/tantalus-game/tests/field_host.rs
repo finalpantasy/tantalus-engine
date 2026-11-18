@@ -1000,3 +1000,132 @@ fn field_2204_walks_keep_their_overshoot_in_whole_units() {
     world.advance();
     assert_eq!(world.actors[&actor(1)].position, [482.0, 0.0, 210.0]);
 }
+
+/// The six walkmesh triangles of map 2204 (`EVT_SUNA_SP_RFG_0`) that frog Cid hops
+/// across from his start (193, -171) to the key at (484, 210), as absolute x/z corners.
+const FROG_CID_FLOOR: [[[i32; 2]; 3]; 6] = [
+    [[72, -274], [355, -300], [278, -22]],
+    [[565, -163], [278, -22], [355, -300]],
+    [[565, -163], [445, 67], [278, -22]],
+    [[278, -22], [445, 67], [154, 243]],
+    [[154, 243], [445, 67], [419, 299]],
+    [[419, 299], [445, 67], [552, 200]],
+];
+
+fn frog_cid_mesh() -> tantalus_contracts::FieldNavigationMesh {
+    use tantalus_contracts::{NavigationTriangle, Point3};
+    let mut vertices = Vec::new();
+    let mut triangles = Vec::new();
+    for corners in FROG_CID_FLOOR {
+        let base = vertices.len() as u32;
+        vertices.extend(corners.map(|[x, z]| Point3 { x, y: 0, z }));
+        triangles.push(NavigationTriangle {
+            vertices: [base, base + 1, base + 2],
+            floor: 0,
+            offset: Point3 { x: 0, y: 0, z: 0 },
+        });
+    }
+    tantalus_contracts::FieldNavigationMesh {
+        vertices,
+        triangles,
+        active_floor: 0,
+        active_triangle: 0,
+        actor_anchor: tantalus_contracts::Point3 { x: 0, y: 0, z: 0 },
+    }
+}
+
+#[test]
+fn walkmesh_rebuild_keeps_the_reference_float_error() {
+    // `UpdateActiveTri` rebuilds the position from `CalculateBarycentricRatioXZ` in
+    // single precision: (197, -165), frog Cid's first hop, comes back one ulp off.
+    let mesh = frog_cid_mesh();
+    let navigation = tantalus_game::navigation::FieldNavigation::new(&mesh).unwrap();
+    let rebuilt = navigation.rebuild_on_triangle(197.0, 0.0, -165.0).unwrap();
+    assert_eq!(rebuilt, [197.0, -164.999_98]);
+    assert_eq!(rebuilt[1].to_bits(), 0xc324_ffff, "one ulp above -165");
+    assert!(
+        navigation
+            .rebuild_on_triangle(1000.0, 0.0, 1000.0)
+            .is_none()
+    );
+}
+
+#[test]
+fn field_2204_pathing_actors_are_rebuilt_on_the_walkmesh() {
+    let mut world = FieldWorld::new();
+    world.provide_navigation(frog_cid_mesh());
+    world.add_actor(actor(1), [197.0, 0.0, -165.0]);
+    {
+        let state = world.actors.get_mut(&actor(1)).unwrap();
+        state.path_active = true;
+        state.look.model = Some(425);
+    }
+    world.field_map_no = 2203;
+    world.advance();
+    assert_eq!(
+        world.actors[&actor(1)].position[2],
+        -165.0,
+        "other fields keep it"
+    );
+    world.field_map_no = 2204;
+    world.advance();
+    assert_eq!(world.actors[&actor(1)].position[2], -164.999_98);
+}
+
+#[test]
+fn frog_cid_lands_on_the_key_x_through_the_float_error() {
+    // Map 2204 ends the chase when Cid's x reads 485 while every hop aims at (484, 210).
+    // On whole units he circles the key forever; the walkmesh float error lets him land.
+    // Needs the reference `ratan_tbl` (game data, local only); skipped without it.
+    use tantalus_legacy::HostEvent;
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../local/probe/ratan_tbl.bin"
+    );
+    let Ok(table) = std::fs::read(path) else {
+        eprintln!("skipped: no {path}");
+        return;
+    };
+    let chase = |mesh: Option<tantalus_contracts::FieldNavigationMesh>| {
+        let mut world = FieldWorld::new();
+        world.field_map_no = 2204;
+        world.provide_atan_table(table.clone());
+        if let Some(mesh) = mesh {
+            world.provide_navigation(mesh);
+        }
+        world.add_actor(actor(1), [193.0, 0.0, -171.0]);
+        {
+            let state = world.actors.get_mut(&actor(1)).unwrap();
+            state.path_active = true;
+            state.look.model = Some(425);
+            state.facing = 151;
+        }
+        for hop in 0..400 {
+            apply_events(
+                &mut world,
+                &[
+                    HostEvent::SetMovementSpeed {
+                        actor: actor(1),
+                        speed: 4,
+                    },
+                    HostEvent::ResetWalkState { actor: actor(1) },
+                    HostEvent::SetAnimationLoopCount {
+                        actor: actor(1),
+                        count: 1,
+                    },
+                    HostEvent::WalkActor {
+                        actor: actor(1),
+                        destination: [484, 210],
+                    },
+                ],
+            );
+            world.advance();
+            if world.actors[&actor(1)].position[0].round() == 485.0 {
+                return Some(hop);
+            }
+        }
+        None
+    };
+    assert_eq!(chase(None), None, "whole units never read 485");
+    assert_eq!(chase(Some(frog_cid_mesh())), Some(243));
+}

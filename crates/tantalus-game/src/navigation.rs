@@ -296,6 +296,55 @@ impl<'a> FieldNavigation<'a> {
         }
     }
 
+    /// `FieldMapActorController.UpdateActiveTri`, which runs every frame for a
+    /// pathing actor: the position is rebuilt from its barycentric ratios on the
+    /// triangle under it (`Math3D.CalculateBarycentricRatioXZ`, the three
+    /// sub-areas as cross-product magnitudes over the whole area), in single
+    /// precision. The rebuilt x and z come back a few ulps off the whole
+    /// units a scripted step lands on. That matters where a script reads
+    /// `angleAsm` of the remaining distance, which truncates it to whole
+    /// units: map 2204's frog Cid circles the key on exact whole units, and
+    /// only these float errors let him land on the x the script waits for.
+    /// The triangle is the one `GetActiveTriIdxAtPos` finds
+    /// (`Math3D.PointInsideTriangleTest` with its large border), nearest in
+    /// height when several hold the point. `None` off the mesh (the
+    /// reference then puts the actor back where the frame started).
+    pub fn rebuild_on_triangle(&self, x: f32, height: f32, z: f32) -> Option<[f32; 2]> {
+        let mut best: Option<(f32, [[f32; 2]; 3])> = None;
+        for triangle in &self.mesh.triangles {
+            let corners = triangle
+                .vertices
+                .map(|index| navigation_vertex(self.mesh, index, triangle.offset));
+            let flat = corners.map(|corner| [corner.x as f32, corner.z as f32]);
+            if !point_inside_triangle_xz([x, z], flat) {
+                continue;
+            }
+            let center = corners.iter().map(|corner| corner.y as f32).sum::<f32>() / 3.0;
+            let distance = (height - center).abs();
+            if best.is_none_or(|(d, _)| distance < d) {
+                best = Some((distance, flat));
+            }
+        }
+        let [a, b, c] = best?.1;
+        // `Vector3.Cross(u, w).magnitude` with both y set to 0: only the y
+        // component, `u.z * w.x - u.x * w.z`, is left.
+        let area = |u: [f32; 2], w: [f32; 2]| (u[1] * w[0] - u[0] * w[1]).abs();
+        let sub = |p: [f32; 2], q: [f32; 2]| [p[0] - q[0], p[1] - q[1]];
+        let whole = area(sub(a, b), sub(a, c));
+        if whole == 0.0 {
+            return None;
+        }
+        let point = [x, z];
+        let (pa, pb, pc) = (sub(a, point), sub(b, point), sub(c, point));
+        let ratios = [
+            area(pb, pc) / whole,
+            area(pc, pa) / whole,
+            area(pa, pb) / whole,
+        ];
+        let axis = |k: usize| a[k] * ratios[0] + b[k] * ratios[1] + c[k] * ratios[2];
+        Some([axis(0), axis(1)])
+    }
+
     fn snap_inside(&self, point: Point3) -> Option<NavigationProjection> {
         let mut best: Option<(i128, usize, Point3)> = None;
         for (index, triangle) in self.mesh.triangles.iter().enumerate() {
@@ -472,4 +521,18 @@ fn navigation_vertex(mesh: &FieldNavigationMesh, index: u32, offset: Point3) -> 
         y: -(vertex.y + offset.y),
         z: vertex.z + offset.z,
     }
+}
+
+/// `Math3D.PointInsideTriangleTest` on x and z with `largeBorder`, in single precision.
+fn point_inside_triangle_xz(point: [f32; 2], [a, b, c]: [[f32; 2]; 3]) -> bool {
+    let dot = |u: [f32; 2], w: [f32; 2]| u[0] * w[0] + u[1] * w[1];
+    let ac = [c[0] - a[0], c[1] - a[1]];
+    let ab = [b[0] - a[0], b[1] - a[1]];
+    let ap = [point[0] - a[0], point[1] - a[1]];
+    let (ac_sqr, ac_ab, ac_ap) = (dot(ac, ac), dot(ac, ab), dot(ac, ap));
+    let (ab_sqr, ab_ap) = (dot(ab, ab), dot(ab, ap));
+    let d = 1.0 / (ac_sqr * ab_sqr - ac_ab * ac_ab);
+    let bary_ab = (ab_sqr * ac_ap - ac_ab * ab_ap) * d;
+    let bary_ac = (ac_sqr * ab_ap - ac_ab * ac_ap) * d;
+    bary_ab >= 0.0 && bary_ac >= 0.0 && bary_ab + bary_ac <= 1.000_001
 }

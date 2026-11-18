@@ -1809,6 +1809,23 @@ impl FieldWorld {
                     state.movement = None;
                 }
             }
+            // `FieldMapActorController.UpdateMovement` ends every frame of a pathing actor
+            // with `UpdateActiveTri`, which rebuilds its position from the triangle in
+            // single precision. Kept to the reference-step fields above: the frog Cid
+            // chase in 2204 ends only through the float error it leaves.
+            if keeps_step
+                && state.path_active
+                && state.look.model.is_some()
+                && let Some(navigation) = &walk_mesh
+                && let Some([x, z]) = navigation.rebuild_on_triangle(
+                    state.position[0],
+                    state.position[1],
+                    state.position[2],
+                )
+            {
+                state.position[0] = x;
+                state.position[2] = z;
+            }
             if let Some(turn) = &mut state.turn {
                 turn.remaining_ticks = turn.remaining_ticks.saturating_sub(1);
                 if turn.remaining_ticks == 0 {
