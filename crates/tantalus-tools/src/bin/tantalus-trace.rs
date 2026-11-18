@@ -151,7 +151,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     // unless the field has its own entry.
                     let part = part.trim();
                     let (maps, part): (Vec<u16>, &str) = match part.strip_prefix("*:") {
-                        Some(rest) => ((0..2000).collect(), rest),
+                        Some(rest) => ((0..4000).collect(), rest),
                         None => (Vec::new(), part),
                     };
                     let part = &if maps.is_empty() {
