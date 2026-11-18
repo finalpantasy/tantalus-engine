@@ -1659,26 +1659,39 @@ impl FieldWorld {
                     state.position[2] = movement.destination[1];
                     state.movement = None;
                 } else {
+                    let from = Point3 {
+                        x: state.position[0].round() as i32,
+                        y: state.position[1] as i32,
+                        z: state.position[2].round() as i32,
+                    };
                     state.position[0] += dx / distance * walk_speed;
                     state.position[2] += dz / distance * walk_speed;
                     if state.path_active
-                        && Some(*id) != player
+                        && (Some(*id) != player || state.placed_unchecked)
                         && state.look.model.is_some()
                         && let Some(navigation) = &walk_mesh
                     {
                         {
                             // `UpdateActiveTri`/`ServiceChar`: a pathing actor
-                            // takes the triangle height each step and a step
-                            // off the mesh is clamped back onto it; a clamped
-                            // walk that stops closing on its target ends. The
-                            // player is left to the host's input clamp.
+                            // takes the triangle height each step, crossing
+                            // only linked triangle edges, and a step through
+                            // an unlinked edge is clamped back; a clamped
+                            // walk that stops closing on its target ends.
+                            // The player follows it in a scripted walk from
+                            // a script-set height (`POS3`, then
+                            // `SetPathing(1)`: map 1823's Garnet walks the
+                            // spiral ramp to the gallery, where three NPCs
+                            // wait for her height to pass 1400). A player
+                            // placed by `POS` still holds the 32768 default
+                            // here, which the hosts read as any floor; its
+                            // user-control steps are the host's input clamp.
                             let before = distance;
                             let point = Point3 {
                                 x: state.position[0].round() as i32,
                                 y: state.position[1] as i32,
                                 z: state.position[2].round() as i32,
                             };
-                            if let Some(near) = navigation.nearest_on_walkmesh(point) {
+                            if let Some(near) = navigation.step_along(from, point) {
                                 if near.position.x != point.x || near.position.z != point.z {
                                     state.position[0] = near.position.x as f32;
                                     state.position[2] = near.position.z as f32;

@@ -1,9 +1,15 @@
+use std::cell::OnceCell;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use tantalus_contracts::{FieldNavigationMesh, Point3};
 
 pub struct FieldNavigation<'a> {
     mesh: &'a FieldNavigationMesh,
+    /// Per triangle, the triangle across each edge (v0-v1, v1-v2, v2-v0):
+    /// the one with an edge on the same two world points, as the BGI
+    /// `neighborNdx` links do. Built on first use.
+    neighbors: OnceCell<Vec<[Option<usize>; 3]>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,7 +50,165 @@ impl<'a> FieldNavigation<'a> {
                 }
             }
         }
-        Ok(Self { mesh })
+        Ok(Self {
+            mesh,
+            neighbors: OnceCell::new(),
+        })
+    }
+
+    fn corners(&self, index: usize) -> [Point3; 3] {
+        let triangle = &self.mesh.triangles[index];
+        triangle
+            .vertices
+            .map(|vertex| navigation_vertex(self.mesh, vertex, triangle.offset))
+    }
+
+    fn neighbors(&self) -> &[[Option<usize>; 3]] {
+        self.neighbors.get_or_init(|| {
+            let key = |a: Point3, b: Point3| {
+                let a = (a.x, a.y, a.z);
+                let b = (b.x, b.y, b.z);
+                if a <= b { (a, b) } else { (b, a) }
+            };
+            let mut by_edge: HashMap<_, Vec<usize>> = HashMap::new();
+            for index in 0..self.mesh.triangles.len() {
+                let [a, b, c] = self.corners(index);
+                for (p, q) in [(a, b), (b, c), (c, a)] {
+                    by_edge.entry(key(p, q)).or_default().push(index);
+                }
+            }
+            (0..self.mesh.triangles.len())
+                .map(|index| {
+                    let [a, b, c] = self.corners(index);
+                    [(a, b), (b, c), (c, a)].map(|(p, q)| {
+                        by_edge[&key(p, q)]
+                            .iter()
+                            .copied()
+                            .find(|other| *other != index)
+                    })
+                })
+                .collect()
+        })
+    }
+
+    /// One step of a pathing actor from `from` (where it stands) to `to`,
+    /// as `FieldMapActorController.ServiceChar` does it: from the triangle
+    /// under `from` (nearest in height) the step crosses edges into the
+    /// linked triangle (`WalkMesh.BGI_traverseTriangles`), so it stays on
+    /// the floor it walks and only changes floors where triangles link (a
+    /// ramp, stairs), never by dropping to another floor that shares the
+    /// x/z (map 1823's spiral ramp over the lower hall). A step that
+    /// leaves through an unlinked edge stops at the nearest point of the
+    /// last triangle, so the walk slides along the wall. With `from` on no
+    /// triangle, [`Self::nearest_on_walkmesh`] of `to`.
+    pub fn step_along(&self, from: Point3, to: Point3) -> Option<NavigationProjection> {
+        let Some(start) = self.snap_inside(from) else {
+            return self.nearest_on_walkmesh(to);
+        };
+        let nearest = self.nearest_on_walkmesh(to)?;
+        if self.linked_within(start.triangle_index, nearest.triangle_index, 3) {
+            return Some(nearest);
+        }
+        Some(self.traverse(from, start.triangle_index, to))
+    }
+
+    /// Whether `to` is `from` or a triangle at most `depth` linked edges
+    /// away (`FindAdjacentTrianglesRecursively`'s three levels).
+    fn linked_within(&self, from: usize, to: usize, depth: usize) -> bool {
+        let neighbors = self.neighbors();
+        let mut frontier = vec![from];
+        let mut seen = vec![from];
+        for _ in 0..=depth {
+            if frontier.contains(&to) {
+                return true;
+            }
+            let next: Vec<usize> = frontier
+                .iter()
+                .flat_map(|index| neighbors[*index].iter().flatten().copied())
+                .filter(|index| !seen.contains(index))
+                .collect();
+            seen.extend(&next);
+            frontier = next;
+        }
+        false
+    }
+
+    fn traverse(&self, from: Point3, start: usize, to: Point3) -> NavigationProjection {
+        let mut current = start;
+        let mut previous = None;
+        for _ in 0..self.mesh.triangles.len() {
+            let [a, b, c] = self.corners(current);
+            if let Some(position) = project_inside(a, b, c, to) {
+                return NavigationProjection {
+                    position,
+                    triangle_index: current,
+                };
+            }
+            let area = orient(a, b, c);
+            let mut exit: Option<(f64, usize)> = None;
+            for (edge, (p, q)) in [(a, b), (b, c), (c, a)].into_iter().enumerate() {
+                let side = orient(p, q, to);
+                if !(area > 0 && side < 0 || area < 0 && side > 0) {
+                    continue;
+                }
+                if let Some(along) = segment_crossing(from, to, p, q)
+                    && exit.is_none_or(|(best, _)| along > best)
+                {
+                    exit = Some((along, edge));
+                }
+            }
+            let next = exit
+                .and_then(|(_, edge)| self.neighbors()[current][edge])
+                .filter(|next| Some(*next) != previous);
+            match next {
+                Some(next) => {
+                    previous = Some(current);
+                    current = next;
+                }
+                None => break,
+            }
+        }
+        self.clamp_to_triangle(current, to)
+    }
+
+    /// The point of triangle `index` nearest `point` in XZ, stepped toward
+    /// the triangle's center until the triangle holds it.
+    fn clamp_to_triangle(&self, index: usize, point: Point3) -> NavigationProjection {
+        let [a, b, c] = self.corners(index);
+        let center = Point3 {
+            x: ((a.x as i128 + b.x as i128 + c.x as i128) / 3) as i32,
+            y: ((a.y as i128 + b.y as i128 + c.y as i128) / 3) as i32,
+            z: ((a.z as i128 + b.z as i128 + c.z as i128) / 3) as i32,
+        };
+        let edge = [(a, b), (b, c), (c, a)]
+            .into_iter()
+            .filter_map(|(p, q)| nearest_on_edge(p, q, point))
+            .min_by_key(|candidate| {
+                let dx = candidate.x as i128 - point.x as i128;
+                let dz = candidate.z as i128 - point.z as i128;
+                dx * dx + dz * dz
+            })
+            .unwrap_or(center);
+        for step in 0..=16i64 {
+            let lerp = |from: i32, to: i32| {
+                (i64::from(from) + (i64::from(to) - i64::from(from)) * step / 64) as i32
+            };
+            let candidate = Point3 {
+                x: lerp(edge.x, center.x),
+                y: edge.y,
+                z: lerp(edge.z, center.z),
+            };
+            if let Some(position) = project_inside(a, b, c, candidate) {
+                return NavigationProjection {
+                    position,
+                    triangle_index: index,
+                };
+            }
+        }
+        NavigationProjection {
+            position: center,
+            triangle_index: index,
+        }
     }
 
     pub fn project(&self, point: Point3) -> Result<NavigationProjection, NavigationError> {
@@ -264,6 +428,22 @@ fn project_inside(a: Point3, b: Point3, c: Point3, point: Point3) -> Option<Poin
         y: height as i32,
         z: point.z,
     })
+}
+
+/// Where the segment `from`-`to` crosses the segment `p`-`q` in XZ, as the
+/// fraction along `from`-`to`; `None` when they do not cross.
+fn segment_crossing(from: Point3, to: Point3, p: Point3, q: Point3) -> Option<f64> {
+    let delta = |a: i32, b: i32| f64::from(b) - f64::from(a);
+    let (rx, rz) = (delta(from.x, to.x), delta(from.z, to.z));
+    let (sx, sz) = (delta(p.x, q.x), delta(p.z, q.z));
+    let denominator = rx * sz - rz * sx;
+    if denominator == 0.0 {
+        return None;
+    }
+    let (qx, qz) = (delta(from.x, p.x), delta(from.z, p.z));
+    let along = (qx * sz - qz * sx) / denominator;
+    let on_edge = (qx * rz - qz * rx) / denominator;
+    (-1e-9..=1.0 + 1e-9).contains(&on_edge).then_some(along)
 }
 
 fn nearest_on_edge(a: Point3, b: Point3, point: Point3) -> Option<Point3> {

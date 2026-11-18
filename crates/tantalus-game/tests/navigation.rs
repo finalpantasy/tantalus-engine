@@ -118,3 +118,67 @@ fn snapping_takes_the_triangle_nearest_in_height_or_the_default_center() {
     assert_eq!(off.triangle_index, 0);
     assert_eq!((off.position.x, off.position.z), (13, 6));
 }
+
+/// A hall floor (world height 0, z 0..200) under a gallery (height 200,
+/// x 0..50, z 0..100) whose x = 50 edge links to a ramp down to height 100
+/// at x = 100, the shape of map 1823's spiral ramp over the hall.
+fn gallery_over_hall() -> FieldNavigationMesh {
+    let triangle = |vertices: [u32; 3], floor| NavigationTriangle {
+        vertices,
+        floor,
+        offset: Point3::default(),
+    };
+    FieldNavigationMesh {
+        vertices: vec![
+            point(0, 0, 0),
+            point(100, 0, 0),
+            point(100, 0, 200),
+            point(0, 0, 200),
+            point(0, -200, 0),
+            point(50, -200, 0),
+            point(50, -200, 100),
+            point(0, -200, 100),
+            point(100, -100, 0),
+            point(100, -100, 100),
+        ],
+        triangles: vec![
+            triangle([0, 1, 2], 0),
+            triangle([0, 2, 3], 0),
+            triangle([4, 5, 6], 1),
+            triangle([4, 6, 7], 1),
+            triangle([5, 8, 9], 2),
+            triangle([5, 9, 6], 2),
+        ],
+        active_floor: 0,
+        active_triangle: 0,
+        actor_anchor: point(0, 0, 0),
+    }
+}
+
+#[test]
+fn a_step_crosses_linked_edges_and_never_drops_to_a_floor_below() {
+    let mesh = gallery_over_hall();
+    let navigation = FieldNavigation::new(&mesh).unwrap();
+    // Off the gallery's unlinked z = 100 edge, over the hall only: the step
+    // stops on the gallery edge at its height (`BGI_traverseTriangles`
+    // finds no neighbor), where the any-floor clamp drops to the hall.
+    let blocked = navigation
+        .step_along(point(25, 200, 90), point(25, 200, 150))
+        .unwrap();
+    assert!(blocked.triangle_index == 2 || blocked.triangle_index == 3);
+    assert_eq!(blocked.position.y, 200);
+    assert!((98..=100).contains(&blocked.position.z), "{blocked:?}");
+    let dropped = navigation.nearest_on_walkmesh(point(25, 200, 150)).unwrap();
+    assert_eq!(dropped.position.y, 0);
+    // Across the linked x = 50 edge: onto the ramp, not the hall below.
+    let ramp = navigation
+        .step_along(point(40, 200, 50), point(75, 200, 50))
+        .unwrap();
+    assert!(ramp.triangle_index >= 4, "{ramp:?}");
+    assert_eq!(ramp.position, point(75, 150, 50));
+    // Inside the start triangle: the point at the triangle's height.
+    let inside = navigation
+        .step_along(point(10, 200, 50), point(20, 0, 60))
+        .unwrap();
+    assert_eq!(inside.position, point(20, 200, 60));
+}
