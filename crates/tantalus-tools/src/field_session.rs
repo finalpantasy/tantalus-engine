@@ -702,8 +702,25 @@ pub fn world_exit(
         *world = script.world().clone();
         return Ok(Some(field));
     }
-    WorldExit::load(bundle, name)?.run(location, world)
+    match WorldExit::load(bundle, name) {
+        Ok(exit) => exit.run(location, world),
+        // A world map with no place switch is a scripted flight
+        // (`EVT_WORLD_WORLD04`, the Hilda Garde to Oeilvert): its main loop
+        // changes the field by itself after a timer, so run it on.
+        Err(error) => {
+            for _ in 0..FLIGHT_TICKS {
+                if let Some(field) = script.tick(0)? {
+                    *world = script.world().clone();
+                    return Ok(Some(field));
+                }
+            }
+            Err(error)
+        }
+    }
 }
+
+/// Ticks a scripted world-map flight may run before its field change.
+const FLIGHT_TICKS: u32 = 3000;
 
 /// The world script's place-to-field switch, ready to run for any place.
 pub struct WorldExit {
