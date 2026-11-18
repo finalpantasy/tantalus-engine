@@ -39,7 +39,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--level N] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP,...] [--wall-regions MAP,...] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--stub-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP[@ANGLE],...] [--wall-regions MAP,...] [--play-card-games] [--win-card-games] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--stub-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -69,6 +69,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut retalk: BTreeSet<(i32, usize)> = BTreeSet::new();
     let mut ate: BTreeMap<i32, u32> = BTreeMap::new();
     let mut region_talks: BTreeSet<i32> = BTreeSet::new();
+    let mut region_faces: BTreeMap<i32, i16> = BTreeMap::new();
     let mut wall_regions: BTreeSet<i32> = BTreeSet::new();
     let mut hold: BTreeMap<i32, i32> = BTreeMap::new();
     let mut press_when: Vec<PressWhen> = Vec::new();
@@ -86,6 +87,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut heal_after_battle = false;
     let mut live_objects = true;
     let mut win_battles: BTreeSet<i32> = BTreeSet::new();
+    let mut win_card_games = false;
+    let mut play_card_games = false;
     let mut fight_battle: Option<i32> = None;
     let mut fight_party: Vec<i32> = vec![0];
     let mut fight_level: usize = 1;
@@ -207,14 +210,22 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 }
             }
             // Fields where the explorer also walks into regions that have a
-            // tag 3 and presses Confirm there (`CheckQuadInput`).
+            // tag 3 and presses Confirm there (`CheckQuadInput`). `MAP@ANGLE`
+            // also turns the player to ANGLE (member 3, 0 south, 64 west, 128
+            // north, 192 east) for the press, for a talk region that tests the
+            // facing (the Lindblum castle lift switch, 2151 entry 3: 154 to 248).
             "--region-talks" => {
                 for part in value()?.split(',') {
-                    region_talks.insert(
-                        part.trim()
-                            .parse()
-                            .map_err(|_| format!("bad --region-talks entry `{part}`, want MAP"))?,
-                    );
+                    let bad = || format!("bad --region-talks entry `{part}`, want MAP[@ANGLE]");
+                    let (map, angle) = match part.trim().split_once('@') {
+                        Some((map, angle)) => (map, Some(angle)),
+                        None => (part.trim(), None),
+                    };
+                    let map: i32 = map.parse().map_err(|_| bad())?;
+                    region_talks.insert(map);
+                    if let Some(angle) = angle {
+                        region_faces.insert(map, angle.parse().map_err(|_| bad())?);
+                    }
                 }
             }
             // Fields where a region that is not an exit and keeps taking
@@ -314,6 +325,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 }
             }
             "--heal-after-battle" => heal_after_battle = true,
+            "--win-card-games" => win_card_games = true,
+            "--play-card-games" => play_card_games = true,
             "--live-objects" => live_objects = true,
             "--stub-objects" => live_objects = false,
             "--talk-grace" => talk_grace = parse_number(&value()?, "--talk-grace")?,
@@ -641,6 +654,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     retalk,
                     ate,
                     region_talks,
+                    region_faces,
                     wall_regions,
                     hold,
                     press_when,
@@ -658,6 +672,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     heal_after_battle,
                     live_objects,
                     win_battles,
+                    win_card_games,
+                    play_card_games,
                     backgrounds,
                     waypoints,
                     save_at,
@@ -1198,6 +1214,8 @@ struct ChainOptions {
     retalk: BTreeSet<(i32, usize)>,
     ate: BTreeMap<i32, u32>,
     region_talks: BTreeSet<i32>,
+    /// The facing `--region-talks MAP@ANGLE` gives the player for a region talk.
+    region_faces: BTreeMap<i32, i16>,
     wall_regions: BTreeSet<i32>,
     /// Pad bits held for a whole field, by field map (`KeyState(Held)`
     /// polls such as map 115's ladder climb, which reads up = 16).
@@ -1236,6 +1254,20 @@ struct ChainOptions {
     /// Battle numbers the probe counts as won without fighting (`--win-battles`), for fights
     /// the stand-in battle engine cannot win yet.
     win_battles: BTreeSet<i32>,
+    /// Route aid, off by default: count every Tetra Master game a script
+    /// starts (`MINIGAME`) as won (`--win-card-games`) without playing it.
+    /// Only `GetTetraMasterResult` (system variable 18, 0 for a win) is set;
+    /// the collection and the record stay as they were. Treno's tournament
+    /// (field 1903, scenario 7600 to 7750) needs wins. With
+    /// `--play-card-games` the game is played first and only its result is
+    /// overridden.
+    win_card_games: bool,
+    /// Off by default: play every Tetra Master game a script starts through
+    /// `CardGame` with the probe's look-ahead player
+    /// (`tantalus_tools::card_auto`, `--play-card-games`); the collection,
+    /// the record and the result change as after a real game. Without it a
+    /// started game is dropped and the result stays a loss.
+    play_card_games: bool,
     /// `EventEngineUtils.eventIDToFBGID`: field map number to background
     /// name, whose `<name>.bgi` walkmesh backs `BGI` triangle queries.
     backgrounds: BTreeMap<i32, String>,
@@ -1334,6 +1366,7 @@ fn chain(
         retalk,
         ate,
         region_talks,
+        region_faces,
         wall_regions,
         hold,
         press_when,
@@ -1351,6 +1384,8 @@ fn chain(
         heal_after_battle,
         live_objects,
         win_battles,
+        win_card_games,
+        play_card_games,
         backgrounds,
         waypoints,
         save_at,
@@ -1494,6 +1529,17 @@ fn chain(
         loaded.copy_providers_from(&world);
         world = loaded;
     }
+    if win_card_games {
+        world.last_card_result = 0;
+    }
+    let card_tables = if play_card_games {
+        let dir = game_data
+            .as_ref()
+            .ok_or("--play-card-games needs --game-data")?;
+        Some(tantalus_tools::card_play::load_tables(dir)?)
+    } else {
+        None
+    };
     let mut start = start;
     if let Some((path, slot)) = &load_save {
         let bytes = std::fs::read(path)
@@ -1719,6 +1765,9 @@ fn chain(
             .collect();
         let mut floors_tried: BTreeMap<usize, Vec<f32>> = BTreeMap::new();
         let mut exit_runs: BTreeMap<usize, (u32, usize)> = BTreeMap::new();
+        // The player's height at each region's last trigger: a refusal is
+        // known at the next trigger, and belongs to the floor of the one before.
+        let mut trigger_floors: BTreeMap<usize, f32> = BTreeMap::new();
         let mut waypoint_index = 0usize;
         let mut waypoint_dwell = 0u64;
         let mut last_talk_press: Option<u64> = None;
@@ -1847,6 +1896,27 @@ fn chain(
             match director.step() {
                 Ok(step) => {
                     ticks_run += 1;
+                    if let Some(opponent) = (play_card_games || win_card_games)
+                        .then(|| director.world_mut().pending_card_game.take())
+                        .flatten()
+                    {
+                        if let Some(tables) = &card_tables {
+                            let world = director.world_mut();
+                            if let Some(mut game) =
+                                tantalus_game::cards::CardGame::start(world, tables, opponent)
+                            {
+                                tantalus_tools::card_auto::play_out(&mut game);
+                                game.finish(world);
+                            }
+                            eprintln!(
+                                "card game {opponent} at tick {ticks_run}: result {}",
+                                world.last_card_result
+                            );
+                        }
+                        if win_card_games {
+                            director.world_mut().last_card_result = 0;
+                        }
+                    }
                     operations += step.operations;
                     scheduler.start_created(&mut director, &pool, &step)?;
                     encounters += step.encounters.len();
@@ -1986,6 +2056,13 @@ fn chain(
                                 })
                             {
                                 director.remove_entry(entity);
+                            }
+                            if let Some(angle) = region_faces.get(&map)
+                                && region_hits.contains(trigger)
+                                && let Some(actor) = director.world().control_actor
+                                && let Some(state) = director.world_mut().actors.get_mut(&actor)
+                            {
+                                state.facing = *angle;
                             }
                             if register(&mut director, &pool, entry, Some(3))?.is_some() {
                                 talk_busy = true;
@@ -2420,7 +2497,43 @@ fn chain(
                                     exit_runs.entry(entry).or_insert((0, control_changes.len()));
                                 if control_changes.len() > *seen {
                                     *refusals += 1;
+                                    // An exit that refuses from this floor and
+                                    // has another floor under it is a floor
+                                    // test (1807 at 8340: region 21 leaves
+                                    // for 1806 only from the gallery above
+                                    // -100 and pushes a player below back
+                                    // into the hall): look for the region
+                                    // on another floor, as for an exit that
+                                    // led away.
+                                    let refused = trigger_floors.get(&entry).copied();
+                                    let floors = bad_floors.entry((map, entry)).or_default();
+                                    let other_floor = exits.contains_key(&entry)
+                                        && refused.is_some_and(|refused| {
+                                            floors
+                                                .iter()
+                                                .all(|floor| (floor - refused).abs() >= 100.0)
+                                        })
+                                        && director
+                                            .world()
+                                            .regions
+                                            .get(&EntityId::new(entry as u64))
+                                            .and_then(|region| {
+                                                floor_point_in_region(
+                                                    director.world().navigation(),
+                                                    region,
+                                                    &|height: &f32| {
+                                                        refused.is_some_and(|refused| {
+                                                            (height - refused).abs() >= 100.0
+                                                        })
+                                                    },
+                                                )
+                                            })
+                                            .is_some();
+                                    if let (true, Some(refused)) = (other_floor, refused) {
+                                        floors.push(refused);
+                                    }
                                 }
+                                trigger_floors.insert(entry, position[1]);
                                 *seen = control_changes.len();
                                 // A region that is not an exit and keeps taking
                                 // control (the 613 castle guard at scenario 3118)
@@ -2447,11 +2560,36 @@ fn chain(
                                         tried.iter().all(|old| (old - height).abs() > 100.0)
                                     })
                                     .min_by(|a, b| a.total_cmp(b));
+                                // No other floor right here, but one elsewhere
+                                // in the region (1807 at 8600: region 20 leaves
+                                // for 1806 only from the gallery above -100,
+                                // which does not reach the region's centre):
+                                // walk there as for an exit that led away.
+                                let elsewhere = untried.is_none()
+                                    && exits.contains_key(&entry)
+                                    && director
+                                        .world()
+                                        .regions
+                                        .get(&EntityId::new(entry as u64))
+                                        .and_then(|region| {
+                                            floor_point_in_region(mesh, region, &|height: &f32| {
+                                                tried.iter().all(|old| (old - height).abs() > 100.0)
+                                            })
+                                        })
+                                        .is_some();
+                                if elsewhere {
+                                    bad_floors
+                                        .entry((map, entry))
+                                        .or_default()
+                                        .extend(tried.iter().copied());
+                                    *dwell = 0;
+                                }
                                 match (untried, director.world_mut().actors.get_mut(&actor)) {
                                     (Some(height), Some(state)) if exits.contains_key(&entry) => {
                                         state.position[1] = height;
                                         *dwell = 0;
                                     }
+                                    _ if elsewhere => {}
                                     _ => {
                                         triggered.insert(entry);
                                     }

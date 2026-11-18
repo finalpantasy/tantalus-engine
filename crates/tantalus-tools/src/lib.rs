@@ -9,6 +9,7 @@ pub mod battle_run;
 pub mod battle_scene_rewards;
 pub mod battle_sound;
 pub mod battle_stage;
+pub mod card_auto;
 pub mod card_play;
 pub mod chocograph_menu;
 pub mod field_animation_cli;
