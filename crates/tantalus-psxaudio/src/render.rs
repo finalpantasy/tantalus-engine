@@ -42,10 +42,23 @@ pub fn render_song(seq: &Sequence, bank: &SampleBank) -> Rendered {
 
 /// [`render_song`] with its own length cap in seconds (sound effects use a short one).
 pub fn render_capped(seq: &Sequence, bank: &SampleBank, max_seconds: u64) -> Rendered {
+    render_looping(seq, bank, max_seconds, max_seconds)
+}
+
+/// [`render_capped`], except that a program still playing at `max_seconds` may run on to
+/// `looped_max_seconds` for its loop to close (field ambience loops voices of different periods,
+/// 12 seconds for program 643 and 40 for program 112, so their loops close late).
+pub fn render_looping(
+    seq: &Sequence,
+    bank: &SampleBank,
+    max_seconds: u64,
+    looped_max_seconds: u64,
+) -> Rendered {
     let mut player = Player::new(seq, bank);
     let mut out: Vec<f32> = Vec::new();
     let chunk = (SAMPLE_RATE / 20) as usize;
     let max_frames = max_seconds * u64::from(SAMPLE_RATE);
+    let looped_max_frames = looped_max_seconds.max(max_seconds) * u64::from(SAMPLE_RATE);
     let mut loop_plan: Option<(u64, u64)> = None;
     let mut quiet_frames = 0usize;
     loop {
@@ -67,7 +80,8 @@ pub fn render_capped(seq: &Sequence, bank: &SampleBank, max_seconds: u64) -> Ren
                 break;
             }
         }
-        if player.frames >= max_frames {
+        if player.frames >= max_frames && (player.frames >= looped_max_frames || player.all_done())
+        {
             break;
         }
         if player.all_done() {
@@ -258,5 +272,73 @@ mod tests {
         let (start, end) = r.loop_frames.expect("the song loops");
         assert!(start < end && (end as usize) < r.frames());
         assert!(r.peak > 0.01 && r.peak < 1.0, "peak {}", r.peak);
+    }
+
+    /// A sound-effect program that loops the way field ambience does (`0xC8` loop start, a note,
+    /// `0xCA` back to it forever) renders with loop points instead of running to the cap.
+    #[test]
+    fn a_program_looping_forever_gets_loop_points() {
+        let (_, bank) = tiny_song();
+        let code = vec![
+            0xFE,
+            0x00,
+            0x00,
+            0x40, // tempo 0x4000
+            0xA1,
+            0x00,
+            0xA5,
+            0x04,
+            0xA3,
+            0x7F,
+            0xA8,
+            0x7F, //
+            0xC8, // loop start
+            0x00, // note
+            0x0D * 11 + 4,
+            0xCA, // back to the loop start, forever
+        ];
+        let seq = Sequence {
+            id: 0,
+            reverb_type: 0,
+            sample_set: 0,
+            data: code,
+            channels: vec![0],
+            instrument_map: None,
+            drum_map: None,
+        };
+        let r = render_capped(&seq, &bank, 10);
+        let (start, end) = r.loop_frames.expect("the program loops");
+        assert!(start < end && (end as usize) < r.frames());
+        assert!(r.seconds() < 9.0, "{} s", r.seconds());
+    }
+
+    /// A tie straight after a note (the note's gate runs out on the tick the tie is read) holds
+    /// the voice; a rest there lets it go.
+    #[test]
+    fn a_tie_holds_the_note_through_its_gate() {
+        let (_, bank) = tiny_song();
+        let active_at = |after: u8| {
+            let code = vec![
+                0xFE, 0x00, 0x00, 0x40, // tempo: 60 ticks per second
+                0xA1, 0x00, 0xA5, 0x04, 0xA3, 0x7F, 0xA8, 0x7F, //
+                0x02, // note, 48 ticks
+                after, 0xA0,
+            ];
+            let seq = Sequence {
+                id: 0,
+                reverb_type: 0,
+                sample_set: 0,
+                data: code,
+                channels: vec![0],
+                instrument_map: None,
+                drum_map: None,
+            };
+            let mut player = Player::new(&seq, &bank);
+            let mut out = Vec::new();
+            player.render(SAMPLE_RATE as usize * 6 / 5, &mut out); // 1.2 s = 72 ticks
+            player.spu.any_active()
+        };
+        assert!(active_at(12 * 11 + 2), "tie of 48 ticks");
+        assert!(!active_at(13 * 11 + 2), "rest of 48 ticks");
     }
 }

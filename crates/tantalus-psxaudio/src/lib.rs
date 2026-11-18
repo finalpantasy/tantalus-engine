@@ -12,6 +12,7 @@
 //! collection header and drum/instrument map layouts and the event semantics of version 3.2.
 
 pub mod akao;
+pub mod cluster;
 pub mod disc;
 pub mod img;
 pub mod render;

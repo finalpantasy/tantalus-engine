@@ -114,6 +114,9 @@ struct Channel {
     fixed_len: i32,
     slur: bool,
     full_note: bool,
+    /// The note's gate ran out this tick; the key-off waits until the tick's events have run, so
+    /// a tie or a slurred note due on the same tick holds the voice instead.
+    release_pending: bool,
     tuning: i32,
     vibrato: Lfo,
     tremolo: Lfo,
@@ -129,6 +132,9 @@ struct Channel {
     visited: HashMap<usize, u64>,
     /// `(tick of the jump, tick the target was first reached)` for each infinite-loop jump.
     loops: Vec<(u64, u64)>,
+    /// The same for each `0xCA` (back to the `0xC8` loop start, forever), the way the sound-effect
+    /// programs loop (field ambience such as program 643 on Prima Vista).
+    forever: Vec<(u64, u64)>,
 }
 
 /// What the song used that the renderer does not model, plus loop facts.
@@ -194,6 +200,7 @@ fn chan_new(pc: usize) -> Channel {
         fixed_len: 0,
         slur: false,
         full_note: false,
+        release_pending: false,
         tuning: 0,
         vibrato: Lfo::default(),
         tremolo: Lfo::default(),
@@ -208,6 +215,7 @@ fn chan_new(pc: usize) -> Channel {
         gate: 0,
         visited: HashMap::new(),
         loops: Vec::new(),
+        forever: Vec::new(),
     }
 }
 
@@ -249,7 +257,7 @@ impl<'a> Player<'a> {
         let mut length = 0u64;
         let mut any = false;
         for c in &self.chans {
-            if let Some(&(jump, arrival)) = c.loops.first() {
+            if let Some(&(jump, arrival)) = self.loops_of(c).first() {
                 any = true;
                 start = start.max(arrival);
                 length = length.max(jump.saturating_sub(arrival));
@@ -260,8 +268,20 @@ impl<'a> Player<'a> {
 
     /// True when every channel that is going to loop has done so once.
     pub fn loops_closed(&self) -> bool {
-        self.chans.iter().all(|c| c.done || !c.loops.is_empty())
-            && self.chans.iter().any(|c| !c.loops.is_empty())
+        self.chans
+            .iter()
+            .all(|c| c.done || !self.loops_of(c).is_empty())
+            && self.chans.iter().any(|c| !self.loops_of(c).is_empty())
+    }
+
+    /// A channel's loops: its jumps, or when no channel of the song jumps (a sound-effect
+    /// program), its `0xCA` loops. Music keeps its jump loops only.
+    fn loops_of<'c>(&self, c: &'c Channel) -> &'c [(u64, u64)] {
+        if self.chans.iter().any(|c| !c.loops.is_empty()) {
+            &c.loops
+        } else {
+            &c.forever
+        }
     }
 
     /// Renders `frames` stereo frames (interleaved `f32`, full scale 1.0).
@@ -323,9 +343,7 @@ impl<'a> Player<'a> {
                     c.wait -= 1;
                 }
             }
-            if release {
-                self.key_off_channel(ci);
-            }
+            self.chans[ci].release_pending = release;
             let mut budget = EVENT_BUDGET;
             while !self.chans[ci].done && self.chans[ci].wait == 0 {
                 if budget == 0 {
@@ -335,6 +353,9 @@ impl<'a> Player<'a> {
                 }
                 budget -= 1;
                 self.step_event(ci);
+            }
+            if std::mem::take(&mut self.chans[ci].release_pending) {
+                self.key_off_channel(ci);
             }
             self.update_voice(ci);
         }
@@ -521,6 +542,8 @@ impl<'a> Player<'a> {
 
     fn note_on(&mut self, ci: usize, rel_key: i32, delta: i32) {
         self.stats.notes += 1;
+        // A slurred note takes the voice over; any other note keys the old one off itself.
+        self.chans[ci].release_pending = false;
         let c = &self.chans[ci];
         let key = if c.drum {
             c.octave * 12 + rel_key
@@ -610,10 +633,12 @@ impl<'a> Player<'a> {
                 match key {
                     0..=11 => self.note_on(ci, key, delta),
                     12 => {
-                        // Tie: hold the current note for longer.
+                        // Tie: hold the current note for longer (also when its gate ran out on
+                        // this very tick, as a full-length note before a tie does).
                         let c = &mut self.chans[ci];
-                        if c.gate > 0 {
+                        if c.gate > 0 || c.release_pending {
                             c.gate += delta;
+                            c.release_pending = false;
                         }
                     }
                     _ => {}
@@ -768,9 +793,16 @@ impl<'a> Player<'a> {
                 }
             }
             0xCA => {
+                let tick = self.tick;
                 let c = &mut self.chans[ci];
                 c.loop_count[c.loop_layer] += 1;
                 next = c.loop_pos[c.loop_layer];
+                // Only the first pass is used; a loop with no wait in it comes back every op.
+                if c.forever.is_empty()
+                    && let Some(&arrival) = c.visited.get(&next)
+                {
+                    c.forever.push((tick, arrival));
+                }
             }
             0xCB => {
                 let c = &mut self.chans[ci];
