@@ -54,7 +54,34 @@ pub fn render_looping(
     max_seconds: u64,
     looped_max_seconds: u64,
 ) -> Rendered {
+    render_looping_in(seq, bank, max_seconds, looped_max_seconds, None)
+}
+
+/// The SPU reverb a sound plays under when its own sequence does not choose one: the console's
+/// reverb unit is shared, so a sound effect's reverb sends feed whatever mode and depth the song
+/// playing at the time set (every FF9 song header selects mode 4, Studio Large; the depth is the
+/// song's own `0xFE 0x02`/`0x03` command).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ambience {
+    /// Index into the SDK reverb presets ([`crate::tables::REVERB_PRESETS`]).
+    pub preset: u16,
+    /// Reverb return volume, 0..=0x7FFF.
+    pub depth: i32,
+}
+
+/// [`render_looping`] under `ambience` (`None` keeps the sequence's own reverb setting).
+pub fn render_looping_in(
+    seq: &Sequence,
+    bank: &SampleBank,
+    max_seconds: u64,
+    looped_max_seconds: u64,
+    ambience: Option<Ambience>,
+) -> Rendered {
     let mut player = Player::new(seq, bank);
+    if let Some(a) = ambience {
+        player.spu.set_reverb_preset(usize::from(a.preset));
+        player.spu.set_reverb_depth(a.depth);
+    }
     let mut out: Vec<f32> = Vec::new();
     let chunk = (SAMPLE_RATE / 20) as usize;
     let max_frames = max_seconds * u64::from(SAMPLE_RATE);
@@ -340,5 +367,46 @@ mod tests {
         };
         assert!(active_at(12 * 11 + 2), "tie of 48 ticks");
         assert!(!active_at(13 * 11 + 2), "rest of 48 ticks");
+    }
+
+    /// A one-shot with its reverb send on (`0xC2`) rendered under the field ambience carries a
+    /// reverb tail past the dry render, and stays the same length and level otherwise.
+    #[test]
+    fn an_ambience_adds_the_reverb_tail_to_a_send() {
+        let (_, bank) = tiny_song();
+        let code = vec![
+            0xFE, 0x00, 0x00, 0x40, // tempo: 60 ticks per second
+            0xA1, 0x00, 0xA5, 0x04, 0xA3, 0x7F, 0xA8, 0x7F, //
+            0xC2, // reverb on
+            0x02, // note, 48 ticks
+            0xA0,
+        ];
+        let seq = Sequence {
+            id: 0,
+            reverb_type: 0,
+            sample_set: 0,
+            data: code,
+            channels: vec![0],
+            instrument_map: None,
+            drum_map: None,
+        };
+        let dry = render_looping_in(&seq, &bank, 10, 10, None);
+        let wet = render_looping_in(
+            &seq,
+            &bank,
+            10,
+            10,
+            Some(Ambience {
+                preset: 4,
+                depth: 0x2800,
+            }),
+        );
+        assert_eq!(dry.stats.reverb_notes, 1);
+        assert!(
+            wet.frames() > dry.frames() + SAMPLE_RATE as usize / 10,
+            "dry {} wet {}",
+            dry.frames(),
+            wet.frames()
+        );
     }
 }

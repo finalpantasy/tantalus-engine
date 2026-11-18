@@ -149,6 +149,12 @@ pub struct Stats {
     pub notes: u32,
     /// `(tick, tempo word)` for each tempo command, to compare song lengths.
     pub tempos: Vec<(u64, u16)>,
+    /// Reverb-on commands (`0xC2`) run.
+    pub reverb_ons: u32,
+    /// Notes keyed on with the voice's reverb send on.
+    pub reverb_notes: u32,
+    /// Each reverb depth the sequence set (`0xFE 0x02` and `0xFE 0x03`), in order.
+    pub reverb_depths: Vec<i32>,
 }
 
 /// Loop description in sequencer ticks, from channels that jump back forever.
@@ -591,6 +597,7 @@ impl<'a> Player<'a> {
         let c = &self.chans[ci];
         let adsr = Self::adsr_for(&art, &zone, c.adsr_override);
         let reverb = zone.reverb.unwrap_or(c.reverb);
+        self.stats.reverb_notes += u32::from(reverb);
         let pitch = self.pitch_for(c, &art, c.note_key, i32::from(art.unity_key));
         let (l, r) = self.volumes(c);
         let base = self.bank.spu_dest as usize;
@@ -770,7 +777,10 @@ impl<'a> Player<'a> {
                 self.chans[ci].transpose += i32::from(rd(self, 1) as i8);
                 next += 1;
             }
-            0xC2 => self.chans[ci].reverb = true,
+            0xC2 => {
+                self.chans[ci].reverb = true;
+                self.stats.reverb_ons += 1;
+            }
             0xC3 => self.chans[ci].reverb = false,
             0xC4 | 0xC5 => self.stats.noise_ops += 1,
             0xC6 | 0xC7 => self.stats.fm_ops += 1,
@@ -893,11 +903,13 @@ impl<'a> Player<'a> {
             0x02 => {
                 let d = i32::from(u16::from_le_bytes([a(self, 2), a(self, 3)]));
                 self.spu.set_reverb_depth(d.min(0x7FFF));
+                self.stats.reverb_depths.push(d.min(0x7FFF));
                 next += 2;
             }
             0x03 => {
                 let d = i32::from(u16::from_le_bytes([a(self, 3), a(self, 4)]));
                 self.spu.set_reverb_depth(d.min(0x7FFF));
+                self.stats.reverb_depths.push(d.min(0x7FFF));
                 next += 3;
             }
             0x04 => self.chans[ci].drum = true,

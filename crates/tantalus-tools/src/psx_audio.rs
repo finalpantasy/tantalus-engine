@@ -28,8 +28,12 @@ use tantalus_legacy::sound::PcmClip;
 use tantalus_psxaudio::akao::{SampleBank, Song, read_songs};
 use tantalus_psxaudio::disc::{Disc, find_discs};
 use tantalus_psxaudio::img::Img;
-use tantalus_psxaudio::render::{Rendered, render_capped, render_looping, render_song};
+use tantalus_psxaudio::render::{
+    Ambience, Rendered, render_capped, render_looping_in, render_song,
+};
 use tantalus_psxaudio::sfx::{SfxEntry, read_sfx_entries};
+use tantalus_psxaudio::spu::RAM_SIZE;
+use tantalus_psxaudio::tables::REVERB_PRESETS;
 
 use crate::sound_bank::SoundBank;
 
@@ -79,8 +83,20 @@ pub struct PsxClips {
 }
 
 impl PsxClips {
-    /// Opens a folder written by `psx-audio`; `None` when it has no manifest.
+    /// Opens a folder written by `psx-audio`; `None` when it has no manifest. Renders whose pick
+    /// is the Steam clip (`psx-audio-picks.json`, with a listener's `psx-audio-overrides.json`
+    /// laid over it, see [`crate::psx_judge`]) are left out, so the Steam clip plays for them.
     pub fn open(dir: &Path) -> Option<Self> {
+        let mut clips = Self::open_all(dir)?;
+        let picks = crate::psx_judge::read_picks(dir);
+        clips
+            .by_resource
+            .retain(|r, _| !picks.get(r).is_some_and(|p| p.uses_steam()));
+        Some(clips)
+    }
+
+    /// Every render of the folder, picks ignored.
+    pub fn open_all(dir: &Path) -> Option<Self> {
         let text = std::fs::read_to_string(dir.join(MANIFEST)).ok()?;
         let manifest: Manifest = serde_json::from_str(&text).ok()?;
         Some(Self {
@@ -99,6 +115,11 @@ impl PsxClips {
 
     pub fn is_empty(&self) -> bool {
         self.by_resource.is_empty()
+    }
+
+    /// The manifest entries, by resource.
+    pub fn entries(&self) -> impl Iterator<Item = &ManifestEntry> {
+        self.by_resource.values()
     }
 
     pub fn has(&self, resource: &str) -> bool {
@@ -230,7 +251,12 @@ pub fn encode_ogg(samples: &[f32], path: &Path) -> Result<(), String> {
 }
 
 /// Minimal 16-bit PCM WAV writer for the analysis dump.
-fn write_wav(path: &Path, rate: u32, channels: u16, samples: &[i16]) -> Result<(), String> {
+pub(crate) fn write_wav(
+    path: &Path,
+    rate: u32,
+    channels: u16,
+    samples: &[i16],
+) -> Result<(), String> {
     let data_len = (samples.len() * 2) as u32;
     let mut out = Vec::with_capacity(44 + samples.len() * 2);
     out.extend_from_slice(b"RIFF");
@@ -444,6 +470,10 @@ struct Args {
     /// `render-sfx --families SE00,SE50`: render only these Steam sound families (the rest of the
     /// manifest is kept), so a slow machine can render in parts.
     families: Option<Vec<String>>,
+    /// `sfx-judge --page <dir>`: also write the listening page there.
+    page: Option<PathBuf>,
+    /// `apply-choices --choices <choices.json>`.
+    choices: Option<PathBuf>,
 }
 
 fn parse(args: &[String]) -> Result<Args, String> {
@@ -455,6 +485,8 @@ fn parse(args: &[String]) -> Result<Args, String> {
         ids: None,
         dump: None,
         families: None,
+        page: None,
+        choices: None,
     };
     let mut it = args.iter();
     while let Some(arg) = it.next() {
@@ -464,6 +496,8 @@ fn parse(args: &[String]) -> Result<Args, String> {
             "--out" => a.out = PathBuf::from(value("--out")?),
             "--dump" => a.dump = Some(PathBuf::from(value("--dump")?)),
             "--steam" => a.steam = PathBuf::from(value("--steam")?),
+            "--page" => a.page = Some(PathBuf::from(value("--page")?)),
+            "--choices" => a.choices = Some(PathBuf::from(value("--choices")?)),
             "--families" => {
                 a.families = Some(
                     value("--families")?
@@ -481,11 +515,18 @@ fn parse(args: &[String]) -> Result<Args, String> {
                 )
             }
             "render" | "compare" | "coverage" | "verify" | "sfx-dump" | "sfx-dump-steam"
-            | "render-sfx" | "sfx-coverage" | "sfx-compare" => a.command = arg.clone(),
+            | "render-sfx" | "sfx-coverage" | "sfx-compare" | "sfx-judge" | "apply-choices" => {
+                a.command = arg.clone()
+            }
             other => return Err(format!("unknown argument `{other}`")),
         }
     }
-    if a.disc_dir.as_os_str().is_empty() && !matches!(a.command.as_str(), "sfx-compare") {
+    if a.disc_dir.as_os_str().is_empty()
+        && !matches!(
+            a.command.as_str(),
+            "sfx-compare" | "sfx-judge" | "apply-choices"
+        )
+    {
         return Err("--disc-dir <folder with the four .bin images> is required".to_owned());
     }
     Ok(a)
@@ -501,6 +542,25 @@ pub fn run(args: &[String]) -> Result<(), String> {
     }
     if a.command == "sfx-compare" {
         return sfx_compare(&a);
+    }
+    if a.command == "apply-choices" {
+        let choices = a
+            .choices
+            .as_ref()
+            .ok_or("apply-choices needs --choices <file>")?;
+        return crate::psx_judge::apply_choices(&a.out, choices);
+    }
+    if a.command == "sfx-judge" {
+        let mut steam = SoundBank::open(
+            &a.steam.join("StreamingAssets"),
+            &a.steam.join("x64/FF9_Data"),
+        )?;
+        let rows = crate::psx_judge::judge_all(&a.out, &mut steam, a.page.is_some())?;
+        if let Some(page) = &a.page {
+            let n = crate::psx_judge::write_page(page, &rows, PAGE_SAMPLE)?;
+            println!("wrote {n} rows to {}", page.join("index.html").display());
+        }
+        return Ok(());
     }
     let steam = SoundBank::open(
         &a.steam.join("StreamingAssets"),
@@ -539,6 +599,36 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 .copied()
                 .filter(|id| !steam.metadata.music.contains_key(&(*id as i32)))
                 .collect();
+            // The reverb type each song's header selects (the SPU reverb is global, so the
+            // song playing sets it for the sound effects too).
+            let mut reverb: BTreeMap<u16, Vec<u32>> = BTreeMap::new();
+            for (id, (song, _)) in &discs.songs {
+                reverb
+                    .entry(song.sequence.reverb_type)
+                    .or_default()
+                    .push(*id);
+            }
+            for (kind, ids) in &reverb {
+                println!("reverb type {kind}: {} songs {ids:?}", ids.len());
+            }
+            // And the depth each song sets in its first seconds (`0xFE 0x02`/`0x03`).
+            let mut depths: BTreeMap<String, Vec<u32>> = BTreeMap::new();
+            for (id, (song, bank)) in &discs.songs {
+                let r = render_capped(&song.sequence, bank, 4);
+                let key = format!(
+                    "{:?}, reverb notes {}",
+                    r.stats.reverb_depths.first(),
+                    if r.stats.reverb_notes > 0 {
+                        "yes"
+                    } else {
+                        "no"
+                    }
+                );
+                depths.entry(key).or_default().push(*id);
+            }
+            for (key, ids) in &depths {
+                println!("first reverb depth {key}: {} songs {ids:?}", ids.len());
+            }
             println!(
                 "steam music ids {}, covered by a disc song {}, missing {:?}, disc songs with no steam id {:?}",
                 steam.metadata.music.len(),
@@ -658,10 +748,79 @@ fn render_all(a: &Args, steam: &SoundBank, discs: &DiscSongs) -> Result<(), Stri
     Ok(())
 }
 
+/// The manifest kind of a program's source.
+fn source_kind(source: SoundSource) -> &'static str {
+    match source {
+        SoundSource::Effect(_) => "sfx",
+        SoundSource::Field(_) => "sfx-field",
+        SoundSource::Resident(_) => "sfx-resident",
+    }
+}
+
+/// The SPU reverb the field and the battle sound effects play under, `(field, battle)`.
+///
+/// The console has one reverb unit, which the song playing sets: every FF9 song header selects
+/// reverb mode 4 (the SDK's Studio Large preset), and each song sets its return depth with
+/// `0xFE 0x02`/`0x03` in its first bars. A sound effect's voices with the reverb send on feed
+/// that unit, so a render takes the mode and depth of the songs of its context. The battle songs
+/// are those `BtlEncountBgmMetaData.txt` and `WldBtlEncountBgmMetaData.txt` name
+/// (`FF9SndMetaData.cs:12`), weighted by how many battles play each; the battle depth is the
+/// most-played battle song's. The field depth is the median over the other songs (a sound id is
+/// one clip for every field, so it cannot follow each field's own song). `None` leaves the
+/// context dry: no song of it sets a depth.
+fn context_reverb(
+    a: &Args,
+    steam: &SoundBank,
+) -> Result<(Option<Ambience>, Option<Ambience>), String> {
+    let discs = read_discs(&a.disc_dir)?;
+    let mut battle_plays: BTreeMap<u32, usize> = BTreeMap::new();
+    for table in [&steam.field_battle_songs, &steam.world_battle_songs] {
+        for row in table.values() {
+            for song in row.values() {
+                if let Ok(song) = u32::try_from(*song) {
+                    *battle_plays.entry(song).or_default() += 1;
+                }
+            }
+        }
+    }
+    let first_depth = |id: u32| -> Option<(u16, i32)> {
+        let (song, bank) = discs.songs.get(&id)?;
+        let r = render_capped(&song.sequence, bank, 4);
+        Some((song.sequence.reverb_type, *r.stats.reverb_depths.first()?))
+    };
+    let battle = battle_plays
+        .iter()
+        .filter_map(|(id, n)| first_depth(*id).map(|d| (*n, *id, d)))
+        .max_by_key(|(n, id, _)| (*n, std::cmp::Reverse(*id)));
+    let mut field: Vec<(u16, i32)> = discs
+        .songs
+        .keys()
+        .filter(|id| !battle_plays.contains_key(id))
+        .filter_map(|id| first_depth(*id))
+        .collect();
+    field.sort_by_key(|(_, d)| *d);
+    let field = field.get(field.len() / 2).copied();
+    let to_amb = |(preset, depth): (u16, i32)| Ambience { preset, depth };
+    match battle {
+        Some((n, id, (p, d))) => println!(
+            "battle reverb: mode {p} depth {d:#06x} from song {id} ({n} battles; {} battle songs)",
+            battle_plays.len()
+        ),
+        None => println!("battle reverb: none found, battle sounds stay dry"),
+    }
+    match field {
+        Some((p, d)) => {
+            println!("field reverb: mode {p} depth {d:#06x} (median of the field songs)")
+        }
+        None => println!("field reverb: none found, field sounds stay dry"),
+    }
+    Ok((field.map(to_amb), battle.map(|(_, _, d)| to_amb(d))))
+}
+
 /// Objective checks of a rendered folder: sample rate, length against the manifest, clipping, and
 /// how far the loop seam jumps compared with the music's own sample-to-sample motion.
 fn verify(dir: &Path) -> Result<(), String> {
-    let clips = PsxClips::open(dir).ok_or("no psx-audio.json in the folder")?;
+    let clips = PsxClips::open_all(dir).ok_or("no psx-audio.json in the folder")?;
     let mut bad = 0;
     let mut worst_seam = 0f32;
     for (resource, entry) in &clips.by_resource {
@@ -1081,6 +1240,7 @@ fn render_sfx(a: &Args) -> Result<(), String> {
         print_coverage(&total, "programs mapped");
         return Ok(());
     }
+    let (field_reverb, battle_reverb) = context_reverb(a, &steam)?;
     let dir = a.out.join("sfx");
     std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let mut manifest = Manifest {
@@ -1088,6 +1248,8 @@ fn render_sfx(a: &Args) -> Result<(), String> {
         entries: Vec::new(),
     };
     let (mut silent, mut capped, mut overlapping, mut steam_loops) = (0, 0, 0, 0);
+    let mut dry_overlap = 0;
+    let mut with_reverb: BTreeMap<&str, usize> = BTreeMap::new();
     let wanted = |resource: &str| {
         a.families.as_ref().is_none_or(|f| {
             f.iter()
@@ -1102,12 +1264,31 @@ fn render_sfx(a: &Args) -> Result<(), String> {
             continue;
         };
         overlapping += usize::from(overlap);
-        let mut rendered = render_looping(
+        // Effects and the battle's resident sounds play in battle, under the battle song's
+        // reverb; field programs (menu sounds included) under the field songs'.
+        let mut ambience = match source {
+            SoundSource::Effect(_) | SoundSource::Resident(_) => battle_reverb,
+            SoundSource::Field(_) => field_reverb,
+        };
+        // The reverb work area sits at the top of SPU memory; samples loaded there would be
+        // overwritten by it, so such a program stays dry.
+        if let Some(amb) = ambience {
+            let area = REVERB_PRESETS[usize::from(amb.preset).min(REVERB_PRESETS.len() - 1)].0;
+            if bank.spu_dest as usize + bank.adpcm.len() > RAM_SIZE - area as usize {
+                ambience = None;
+                dry_overlap += 1;
+            }
+        }
+        let mut rendered = render_looping_in(
             &entry.sequence_all(),
             &bank,
             SFX_CAP_SECONDS,
             SFX_LOOPED_CAP_SECONDS,
+            ambience,
         );
+        if rendered.stats.reverb_notes > 0 {
+            *with_reverb.entry(source_kind(*source)).or_default() += 1;
+        }
         if rendered.peak < 1.0e-4 {
             silent += 1;
             continue;
@@ -1138,11 +1319,7 @@ fn render_sfx(a: &Args) -> Result<(), String> {
         }
         let name = format!("sfx/{}.ogg", basename(resource));
         encode_ogg(&rendered.samples, &a.out.join(&name))?;
-        let kind = match source {
-            SoundSource::Effect(_) => "sfx",
-            SoundSource::Field(_) => "sfx-field",
-            SoundSource::Resident(_) => "sfx-resident",
-        };
+        let kind = source_kind(*source);
         manifest.entries.push(ManifestEntry {
             kind: kind.to_owned(),
             resource: resource.clone(),
@@ -1158,6 +1335,9 @@ fn render_sfx(a: &Args) -> Result<(), String> {
     }
     println!(
         "silent renders left out {silent}, one-shot renders of a looping Steam clip left out {steam_loops}, renders cut at the Steam clip length {capped}, collections overlapping in SPU memory {overlapping}"
+    );
+    println!(
+        "renders with reverb sends, by kind {with_reverb:?}; left dry because the samples reach the reverb work area {dry_overlap}"
     );
     let path = a.out.join(MANIFEST);
     if let Ok(text) = std::fs::read_to_string(&path)
@@ -1188,6 +1368,7 @@ fn render_sfx(a: &Args) -> Result<(), String> {
         manifest.entries.len(),
         a.out.display()
     );
+    crate::psx_judge::judge_all(&a.out, &mut steam, false)?;
     Ok(())
 }
 
@@ -1229,6 +1410,9 @@ const RESIDENT_BANK: u16 = 0;
 /// Longest a program whose voices all loop may run to close its loop, in seconds.
 const SFX_LOOPED_CAP_SECONDS: u64 = 150;
 
+/// Sample rows of each decided kind on the listening page.
+const PAGE_SAMPLE: usize = 20;
+
 /// Longest effect sound rendered, in seconds.
 const SFX_CAP_SECONDS: u64 = 10;
 
@@ -1241,7 +1425,7 @@ fn sfx_compare(a: &Args) -> Result<(), String> {
         &a.steam.join("StreamingAssets"),
         &a.steam.join("x64/FF9_Data"),
     )?;
-    let clips = PsxClips::open(&a.out).ok_or("no psx-audio.json in the output folder")?;
+    let clips = PsxClips::open_all(&a.out).ok_or("no psx-audio.json in the output folder")?;
     // kind -> rows of (PS1 seconds, Steam seconds, PS1 profile, Steam profile)
     type Row = (f64, f64, Vec<f32>, Vec<f32>);
     let mut by_kind: BTreeMap<String, Vec<Row>> = BTreeMap::new();
@@ -1329,7 +1513,7 @@ fn sounding_seconds(x: &[f32], rate: u32, fraction: f32) -> f64 {
 }
 
 /// The clip's channels averaged, as floats.
-fn mono(clip: &PcmClip) -> Vec<f32> {
+pub(crate) fn mono(clip: &PcmClip) -> Vec<f32> {
     let ch = usize::from(clip.channels.max(1));
     clip.samples
         .chunks(ch)
@@ -1341,7 +1525,7 @@ fn mono(clip: &PcmClip) -> Vec<f32> {
 const BANDS: usize = 20;
 
 /// Average power per log-spaced band (dB) over the first 4 seconds, from 1024-point frames.
-fn band_profile(x: &[f32], rate: u32) -> Vec<f32> {
+pub(crate) fn band_profile(x: &[f32], rate: u32) -> Vec<f32> {
     const N: usize = 1024;
     let mut power = [0f64; BANDS];
     let limit = x.len().min(rate as usize * 4);
@@ -1373,7 +1557,7 @@ fn band_profile(x: &[f32], rate: u32) -> Vec<f32> {
 }
 
 /// In-place radix-2 FFT (`re.len()` a power of two).
-fn fft(re: &mut [f64], im: &mut [f64]) {
+pub(crate) fn fft(re: &mut [f64], im: &mut [f64]) {
     let n = re.len();
     let mut j = 0;
     for i in 1..n {
@@ -1407,7 +1591,7 @@ fn fft(re: &mut [f64], im: &mut [f64]) {
 }
 
 /// Pearson correlation of two equal-length profiles.
-fn pearson(a: &[f32], b: &[f32]) -> f64 {
+pub(crate) fn pearson(a: &[f32], b: &[f32]) -> f64 {
     let n = a.len().min(b.len()) as f64;
     let (ma, mb) = (
         a.iter().map(|v| f64::from(*v)).sum::<f64>() / n,
