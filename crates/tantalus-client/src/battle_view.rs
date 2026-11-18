@@ -1075,7 +1075,7 @@ impl BattleScene {
                 .collect()
         };
         running
-            .camera_at(stage, tick, &offsets)
+            .camera_at(stage, tick, &offsets, Some(&assets.effects))
             .unwrap_or(self.camera)
     }
 

@@ -649,16 +649,22 @@ impl BattleSounds {
         id: i32,
         item: bool,
         lead: u32,
+        effect_in: Option<u32>,
     ) -> bool {
         let Some((sounds, hit)) = effects.and_then(|effects| effects.plugin_play(id, item)) else {
             return false;
         };
-        // The view starts the effect `hit` frames before the HP change, which the machine puts
-        // at `CAST_LEAD` + `hit` ticks (and no sooner than `MIN_EFFECT_TICKS`).
-        // The caster's own lead (`lead`) moves both by its difference from the default lead,
-        // as `BattleMachine` moves the HP change.
-        let start = CAST_LEAD.max(MIN_EFFECT_TICKS.saturating_sub(hit));
-        let start = (i64::from(start) + i64::from(lead) - i64::from(CAST_LEAD)).max(0) as u32;
+        // The view starts the effect `hit` frames before the HP change. The machine schedules
+        // that when the command starts (`effect_in`, `Battle::effect_delay`); a stage without
+        // it puts the HP change at `CAST_LEAD` + `hit` ticks (and no sooner than
+        // `MIN_EFFECT_TICKS`), moved by the caster's own lead (`lead`) less the default.
+        let start = match effect_in {
+            Some(ticks) => ticks.saturating_sub(hit),
+            None => {
+                let start = CAST_LEAD.max(MIN_EFFECT_TICKS.saturating_sub(hit));
+                (i64::from(start) + i64::from(lead) - i64::from(CAST_LEAD)).max(0) as u32
+            }
+        };
         for (frame, sound) in sounds {
             self.add(
                 start + frame,
@@ -707,9 +713,16 @@ impl BattleSounds {
                 cmd_no,
                 sub_no,
                 ref targets,
+                effect_in,
                 ..
             } if cmd_no == ITEM_COMMAND => {
-                if self.schedule_plugin(effects, sub_no, true, lead_of(unit, true, targets)) {
+                if self.schedule_plugin(
+                    effects,
+                    sub_no,
+                    true,
+                    lead_of(unit, true, targets),
+                    effect_in,
+                ) {
                     return;
                 }
                 for (before, resource) in effects.into_iter().flat_map(|e| e.for_item(sub_no)) {
@@ -729,10 +742,17 @@ impl BattleSounds {
                 unit,
                 sub_no,
                 ref targets,
+                effect_in,
                 ..
             } => {
                 self.attacking.retain(|&attacker| attacker != unit);
-                if self.schedule_plugin(effects, sub_no, false, lead_of(unit, false, targets)) {
+                if self.schedule_plugin(
+                    effects,
+                    sub_no,
+                    false,
+                    lead_of(unit, false, targets),
+                    effect_in,
+                ) {
                     return;
                 }
                 for (before, resource) in effects.into_iter().flat_map(|e| e.for_ability(sub_no)) {
@@ -931,6 +951,7 @@ mod tests {
             sub_no: ATTACK_ABILITY,
             targets: vec![1],
             short_summon: false,
+            effect_in: None,
         };
         let hit = StageEvent::Effect {
             caster: 0,

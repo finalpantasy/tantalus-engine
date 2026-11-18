@@ -192,37 +192,34 @@ struct Running {
 /// The newest command of `unit` started by `seconds`.
 fn last_command(stage: &BattleStage, unit: usize, seconds: f64) -> Option<Running> {
     let last = ((seconds.max(0.0) * BATTLE_TICKS_PER_SECOND) as usize + 1).min(stage.frames.len());
-    let (index, cmd_no, sub_no, target) =
-        stage.frames[..last]
-            .iter()
-            .enumerate()
-            .rev()
-            .find_map(|(index, frame)| {
-                frame.events.iter().find_map(|event| match event {
-                    StageEvent::Command {
-                        unit: who,
-                        cmd_no,
-                        sub_no,
-                        targets,
-                        ..
-                    } if *who == unit => Some((index, *cmd_no, *sub_no, targets.first().copied())),
-                    _ => None,
-                })
-            })?;
-    let effect = stage.frames[index..]
+    let (index, cmd_no, sub_no, target, effect_in) = stage.frames[..last]
         .iter()
         .enumerate()
-        .find_map(|(offset, frame)| {
-            frame
-                .events
-                .iter()
-                .any(|event| matches!(event, StageEvent::Effect { caster, .. } if *caster == unit))
-                .then_some(index + offset)
-        })
-        .map_or(
-            seconds_of(index) + EFFECT_TICKS / BATTLE_TICKS_PER_SECOND,
-            seconds_of,
-        );
+        .rev()
+        .find_map(|(index, frame)| {
+            frame.events.iter().find_map(|event| match event {
+                StageEvent::Command {
+                    unit: who,
+                    cmd_no,
+                    sub_no,
+                    targets,
+                    effect_in,
+                    ..
+                } if *who == unit => Some((
+                    index,
+                    *cmd_no,
+                    *sub_no,
+                    targets.first().copied(),
+                    *effect_in,
+                )),
+                _ => None,
+            })
+        })?;
+    // The effect tick the machine scheduled at the start until the HP
+    // change is recorded, so a live command's clips do not jump.
+    let effect = seconds_of(crate::battle_effects::effect_applied(
+        stage, index, unit, effect_in,
+    ));
     Some(Running {
         start: seconds_of(index),
         effect,
@@ -734,6 +731,7 @@ mod tests {
                     sub_no: 176,
                     targets: vec![1],
                     short_summon: false,
+                    effect_in: None,
                 });
             }
             if tick == 55 {

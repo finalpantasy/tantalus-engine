@@ -55,6 +55,8 @@ pub struct CameraDirector {
     effect_starts: Vec<usize>,
     /// The effects whose own cameras play ([`Self::effect_plays`]).
     own_camera: std::collections::HashSet<i32>,
+    /// Party commands (unit, stage tick) whose effect is scheduled.
+    scheduled: std::collections::HashSet<(usize, usize)>,
     /// Tick the playing effect camera's effect ends.
     effect_end: Option<usize>,
     /// The unit whose command holds the camera.
@@ -118,43 +120,7 @@ impl CameraDirector {
         let mut script = CameraScript::new(block, stage.battle as u32);
         script.context.camera_no = if stage.camera < 3 { stage.camera } else { 0 };
         script.start_plunge(0);
-        let mut effect_plays = Vec::new();
-        let mut effect_starts = Vec::new();
-        let mut own_camera = std::collections::HashSet::new();
-        if let Some(library) = library {
-            for effect in crate::battle_effects::stage_effects(stage) {
-                // Enemy attacks keep the scene's attack cameras, and an
-                // effect the plugin does not play keeps the stand-in.
-                if effect.caster >= party {
-                    continue;
-                }
-                // An effect without cameras (a short one with
-                // `UseCamera=False`) leaves the camera as it is.
-                if !library.cameras(effect.id).plays.is_empty() {
-                    own_camera.insert(effect.id);
-                }
-                let start = effect.start.round() as usize;
-                effect_starts.push(start);
-                // Battle Camera: Fixed turns an effect's cameras off unless
-                // its header forces them (`RecomputeGate323268`).
-                let cameras = library.cameras(effect.id);
-                if stage.fixed_camera && !cameras.forced {
-                    continue;
-                }
-                for play in cameras.plays.iter() {
-                    effect_plays.push((
-                        start + play.frame as usize,
-                        effect.caster,
-                        effect.targets.first().copied(),
-                        play.choices.clone(),
-                        start + effect.timing.length as usize,
-                    ));
-                }
-            }
-            effect_plays.sort_by_key(|play| play.0);
-            effect_starts.sort_unstable();
-        }
-        Some(Self {
+        let mut director = Some(Self {
             script,
             world,
             ticks: 0,
@@ -162,14 +128,77 @@ impl CameraDirector {
             pending: Vec::new(),
             alternate: None,
             reaction: None,
-            effect_plays,
-            effect_starts,
-            own_camera,
+            effect_plays: Vec::new(),
+            effect_starts: Vec::new(),
+            own_camera: std::collections::HashSet::new(),
+            scheduled: std::collections::HashSet::new(),
             effect_end: None,
             busy: None,
             victory: false,
             party,
-        })
+        });
+        if let Some(director) = director.as_mut() {
+            for (tick, frame) in stage.frames.iter().enumerate() {
+                for event in &frame.events {
+                    director.schedule(stage, tick, event, library);
+                }
+            }
+        }
+        director
+    }
+
+    /// Schedules the effect cameras of the party `Command` `event` at stage
+    /// tick `tick`, once. The effect's start is known when the command
+    /// starts (`StageEvent::Command::effect_in`), so a live battle plays
+    /// them on time as a replay does.
+    fn schedule(
+        &mut self,
+        stage: &BattleStage,
+        tick: usize,
+        event: &StageEvent,
+        library: Option<&crate::battle_effects::EffectLibrary>,
+    ) {
+        let Some(library) = library else {
+            return;
+        };
+        let StageEvent::Command { unit, .. } = event else {
+            return;
+        };
+        // Enemy attacks keep the scene's attack cameras, and an effect the
+        // plugin does not play keeps the stand-in.
+        if *unit >= self.party || !self.scheduled.insert((*unit, tick)) {
+            return;
+        }
+        let Some(effect) = crate::battle_effects::command_effect(stage, tick, event) else {
+            return;
+        };
+        // An effect without cameras (a short one with `UseCamera=False`)
+        // leaves the camera as it is.
+        let cameras = library.cameras(effect.id);
+        if !cameras.plays.is_empty() {
+            self.own_camera.insert(effect.id);
+        }
+        let start = effect.start.round() as usize;
+        let at = self.effect_starts.partition_point(|&other| other <= start);
+        self.effect_starts.insert(at, start);
+        // Battle Camera: Fixed turns an effect's cameras off unless its
+        // header forces them (`RecomputeGate323268`).
+        if stage.fixed_camera && !cameras.forced {
+            return;
+        }
+        for play in cameras.plays.iter() {
+            let entry = (
+                start + play.frame as usize,
+                effect.caster,
+                effect.targets.first().copied(),
+                play.choices.clone(),
+                start + effect.timing.length as usize,
+            );
+            let at = self
+                .effect_plays
+                .partition_point(|other| other.0 <= entry.0);
+            self.effect_plays.insert(at, entry);
+        }
     }
 
     /// The camera shown at stage frame `tick` (`None` until the script
@@ -182,6 +211,7 @@ impl CameraDirector {
         stage: &BattleStage,
         tick: usize,
         poses: &dyn Fn(usize) -> Vec<([f32; 3], Option<f32>)>,
+        library: Option<&crate::battle_effects::EffectLibrary>,
     ) -> Option<BattleCamera> {
         let last = stage.frames.len();
         while self.ticks <= tick && self.ticks < last.max(1) {
@@ -196,7 +226,7 @@ impl CameraDirector {
                 ];
                 actor.yaw = yaw(facing.unwrap_or(unit.turn));
             }
-            self.step(stage, self.ticks);
+            self.step(stage, self.ticks, library);
             self.ticks += 1;
         }
         self.camera.map(|camera| unity_camera(&camera))
@@ -207,7 +237,19 @@ impl CameraDirector {
         self.ticks
     }
 
-    fn step(&mut self, stage: &BattleStage, tick: usize) {
+    fn step(
+        &mut self,
+        stage: &BattleStage,
+        tick: usize,
+        library: Option<&crate::battle_effects::EffectLibrary>,
+    ) {
+        // A command recorded since the director was made (a live battle):
+        // its effect cameras, before anything of this tick runs.
+        if let Some(frame) = stage.frames.get(tick) {
+            for event in &frame.events {
+                self.schedule(stage, tick, event, library);
+            }
+        }
         let mut due = Vec::new();
         self.pending.retain(|entry| {
             if entry.0 <= tick {
@@ -268,11 +310,12 @@ impl CameraDirector {
                         sub_no,
                         targets,
                         short_summon,
+                        effect_in,
                     } => self.command(
                         stage,
                         tick,
                         *unit,
-                        (*cmd_no, *sub_no, *short_summon),
+                        (*cmd_no, *sub_no, *short_summon, *effect_in),
                         targets,
                     ),
                     // `SeqExecRunCamera` 0x12 when
@@ -315,7 +358,7 @@ impl CameraDirector {
         stage: &BattleStage,
         tick: usize,
         unit: usize,
-        (cmd_no, sub_no, short_summon): (u32, i32, bool),
+        (cmd_no, sub_no, short_summon, effect_in): (u32, i32, bool, Option<u32>),
         targets: &[usize],
     ) {
         let target = targets.first().copied();
@@ -342,10 +385,10 @@ impl CameraDirector {
             };
             // `SfxTriggerReaction` runs when the command's effect plays
             // (`PlaySFX`), after an attacker's run: here its
-            // `EffectApplied`, less the effect's hit frames when known.
+            // `EffectApplied` (scheduled when the command starts, so a
+            // live battle is on time too), less the effect's hit frames.
             let hit = timing.hit as usize;
-            let at = effect_tick(stage, unit, tick)
-                .unwrap_or(tick + crate::battle_motion::EFFECT_TICKS as usize)
+            let at = crate::battle_effects::effect_applied(stage, tick, unit, effect_in)
                 .saturating_sub(hit)
                 .max(tick);
             self.reaction = Some((at, set, unit, target));
@@ -403,20 +446,6 @@ impl CameraDirector {
 /// 4096ths, as Unity reports them (0 to 360).
 fn yaw(degrees: f32) -> i16 {
     (degrees.rem_euclid(360.0) * 11.377_778) as i16
-}
-
-/// The first `EffectApplied` of `caster` at or after `tick`.
-fn effect_tick(stage: &BattleStage, caster: usize, tick: usize) -> Option<usize> {
-    stage
-        .frames
-        .get(tick..)?
-        .iter()
-        .position(|frame| {
-            frame.events.iter().any(
-                |event| matches!(event, StageEvent::Effect { caster: who, .. } if *who == caster),
-            )
-        })
-        .map(|offset| tick + offset)
 }
 
 /// `PsxCamera.PsxMatrix2UnityMatrix` and `PsxProj2UnityProj`: the PSX view

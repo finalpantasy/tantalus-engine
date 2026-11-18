@@ -92,6 +92,11 @@ pub enum StageEvent {
         targets: Vec<usize>,
         /// `info.short_summon`: a summon plays its short effect.
         short_summon: bool,
+        /// Ticks from this frame to the command's effect, as the machine
+        /// schedules it when the command starts (`Battle::effect_delay`):
+        /// a live view starts the effect on time without waiting for the
+        /// `Effect` event. `None` when the machine has no running slot.
+        effect_in: Option<u32>,
     },
     /// A command's effect landed (`EffectApplied`): `damage` is the HP
     /// lost (negative for a heal), 0 a miss or no change.
@@ -149,11 +154,12 @@ pub fn stage_events(
     for (_, event) in log {
         match *event {
             BattleEvent::CommandStarted { unit, cmd_no } => {
-                let slot = machine
-                    .running
-                    .iter()
-                    .map(|&id| &machine.cmds.slots[id])
-                    .find(|slot| slot.regist == Some(unit) && slot.cmd_no == cmd_no);
+                let id = machine.running.iter().copied().find(|&id| {
+                    let slot = &machine.cmds.slots[id];
+                    slot.regist == Some(unit) && slot.cmd_no == cmd_no
+                });
+                let slot = id.map(|id| &machine.cmds.slots[id]);
+                let effect_in = id.map(|id| machine.effect_delay(id));
                 let (sub_no, tar_id, short_summon) = slot.map_or((0, 0, false), |slot| {
                     (slot.sub_no, slot.tar_id, slot.short_summon)
                 });
@@ -170,6 +176,7 @@ pub fn stage_events(
                     sub_no,
                     targets,
                     short_summon,
+                    effect_in,
                 });
             }
             BattleEvent::EffectApplied {

@@ -542,7 +542,14 @@ fn command_timing_delays_the_effect_and_the_end() {
     let (mut h, mut r) = (hooks(), SequenceRandom::r16(&[7, 7, 7, 7]));
     run(&mut b, &mut h, &mut r, 80);
     assert!(b.player_command(0, cmd::DEFEND, 179, 1, 0, &mut h).unwrap());
-    run(&mut b, &mut h, &mut r, 30);
+    run(&mut b, &mut h, &mut r, 1);
+    // Known on the start's own tick: the effect lands 12 ticks later.
+    assert_eq!(
+        first_tick(&b, |e| matches!(e, BattleEvent::CommandStarted { .. })),
+        Some(81)
+    );
+    assert_eq!(b.effect_delay(b.running[0]), 12);
+    run(&mut b, &mut h, &mut r, 29);
     assert_eq!(
         first_tick(&b, |e| matches!(e, BattleEvent::EffectApplied { .. })),
         Some(93)

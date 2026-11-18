@@ -257,6 +257,9 @@ pub struct Equipment {
     command_sets: BTreeMap<i32, [u32; 4]>,
     /// `BattleCommandId` -> its `Characters/Commands.csv` row.
     commands: BTreeMap<u32, CommandRow>,
+    /// `FF9BattleDB.StatusData` (`Battle/StatusData.csv`) by status id:
+    /// each status's tick count, duration, cleared and blocked statuses.
+    status_data: Vec<StatusDataRow>,
 }
 
 /// `{ 12, new FF9DBModelParameters(height, radius, ...) }` entries: model
@@ -658,6 +661,9 @@ impl Equipment {
             }
             equipment.bonus_elements.insert(id, sets);
         }
+        if let Ok(text) = read(characters.join("../Battle/StatusData.csv")) {
+            equipment.status_data = parse_status_data(&text);
+        }
         // Comment;Id;Statuses, each status `Name(id)` (`#! UnshiftStatuses`:
         // the id is the bit index).
         if let Ok(text) = read(characters.join("../Battle/StatusSets.csv")) {
@@ -919,6 +925,30 @@ impl Equipment {
     }
 }
 
+/// `Battle/StatusData.csv` (`BattleStatusDataEntry.ParseDataEntry`):
+/// Comment;Id;Priority;OprCount;ContiCount;ClearOnApply;ImmunityProvided,
+/// the status lists as `Name(id)` (`#! UnshiftStatuses`: the id is the bit
+/// index). Indexed by status id, 32 rows.
+fn parse_status_data(text: &str) -> Vec<StatusDataRow> {
+    let mut rows = vec![StatusDataRow::default(); 32];
+    for row in csv_rows(text) {
+        let Some(slot) = int(&row, 1)
+            .and_then(|id| usize::try_from(id).ok())
+            .and_then(|id| rows.get_mut(id))
+        else {
+            continue;
+        };
+        let field = |index: usize| row.get(index).copied().unwrap_or("");
+        *slot = StatusDataRow {
+            opr_cnt: field(3).trim().parse().unwrap_or(0),
+            conti_cnt: field(4).trim().parse().unwrap_or(0),
+            clear_on_apply: status_mask(field(5)),
+            immunity_provided: status_mask(field(6)),
+        };
+    }
+    rows
+}
+
 /// Data rows of a Memoria `;` table: `#` lines are comments.
 fn csv_rows(text: &str) -> impl Iterator<Item = Vec<&str>> {
     text.lines()
@@ -929,6 +959,16 @@ fn csv_rows(text: &str) -> impl Iterator<Item = Vec<&str>> {
 
 fn int(row: &[&str], index: usize) -> Option<i32> {
     row.get(index)?.trim().parse().ok()
+}
+
+impl Equipment {
+    /// The status table battles run on (`FF9BattleDB.StatusData`); 32 empty
+    /// rows when `Battle/StatusData.csv` is missing.
+    pub fn status_table(&self) -> StatusTable {
+        let mut rows = self.status_data.clone();
+        rows.resize(32, StatusDataRow::default());
+        StatusTable::new(rows)
+    }
 }
 
 impl FieldBattles {
@@ -1155,7 +1195,10 @@ impl FieldBattles {
                     .unwrap_or_default(),
                 ..BattleConfig::default()
             },
-            StatusTable::new(vec![StatusDataRow::default(); 32]),
+            // `FF9BattleDB.StatusData`: without it every timed status ran
+            // out at once and Poison, Venom and Regen ticked every frame
+            // (`SetOprStatusCount` with `OprCnt` 0).
+            self.equipment.status_table(),
         );
         battle.inventory = items
             .iter()
@@ -3151,6 +3194,73 @@ fn vanilla_script_id(id: i32, memoria: i32) -> i32 {
     match id {
         149 => 17,
         _ => memoria,
+    }
+}
+
+#[cfg(test)]
+mod status_data_tests {
+    use super::{Equipment, parse_status_data};
+    use tantalus_legacy::battle::status::{POISON, REGEN, VENOM, set_opr_status_count};
+    use tantalus_legacy::battle::{BattleUnit, StatusCtx, StatusEnv};
+
+    /// Rows of Memoria's `Battle/StatusData.csv` (the shipped values).
+    const ROWS: &str = "#! UnshiftStatuses
+# Comment;Id;Priority(unused);OprCount(tick);ContiCount(duration);ClearOnApply;ImmunityProvided
+Venom;1;7;20;0;Defend(15), Poison(16);Poison(16);1;0;0, 0, 0;-1;0;0, 0, 0;-1;0;0, 0, 0;# Venom
+Poison;16;8;10;30;;;0;0;0, 0, 0;-1;0;0, 0, 0;-1;0;0, 0, 0;# Poison
+Regen;18;23;10;45;;;-1;0;0, 0, 0;-1;0;0, 0, 0;-1;0;0, 0, 0;# Regen
+";
+
+    /// `btl_stat.SetOprStatusCount`: Poison waits `OprCnt (10) * (Spirit << 2)`
+    /// ATB units between ticks, Venom 20 times, Regen `10 * ((60 - Spirit) << 2)`.
+    /// Field battles ran on an empty table (`OprCnt` 0), so the wait was 0 and
+    /// Poison and Venom took max HP / 16 every battle frame.
+    #[test]
+    fn poison_and_venom_wait_their_status_data_ticks() {
+        let rows = parse_status_data(ROWS);
+        assert_eq!(rows.len(), 32);
+        assert_eq!((rows[16].opr_cnt, rows[16].conti_cnt), (10, 30));
+        assert_eq!((rows[1].opr_cnt, rows[1].conti_cnt), (20, 0));
+        assert_eq!(rows[1].clear_on_apply, (1 << 15) | (1 << 16));
+        assert_eq!(rows[1].immunity_provided, 1 << 16);
+        let equipment = Equipment {
+            status_data: rows,
+            ..Equipment::default()
+        };
+        let table = equipment.status_table();
+        let env = StatusEnv::default();
+        let ctx = StatusCtx {
+            table: &table,
+            env: &env,
+        };
+        let mut unit = BattleUnit::new(16, false);
+        unit.will = 20;
+        for (status, opr) in [(POISON, 800), (VENOM, 1600), (REGEN, 1600)] {
+            let id = status.trailing_zeros() as u8;
+            set_opr_status_count(&mut unit, id, &ctx);
+            assert_eq!(unit.opr[&id], opr, "status {id}");
+        }
+    }
+
+    /// The shipped table loads with the equipment (`TANTALUS_MEMORIA`, or
+    /// the reference checkout).
+    #[test]
+    fn the_memoria_status_table_loads() {
+        let root = std::env::var_os("TANTALUS_MEMORIA").map_or_else(
+            || std::path::PathBuf::from("E:/FFIX Recomp/.reference/Memoria"),
+            std::path::PathBuf::from,
+        );
+        let characters = root.join("Memoria.Patcher/StreamingAssets/Data/Characters");
+        if !characters.exists() {
+            eprintln!("skipped: no Memoria tables");
+            return;
+        }
+        let table = Equipment::load(&characters)
+            .expect("Memoria tables load")
+            .status_table();
+        assert_eq!(table.row(16).map(|row| row.opr_cnt), Some(10));
+        assert_eq!(table.row(1).map(|row| row.opr_cnt), Some(20));
+        assert_eq!(table.row(18).map(|row| row.conti_cnt), Some(45));
     }
 }
 

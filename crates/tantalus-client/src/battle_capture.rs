@@ -228,6 +228,7 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
                 sub_no,
                 targets,
                 short_summon,
+                effect_in,
             } = event
                 && *unit < party
             {
@@ -240,6 +241,8 @@ fn capture(values: &std::collections::BTreeMap<String, String>) -> Result<Vec<St
                         table.command_timing_of(&(*to_cmd == 14, *to_sub, variant))
                     {
                         moves.push((*unit, tick, effect as usize, total as usize));
+                        // The moved `Effect` event places it now.
+                        *effect_in = None;
                     }
                 }
                 seen_commands += 1;
@@ -497,6 +500,7 @@ fn live_capture(
             .map(|()| format!("saved {}", path.display()))
     };
     // Four minutes of battle at most.
+    let mut scheduled: Vec<((usize, i32, i64), f64)> = Vec::new();
     for _ in 0..(30 * 240) {
         let mut held = 0;
         let seconds = game.battle().map_or(0.0, |fight| fight.stage().duration());
@@ -675,6 +679,36 @@ fn live_capture(
         }
         let (events, done) = view.update(game, delta, held);
         lines.extend(events.iter().map(tantalus_client::live::describe));
+        // Each effect's start as the view schedules it, once, and again
+        // if it ever moves (a live effect started early, then restarted).
+        if let Some(fight) = game.battle() {
+            for effect in tantalus_client::battle_effects::stage_effects(fight.stage()) {
+                let key = (effect.caster, effect.id, effect.applied.round() as i64);
+                let start = effect.start;
+                match scheduled.iter_mut().find(|entry| {
+                    entry.0.0 == key.0 && entry.0.1 == key.1 && (entry.1 - start).abs() < 200.0
+                }) {
+                    Some(entry) if entry.1 != start || entry.0.2 != key.2 => {
+                        lines.push(format!(
+                            "effect {} of unit {} moved: start {} -> {}, applied {} -> {}",
+                            key.1, key.0, entry.1, start, entry.0.2, key.2
+                        ));
+                        *entry = (key, start);
+                    }
+                    Some(_) => {}
+                    None => {
+                        lines.push(format!(
+                            "effect {} of unit {} scheduled at stage {:.1}s: start tick {start}, applied tick {}",
+                            key.1,
+                            key.0,
+                            fight.stage().duration(),
+                            key.2
+                        ));
+                        scheduled.push((key, start));
+                    }
+                }
+            }
+        }
         clock += delta;
         if done {
             break;

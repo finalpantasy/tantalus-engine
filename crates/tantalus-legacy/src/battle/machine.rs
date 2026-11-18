@@ -2416,6 +2416,18 @@ impl Battle {
         }
     }
 
+    /// Machine ticks from the tick that logs command `id`'s `CommandStarted`
+    /// to the tick of its effect (`EffectApplied`, or Jump's take-off): one
+    /// tick in `CMD_MODE_INSPECTION` (the start's own), one in
+    /// `CMD_MODE_SELECT_VFX`, then [`Self::command_ticks`] in
+    /// `CMD_MODE_LOOP`. Known when the command starts, as in the game, where
+    /// `PlayerSequence.seq` starts the motions at once and `SFX.Play` runs
+    /// after them, so a view can start the effect without waiting for its
+    /// HP change.
+    pub fn effect_delay(&self, id: CmdId) -> u32 {
+        2 + self.command_ticks(id).0
+    }
+
     /// The ticks of [`Timing`] for command `id`: its effect's own when
     /// [`BattleConfig::command_timing`] knows it.
     fn command_ticks(&self, id: CmdId) -> (u32, u32) {
@@ -2459,8 +2471,19 @@ impl Battle {
             );
         };
         // `SysTrans` starts its effect at once; spells and items wait for
-        // the caster's motions (`PlayerSequence.seq`).
+        // the caster's motions (`PlayerSequence.seq`). Jump and Spear play
+        // no cast motions before their effect: `SelectCommandVfx` calls
+        // `SFX.Play` at once and the effect sets Freya's jump clips itself
+        // (`SFX.BattleCallback` case 12; `ef388/PlayerSequence.seq` starts
+        // with `PlaySFX`), so the HP change is the effect's own hit frame.
+        let jump = matches!(
+            s.cmd_no,
+            cmd::JUMP | cmd::JUMP_IN_TRANCE | cmd::SPEAR | cmd::SPEAR_IN_TRANCE
+        );
         let lead = player.filter(|_| s.cmd_no != cmd::SYS_TRANS).and_then(|r| {
+            if jump {
+                return Some(0);
+            }
             let unit = &self.units[r];
             let lead = self.config.cast_leads.get(&unit.serial_no)?;
             let step = unit.row == 0 && s.tar_id != 0 && s.tar_id & 0x0F == 0;

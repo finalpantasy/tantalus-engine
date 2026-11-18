@@ -237,114 +237,128 @@ impl EffectLibrary {
 /// 24, as in the Steam game, where `ExecVfxCommand` runs from the plugin;
 /// `Sequence.seq` stays for effects the plugin cannot play).
 pub fn stage_effects(stage: &BattleStage) -> Vec<StageEffect> {
-    let party = stage
-        .units
-        .iter()
-        .take_while(|unit| matches!(unit.model, StageModel::Player { .. }))
-        .count();
     let mut out = Vec::new();
     for (tick, frame) in stage.frames.iter().enumerate() {
         for event in &frame.events {
-            let StageEvent::Command {
-                unit,
-                cmd_no,
-                sub_no,
-                targets,
-                short_summon,
-            } = event
-            else {
-                continue;
-            };
-            // An enemy plays the effect its scene attack names
-            // (`BattleCommandInfo.VfxIndex`); a party member's Attack its
-            // character's `AttackSequence` (`btl_vfx.GetPlayerAttackVfx`).
-            let own = if *unit >= party {
-                stage
-                    .attack_effects
-                    .get(usize::try_from(*sub_no).unwrap_or(usize::MAX))
-                    .copied()
-                    .flatten()
-                    .map(|vfx| (i32::from(vfx.effect), vfx.args))
-            } else if *cmd_no == tantalus_legacy::battle::queue::cmd::ATTACK {
-                match stage.units[*unit].model {
-                    StageModel::Player { serial, .. } => {
-                        tantalus_assets::pc::battle_models::player_attack_sequences()
-                            .into_iter()
-                            .find(|row| row.0 == u32::from(serial))
-                            .map(|row| (row.2, [0; 3]))
-                    }
-                    _ => None,
-                }
-            } else {
-                None
-            };
-            if let Some((id, args)) = own {
-                let Some(timing) = stage.effects.timing_of(id, false) else {
-                    continue;
-                };
-                let mut effect = own_effect(stage, tick, *unit, id, targets, timing);
-                effect.args = args;
-                out.push(effect);
-                continue;
-            }
-            if *unit >= party {
-                continue;
-            }
-            // `SysTrans` plays the Trance effect on its unit from the start
-            // (`btl_vfx.GetPlayerCommandSFX`).
-            if *cmd_no == tantalus_legacy::battle::queue::cmd::SYS_TRANS {
-                let entering = matches!(frame.trance.get(*unit), Some(Some((_, true))));
-                let id = if entering {
-                    tantalus_tools::battle_effects::TRANCE_ACTIVATE
-                } else {
-                    tantalus_tools::battle_effects::TRANCE_END
-                };
-                if let Some(timing) = stage.effects.timing.get(&id) {
-                    out.push(StageEffect {
-                        id,
-                        caster: *unit,
-                        targets: vec![*unit],
-                        item: false,
-                        args: [0; 3],
-                        timing: *timing,
-                        applied: (tick + timing.hit as usize) as f64,
-                        start: tick as f64,
-                    });
-                }
-                continue;
-            }
-            let Some((id, timing)) =
-                stage
-                    .effects
-                    .effect_of(*cmd_no, *sub_no, targets.len(), *short_summon)
-            else {
-                continue;
-            };
-            let item = matches!(
-                *cmd_no,
-                tantalus_legacy::battle::queue::cmd::ITEM
-                    | tantalus_legacy::battle::queue::cmd::AUTO_POTION
-            );
-            let applied = effect_applied(stage, tick, *unit);
-            out.push(StageEffect {
-                id,
-                caster: *unit,
-                targets: targets.clone(),
-                item,
-                args: [0; 3],
-                timing,
-                applied: applied as f64,
-                start: (applied as f64 - f64::from(timing.hit)).max(tick as f64),
-            });
+            out.extend(command_effect(stage, tick, event));
         }
     }
     out
 }
 
+/// The effect the `Command` `event` at stage tick `tick` plays (see
+/// [`stage_effects`]), known from the start of the command: a live view
+/// schedules it (and its cameras) at once.
+pub fn command_effect(stage: &BattleStage, tick: usize, event: &StageEvent) -> Option<StageEffect> {
+    let StageEvent::Command {
+        unit,
+        cmd_no,
+        sub_no,
+        targets,
+        short_summon,
+        effect_in,
+    } = event
+    else {
+        return None;
+    };
+    let party = stage
+        .units
+        .iter()
+        .take_while(|unit| matches!(unit.model, StageModel::Player { .. }))
+        .count();
+    // An enemy plays the effect its scene attack names
+    // (`BattleCommandInfo.VfxIndex`); a party member's Attack its
+    // character's `AttackSequence` (`btl_vfx.GetPlayerAttackVfx`).
+    let own = if *unit >= party {
+        stage
+            .attack_effects
+            .get(usize::try_from(*sub_no).unwrap_or(usize::MAX))
+            .copied()
+            .flatten()
+            .map(|vfx| (i32::from(vfx.effect), vfx.args))
+    } else if *cmd_no == tantalus_legacy::battle::queue::cmd::ATTACK {
+        match stage.units[*unit].model {
+            StageModel::Player { serial, .. } => {
+                tantalus_assets::pc::battle_models::player_attack_sequences()
+                    .into_iter()
+                    .find(|row| row.0 == u32::from(serial))
+                    .map(|row| (row.2, [0; 3]))
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
+    if let Some((id, args)) = own {
+        let timing = stage.effects.timing_of(id, false)?;
+        let mut effect = own_effect(stage, tick, *unit, *effect_in, id, targets, timing);
+        effect.args = args;
+        return Some(effect);
+    }
+    if *unit >= party {
+        return None;
+    }
+    // `SysTrans` plays the Trance effect on its unit from the start
+    // (`btl_vfx.GetPlayerCommandSFX`).
+    if *cmd_no == tantalus_legacy::battle::queue::cmd::SYS_TRANS {
+        let entering = matches!(
+            stage
+                .frames
+                .get(tick)
+                .and_then(|frame| frame.trance.get(*unit)),
+            Some(Some((_, true)))
+        );
+        let id = if entering {
+            tantalus_tools::battle_effects::TRANCE_ACTIVATE
+        } else {
+            tantalus_tools::battle_effects::TRANCE_END
+        };
+        return stage.effects.timing.get(&id).map(|timing| StageEffect {
+            id,
+            caster: *unit,
+            targets: vec![*unit],
+            item: false,
+            args: [0; 3],
+            timing: *timing,
+            applied: (tick + timing.hit as usize) as f64,
+            start: tick as f64,
+        });
+    }
+    let (id, timing) = stage
+        .effects
+        .effect_of(*cmd_no, *sub_no, targets.len(), *short_summon)?;
+    let item = matches!(
+        *cmd_no,
+        tantalus_legacy::battle::queue::cmd::ITEM
+            | tantalus_legacy::battle::queue::cmd::AUTO_POTION
+    );
+    let applied = effect_applied(stage, tick, *unit, *effect_in);
+    Some(StageEffect {
+        id,
+        caster: *unit,
+        targets: targets.clone(),
+        item,
+        args: [0; 3],
+        timing,
+        applied: applied as f64,
+        start: (applied as f64 - f64::from(timing.hit)).max(tick as f64),
+    })
+}
+
 /// Stage tick of `caster`'s `EffectApplied` at or after `tick`, within the
-/// command: a command that ends without one (Jump, which leaves the field and
-/// lands with Spear's) takes the default lead, not the next command's.
-fn effect_applied(stage: &BattleStage, tick: usize, caster: usize) -> usize {
+/// command. Before it is recorded (a live battle) or when the command ends
+/// without one (Jump, which leaves the field and lands with Spear's), the
+/// tick the machine scheduled when the command started (`effect_in`,
+/// `Battle::effect_delay`), so a live effect starts once, on time, as
+/// `SFX.Play` does after the caster's motions, and is never restarted when
+/// the HP change arrives. Only a stage without a schedule takes the default
+/// lead.
+pub fn effect_applied(
+    stage: &BattleStage,
+    tick: usize,
+    caster: usize,
+    effect_in: Option<u32>,
+) -> usize {
     for (offset, frame) in stage.frames[tick..].iter().enumerate() {
         let has = |found: fn(&StageEvent, usize) -> bool| {
             frame.events.iter().any(|event| found(event, caster))
@@ -360,7 +374,9 @@ fn effect_applied(stage: &BattleStage, tick: usize, caster: usize) -> usize {
             break;
         }
     }
-    tick + crate::battle_motion::EFFECT_TICKS as usize
+    tick + effect_in.map_or(crate::battle_motion::EFFECT_TICKS as usize, |ticks| {
+        ticks as usize
+    })
 }
 
 /// An effect a command plays on its own (an enemy attack's, or a party
@@ -369,11 +385,12 @@ fn own_effect(
     stage: &BattleStage,
     tick: usize,
     unit: usize,
+    effect_in: Option<u32>,
     id: i32,
     targets: &[usize],
     timing: EffectTiming,
 ) -> StageEffect {
-    let applied = effect_applied(stage, tick, unit);
+    let applied = effect_applied(stage, tick, unit, effect_in);
     StageEffect {
         id,
         caster: unit,
@@ -996,6 +1013,7 @@ mod tests {
             sub_no: 25,
             targets: vec![1],
             short_summon: false,
+            effect_in: None,
         });
         stage.frames[42].events.push(StageEvent::Effect {
             caster: 0,
