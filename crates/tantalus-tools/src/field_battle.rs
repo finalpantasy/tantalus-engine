@@ -139,6 +139,11 @@ pub struct PartyFighter {
     /// `PLAYER.sa`: support abilities switched on, bit `n` is ability
     /// `192 + n` (`SupportAbility`).
     pub support: u64,
+    /// Active abilities (ids under 192) mastered with AP (`PLAYER.pa` at
+    /// its max, `ff9abil.FF9Abil_IsMaster`): bit `id % 64` of word
+    /// `id / 64`. The battle menu opens them without the gear that teaches
+    /// them (`BattleHUD.GetAbilityState`).
+    pub mastered: [u64; 3],
 }
 
 impl PartyFighter {
@@ -160,6 +165,33 @@ impl PartyFighter {
             .filter(|&bit| bit < 64)
             .fold(0_u64, |mask, bit| mask | 1 << bit);
         (equip, support)
+    }
+
+    /// [`Self::mastered`] from the field world: the abilities the AP results
+    /// or Eat taught `character` (`FieldWorld::learned_abilities`).
+    pub fn mastered_abilities(world: &FieldWorld, character: i32) -> [u64; 3] {
+        let mut mastered = [0_u64; 3];
+        for &ability in world
+            .learned_abilities
+            .get(&character)
+            .into_iter()
+            .flatten()
+        {
+            if let Ok(id) = usize::try_from(ability)
+                && id < 192
+            {
+                mastered[id / 64] |= 1 << (id % 64);
+            }
+        }
+        mastered
+    }
+
+    /// Whether active ability `id` is mastered ([`Self::mastered`]).
+    pub fn has_mastered(&self, id: i32) -> bool {
+        usize::try_from(id)
+            .ok()
+            .filter(|&id| id < 192)
+            .is_some_and(|id| self.mastered[id / 64] >> (id % 64) & 1 != 0)
     }
 }
 
@@ -906,6 +938,20 @@ impl Equipment {
         (equipped, learnable)
     }
 
+    /// The abilities `fighter` can use: the gear's (`AbilityEquipList`),
+    /// then the mastered ones of the learnable table
+    /// (`BattleHUD.GetAbilityState`: `AbilityPaList[id] >=
+    /// AbilityMaxPaList[id]` opens an ability without its gear).
+    fn known_abilities(&self, fighter: &PartyFighter) -> Vec<i32> {
+        let (mut known, learnable) = self.abilities(fighter.character, self.slots(fighter));
+        for entry in &learnable {
+            if fighter.has_mastered(entry.id) && !known.contains(&entry.id) {
+                known.push(entry.id);
+            }
+        }
+        known
+    }
+
     /// The equipment half of `ff9play.FF9Play_Update`: speed, strength,
     /// magic and spirit bonuses summed over the five equipped items.
     fn stat_bonus(&self, slots: Option<[i32; 5]>) -> [i32; 4] {
@@ -1250,14 +1296,13 @@ impl FieldBattles {
             Ok(ids) => ids,
             Err(error) => return Err(fail(report, error)),
         };
-        // Abilities each member's default gear gives (`AA:X` ids under 192).
+        // Abilities each member has: what the gear gives (`AA:X` ids under
+        // 192) and what the member has mastered with AP, which stays open
+        // without the gear (`BattleHUD.GetAbilityState`: `AbilityEquipList`
+        // or `AbilityPaList[id] >= AbilityMaxPaList[id]`).
         let gear: Vec<Vec<i32>> = party
             .iter()
-            .map(|fighter| {
-                self.equipment
-                    .abilities(fighter.character, self.equipment.slots(fighter))
-                    .0
-            })
+            .map(|fighter| self.equipment.known_abilities(fighter))
             .collect();
         let mut action_map = BTreeMap::from([
             (ids.attack.clone(), (cmd::ATTACK, ABILITY_ATTACK)),
@@ -1839,6 +1884,11 @@ fn player_menus(
             let learnable = equipment
                 .abilities(fighter.character, equipment.slots(fighter))
                 .1;
+            // `ff9abil.FF9Abil_HasAp`: a preset whose abilities take no AP
+            // (Beatrix, Cinna, Marcus, Blank) has every ability of its
+            // command lists open (`GetAbilityState` checks gear and AP only
+            // when `HasAp`, and `SetAbilityTrance` returns early).
+            let has_ap = learnable.iter().any(|entry| entry.max_ap > 0);
             let known: Vec<i32> = gear
                 .iter()
                 .copied()
@@ -1900,7 +1950,7 @@ fn player_menus(
                                 };
                                 let mut entries: Vec<MenuEntry> = list
                                     .iter()
-                                    .filter(|ability| known.contains(ability))
+                                    .filter(|ability| !has_ap || known.contains(ability))
                                     .filter_map(|&ability| action(cmd_no, ability))
                                     .collect();
                                 entries.dedup_by_key(|entry| entry.sub_no);
@@ -3027,6 +3077,95 @@ fn apply_support_abilities(unit: &mut BattleUnit, support: u64) {
 mod tests {
     use super::*;
 
+    fn memoria_equipment() -> Option<Equipment> {
+        let root = std::env::var_os("TANTALUS_MEMORIA").map_or_else(
+            || std::path::PathBuf::from("E:/FFIX Recomp/.reference/Memoria"),
+            std::path::PathBuf::from,
+        );
+        let characters = root.join("Memoria.Patcher/StreamingAssets/Data/Characters");
+        if !characters.exists() {
+            eprintln!("skipped: no Memoria tables");
+            return None;
+        }
+        Some(Equipment::load(&characters).expect("Memoria tables load"))
+    }
+
+    fn list_abilities(menu: &PartyMenu, trance: bool) -> Vec<i32> {
+        let commands = if trance {
+            &menu.trance_commands
+        } else {
+            &menu.commands
+        };
+        commands
+            .iter()
+            .filter_map(|command| match &command.kind {
+                CommandKind::List(list) => Some(list),
+                _ => None,
+            })
+            .flatten()
+            .map(|entry| entry.sub_no)
+            .collect()
+    }
+
+    /// `BattleHUD.GetAbilityState`: a mastered ability (Vivi's Fire, 25)
+    /// stays in the menu without the staff that teaches it, and its Trance
+    /// twin opens with it (`SetAbilityTrance`); an unmastered one does not.
+    #[test]
+    fn mastered_abilities_need_no_gear() {
+        let Some(equipment) = memoria_equipment() else {
+            return;
+        };
+        let mut vivi = PartyFighter {
+            character: 1,
+            equip: Some([-1; 5]),
+            ..zidane()
+        };
+        let menu = |fighter: &PartyFighter| {
+            let gear = vec![equipment.known_abilities(fighter)];
+            player_menus(&[*fighter], &gear, &equipment, &BTreeMap::new())
+        };
+        let bare = menu(&vivi);
+        assert!(list_abilities(&bare[0], false).is_empty());
+        let mut world = FieldWorld::new();
+        world.learned_abilities.insert(1, [25].into());
+        vivi.mastered = PartyFighter::mastered_abilities(&world, 1);
+        assert!(vivi.has_mastered(25) && !vivi.has_mastered(26));
+        let learned = menu(&vivi);
+        assert_eq!(list_abilities(&learned[0], false), vec![25]);
+        assert_eq!(list_abilities(&learned[0], true), vec![25]);
+        // Zidane's mastered Flee (101) opens Free Energy (109) in Trance.
+        let mut zidane = PartyFighter {
+            equip: Some([-1; 5]),
+            ..zidane()
+        };
+        world.learned_abilities.insert(0, [101].into());
+        zidane.mastered = PartyFighter::mastered_abilities(&world, 0);
+        let menus = menu(&zidane);
+        assert_eq!(list_abilities(&menus[0], false), vec![101]);
+        assert_eq!(list_abilities(&menus[0], true), vec![109]);
+    }
+
+    /// `ff9abil.FF9Abil_HasAp` is false for Beatrix (no ability takes AP):
+    /// her Seiken and White Magic lists are open whatever she wears.
+    #[test]
+    fn a_preset_without_ap_has_its_whole_lists() {
+        let Some(equipment) = memoria_equipment() else {
+            return;
+        };
+        let beatrix = PartyFighter {
+            character: 11,
+            equip: Some([-1; 5]),
+            mp: 999,
+            ..zidane()
+        };
+        let gear = vec![equipment.known_abilities(&beatrix)];
+        let menus = player_menus(&[beatrix], &gear, &equipment, &BTreeMap::new());
+        let open = list_abilities(&menus[0], false);
+        for ability in [149, 150, 151, 152, 2, 5, 6, 10, 14, 16, 19, 24] {
+            assert!(open.contains(&ability), "{ability} in {open:?}");
+        }
+    }
+
     fn zidane() -> PartyFighter {
         PartyFighter {
             character: 0,
@@ -3047,6 +3186,7 @@ mod tests {
             trance: 0,
             equip: None,
             support: 0,
+            mastered: [0; 3],
         }
     }
 

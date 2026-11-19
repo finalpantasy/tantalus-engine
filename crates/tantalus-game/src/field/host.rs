@@ -1479,6 +1479,8 @@ impl LegacyEventHost for FieldHost<'_> {
                             category: u8::try_from(*category).ok().filter(|v| *v != 255),
                             menu_preset: u8::try_from(*menu_preset).ok().filter(|v| *v != 255),
                         });
+                        // `FF9Play_Change`: the equipment set first, then the level.
+                        self.world.apply_equipment_set(character, *equipment_set);
                         if *enable_leveling {
                             self.world.join_with_leveling(character);
                         }

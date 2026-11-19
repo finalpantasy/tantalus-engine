@@ -171,6 +171,19 @@ impl PlayData {
         menu.card_levels = text.names("etc/card").unwrap_or_default();
         menu.chocograph_text = text.names("etc/ff9choco").unwrap_or_default();
         menu.seed_equipment(&mut new_game);
+        // `FF9Play_SetDefEquips`' sets for `JOIN`; the tables carry non-UTF-8 comments.
+        let lossy = |name: &str| {
+            let path = characters.join(name);
+            std::fs::read(&path)
+                .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+                .map_err(|error| format!("cannot read {}: {error}", path.display()))
+        };
+        new_game.equipment_sets = Some(std::sync::Arc::new(
+            tantalus_game::new_game::parse_equipment_sets(
+                &lossy("DefaultEquipment.csv")?,
+                &lossy("CharacterParameters.csv")?,
+            )?,
+        ));
         let shops = crate::shop_menu::ShopTables::load(memoria)?;
         new_game.items = tantalus_game::new_game::parse_initial_items(&read_text(
             &characters.join("../Items/InitialItems.csv"),
@@ -775,6 +788,7 @@ impl PlayGame {
                     trance: world.trance.get(character).copied().unwrap_or(0),
                     equip: PartyFighter::loadout(world, *character).0,
                     support: PartyFighter::loadout(world, *character).1,
+                    mastered: PartyFighter::mastered_abilities(world, *character),
                 })
             })
             .collect()

@@ -92,6 +92,30 @@ pub fn parse_initial_items(text: &str) -> Result<BTreeMap<i32, i32>, String> {
     Ok(items)
 }
 
+/// `DefaultEquipment.csv` (`Comment;Id;Weapon;Head;Wrist;Armor;Accessory`)
+/// and the `DefaultEquipmentSet` column of `CharacterParameters.csv`
+/// (`Id;DefaultRow;DefaultWinPose;DefaultCategory;DefaultCommandSet;DefaultEquipmentSet;...`).
+pub fn parse_equipment_sets(
+    default_equipment: &str,
+    character_parameters: &str,
+) -> Result<crate::field::world::EquipmentSets, String> {
+    let mut sets = crate::field::world::EquipmentSets::default();
+    for row in rows(default_equipment) {
+        let id: i32 = field(&row, 1, "DefaultEquipment.csv")?;
+        let mut slots = [-1; 5];
+        for (slot, value) in slots.iter_mut().enumerate() {
+            *value = field(&row, 2 + slot, "DefaultEquipment.csv")?;
+        }
+        sets.sets.insert(id, slots);
+    }
+    for row in rows(character_parameters) {
+        let id: i32 = field(&row, 0, "CharacterParameters.csv")?;
+        let set: i32 = field(&row, 5, "CharacterParameters.csv")?;
+        sets.defaults.insert(id, set);
+    }
+    Ok(sets)
+}
+
 pub fn parse_leveling(text: &str) -> Result<Vec<LevelRow>, String> {
     let levels = rows(text)
         .map(|row| {

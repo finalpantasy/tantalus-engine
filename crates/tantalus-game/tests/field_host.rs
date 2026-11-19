@@ -313,6 +313,78 @@ fn switched_off_floors_leave_the_walkable_walkmesh() {
 }
 
 #[test]
+fn join_equips_the_scripts_equipment_set() {
+    // `SetCharacterData` (JOIN) runs `FF9Play_Change(play, lv, eqp_id)`, which wears
+    // set `eqp_id` (`FF9Play_SetDefEquips(.., isNewPlayer: false)`): items taken off that
+    // the set does not keep go to the inventory, except in the Marcus/Beatrix/Blank
+    // re-equip case (the character still wears its first set).
+    use tantalus_game::field::world::EquipmentSets;
+    let mut sets = EquipmentSets::default();
+    sets.sets.insert(10, [16, -1, -1, 150, -1]); // Blank
+    sets.sets.insert(14, [17, 112, -1, 150, -1]); // Blank 2
+    sets.sets.insert(3, [16, 137, -1, 177, -1]); // Steiner
+    sets.sets.insert(5, [79, -1, -1, -1, -1]); // Quina
+    sets.defaults.insert(10, 10);
+    sets.defaults.insert(3, 3);
+    let mut world = FieldWorld::new();
+    world.equipment_sets = Some(std::sync::Arc::new(sets));
+    let run = |world: &mut FieldWorld, code: &[u8]| {
+        let mut scene = FieldScene::new();
+        scene
+            .add_entry(actor(1), decode_program(code).unwrap())
+            .unwrap();
+        scene
+            .step(Tick::new(0), &mut FieldHost::new(world))
+            .unwrap();
+    };
+    // Blank (slot 11, id 10) still in his first set takes set 14: nothing is given back.
+    run(&mut world, &[0xfe, 0, 11, 0, 14, 255, 255, 4]);
+    assert_eq!(
+        world.equipped(10),
+        [Some(17), Some(112), None, Some(150), None]
+    );
+    assert!(world.items.is_empty());
+    // Steiner (id 3) keeps his set 3: nothing changes hands.
+    run(&mut world, &[0xfe, 0, 3, 0, 3, 255, 255, 4]);
+    assert_eq!(
+        world.equipped(3),
+        [Some(16), Some(137), None, Some(177), None]
+    );
+    assert!(world.items.is_empty());
+    // Steiner in another set: his Broadsword, Bronze Helm and Bronze Armor go to the bag.
+    run(&mut world, &[0xfe, 0, 3, 0, 5, 255, 255, 4]);
+    assert_eq!(world.equipped(3), [Some(79), None, None, None, None]);
+    assert_eq!(world.items.get(&16), Some(&1));
+    assert_eq!(world.items.get(&137), Some(&1));
+    assert_eq!(world.items.get(&177), Some(&1));
+    // Set 255 (`EquipmentSetId.NONE`) keeps the gear.
+    run(&mut world, &[0xfe, 0, 3, 0, 255, 255, 255, 4]);
+    assert_eq!(world.equipped(3), [Some(79), None, None, None, None]);
+}
+
+#[test]
+fn a_character_without_recorded_gear_wears_the_default_set() {
+    // `FF9Play_New` gives every character its `DefaultEquipmentSet`; changing one slot
+    // (the equip menu, `EquipUI`) keeps the other four.
+    use tantalus_game::field::world::EquipmentSets;
+    let mut world = FieldWorld::new();
+    assert_eq!(world.equipped(0), [None; 5]);
+    let mut sets = EquipmentSets::default();
+    sets.sets.insert(0, [1, 112, 88, 149, -1]);
+    sets.defaults.insert(0, 0);
+    world.equipment_sets = Some(std::sync::Arc::new(sets));
+    assert_eq!(
+        world.equipped(0),
+        [Some(1), Some(112), Some(88), Some(149), None]
+    );
+    world.equip(0, 0, Some(2));
+    assert_eq!(
+        world.equipment[&0],
+        [Some(2), Some(112), Some(88), Some(149), None]
+    );
+}
+
+#[test]
 fn join_with_leveling_brings_a_member_up_to_the_roster_average() {
     // Treno 908 at disc 2: `SetPartyReserve(1036)` (Garnet, Steiner, Marcus), then
     // `SetCharacterData(10, 1, 12, ..)` for Marcus: `FF9Play_Change(play, true, ..)` raises

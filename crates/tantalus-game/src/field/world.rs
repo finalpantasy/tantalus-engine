@@ -678,6 +678,22 @@ pub struct OverlayChange {
 
 /// Computes a character's stats for a total experience amount; the
 /// provider owns the level tables. Runtime-only.
+/// The predefined equipment sets (`ff9play.DefaultEquipment`, from
+/// `DefaultEquipment.csv`: weapon, head, wrist, armor, accessory item ids,
+/// -1 for none) and each character's `DefaultEquipmentSet`
+/// (`CharacterParameters.csv`), the gear `FF9Play_New` gives.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EquipmentSets {
+    pub sets: BTreeMap<i32, [i32; 5]>,
+    pub defaults: BTreeMap<i32, i32>,
+}
+
+/// `EquipmentSetId.NONE`: `JOIN` keeps the gear.
+pub const EQUIPMENT_SET_NONE: i32 = 255;
+/// `EquipmentSetId` Marcus, Beatrix, Blank and their later sets
+/// (`ff9play.FF9Play_SetDefEquips`' re-equip pairs).
+const REEQUIP_SETS: [(i32, i32); 3] = [(12, 9), (13, 11), (14, 10)];
+
 pub type LevelGrowth = std::sync::Arc<dyn Fn(i32, u64) -> Option<CharacterStats> + Send + Sync>;
 
 fn is_zero_i32(value: &i32) -> bool {
@@ -880,8 +896,8 @@ pub struct FieldWorld {
     /// denormalized here for save/inspection.
     #[serde(default)]
     pub learned_abilities: BTreeMap<i32, BTreeSet<i32>>,
-    /// Equipped item ids per character and slot (weapon, head, body, wrist,
-    /// accessory; `None` = empty). Legacy item ids, matching the inventory
+    /// Equipped item ids per character and slot (weapon, head, wrist,
+    /// armor, accessory, `DefaultEquipment.csv` order; `None` = empty). Legacy item ids, matching the inventory
     /// map. Stat effects are computed by the caller's equipment/level rules
     /// (this world stores ownership only).
     #[serde(default)]
@@ -1057,6 +1073,9 @@ pub struct FieldWorld {
     /// Experience-to-stats provider (runtime-only).
     #[serde(skip)]
     pub level_growth: Option<LevelGrowth>,
+    /// The predefined equipment sets `JOIN` equips (runtime-only provider).
+    #[serde(skip)]
+    pub equipment_sets: Option<std::sync::Arc<EquipmentSets>>,
     /// The experience that reaches each level, level 1 first
     /// (`ff9level.CharacterLevelUps[lv - 1].ExperienceToLevel`; runtime-only provider).
     #[serde(skip)]
@@ -1283,6 +1302,7 @@ impl FieldWorld {
             fade_filter: None,
             level_growth: None,
             level_experience: None,
+            equipment_sets: None,
         }
     }
 
@@ -2361,18 +2381,68 @@ impl FieldWorld {
         false
     }
 
-    /// Equips `item` (legacy id) in `slot` (0 weapon, 1 head, 2 body, 3
-    /// wrist, 4 accessory); `None` empties the slot. Ownership of the item
+    /// Equips `item` (legacy id) in `slot` (0 weapon, 1 head, 2 wrist, 3
+    /// armor, 4 accessory); `None` empties the slot. Ownership of the item
     /// is the inventory's concern, not this call's.
+    /// A character without recorded gear wears its default set
+    /// ([`Self::equipped`]), so the other four slots keep that set's items.
     pub fn equip(&mut self, character: i32, slot: usize, item: Option<u16>) {
         if slot < 5 {
-            self.equipment.entry(character).or_default()[slot] = item;
+            let mut slots = self.equipped(character);
+            slots[slot] = item;
+            self.equipment.insert(character, slots);
         }
     }
 
-    /// The character's equipped item ids, five slots, `None` when unset.
+    /// `ff9play.FF9Play_SetDefEquips(play.equip, set, isNewPlayer: false)`,
+    /// as `JOIN` runs it (`FF9Play_Change`): the character wears equipment
+    /// set `set`, and each item it took off that the set does not keep goes
+    /// back to the inventory (`FF9Item_Add`). A character with no recorded
+    /// gear wears its `DefaultEquipmentSet` (`FF9Play_New`). The Marcus,
+    /// Beatrix and Blank sets replace the character's first set without
+    /// giving it back (the re-equip case). Without the
+    /// [`Self::equipment_sets`] provider, or for [`EQUIPMENT_SET_NONE`],
+    /// nothing changes.
+    pub fn apply_equipment_set(&mut self, character: i32, set: i32) {
+        if set == EQUIPMENT_SET_NONE {
+            return;
+        }
+        let Some(sets) = self.equipment_sets.clone() else {
+            return;
+        };
+        let Some(&new_set) = sets.sets.get(&set) else {
+            return;
+        };
+        let current = self
+            .equipped(character)
+            .map(|item| item.map_or(-1, i32::from));
+        let reequip = REEQUIP_SETS.iter().any(|&(later, first)| {
+            later == set && sets.sets.get(&first).is_some_and(|first| *first == current)
+        });
+        for (&old, &new) in current.iter().zip(&new_set) {
+            // Moonstone's `DecreaseMoonStoneCount` (a Memoria counter) is not tracked.
+            if !reequip && old >= 0 && old != new {
+                self.add_item_amount(old, 1);
+            }
+        }
+        self.equipment
+            .insert(character, new_set.map(|item| u16::try_from(item).ok()));
+    }
+
+    /// The character's equipped item ids, five slots, `None` when unset. A
+    /// character with no recorded gear wears its `DefaultEquipmentSet`
+    /// (`ff9play.FF9Play_New` -> `FF9Play_SetDefEquips`) when the
+    /// [`Self::equipment_sets`] provider is there, else nothing.
     pub fn equipped(&self, character: i32) -> [Option<u16>; 5] {
-        self.equipment.get(&character).copied().unwrap_or([None; 5])
+        if let Some(slots) = self.equipment.get(&character) {
+            return *slots;
+        }
+        self.equipment_sets
+            .as_ref()
+            .and_then(|sets| sets.sets.get(sets.defaults.get(&character)?))
+            .map_or([None; 5], |slots| {
+                slots.map(|item| u16::try_from(item).ok())
+            })
     }
 
     pub fn add_item_amount(&mut self, item: i32, amount: i32) {
@@ -2416,6 +2486,7 @@ impl FieldWorld {
         self.animation_frame_counts = template.animation_frame_counts.clone();
         self.sps_frame_counts = template.sps_frame_counts.clone();
         self.item_id_map = template.item_id_map.clone();
+        self.equipment_sets = template.equipment_sets.clone();
     }
 
     pub fn provide_atan_table(&mut self, bytes: Vec<u8>) {

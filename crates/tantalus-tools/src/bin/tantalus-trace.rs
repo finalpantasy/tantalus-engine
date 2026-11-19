@@ -87,6 +87,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut settle_ticks: u64 = CONTROL_SETTLE;
     let mut talk_grace: u64 = 0;
     let mut heal_after_battle = false;
+    let mut auto_gear = false;
+    let mut shops: BTreeMap<i32, i32> = BTreeMap::new();
     let mut live_objects = true;
     let mut win_battles: BTreeSet<i32> = BTreeSet::new();
     let mut win_card_games = false;
@@ -367,6 +369,18 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 }
             }
             "--heal-after-battle" => heal_after_battle = true,
+            "--auto-gear" => auto_gear = true,
+            "--shops" => {
+                for part in value()?.split(',') {
+                    let (field, shop) = part
+                        .split_once(':')
+                        .ok_or("--shops takes FIELD:SHOP[,...]")?;
+                    shops.insert(
+                        parse_number(field, "--shops")?,
+                        parse_number(shop, "--shops")?,
+                    );
+                }
+            }
             "--win-card-games" => win_card_games = true,
             "--play-card-games" => play_card_games = true,
             "--live-objects" => live_objects = true,
@@ -619,6 +633,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                                 .gear_for_level(*character, fight_level.clamp(1, 99) as u8)
                         }),
                         support: 0,
+                        mastered: [0; 3],
                     })
                 })
                 .collect();
@@ -676,6 +691,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 None => None,
             };
             let mut initial_items = BTreeMap::new();
+            let mut equipment_sets = None;
             let mut growth_tables: Option<(
                 BTreeMap<i32, tantalus_game::new_game::BaseStats>,
                 Vec<tantalus_game::new_game::LevelRow>,
@@ -690,6 +706,17 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     let base = tantalus_game::new_game::parse_base_stats(&read("BaseStats.csv")?)?;
                     let levels = tantalus_game::new_game::parse_leveling(&read("Leveling.csv")?)?;
                     growth_tables = Some((base.clone(), levels.clone()));
+                    // `FF9Play_SetDefEquips`' sets; the tables carry non-UTF-8 comments.
+                    let lossy = |name: &str| {
+                        let path = dir.join(name);
+                        std::fs::read(&path)
+                            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+                            .map_err(|error| format!("cannot read {}: {error}", path.display()))
+                    };
+                    equipment_sets = Some(tantalus_game::new_game::parse_equipment_sets(
+                        &lossy("DefaultEquipment.csv")?,
+                        &lossy("CharacterParameters.csv")?,
+                    )?);
                     initial_items = tantalus_game::new_game::parse_initial_items(&read(
                         "../Items/InitialItems.csv",
                     )?)?;
@@ -746,6 +773,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     game_data: game_data.clone(),
                     growth_tables,
                     initial_items,
+                    equipment_sets,
                     item_ids,
                     route,
                     skip_talk,
@@ -770,6 +798,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     settle_ticks,
                     talk_grace,
                     heal_after_battle,
+                    auto_gear,
+                    shops,
                     live_objects,
                     win_battles,
                     win_card_games,
@@ -1351,6 +1381,8 @@ struct ChainOptions {
     )>,
     /// `InitialItems.csv`: the new-game inventory.
     initial_items: BTreeMap<i32, i32>,
+    /// `DefaultEquipment.csv` sets for `JOIN` (`FF9Play_SetDefEquips`).
+    equipment_sets: Option<tantalus_game::field::world::EquipmentSets>,
     /// Vanilla item-table legacy ids for the reward-item identity mapping.
     item_ids: Option<Vec<i32>>,
     /// Free-roam route: while MAP's first unused entry is DEST, the explorer
@@ -1411,6 +1443,12 @@ struct ChainOptions {
     /// Restore the party's HP and MP after each fight (`--heal-after-battle`): a probe
     /// stand-in for the potions and tents a played game uses between fights.
     heal_after_battle: bool,
+    /// Trace stand-in, not game behavior (`--auto-gear`): on each field the
+    /// party wears its best owned weapon and armor (`auto_gear`), and a shop
+    /// a script opens, or one named by `--shops FIELD:SHOP`, sells it better
+    /// pieces while the gil lasts.
+    auto_gear: bool,
+    shops: BTreeMap<i32, i32>,
     live_objects: bool,
     /// Battle numbers the probe counts as won without fighting (`--win-battles`), for fights
     /// the stand-in battle engine cannot win yet.
@@ -1525,6 +1563,7 @@ fn chain(
         game_data,
         growth_tables,
         initial_items,
+        equipment_sets,
         item_ids,
         route,
         skip_talk,
@@ -1549,6 +1588,8 @@ fn chain(
         settle_ticks,
         talk_grace,
         heal_after_battle,
+        auto_gear,
+        shops,
         live_objects,
         win_battles,
         win_card_games,
@@ -1652,6 +1693,7 @@ fn chain(
     // FF9Play_Init: every character has a player record from new game on.
     world.character_stats = stats;
     world.items = initial_items;
+    world.equipment_sets = equipment_sets.map(std::sync::Arc::new);
     if let Some(ids) = item_ids {
         world.item_id_map = Some(tantalus_game::field::world::default_item_id_map(ids));
     }
@@ -1761,6 +1803,25 @@ fn chain(
     }
     let mut world_exits_used = vec![false; world_exits.len()];
     let mut saved_maps: BTreeSet<i32> = BTreeSet::new();
+    // `--auto-gear`: the item and shop tables under the Memoria data root.
+    let gear_tables = match (&characters, auto_gear) {
+        (Some(dir), true) => {
+            let root = dir.join("../../../..");
+            let tables = tantalus_tools::field_menu::MenuTables::load(
+                &root,
+                Default::default(),
+                Vec::new(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            )?;
+            let stock = tantalus_tools::shop_menu::ShopTables::load(&root)?;
+            Some((tables.db, stock.shops))
+        }
+        (None, true) => return Err("--auto-gear needs --character-data".into()),
+        _ => None,
+    };
+    let mut shopped: BTreeSet<i32> = BTreeSet::new();
     for field_number in 0..max_fields {
         // `ChangeField(16000)` (`FF9Define.FLDSCRPT_EVTNO_ENDING`) leaves the field for the
         // ending mode (HonoluluFieldMain.cs:240, `nextMode = 4`): `EndingMain` plays FMV059,
@@ -1800,6 +1861,16 @@ fn chain(
         let exits: BTreeMap<usize, i32> = (0..pool.len())
             .filter_map(|entry| Some((entry, exit_destination(&pool[entry])?)))
             .collect();
+        if let Some((db, stock)) = &gear_tables {
+            gear_up(
+                &mut world,
+                db,
+                stock,
+                shops.get(&map).copied(),
+                &mut shopped,
+                map,
+            );
+        }
         // The first unused route entry for this map; it is used up when the
         // field leaves through its destination.
         if let Some((path, from)) = save_at.get(&map)
@@ -2156,6 +2227,9 @@ fn chain(
                                         world, *character,
                                     )
                                     .1,
+                                    mastered: tantalus_tools::field_battle::PartyFighter::mastered_abilities(
+                                        world, *character,
+                                    ),
                                 })
                             })
                             .collect();
@@ -3090,6 +3164,35 @@ fn chain(
         }
     }
     Ok(())
+}
+
+/// `--auto-gear` (a trace stand-in): buys at `shop` (once per field) or at a
+/// shop a script opened (`world.shop_requested`), then wears the best owned
+/// gear; prints what changed.
+fn gear_up(
+    world: &mut tantalus_game::FieldWorld,
+    db: &tantalus_legacy::shop::ItemDb,
+    stock: &tantalus_legacy::shop::ShopTable,
+    shop: Option<i32>,
+    shopped: &mut BTreeSet<i32>,
+    map: i32,
+) {
+    let members = tantalus_tools::auto_gear::members(world);
+    let open = world
+        .shop_requested
+        .take()
+        .or_else(|| shop.filter(|_| shopped.insert(map)));
+    let mut bought = Vec::new();
+    if let Some(items) = open.and_then(|shop| stock.shops.get(&shop)) {
+        bought = tantalus_tools::auto_gear::buy_best(world, db, items, &members);
+    }
+    let equipped = tantalus_tools::auto_gear::equip_best(world, db, &members);
+    if !bought.is_empty() || !equipped.is_empty() {
+        println!(
+            "{}",
+            serde_json::json!({"auto_gear": map, "shop": open, "bought": bought, "equipped": equipped, "gil": world.gil})
+        );
+    }
 }
 
 #[cfg(test)]
