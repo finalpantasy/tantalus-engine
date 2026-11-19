@@ -1025,6 +1025,19 @@ impl BattleScene {
         }
     }
 
+    /// Battle ticks the opening camera plays before the battle starts (0 without a camera
+    /// script). See [`CameraDirector::opening_ticks`].
+    pub fn opening_ticks(&self) -> usize {
+        let director = self
+            .director
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        director
+            .as_ref()
+            .and_then(|director| director.opening_ticks(OPENING_LIMIT))
+            .unwrap_or(0)
+    }
+
     /// Shows the battle through the fixed camera only.
     pub fn fix_camera(&mut self) {
         self.director = std::sync::Mutex::new(None);
@@ -1815,7 +1828,14 @@ pub struct FightView {
     window: Option<BattleWindow>,
     pub battle: i32,
     pub scene_name: String,
+    /// Stage frames the opening camera plays first: until then the battle is in
+    /// `PHASE_ENTER` (no menu, no ATB). Without it a command started during the opening and
+    /// its camera took the half-run opening track, which looked at nothing.
+    opening: usize,
 }
+
+/// The longest opening camera waited for, in battle ticks.
+const OPENING_LIMIT: usize = 900;
 
 impl FightView {
     /// Opens the view of the battle `game` is fighting. `window` is false
@@ -1834,7 +1854,9 @@ impl FightView {
         crate::widescreen::latch_live_size();
         let size = crate::widescreen::live_size();
         let scene = BattleScene::new(assets, stage, size.0, size.1);
+        let opening = scene.opening_ticks();
         let mut view = Self {
+            opening,
             scene,
             menu: crate::battle_menu::BattleMenu::default(),
             pending: None,
@@ -1917,8 +1939,12 @@ impl FightView {
             (settings.cursor != 0, settings.atb == 1)
         });
         self.menu.remember = remember;
+        let opening = game
+            .battle()
+            .is_some_and(|fight| fight.stage().frames.len() < self.opening);
         if let Some(fight) = game.battle()
             && self.pending.is_none()
+            && !opening
         {
             let before = menu_snapshot(&self.menu);
             self.pending = self.menu.update(fight, pressed);
@@ -1926,7 +1952,7 @@ impl FightView {
             let sent = self.pending.is_some();
             game.battle_menu_sound(before, after, pressed, sent);
         }
-        let stalled = wait && self.menu.wait_stalls_atb();
+        let stalled = opening || (wait && self.menu.wait_stalls_atb());
         if let Some(fight) = game.battle_mut() {
             fight.set_atb_wait_stall(stalled);
         }
@@ -1991,7 +2017,12 @@ impl FightView {
         };
         let stage = fight.stage();
         let seconds = self.seconds(stage);
-        let mut overlay = menu_overlay(fight, &self.menu, &item_name);
+        // `PHASE_ENTER`: the opening camera plays without the command menu.
+        let mut overlay = if stage.frames.len() < self.opening {
+            Overlay::default()
+        } else {
+            menu_overlay(fight, &self.menu, &item_name)
+        };
         overlay.banner = steal_message(stage, seconds, &item_name);
         self.scene
             .render_with(assets, stage, seconds, hud, &overlay)

@@ -51,6 +51,12 @@ const TAIL_SIDE: f32 = 6.0;
 const MAGIC_1: f32 = 24.0;
 const MAGIC_2: f32 = 8.0;
 const INITIAL_MAGIC: f32 = 32.0;
+/// The choice hand's center, UI units right of the window body's left edge: the phrase label's
+/// left (`DialogPhraseXPadding`, 16) plus `UIPointer`'s `pointerWidth / 4` (114 / 4) plus
+/// `Dialog.DefaultOffset.x` (36).
+const HAND_CENTER_X: f32 = 16.0 + 114.0 / 4.0 + 36.0;
+/// The choice hand's center, UI units below the choice line's middle (`pointerHeight / 4`).
+const HAND_CENTER_DOWN: f32 = 62.0 / 4.0;
 /// `Dialog.PosYOffset` (-15 UI units) in PSX pixels.
 const POS_Y_OFFSET: f32 = -3.0;
 /// Height of the speaker's mouth above their feet, projected for the tail.
@@ -103,7 +109,46 @@ pub struct DialogView {
     /// The game tick each open window first appeared on, for the typing speed.
     opened: HashMap<(u8, u16), u64>,
     assets: Option<Option<DialogAssets>>,
+    /// The choice hand (`cursor_hand_choice` of the Icon Atlas) and its size in PSX pixels.
+    hand: Option<Option<(Handle<Image>, Vec2)>>,
     cache: HashMap<String, Rendered>,
+}
+
+/// `FF9UIDataTool.IconSpriteName[1]`: the hand cursor of choices, in the Icon Atlas.
+const HAND_FILE: &str = "sharedassets2.assets";
+const HAND_ATLAS: &str = "Icon Atlas";
+const HAND_SPRITE: &str = "cursor_hand_choice";
+
+/// The hand cursor as an image and its size in PSX pixels (the atlas is in UI pixels).
+fn load_hand(
+    game_data: &std::path::Path,
+    images: &mut Assets<Image>,
+) -> Option<(Handle<Image>, Vec2)> {
+    let mut sprites = tantalus_assets::pc::ui_atlas::load_sprites(
+        &game_data.join(HAND_FILE),
+        HAND_ATLAS,
+        &[HAND_SPRITE],
+    )
+    .map_err(|error| println!("!! dialog hand cursor art: {error}"))
+    .ok()?;
+    let sprite = sprites.remove(HAND_SPRITE)?;
+    let size = Vec2::new(
+        sprite.width as f32 / RESOURCE_X_MULTIPLIER,
+        sprite.height as f32 / RESOURCE_Y_MULTIPLIER,
+    );
+    let mut image = Image::new(
+        Extent3d {
+            width: sprite.width,
+            height: sprite.height,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        sprite.rgba,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    );
+    image.sampler = ImageSampler::linear();
+    Some((images.add(image), size))
 }
 
 /// Draws the open dialog windows of `game`, rebuilding them only when the
@@ -179,6 +224,10 @@ pub fn sync_dialogs(
                 None
             }
         });
+    }
+    if view.hand.is_none() {
+        let mut images = world.resource_mut::<Assets<Image>>();
+        view.hand = Some(load_hand(game.game_data(), &mut images));
     }
     // Text types in at the appearance speed of the text modifier: three times the animation
     // tick of the field message setting, in glyphs a second at 30 ticks a second.
@@ -645,13 +694,35 @@ fn spawn_window(
         // `LINE_HEIGHT` tall.
         let ui_y = PHRASE_Y_PADDING / 2.0 + rendered.line_tops[row] + LINE_HEIGHT / 2.0;
         let y = top_left.y + ui_y / RESOURCE_Y_MULTIPLIER;
-        // A diamond stands in for the hand pointer.
-        world.spawn((
-            Sprite::from_color(Color::srgb(1.0, 0.95, 0.6), Vec2::splat(5.0)),
-            Transform::from_translation(local(top_left.x + 4.0, y) + Vec3::Z * (z + 0.02))
-                .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_4)),
-            ChildOf(root),
-        ));
+        match view.hand.clone().flatten() {
+            // `UIPointer.SetPosition` on the choice widget, which starts at the phrase label.
+            Some((hand, size)) => {
+                world.spawn((
+                    Sprite {
+                        image: hand,
+                        custom_size: Some(size),
+                        ..default()
+                    },
+                    Anchor::CENTER,
+                    Transform::from_translation(
+                        local(
+                            top_left.x + HAND_CENTER_X / RESOURCE_X_MULTIPLIER,
+                            y + HAND_CENTER_DOWN / RESOURCE_Y_MULTIPLIER,
+                        ) + Vec3::Z * (z + 0.02),
+                    ),
+                    ChildOf(root),
+                ));
+            }
+            // A diamond stands in for the hand without the art.
+            None => {
+                world.spawn((
+                    Sprite::from_color(Color::srgb(1.0, 0.95, 0.6), Vec2::splat(5.0)),
+                    Transform::from_translation(local(top_left.x + 4.0, y) + Vec3::Z * (z + 0.02))
+                        .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_4)),
+                    ChildOf(root),
+                ));
+            }
+        }
     }
 }
 

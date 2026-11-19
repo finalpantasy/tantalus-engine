@@ -775,6 +775,10 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
         }
         for event in game.tick(held)? {
             println!("{}", tantalus_client::live::describe(&event));
+            if let tantalus_tools::play::PlayEvent::Dialog { choice: true, .. } = event {
+                // The tick to pass as `--ticks` for a capture with the choice cursor up.
+                println!("   (choice opened at tick {tick})");
+            }
         }
         if std::env::var_os("TANTALUS_SPS_LOG").is_some() {
             let slots: Vec<String> = game

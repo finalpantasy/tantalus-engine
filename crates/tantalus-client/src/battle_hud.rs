@@ -97,7 +97,17 @@ pub struct BattleHud {
     windows: RefCell<HashMap<(i32, i32), Image>>,
     /// Text lines drawn lately, by text and color.
     texts: RefCell<HashMap<(String, [u8; 3]), Image>>,
+    /// The hand cursor (`FF9UIDataTool.IconSpriteName[1]`, `cursor_hand_choice` of the Icon
+    /// Atlas), pointing right; `None` draws a stand-in arrow.
+    hand: Option<Image>,
 }
+
+/// Where the hand cursor sprite lives (`presentation_view` reads the same atlas).
+const HAND_FILE: &str = "sharedassets2.assets";
+const HAND_ATLAS: &str = "Icon Atlas";
+const HAND_SPRITE: &str = "cursor_hand_choice";
+/// The hand's width in UI pixels (`PointerManager.PointerSize`, 114 by 62).
+const HAND_UI_WIDTH: f32 = 114.0;
 
 impl BattleHud {
     /// Loads the font and window art from `FF9_Data/resources.assets`.
@@ -106,11 +116,25 @@ impl BattleHud {
             DialogAssets::load(&game_data.join("resources.assets"), WindowAtlasChoice::Blue)
                 .map_err(|error| error.to_string())?;
         let baseline = measure_baseline(assets.glyphs(), FONT_SIZE);
+        let hand = tantalus_assets::pc::ui_atlas::load_sprites(
+            &game_data.join(HAND_FILE),
+            HAND_ATLAS,
+            &[HAND_SPRITE],
+        )
+        .map_err(|error| println!("!! battle hand cursor art: {error}"))
+        .ok()
+        .and_then(|mut sprites| sprites.remove(HAND_SPRITE))
+        .map(|sprite| Image {
+            width: sprite.width as usize,
+            height: sprite.height as usize,
+            rgba: sprite.rgba,
+        });
         Ok(Self {
             assets,
             baseline,
             windows: RefCell::new(HashMap::new()),
             texts: RefCell::new(HashMap::new()),
+            hand,
         })
     }
 
@@ -149,7 +173,7 @@ impl BattleHud {
                 WHITE
             };
             if member.asked {
-                ui.hand(columns[0] - 50.0, y + 8.0);
+                ui.hand(columns[0] - 10.0, y + 8.0);
             }
             ui.text(columns[0], y, &member.name, color);
             ui.text_right(columns[1] + 150.0, y, &member.hp.0.to_string(), color);
@@ -205,7 +229,7 @@ impl BattleHud {
                     let color = if command.enabled { WHITE } else { GRAY };
                     ui.text(x, ty, &command.text, color);
                     if index == menu.command_cursor && menu.list.is_none() && !menu.targeting {
-                        ui.hand(x - 50.0, ty + 8.0);
+                        ui.hand(x - 10.0, ty + 8.0);
                     }
                 }
                 if let Some((lines, cursor)) = &menu.list {
@@ -222,7 +246,7 @@ impl BattleHud {
                         ui.text(list_x + 80.0, ty, &entry.text, color);
                         ui.text_right(list_x + list_w - 40.0, ty, &entry.right, color);
                         if row == *cursor && !menu.targeting {
-                            ui.hand(list_x + 30.0, ty + 8.0);
+                            ui.hand(list_x + 70.0, ty + 8.0);
                         }
                     }
                 }
@@ -376,14 +400,36 @@ impl Ui<'_> {
         self.text(right - width, y, text, color);
     }
 
-    /// The cursor hand pointing right, its tip at `(x, y)`.
+    /// The cursor hand pointing right, its tip at `(x, y + 18)` (the middle of a text row
+    /// whose top is `y - 8`).
     fn hand(&mut self, x: f32, y: f32) {
-        self.triangle(x, y + 18.0, [[-34.0, -18.0], [-34.0, 18.0], [0.0, 0.0]]);
+        self.hand_at(x, y + 18.0);
     }
 
-    /// The target hand pointing down, its tip at `(x, y)`.
+    /// The hand cursor pointing right with its fingertip at `(x, y)` (UI pixels): the sprite
+    /// when it loaded, else a stand-in arrow.
+    fn hand_at(&mut self, x: f32, y: f32) {
+        let Some(hand) = self.hud.hand.as_ref() else {
+            self.triangle(x, y, [[-34.0, -18.0], [-34.0, 18.0], [0.0, 0.0]]);
+            return;
+        };
+        // UI pixels per texel, so the sprite is `PointerSize` wide; `blit_scaled` takes frame
+        // pixels per source texel.
+        let ui = HAND_UI_WIDTH / hand.width.max(1) as f32;
+        let (w, h) = (hand.width as f32 * ui, hand.height as f32 * ui);
+        blit_scaled(
+            self.frame,
+            hand,
+            (x - w) / ui,
+            (y - h / 2.0) / ui,
+            self.scale * ui,
+        );
+    }
+
+    /// The target hand: the same hand pointing right at the targeted unit, its fingertip at
+    /// `(x, y)` above the unit.
     fn hand_down(&mut self, x: f32, y: f32) {
-        self.triangle(x, y, [[-20.0, -40.0], [20.0, -40.0], [0.0, 0.0]]);
+        self.hand_at(x, y);
     }
 
     fn triangle(&mut self, x: f32, y: f32, corners: [[f32; 2]; 3]) {

@@ -237,6 +237,21 @@ impl CameraDirector {
         self.ticks
     }
 
+    /// Battle ticks the opening camera (set 0, `SFX_StartPlungeCamera`) takes until the script
+    /// raises the camera phase (`SFX.GetCameraPhase() == 1`). The battle waits in
+    /// `PHASE_ENTER` until then (`SFX.UpdateCamera`, `SFX.cs:1606`): no menu, no ATB. `None`
+    /// when the script never raises it within `limit` ticks.
+    pub fn opening_ticks(&self, limit: usize) -> Option<usize> {
+        let mut script = self.script.clone();
+        if script.phase == 1 {
+            return Some(0);
+        }
+        (1..=limit).find(|_| {
+            script.update(&self.world);
+            script.phase == 1
+        })
+    }
+
     fn step(
         &mut self,
         stage: &BattleStage,
