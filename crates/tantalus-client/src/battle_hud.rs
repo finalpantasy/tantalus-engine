@@ -98,6 +98,95 @@ pub struct BattleHud {
     /// The skin's hand cursor pointing right and its width in UI pixels (`ui_skin::hand`);
     /// `None` draws a stand-in arrow.
     hand: Option<(Image, f32)>,
+    /// The skin's placement numbers.
+    layout: Layout,
+    /// The PS1 battle digits (`ui_skin::battle_digits`), when the PS1 skin draws.
+    digits: Option<crate::ui_skin::BattleDigits>,
+    /// UI pixels of room above a text line's top for glyphs taller than the font size (the PS1
+    /// font's 12-line cells).
+    text_lift: i32,
+}
+
+/// Where the panels go, in UI pixels. The Steam numbers follow `BattleHUD`'s panels by eye
+/// (see the module header); the PS1 ones fit the PS1 font, whose glyphs are about one and a
+/// half times as wide, in the PS1 screen's 320 by 224 pixels (4.5 UI pixels a PS1 pixel
+/// across the 4:3 area, 1080 / 224 down).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Layout {
+    line: f32,
+    margin: f32,
+    party_w: f32,
+    /// Name, HP, MP and ATB columns, from the party window's left edge.
+    columns: [f32; 4],
+    header_y: f32,
+    first_row_y: f32,
+    party_pad_h: f32,
+    /// Right edges of the HP and MP numbers, from their columns.
+    hp_right: f32,
+    mp_right: f32,
+    header_shift: f32,
+    /// ATB gauge: offset below the row top, width, height.
+    atb: (f32, f32, f32),
+    left_w: f32,
+    command_x: f32,
+    side_x: f32,
+    rows_pad_h: f32,
+    row_y: f32,
+    list_text_x: f32,
+    list_right_inset: f32,
+    enemy_x: f32,
+}
+
+impl Layout {
+    fn steam() -> Self {
+        Self {
+            line: 62.0,
+            margin: 20.0,
+            party_w: 820.0,
+            columns: [60.0, 330.0, 520.0, 640.0],
+            header_y: 14.0,
+            first_row_y: 52.0,
+            party_pad_h: 60.0,
+            hp_right: 150.0,
+            mp_right: 110.0,
+            header_shift: 20.0,
+            atb: (18.0, 150.0, 22.0),
+            left_w: 560.0,
+            command_x: 80.0,
+            side_x: 360.0,
+            rows_pad_h: 40.0,
+            row_y: 22.0,
+            list_text_x: 80.0,
+            list_right_inset: 40.0,
+            enemy_x: 50.0,
+        }
+    }
+
+    fn ps1() -> Self {
+        // PS1 pixels to UI pixels, across and down.
+        let (x, y) = (4.5, 1080.0 / 224.0);
+        Self {
+            line: 14.0 * y,
+            margin: 4.0 * x,
+            party_w: 188.0 * x,
+            columns: [10.0 * x, 60.0 * x, 104.0 * x, 140.0 * x],
+            header_y: 4.0 * y,
+            first_row_y: 16.0 * y,
+            party_pad_h: 19.0 * y,
+            hp_right: 40.0 * x,
+            mp_right: 28.0 * x,
+            header_shift: 14.0 * x,
+            atb: (5.0 * y, 44.0 * x, 4.0 * y),
+            left_w: 120.0 * x,
+            command_x: 18.0 * x,
+            side_x: 68.0 * x,
+            rows_pad_h: 10.0 * y,
+            row_y: 4.0 * y,
+            list_text_x: 18.0 * x,
+            list_right_inset: 8.0 * x,
+            enemy_x: 12.0 * x,
+        }
+    }
 }
 
 impl BattleHud {
@@ -106,12 +195,16 @@ impl BattleHud {
         let assets = crate::ui_skin::dialog_assets(game_data)?;
         let baseline = measure_baseline(assets.glyphs(), FONT_SIZE);
         let hand = crate::ui_skin::hand(game_data);
+        let ps1 = crate::ui_skin::active() == crate::ui_skin::UiSkin::Ps1;
         Ok(Self {
             assets,
             baseline,
             windows: RefCell::new(HashMap::new()),
             texts: RefCell::new(HashMap::new()),
             hand,
+            layout: if ps1 { Layout::ps1() } else { Layout::steam() },
+            digits: crate::ui_skin::battle_digits(),
+            text_lift: if ps1 { 12 } else { 0 },
         })
     }
 
@@ -124,24 +217,21 @@ impl BattleHud {
             frame,
             scale,
         };
-        let line = 62.0;
+        let lay = self.layout;
+        let line = lay.line;
         // Party panel, bottom right (`PartyDetailPanel`).
-        let party_w = 820.0;
-        let party_h = 60.0 + line * hud.party.len().max(1) as f32;
-        let party_x = ui_width - party_w - 20.0;
-        let party_y = UI_HEIGHT - party_h - 20.0;
+        let party_w = lay.party_w;
+        let party_h = lay.party_pad_h + line * hud.party.len().max(1) as f32;
+        let party_x = ui_width - party_w - lay.margin;
+        let party_y = UI_HEIGHT - party_h - lay.margin;
         ui.window(party_x, party_y, party_w, party_h);
-        let columns = [
-            party_x + 60.0,
-            party_x + 330.0,
-            party_x + 520.0,
-            party_x + 640.0,
-        ];
-        ui.text(columns[1] + 20.0, party_y + 14.0, "HP", YELLOW);
-        ui.text(columns[2] + 20.0, party_y + 14.0, "MP", YELLOW);
-        ui.text(columns[3] + 20.0, party_y + 14.0, "ATB", YELLOW);
+        let columns = lay.columns.map(|column| party_x + column);
+        let header_y = party_y + lay.header_y;
+        ui.text(columns[1] + lay.header_shift, header_y, "HP", YELLOW);
+        ui.text(columns[2] + lay.header_shift, header_y, "MP", YELLOW);
+        ui.text(columns[3] + lay.header_shift, header_y, "ATB", YELLOW);
         for (row, member) in hud.party.iter().enumerate() {
-            let y = party_y + 52.0 + line * row as f32;
+            let y = party_y + lay.first_row_y + line * row as f32;
             let color = if member.hp.0 == 0 {
                 RED
             } else if member.hp.0 * 4 <= member.hp.1 {
@@ -153,11 +243,21 @@ impl BattleHud {
                 ui.hand(columns[0] - 10.0, y + 8.0);
             }
             ui.text(columns[0], y, &member.name, color);
-            ui.text_right(columns[1] + 150.0, y, &member.hp.0.to_string(), color);
-            ui.text_right(columns[2] + 110.0, y, &member.mp.0.to_string(), color);
+            ui.text_right(
+                columns[1] + lay.hp_right,
+                y,
+                &member.hp.0.to_string(),
+                color,
+            );
+            ui.text_right(
+                columns[2] + lay.mp_right,
+                y,
+                &member.mp.0.to_string(),
+                color,
+            );
             // ATB gauge (`BattleHUD.ATBGauge`): blue while it fills,
             // yellow when full.
-            let (bx, by, bw, bh) = (columns[3], y + 18.0, 150.0, 22.0);
+            let (bx, by, bw, bh) = (columns[3], y + lay.atb.0, lay.atb.1, lay.atb.2);
             ui.rect(bx - 3.0, by - 3.0, bw + 6.0, bh + 6.0, [20, 20, 40], 1.0);
             let fill = if member.atb >= 1.0 {
                 [230, 210, 70]
@@ -179,13 +279,13 @@ impl BattleHud {
             }
         }
         // Left: the command menu, or the enemy names.
-        let left_w: f32 = 560.0;
-        let left_x = 20.0;
+        let left_w: f32 = lay.left_w;
+        let left_x = lay.margin;
         match &hud.menu {
             Some(menu) => {
                 let rows = menu.commands.len().min(4);
-                let h = 40.0 + line * rows as f32;
-                let y = UI_HEIGHT - h - 20.0;
+                let h = lay.rows_pad_h + line * rows as f32;
+                let y = UI_HEIGHT - h - lay.margin;
                 // The list replaces the command window (`AbilityPanel`
                 // over `CommandPanel`).
                 let commands = if menu.list.is_some() {
@@ -198,11 +298,11 @@ impl BattleHud {
                     // Side column: Defend beside the first row, Change
                     // beside the last.
                     let (row, x) = match index {
-                        0..=3 => (index, left_x + 80.0),
-                        4 => (0, left_x + 360.0),
-                        _ => (rows.saturating_sub(1), left_x + 360.0),
+                        0..=3 => (index, left_x + lay.command_x),
+                        4 => (0, left_x + lay.side_x),
+                        _ => (rows.saturating_sub(1), left_x + lay.side_x),
                     };
-                    let ty = y + 22.0 + line * row as f32;
+                    let ty = y + lay.row_y + line * row as f32;
                     let color = if command.enabled { WHITE } else { GRAY };
                     ui.text(x, ty, &command.text, color);
                     if index == menu.command_cursor && menu.list.is_none() && !menu.targeting {
@@ -212,18 +312,23 @@ impl BattleHud {
                 if let Some((lines, cursor)) = &menu.list {
                     let shown = 6usize;
                     let first = cursor.saturating_sub(shown - 1);
-                    let list_h = 40.0 + line * shown.min(lines.len()).max(1) as f32;
+                    let list_h = lay.rows_pad_h + line * shown.min(lines.len()).max(1) as f32;
                     let list_w = left_w;
                     let list_x = left_x;
-                    let list_y = UI_HEIGHT - list_h - 20.0;
+                    let list_y = UI_HEIGHT - list_h - lay.margin;
                     ui.window(list_x, list_y, list_w, list_h);
                     for (row, entry) in lines.iter().enumerate().skip(first).take(shown) {
-                        let ty = list_y + 22.0 + line * (row - first) as f32;
+                        let ty = list_y + lay.row_y + line * (row - first) as f32;
                         let color = if entry.enabled { WHITE } else { GRAY };
-                        ui.text(list_x + 80.0, ty, &entry.text, color);
-                        ui.text_right(list_x + list_w - 40.0, ty, &entry.right, color);
+                        ui.text(list_x + lay.list_text_x, ty, &entry.text, color);
+                        ui.text_right(
+                            list_x + list_w - lay.list_right_inset,
+                            ty,
+                            &entry.right,
+                            color,
+                        );
                         if row == *cursor && !menu.targeting {
-                            ui.hand(list_x + 70.0, ty + 8.0);
+                            ui.hand(list_x + lay.list_text_x - 10.0, ty + 8.0);
                         }
                     }
                 }
@@ -235,11 +340,12 @@ impl BattleHud {
             }
             None => {
                 let shown = hud.enemies.len().clamp(1, 4);
-                let h = 40.0 + line * shown as f32;
-                let y = UI_HEIGHT - h - 20.0;
+                let h = lay.rows_pad_h + line * shown as f32;
+                let y = UI_HEIGHT - h - lay.margin;
                 ui.window(left_x, y, left_w, h);
                 for (row, name) in hud.enemies.iter().take(shown).enumerate() {
-                    ui.text(left_x + 50.0, y + 22.0 + line * row as f32, name, WHITE);
+                    let ty = y + lay.row_y + line * row as f32;
+                    ui.text(left_x + lay.enemy_x, ty, name, WHITE);
                 }
             }
         }
@@ -279,6 +385,10 @@ impl BattleHud {
                 amount => (amount.to_string(), WHITE),
             };
             let rise = (since * 8.0).min(1.0) as f32 * 60.0;
+            if let Some(digits) = self.digits.as_ref() {
+                ui.digits(digits, x / scale, y / scale - 40.0 - rise, &text, color);
+                continue;
+            }
             let ux = x / scale - ui.measure(&text) / 2.0;
             ui.text(ux, y / scale - 40.0 - rise, &text, color);
         }
@@ -337,13 +447,51 @@ impl Ui<'_> {
         let image = texts
             .entry((text.to_owned(), color))
             .or_insert_with(|| self.text_image(text, color));
-        blit_scaled(self.frame, image, x, y, self.scale);
+        let lift = self.hud.text_lift as f32;
+        blit_scaled(self.frame, image, x, y - lift, self.scale);
+    }
+
+    /// A damage number in the PS1 battle digits, centered on `x` with its top at `y` (UI
+    /// pixels), tinted by `color` (the digits are drawn white).
+    fn digits(
+        &mut self,
+        digits: &crate::ui_skin::BattleDigits,
+        x: f32,
+        y: f32,
+        text: &str,
+        color: [u8; 3],
+    ) {
+        let ui = digits.ui_per_pixel;
+        let glyphs: Vec<&Image> = if text == "Miss" {
+            vec![&digits.miss]
+        } else {
+            text.chars()
+                .filter_map(|ch| digits.digits.get(ch.to_digit(10)? as usize))
+                .collect()
+        };
+        let width: f32 = glyphs
+            .iter()
+            .map(|glyph| glyph.width as f32 * ui)
+            .sum::<f32>();
+        let mut pen = x - width / 2.0;
+        for glyph in glyphs {
+            let mut tinted = glyph.clone();
+            for px in tinted.rgba.chunks_exact_mut(4) {
+                for (channel, tint) in px.iter_mut().zip(color) {
+                    *channel = (u16::from(*channel) * u16::from(tint) / u16::from(WHITE[0]))
+                        .min(255) as u8;
+                }
+            }
+            blit_scaled(self.frame, &tinted, pen / ui, y / ui, self.scale * ui);
+            pen += glyph.width as f32 * ui;
+        }
     }
 
     fn text_image(&self, text: &str, color: [u8; 3]) -> Image {
         let glyphs = self.hud.assets.glyphs();
         let width = self.measure(text).ceil() as usize + 8;
-        let height = (FONT_SIZE + 16) as usize;
+        let lift = self.hud.text_lift;
+        let height = (FONT_SIZE + 16 + lift) as usize;
         let mut image = Image::new(width.max(1), height);
         for (offset, shade) in [(4, SHADOW), (0, color)] {
             let mut pen = 0;
@@ -352,7 +500,7 @@ impl Ui<'_> {
                     continue;
                 };
                 let left = pen + glyph.min_x + offset;
-                let top = self.hud.baseline - glyph.max_y() + offset;
+                let top = self.hud.baseline - glyph.max_y() + offset + lift;
                 for row in 0..glyph.height {
                     for column in 0..glyph.width {
                         let coverage = glyph.coverage[row * glyph.width + column];
