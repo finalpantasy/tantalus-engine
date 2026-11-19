@@ -2112,7 +2112,13 @@ impl FieldWorld {
             .iter()
             .filter_map(|&character| u8::try_from(character).ok())
             .collect();
-        self.party_uid = party_uid(&self.entry_links, &party);
+        // `EventState.IsEikoAbducted` reads the scenario counter (`EBin.SC_COUNTER_SVR`).
+        let scenario = self
+            .global_memory
+            .get(0, tantalus_legacy::VariableType::UInt16)
+            .unwrap_or(0);
+        let avoid_eiko = tantalus_legacy::event::party::is_eiko_abducted(scenario);
+        self.party_uid = party_uid(&self.entry_links, &party, avoid_eiko);
     }
 
     /// `partyUID` slots (local uids 251-254).

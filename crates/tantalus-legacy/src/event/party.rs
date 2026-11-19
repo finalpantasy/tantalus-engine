@@ -7,8 +7,8 @@
 //! changes, and on `SYNCPARTY` (0xE9). Character ids are `CharacterId`
 //! values (0 Zidane to 7 Amarant, 8-10 Cinna, Marcus and Blank, 11 Beatrix).
 //!
-//! Not modeled: `IsEikoAbducted`, which makes the lookup skip Eiko's entries
-//! after Eiko is taken in the story.
+//! While Eiko is abducted (`EventState.IsEikoAbducted`, scenario 9860 to
+//! 9989) the lookup skips the entries linked to her.
 
 /// First party-slot local uid (`partyUID[0]`).
 pub const PARTY_SLOT_FIRST: u8 = 251;
@@ -30,6 +30,15 @@ const ORDER: [Option<u8>; 10] = [
     Some(2),
     Some(11),
 ];
+
+/// Eiko's `CharacterId`.
+const EIKO: u8 = 6;
+
+/// `EventState.IsEikoAbducted` (EventState.cs:36): from Kuja taking Eiko in
+/// the Desert Palace (9860) until her rescue (9990).
+pub fn is_eiko_abducted(scenario: i32) -> bool {
+    (9860..9990).contains(&scenario)
+}
 
 /// Characters after Amarant other than Beatrix (Cinna, Marcus, Blank).
 fn is_other(character: u8) -> bool {
@@ -74,17 +83,19 @@ pub fn vanilla_links(has_code: impl ExactSizeIterator<Item = bool>) -> Vec<Entry
 /// `EventEngineUtils.GetEventCharacterSIdHacked`: the entry linked to
 /// `character`, else the `member`-th entry (in priority order) linked to a
 /// character outside `party`, so a slot still gets an object when the
-/// field has no entry for that member.
+/// field has no entry for that member. With `avoid_eiko` (`IsEikoAbducted`)
+/// no entry linked to Eiko is picked (EventEngineUtils.cs:1870-1878).
 fn character_entry(
     entries: &[EntryLink],
     party: &[u8],
     character: u8,
     member: usize,
+    avoid_eiko: bool,
 ) -> Option<usize> {
-    if let Some(index) = entries
-        .iter()
-        .position(|entry| entry.has_code && entry.character == Some(character))
-    {
+    let allowed = |link: u8| link != EIKO || !avoid_eiko;
+    if let Some(index) = entries.iter().position(|entry| {
+        entry.has_code && entry.character == Some(character) && allowed(character)
+    }) {
         return Some(index);
     }
     let mut left = member;
@@ -97,7 +108,7 @@ fn character_entry(
                 Some(wanted) => link == wanted,
                 None => is_other(link),
             };
-            if entry.has_code && fits && !party.contains(&link) {
+            if entry.has_code && fits && allowed(link) && !party.contains(&link) {
                 if left == 0 {
                     return Some(index);
                 }
@@ -109,14 +120,14 @@ fn character_entry(
 }
 
 /// `SetupPartyUID`: the entry behind each party slot for the party
-/// `party` (character ids in slot order).
-pub fn party_uid(entries: &[EntryLink], party: &[u8]) -> [Option<usize>; 4] {
+/// `party` (character ids in slot order); `avoid_eiko` is `IsEikoAbducted`.
+pub fn party_uid(entries: &[EntryLink], party: &[u8], avoid_eiko: bool) -> [Option<usize>; 4] {
     let party: Vec<u8> = party.iter().take(4).copied().collect();
     let mut slots = [None; 4];
     let mut member = 0;
     let mut place = |character: u8, member: &mut usize| {
         if *member < 4
-            && let Some(entry) = character_entry(entries, &party, character, *member)
+            && let Some(entry) = character_entry(entries, &party, character, *member, avoid_eiko)
         {
             slots[*member] = Some(entry);
             *member += 1;
@@ -163,10 +174,10 @@ mod tests {
         // Party order Vivi, Garnet, Zidane, Steiner -> Zidane, Steiner,
         // Vivi, Garnet.
         assert_eq!(
-            party_uid(&table, &[1, 2, 0, 3]),
+            party_uid(&table, &[1, 2, 0, 3], false),
             [Some(11), Some(14), Some(12), Some(13)]
         );
-        assert_eq!(party_uid(&table, &[]), [None; 4]);
+        assert_eq!(party_uid(&table, &[], false), [None; 4]);
     }
 
     #[test]
@@ -177,6 +188,42 @@ mod tests {
         // Zidane -> 11. Freya has no entry, so slot 1 takes the member-1th
         // entry linked to a non-member in priority order: Eiko (17) is the
         // 0th, Steiner (14) the 1st.
-        assert_eq!(party_uid(&table, &[0, 4]), [Some(11), Some(14), None, None]);
+        assert_eq!(
+            party_uid(&table, &[0, 4], false),
+            [Some(11), Some(14), None, None]
+        );
+    }
+
+    #[test]
+    fn eiko_abducted_spans_9860_to_9989() {
+        assert!(!is_eiko_abducted(9859));
+        assert!(is_eiko_abducted(9860));
+        assert!(is_eiko_abducted(9989));
+        assert!(!is_eiko_abducted(9990));
+    }
+
+    #[test]
+    fn an_abducted_eiko_s_entries_are_skipped() {
+        let mut table = links(20);
+        // Freya's entry (15) is empty; party Zidane and Freya. Unabducted, the
+        // borrowed entry is the 1st non-member in priority order, Steiner (14),
+        // after Eiko (17); abducted, Eiko is skipped and the 1st is Vivi (12).
+        table[15].has_code = false;
+        assert_eq!(
+            party_uid(&table, &[0, 4], true),
+            [Some(11), Some(12), None, None]
+        );
+        // Eiko in the party gets no entry of her own while abducted: slot 1
+        // borrows the 1st unused non-member entry in priority order (Vivi 12
+        // is the 0th, Freya 15 the 1st; Steiner is a member).
+        let table = links(20);
+        assert_eq!(
+            party_uid(&table, &[0, 6, 3], false),
+            [Some(11), Some(17), Some(14), None]
+        );
+        assert_eq!(
+            party_uid(&table, &[0, 6, 3], true),
+            [Some(11), Some(15), Some(14), None]
+        );
     }
 }
