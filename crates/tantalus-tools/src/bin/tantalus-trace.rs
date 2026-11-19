@@ -39,7 +39,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--level N] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY[@SCENARIO],...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP[@ANGLE][#SCENARIO],...] [--wall-regions MAP,...] [--push-objects MAP,...] [--play-card-games] [--win-card-games] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--stub-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--region-points MAP:ENTRY@X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY[@SCENARIO],...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP[@ANGLE][#SCENARIO],...] [--wall-regions MAP,...] [--tour MAP,...] [--push-objects MAP,...] [--play-card-games] [--win-card-games] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--stub-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--region-points MAP:ENTRY@X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -71,6 +71,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut region_talks: BTreeMap<i32, i32> = BTreeMap::new();
     let mut region_faces: BTreeMap<i32, i16> = BTreeMap::new();
     let mut wall_regions: BTreeSet<i32> = BTreeSet::new();
+    let mut tour_fields: BTreeSet<i32> = BTreeSet::new();
     let mut push_fields: BTreeSet<i32> = BTreeSet::new();
     let mut hold: BTreeMap<i32, i32> = BTreeMap::new();
     let mut press_when: Vec<PressWhen> = Vec::new();
@@ -260,6 +261,15 @@ fn run(args: Vec<String>) -> Result<(), String> {
                         part.trim()
                             .parse()
                             .map_err(|_| format!("bad --wall-regions entry `{part}`, want MAP"))?,
+                    );
+                }
+            }
+            "--tour" => {
+                for part in value()?.split(',') {
+                    tour_fields.insert(
+                        part.trim()
+                            .parse()
+                            .map_err(|_| format!("bad --tour entry `{part}`, want MAP"))?,
                     );
                 }
             }
@@ -740,6 +750,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     region_talks,
                     region_faces,
                     wall_regions,
+                    tour_fields,
                     push_fields,
                     hold,
                     press_when,
@@ -922,6 +933,8 @@ const PROMPT_KEYS: [(i32, u16, i32); 9] = [
 ];
 /// Ticks the scripted player stays in one region before moving on.
 const REGION_DWELL: u64 = 120;
+/// Ticks the `--tour` explorer stays on each walkmesh triangle.
+const TOUR_DWELL: u64 = 20;
 /// Ticks the explorer waits next to an object for its talk to start.
 const TALK_DWELL: u64 = 45;
 /// Ticks the scripted player stands on each `--waypoints` position.
@@ -1013,6 +1026,33 @@ fn walkmesh_heights(
         }
     }
     heights
+}
+
+/// The centre (x, z) of every walkmesh triangle, in mesh order.
+fn triangle_centres(mesh: Option<&tantalus_contracts::FieldNavigationMesh>) -> Vec<[f32; 2]> {
+    let Some(mesh) = mesh else {
+        return Vec::new();
+    };
+    mesh.triangles
+        .iter()
+        .filter_map(|triangle| {
+            let corners: Vec<[f32; 2]> = triangle
+                .vertices
+                .iter()
+                .filter_map(|index| mesh.vertices.get(*index as usize))
+                .map(|vertex| {
+                    [
+                        (vertex.x + triangle.offset.x) as f32,
+                        (vertex.z + triangle.offset.z) as f32,
+                    ]
+                })
+                .collect();
+            let [a, b, c] = corners[..] else {
+                return None;
+            };
+            Some([(a[0] + b[0] + c[0]) / 3.0, (a[1] + b[1] + c[1]) / 3.0])
+        })
+        .collect()
 }
 
 /// The centre of a walkmesh triangle inside `region` whose height `wanted` accepts: a spot of
@@ -1327,6 +1367,11 @@ struct ChainOptions {
     /// The facing `--region-talks MAP@ANGLE` gives the player for a region talk.
     region_faces: BTreeMap<i32, i16>,
     wall_regions: BTreeSet<i32>,
+    /// Fields where the explorer, with nothing left to do, walks the walkmesh
+    /// triangle by triangle (`--tour`): scenes that wait for the player to reach
+    /// a spot with no region there (Cleyra 1104 at 4910: entry 23 waits for a
+    /// height of 180 or less, `-pos.y`).
+    tour_fields: BTreeSet<i32>,
     /// Fields where the player's push asks actors for their tag 2 (`--push-objects`).
     push_fields: BTreeSet<i32>,
     /// Pad bits held for a whole field, by field map (`KeyState(Held)`
@@ -1484,6 +1529,7 @@ fn chain(
         region_talks,
         region_faces,
         wall_regions,
+        tour_fields,
         push_fields,
         hold,
         press_when,
@@ -1907,6 +1953,8 @@ fn chain(
         let mut trigger_floors: BTreeMap<usize, f32> = BTreeMap::new();
         let mut waypoint_index = 0usize;
         let mut waypoint_dwell = 0u64;
+        let mut tour_index = 0usize;
+        let mut tour_dwell = 0u64;
         let mut last_talk_press: Option<u64> = None;
         let mut talk_scenario = scenario_at_start;
         let skipped: BTreeSet<usize> = skip_talk
@@ -2644,6 +2692,24 @@ fn chain(
                         .or(waypoint)
                         .or(avoid_target)
                         .or_else(|| pending_region(true));
+                    // `--tour`: nothing left to do here, so visit the walkmesh
+                    // triangle centres in turn, TOUR_DWELL ticks each.
+                    let touring = next.is_none() && tour_fields.contains(&map);
+                    let next = next.or_else(|| {
+                        if !touring {
+                            return None;
+                        }
+                        let walkable = world.walkable_navigation();
+                        let centres = triangle_centres(walkable.as_deref());
+                        (!centres.is_empty()).then(|| centres[tour_index % centres.len()])
+                    });
+                    if touring {
+                        tour_dwell += 1;
+                        if tour_dwell >= TOUR_DWELL {
+                            tour_dwell = 0;
+                            tour_index += 1;
+                        }
+                    }
                     let talking = pending_region(false).is_none() && talk_target.is_some();
                     let walking = pending_region(false).is_none()
                         && talk_target.is_none()
