@@ -8,9 +8,9 @@
 //! each character's default set (`CharacterParameters.csv` ->
 //! `DefaultEquipment.csv`), since the field side does not track equipment
 //! yet; its stat bonuses (`Stats.csv`) are applied. Victories pay gil, items
-//! and EXP into the field world; AP and cards are reported only. Every party member uses
-//! Attack on the first living enemy, the status table is empty, and the
-//! first pattern is used when the request names no group.
+//! and EXP into the field world; AP and cards are reported only. The party
+//! is played by a stand-in policy (`LiveFight::stand_in`), and a request
+//! that names no group takes its pattern by rate (`choice_pattern`).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -1117,7 +1117,15 @@ impl FieldBattles {
             .scene(&name)
             .ok_or_else(|| format!("scene `{name}` is not in p0data2.bin"))?;
         let scene = scene.as_ref().map_err(|error| error.to_string())?;
-        let pattern = report.pattern.min(scene.patterns.len().saturating_sub(1));
+        // `HonoluluBattleMain.ChoicePattern`: a named group (`btlSubMapNo`)
+        // picks its pattern, otherwise the pattern rates do.
+        let pattern = match request.group.and_then(|group| usize::try_from(group).ok()) {
+            Some(group) => group.min(scene.patterns.len().saturating_sub(1)),
+            None => choice_pattern(
+                scene.patterns.iter().map(|pattern| pattern.rate),
+                request.pattern_roll,
+            ),
+        };
         report.pattern = pattern;
         let script = self.scripts.get(&name);
         report.ai_script = script.is_some();
@@ -1163,6 +1171,9 @@ impl FieldBattles {
         let mut battle = Battle::new(
             units,
             BattleConfig {
+                // `SB2_HEAD` flag 32 clears `Info.Runaway`
+                // (`BTL_SCENE.SetupSceneInfo`): bosses cannot be fled.
+                runaway: scene_runaway(scene.header.flags),
                 timing: COMMAND_TIMING,
                 command_timing_late: {
                     let table = self.equipment.effects.clone();
@@ -1369,6 +1380,10 @@ impl FieldBattles {
             .iter()
             .map(|unit| unit.cur_hp)
             .collect();
+        let spells = menu
+            .iter()
+            .map(|menu| stand_in_spells(menu, &self.equipment))
+            .collect();
         Ok(LiveFight {
             report,
             party: party.to_vec(),
@@ -1376,6 +1391,7 @@ impl FieldBattles {
             entities,
             gear,
             ids,
+            spells,
             trance_menu: menu
                 .iter()
                 .map(|menu| PartyMenu {
@@ -1404,6 +1420,88 @@ impl FieldBattles {
     }
 }
 
+/// What a spell does, for the stand-in policy (`Actions.csv` script ids).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SpellKind {
+    /// Script 9, `MagicAttack` (Fire, Blizzard, Thunder, ...).
+    Damage,
+    /// Script 10, `MagicCure` (Cure, Cura, Curaga).
+    Heal,
+    /// Script 13, `MagicRevive` (Life, Full-Life).
+    Revive,
+}
+
+/// One spell a member's menu offers.
+#[derive(Debug, Clone)]
+struct StandInSpell {
+    action: ContentId,
+    cmd_no: u32,
+    kind: SpellKind,
+    power: i32,
+    elements: u8,
+    mp: u32,
+}
+
+/// The damage, healing and revive spells in `menu`'s ability lists.
+fn stand_in_spells(menu: &PartyMenu, equipment: &Equipment) -> Vec<StandInSpell> {
+    menu.commands
+        .iter()
+        .filter_map(|command| match &command.kind {
+            CommandKind::List(list) => Some(list),
+            _ => None,
+        })
+        .flatten()
+        .filter(|entry| entry.cmd_no != cmd::ITEM)
+        .filter_map(|entry| {
+            let row = equipment.actions.get(&entry.sub_no)?;
+            let kind = match row.script_id {
+                9 => SpellKind::Damage,
+                10 => SpellKind::Heal,
+                13 => SpellKind::Revive,
+                _ => return None,
+            };
+            Some(StandInSpell {
+                action: entry.action.clone(),
+                cmd_no: entry.cmd_no,
+                kind,
+                power: row.power,
+                elements: row.elements,
+                mp: entry.mp,
+            })
+        })
+        .collect()
+}
+
+/// A rough damage figure for the stand-in to compare choices by
+/// (`(power - defence) * attack`, `BattleCalculator.CalcDamageCommon`, with
+/// `BonusElement`'s weak 1.5, half 0.5 and guard or absorb 0), not the
+/// machine's roll.
+fn estimate_damage(caster: &BattleUnit, target: &BattleUnit, spell: Option<&StandInSpell>) -> i32 {
+    match spell {
+        Some(spell) => {
+            let element = |set: Elements| set.0 & spell.elements != 0;
+            let factor = if element(target.guard_elements) || element(target.absorb_elements) {
+                0
+            } else if element(target.weak_elements) {
+                15
+            } else if element(target.half_elements) {
+                5
+            } else {
+                10
+            };
+            (spell.power - target.magic_defence).max(1) * i32::from(caster.magic) * factor / 10
+        }
+        None => {
+            let short = caster
+                .weapon
+                .is_some_and(|weapon| weapon.category & WeaponStats::SHORT_RANGE != 0);
+            let rows = if short && caster.row == 0 { 2 } else { 1 };
+            (caster.weapon_power() - target.physical_defence).max(1) * i32::from(caster.strength)
+                / rows
+        }
+    }
+}
+
 /// A fight that could not start: its report with `error` set.
 fn fail(mut report: FightReport, error: String) -> Box<FightReport> {
     report.error = Some(error);
@@ -1424,6 +1522,24 @@ enum FightState {
     Running,
     Ended,
     Failed(String),
+}
+
+/// `BTL_SCENE.SetupSceneInfo`: `Info.Runaway` is `SB2_HEAD` flag 32 clear.
+pub fn scene_runaway(flags: u16) -> bool {
+    flags & 0x20 == 0
+}
+
+/// `HonoluluBattleMain.ChoicePattern`: the first pattern whose running rate
+/// total passes `roll` (0-99); past the last pattern, pattern 0.
+pub fn choice_pattern(rates: impl IntoIterator<Item = u8>, roll: u8) -> usize {
+    let mut total = 0;
+    for (index, rate) in rates.into_iter().enumerate() {
+        total += i32::from(rate);
+        if i32::from(roll) < total {
+            return index;
+        }
+    }
+    0
 }
 
 /// Fight length after which the stand-in policy attacks the weakest enemy first.
@@ -1872,6 +1988,8 @@ pub struct LiveFight {
     entities: Vec<EntityId>,
     gear: Vec<Vec<i32>>,
     ids: StandInActions,
+    /// Each member's damage, healing and revive spells, for the stand-in.
+    spells: Vec<Vec<StandInSpell>>,
     menu: Vec<PartyMenu>,
     /// [`Self::menu`] with each member's Trance commands.
     trance_menu: Vec<PartyMenu>,
@@ -2032,9 +2150,10 @@ impl LiveFight {
         self.report.outcome.as_deref()
     }
 
-    /// The stand-in policy: the first ready party member attacks the first
-    /// enemy still standing, read from the machine (units are party then
-    /// enemies).
+    /// The stand-in policy, read from the machine (units are party then
+    /// enemies): the first ready party member revives or heals an ally
+    /// (spells first, then items), else casts the damage spell that beats
+    /// Attack on the first enemy still standing, else attacks it.
     fn stand_in(&mut self) -> Option<BattleCommand> {
         // A player who has been hit by a counter-attack (Black Waltz No. 2 answers
         // Vivi's Fire with Fira, EVT_BATTLE_AP_E012) stops casting at that enemy.
@@ -2099,11 +2218,20 @@ impl LiveFight {
         } else {
             0
         };
+        // Healing spells count as a heal on the way too.
+        let heal_cmds: Vec<u32> = self
+            .spells
+            .iter()
+            .flatten()
+            .filter(|spell| spell.kind != SpellKind::Damage)
+            .map(|spell| spell.cmd_no)
+            .collect();
         let healing = |i: usize| {
             let id = machine.units[i].id;
             machine.cmds.queue.iter().chain(&machine.running).any(|&c| {
                 let slot = &machine.cmds.slots[c];
-                slot.cmd_no == cmd::ITEM && slot.tar_id & id != 0
+                (slot.cmd_no == cmd::ITEM || heal_cmds.contains(&slot.cmd_no))
+                    && slot.tar_id & id != 0
             })
         };
         let downed = (0..party.len())
@@ -2119,13 +2247,55 @@ impl LiveFight {
                     && !healing(i)
             })
             .min_by_key(|&i| machine.units[i].cur_hp * 1000 / machine.units[i].max_hp.max(1));
+        // The spells the member has the MP for (none under Silence): Life
+        // and Cure (the strongest known) before items, and the damage spell
+        // that hurts this target most when it beats Attack, as a player
+        // reads the enemy (weak, half, guard and absorb elements). A healer
+        // keeps the MP for one more heal.
+        let spells: Vec<&StandInSpell> =
+            if unit.is_under_any_status(tantalus_legacy::battle::status::SILENCE) {
+                Vec::new()
+            } else {
+                self.spells[actor]
+                    .iter()
+                    .filter(|spell| spell.mp <= unit.cur_mp)
+                    .collect()
+            };
+        let strongest = |kind: SpellKind| {
+            spells
+                .iter()
+                .copied()
+                .filter(|spell| spell.kind == kind)
+                .max_by_key(|spell| spell.power)
+        };
+        let revive = strongest(SpellKind::Revive);
+        let cure = strongest(SpellKind::Heal);
+        let reserve = self.spells[actor]
+            .iter()
+            .filter(|spell| spell.kind == SpellKind::Heal)
+            .map(|spell| spell.mp)
+            .min()
+            .unwrap_or(0);
+        let foe = &machine.units[target];
+        let attack_estimate = estimate_damage(unit, foe, None);
+        let spell = spells
+            .iter()
+            .copied()
+            .filter(|spell| {
+                spell.kind == SpellKind::Damage && !countered && spell.mp + reserve <= unit.cur_mp
+            })
+            .map(|spell| (estimate_damage(unit, foe, Some(spell)), spell))
+            .filter(|(estimate, _)| *estimate > attack_estimate)
+            .max_by_key(|(estimate, _)| *estimate)
+            .map(|(_, spell)| spell);
         // Vivi keeps casting while he has the MP; the others heal.
-        let caster =
-            party[actor].character == 1 && has(ABILITY_FIRE) && unit.cur_mp >= 6 && !self.countered;
+        let caster = party[actor].character == 1 && spell.is_some();
         let heal = match (downed, hurt) {
             _ if caster => None,
+            (Some(ally), _) if revive.is_some() => revive.map(|life| (life.action.clone(), ally)),
             (Some(ally), _) if count(ITEM_PHOENIX_DOWN) > 0 => Some((ids.phoenix.clone(), ally)),
             (Some(ally), _) if count(ITEM_PHOENIX_PINION) > 0 => Some((ids.pinion.clone(), ally)),
+            (_, Some(ally)) if cure.is_some() => cure.map(|cure| (cure.action.clone(), ally)),
             (_, Some(ally)) if count(ITEM_POTION) > 0 => Some((ids.potion.clone(), ally)),
             (_, Some(ally)) if count(ITEM_HI_POTION) > 0 => Some((ids.hi_potion.clone(), ally)),
             // A blinded fighter's attacks mostly miss: Remedy.
@@ -2145,13 +2315,15 @@ impl LiveFight {
             heal
         } else {
             (
-                match party[actor].character {
-                    1 if has(ABILITY_FIRE) && unit.cur_mp >= 6 && !countered => ids.fire.clone(),
-                    0 if has(ABILITY_FLEE)
-                        && unit.is_under_any_status(tantalus_legacy::battle::status::TRANCE) =>
+                match (party[actor].character, spell) {
+                    (0, _)
+                        if has(ABILITY_FLEE)
+                            && unit
+                                .is_under_any_status(tantalus_legacy::battle::status::TRANCE) =>
                     {
                         ids.free_energy.clone()
                     }
+                    (_, Some(spell)) => spell.action.clone(),
                     _ => ids.attack.clone(),
                 },
                 target,
@@ -2176,6 +2348,16 @@ impl LiveFight {
         }
         let tick = self.tick;
         self.tick += 1;
+        // A player who is losing a fight that would end the game holds L1
+        // and R1 (`btl_sys.CheckEscape(true)`, a roll once a second); the
+        // scene's `NoEscape` refuses it on bosses.
+        if matches!(control, FightControl::StandIn)
+            && tick.is_multiple_of(15)
+            && !self.report.no_game_over
+            && self.losing()
+        {
+            self.try_flee();
+        }
         match self.tick_once(tick, control) {
             Ok(true) => true,
             Ok(false) => {
@@ -2187,6 +2369,29 @@ impl LiveFight {
                 false
             }
         }
+    }
+
+    /// The stand-in's call to run: half the party or more is down with no
+    /// Phoenix Down, Pinion or Life left.
+    fn losing(&self) -> bool {
+        let machine = self.adapter.battle();
+        let len = self.party.len().min(machine.units.len());
+        let present: Vec<&BattleUnit> = (0..len)
+            .filter(|&i| machine.sched[i].in_list)
+            .map(|i| &machine.units[i])
+            .collect();
+        let downed = present.iter().filter(|unit| unit.cur_hp == 0).count();
+        let count = |item: i32| machine.inventory.get(&item).copied().unwrap_or(0);
+        let life = (0..len).any(|i| {
+            machine.units[i].cur_hp > 0
+                && self.spells[i].iter().any(|spell| {
+                    spell.kind == SpellKind::Revive && spell.mp <= machine.units[i].cur_mp
+                })
+        });
+        downed > 0
+            && downed * 2 >= present.len()
+            && count(ITEM_PHOENIX_DOWN) + count(ITEM_PHOENIX_PINION) == 0
+            && !life
     }
 
     /// The loop body of a fight; false when it ends.
@@ -2848,6 +3053,67 @@ mod tests {
     /// A strong party fights with its level and level-grown stats, not with
     /// level 1 ones (the Ralvuimago fight of the story probe was lost at
     /// level 80 with the level 1 strength of a new game).
+    /// `HonoluluBattleMain.ChoicePattern`: the running rate total picks the
+    /// pattern; a roll past the total falls back to pattern 0.
+    #[test]
+    fn choice_pattern_walks_the_rates() {
+        assert_eq!(choice_pattern([50, 30, 20], 0), 0);
+        assert_eq!(choice_pattern([50, 30, 20], 49), 0);
+        assert_eq!(choice_pattern([50, 30, 20], 50), 1);
+        assert_eq!(choice_pattern([50, 30, 20], 79), 1);
+        assert_eq!(choice_pattern([50, 30, 20], 99), 2);
+        assert_eq!(choice_pattern([0, 100], 0), 1);
+        assert_eq!(choice_pattern([40, 40], 90), 0);
+        assert_eq!(choice_pattern([], 10), 0);
+    }
+
+    #[test]
+    fn scene_flag_32_forbids_escape() {
+        assert!(scene_runaway(0));
+        assert!(scene_runaway(0x4 | 0x1));
+        assert!(!scene_runaway(0x20));
+        assert!(!scene_runaway(0x24));
+    }
+
+    /// The stand-in compares spells with Attack by element: weak 1.5, half
+    /// 0.5, absorb 0.
+    #[test]
+    fn estimate_damage_reads_the_target_elements() {
+        let mut caster = BattleUnit::new(1, true);
+        caster.magic = 20;
+        caster.strength = 20;
+        caster.row = 1;
+        caster.weapon = Some(WeaponStats {
+            power: 12,
+            rate: 0,
+            elements: Elements::NONE,
+            category: WeaponStats::SHORT_RANGE,
+            status: 0,
+        });
+        let mut target = BattleUnit::new(16, false);
+        target.magic_defence = 4;
+        target.physical_defence = 11;
+        let fire = StandInSpell {
+            action: ContentId::parse("tantalus:command/22/25").unwrap(),
+            cmd_no: 22,
+            kind: SpellKind::Damage,
+            power: 14,
+            elements: Elements::FIRE,
+            mp: 6,
+        };
+        assert_eq!(estimate_damage(&caster, &target, None), 20);
+        assert_eq!(estimate_damage(&caster, &target, Some(&fire)), 200);
+        target.weak_elements = Elements(Elements::FIRE);
+        assert_eq!(estimate_damage(&caster, &target, Some(&fire)), 300);
+        target.weak_elements = Elements::NONE;
+        target.half_elements = Elements(Elements::FIRE);
+        assert_eq!(estimate_damage(&caster, &target, Some(&fire)), 100);
+        target.absorb_elements = Elements(Elements::FIRE);
+        assert_eq!(estimate_damage(&caster, &target, Some(&fire)), 0);
+        caster.row = 0;
+        assert_eq!(estimate_damage(&caster, &target, None), 10);
+    }
+
     #[test]
     fn party_units_carry_the_level_and_the_grown_stats() {
         let equipment = Equipment::default();

@@ -157,7 +157,7 @@ pub fn assemble_legacy_battle(
     // (`BTL_SCENE.cs:322`). The scene wins over the caller's config, whose
     // default of `true` would otherwise let the party flee Ozma.
     let mut config = config.clone();
-    config.runaway = scene.header.flags & 0x20 == 0;
+    config.runaway = crate::field_battle::scene_runaway(scene.header.flags);
     let mut units: Vec<BattleUnit> = players.iter().map(|(_, unit)| unit.clone()).collect();
     let mut entity_pairs: Vec<(tantalus_contracts::EntityId, u16)> = players
         .iter()

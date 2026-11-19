@@ -38,7 +38,7 @@ fn main() -> ExitCode {
 }
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
-       tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--level N] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
+       tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--level N] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...] [--roll 0-99]
        tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY[@SCENARIO],...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP[@ANGLE][#SCENARIO],...] [--wall-regions MAP,...] [--tour MAP,...] [--push-objects MAP,...] [--play-card-games] [--win-card-games] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--stub-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--region-points MAP:ENTRY@X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
@@ -96,6 +96,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut fight_level: usize = 1;
     let mut fight_corpus = false;
     let mut fight_gear = false;
+    let mut fight_roll: u8 = 0;
     let mut fight_globals = tantalus_tools::field_battle::PartyGlobals::default();
     let mut fight_items: std::collections::BTreeMap<i32, i32> = Default::default();
     let mut fight_hp: std::collections::BTreeMap<i32, u32> = Default::default();
@@ -497,6 +498,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
             }
             "--confirm-after" => confirm_after = parse_number(&value()?, "--confirm-after")?,
             "--battle" => fight_battle = Some(parse_number(&value()?, "--battle")?),
+            "--roll" => fight_roll = parse_number(&value()?, "--roll")?,
             "--corpus" => fight_corpus = true,
             "--gear" => fight_gear = true,
             "--level" => fight_level = parse_number(&value()?, "--level")?,
@@ -629,6 +631,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                         battle: i32::from(id),
                         steiner_state: false,
                         timer: None,
+                        pattern_roll: 0,
                     };
                     let report = battles.fight_with_items(&request, &party, &fight_items);
                     println!(
@@ -650,6 +653,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 battle,
                 steiner_state: false,
                 timer: None,
+                pattern_roll: fight_roll,
             };
             let report = battles.fight_with_items(&request, &party, &fight_items);
             println!(

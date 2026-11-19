@@ -68,6 +68,7 @@ pub fn perform(id: i32, v: &mut Calculator<'_>, rng: Rng<'_>) -> Result<(), Calc
         77 => dark_matter(v),
         59 => scan(v),
         88 => melt(v),
+        89 => hp_switching(v),
         91 => cannon(v, rng),
         94 => absorb_stat(v, Stat::Magic),
         95 => absorb_stat(v, Stat::Strength),
@@ -221,6 +222,21 @@ fn melt(v: &mut Calculator<'_>) -> Result<(), CalcError> {
     if v.c().cur_hp != 0 {
         v.caster_dies = true;
     }
+    Ok(())
+}
+
+/// Script 89, HP Switching (`0089_HPSwitchingScript.cs`): caster and target
+/// trade current HP, each capped at its own maximum.
+fn hp_switching(v: &mut Calculator<'_>) -> Result<(), CalcError> {
+    if !v.target_check_unsafety_or_miss() || !v.target_can_be_attacked() {
+        return Ok(());
+    }
+    let caster_hp = v.c().cur_hp;
+    let target_hp = v.t().cur_hp;
+    let caster_max = v.c().max_hp;
+    v.c_mut().cur_hp = target_hp.min(caster_max);
+    let target_max = v.t().max_hp;
+    v.t_mut().cur_hp = caster_hp.min(target_max);
     Ok(())
 }
 

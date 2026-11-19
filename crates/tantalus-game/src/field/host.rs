@@ -1401,6 +1401,7 @@ impl LegacyEventHost for FieldHost<'_> {
                         battle: *battle,
                         steiner_state: *steiner_state,
                         timer: self.world.shown_timer(),
+                        pattern_roll: self.world.pattern_roll(),
                     });
                 }
                 HostEvent::ChangeField { field } => {
@@ -2274,6 +2275,26 @@ mod tests {
         world.timer.displayed = true;
         FieldHost::new(&mut world).apply(&[start]).unwrap();
         assert_eq!(world.take_encounters()[0].timer, Some(world.timer));
+    }
+
+    /// A battle carries a 0-99 roll for `HonoluluBattleMain.ChoicePattern`, read from the RNG
+    /// state without a draw, so the field's own random stream is unchanged.
+    #[test]
+    fn battles_carry_a_pattern_roll_without_a_draw() {
+        let mut world = FieldWorld::new();
+        world.seed_rng(0x1234_5678_9ABC_DEF0);
+        let start = HostEvent::StartBattle {
+            rush: 0,
+            group: None,
+            battle: 14,
+            steiner_state: false,
+        };
+        let mut before = world.clone();
+        FieldHost::new(&mut world).apply(&[start]).unwrap();
+        let roll = world.take_encounters()[0].pattern_roll;
+        assert_eq!(u64::from(roll), (0x1234_5678_9ABC_DEF0_u64 >> 33) % 100);
+        assert_eq!(roll, before.pattern_roll());
+        assert_eq!(world.next_random_u8(), before.next_random_u8());
     }
 
     /// `TEXPLAY`, `TEXPLAY1` and `TEXSTOP` (`EventEngine.DoEventCode.cs`) are kept per actor, with

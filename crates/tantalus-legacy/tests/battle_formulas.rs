@@ -2349,6 +2349,16 @@ fn melt_deals_the_casters_hp_and_kills_the_caster() {
 }
 
 #[test]
+fn hp_switching_trades_current_hp_capped_at_each_maximum() {
+    let mut r = Rig::new(89);
+    (r.c().cur_hp, r.c().max_hp) = (50, 100);
+    (r.t().cur_hp, r.t().max_hp) = (400, 900);
+    let o = r.run(&[7]);
+    assert!(!miss(&o), "{o:?}");
+    assert_eq!((r.c().cur_hp, r.t().cur_hp), (100, 50));
+}
+
+#[test]
 fn swallow_removes_the_target() {
     let mut r = Rig::new(106);
     assert!(r.run(&[7]).target_removed);

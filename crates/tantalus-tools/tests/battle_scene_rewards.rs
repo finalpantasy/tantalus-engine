@@ -266,6 +266,7 @@ fn assemble_legacy_battle_runs_a_scene_battle_to_victory() {
                 battle: 0x55,
                 steiner_state: false,
                 timer: None,
+                pattern_roll: 0,
             },
             setup.adapter,
         )
@@ -964,6 +965,7 @@ fn chain_and_handoff_paths_agree_on_the_same_scene() {
                 battle: i32::from(seed),
                 steiner_state: false,
                 timer: None,
+                pattern_roll: 0,
             },
             &[PartyFighter {
                 character: 0,

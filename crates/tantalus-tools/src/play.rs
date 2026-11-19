@@ -1695,6 +1695,7 @@ impl PlayGame {
                 battle: scene as _,
                 steiner_state: false,
                 timer: None,
+                pattern_roll: 0,
             }],
             fight: None,
             next_field: None,
@@ -1720,6 +1721,7 @@ impl PlayGame {
             battle: scene as _,
             steiner_state: false,
             timer: None,
+            pattern_roll: 0,
         };
         let items = session.director.world().items.clone();
         let mut report = battles.fight_with_items(&request, &party, &items);
@@ -2215,6 +2217,7 @@ impl PlayGame {
                 battle: scene,
                 steiner_state: false,
                 timer: None,
+                pattern_roll: 0,
             };
             if self.live_battles && self.data.battles.is_some() {
                 self.pending = Some(PendingBattles {

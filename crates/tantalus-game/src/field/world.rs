@@ -545,6 +545,11 @@ pub struct EncounterRequest {
     /// which keeps running through the fight.
     #[serde(default)]
     pub timer: Option<TimerState>,
+    /// `UnityEngine.Random.Range(0, 100)` for `HonoluluBattleMain.ChoicePattern`: the
+    /// battle picks its enemy pattern by rate with it when no group is named
+    /// (`btlSubMapNo == -1`, every random battle and `ENCOUNT`).
+    #[serde(default)]
+    pub pattern_roll: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -2060,6 +2065,7 @@ impl FieldWorld {
             battle: i32::from(scene),
             steiner_state: false,
             timer: self.shown_timer(),
+            pattern_roll: self.pattern_roll(),
         });
     }
 
@@ -2088,6 +2094,13 @@ impl FieldWorld {
     /// historical fixed stream.
     pub fn seed_rng(&mut self, seed: u64) {
         self.rng = seed;
+    }
+
+    /// A 0-99 draw for a battle's pattern (`HonoluluBattleMain.ChoicePattern` uses
+    /// `UnityEngine.Random`, a stream apart from the field's `random8`), read from
+    /// the RNG state without advancing it so the field's own draws are unchanged.
+    pub(crate) fn pattern_roll(&self) -> u8 {
+        ((self.rng >> 33) % 100) as u8
     }
 
     pub(crate) fn next_random_u8(&mut self) -> u8 {
