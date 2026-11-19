@@ -1185,6 +1185,8 @@ struct CaptureAudio {
         tantalus_tools::play_audio::AudioDirector,
         tantalus_assets::pc::audio_decode::WavWriter<std::io::BufWriter<std::fs::File>>,
     )>,
+    /// The song the WAV director plays, printed with `--audio-log` when it changes.
+    music: i32,
 }
 
 /// The sample rate of the WAV `--audio-wav` writes (a multiple of 60).
@@ -1212,7 +1214,11 @@ impl CaptureAudio {
             }
             None => None,
         };
-        Ok(Self { log, wav })
+        Ok(Self {
+            log,
+            wav,
+            music: -1,
+        })
     }
 
     /// Handles the sound requests of the tick `game` just played. A game tick is two 1/60 s
@@ -1235,6 +1241,11 @@ impl CaptureAudio {
                 director.apply(cue);
             }
             let samples = director.render(2);
+            let music = director.system.current_music_id();
+            if self.log.is_some() && music != self.music {
+                println!("audio tick {}: now playing music {music}", game.ticks);
+                self.music = music;
+            }
             let pcm: Vec<i16> = samples
                 .iter()
                 .map(|v| (v.clamp(-1.0, 1.0) * 32767.0) as i16)

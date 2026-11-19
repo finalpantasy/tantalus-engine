@@ -66,13 +66,22 @@ pub enum AudioCue {
     /// A field started: sets the dispatcher's field state and stops the old field's map sounds
     /// (`ff9fieldsound_stopall_mapsndeffect`, `FF9Snd.cs:1419`).
     FieldStarted { map: i32 },
-    /// A battle begins from field `map`: picks its song from `BtlEncountBgmMetaData`
-    /// (`BattleSwirl.RequestPlayBattleEncounterSongForField`, `BattleSwirl.cs:89`).
-    BattleStarted { map: i32, battle: i32 },
+    /// The new field's init script has run (`HonoluluFieldMain.Start` after `StartEvents`,
+    /// `HonoluluFieldMain.cs:141`): a song set aside before the field and still set aside comes
+    /// back, any other is dropped, and the world song stops when the field played none.
+    FieldReady,
+    /// The world map plays the song of the ride (`ff9.w_musicPlay`, `ff9.cs:6433`): on
+    /// entering the world map and on each change of ride (`w_musicRequestSend`). `song` is
+    /// already `w_musicChoice`'s pick.
+    WorldSong { song: i32 },
+    /// A battle begins from field `map` (or world map `map` when `world`): picks its song from
+    /// `BtlEncountBgmMetaData` or `WldBtlEncountBgmMetaData`
+    /// (`BattleSwirl.RequestPlayBattleEncounterSongForField` / `ForWorld`, `BattleSwirl.cs:88`).
+    BattleStarted { map: i32, battle: i32, world: bool },
     /// The battle ended; a won or lost battle plays its end song first.
     BattleEnded { end: BattleEnd },
-    /// The battle view is gone and the field is back: the field song returns once any end song
-    /// is over.
+    /// The result screen closed (`BattleResultUI.Hide` -> `battle.ff9ShutdownStateBattleResult`):
+    /// the end song stops and the song set aside returns.
     BattleLeft,
     /// A Tetra Master game opens: the field song is set aside and the card song plays
     /// (`QuadMistGame.cs:156`, `ff9minisnd_song_play(66)`).
@@ -145,12 +154,19 @@ pub fn describe_cue(cue: &AudioCue, bank: &SoundBank) -> String {
         }
         AudioCue::Script(other) => format!("{other:?}"),
         AudioCue::FieldStarted { map } => format!("field {map} started"),
-        AudioCue::BattleStarted { map, battle } => {
-            let song = music_for_battle(&bank.field_battle_songs, *map, *battle);
-            if song < 0 {
-                format!("battle {battle} from field {map}: no battle song, field song goes on")
+        AudioCue::FieldReady => "field init done: restore or drop the song set aside".to_owned(),
+        AudioCue::WorldSong { song } => format!("world map: play {}", music(*song)),
+        AudioCue::BattleStarted { map, battle, world } => {
+            let (table, place) = if *world {
+                (&bank.world_battle_songs, "world map")
             } else {
-                format!("battle {battle} from field {map}: play {}", music(song))
+                (&bank.field_battle_songs, "field")
+            };
+            let song = music_for_battle(table, *map, *battle);
+            if song < 0 {
+                format!("battle {battle} from {place} {map}: no battle song, the song goes on")
+            } else {
+                format!("battle {battle} from {place} {map}: play {}", music(song))
             }
         }
         AudioCue::BattleEnded { end } => match end {
@@ -160,7 +176,7 @@ pub fn describe_cue(cue: &AudioCue, bank: &SoundBank) -> String {
                 "battle ended without an end song: fade the battle song".to_owned()
             }
         },
-        AudioCue::BattleLeft => "back on the field: the field song returns".to_owned(),
+        AudioCue::BattleLeft => "result screen closed: the song set aside returns".to_owned(),
         AudioCue::CardStarted => format!("card game: play {}", music(CARD_SONG)),
         AudioCue::CardEnded => "card game over: the field song returns".to_owned(),
         AudioCue::Effect { id } => format!("play {}", effect(*id)),
@@ -230,11 +246,14 @@ struct Pending {
 pub struct AudioDirector {
     pub system: SoundSystem,
     field_battle_songs: BattleSongTable,
+    world_battle_songs: BattleSongTable,
     pending: Option<Pending>,
-    /// The end-of-battle song once it started.
-    end_song: Option<i32>,
-    /// The battle view closed; the field song returns when the end song is over.
-    returning: bool,
+    /// On the world map (`EventEngine.gMode == 3`) since the last `WorldSong`.
+    in_world: bool,
+    /// `FF9Snd.LatestWorldPlayedSong`.
+    latest_world_song: i32,
+    /// The song set aside when the field started (`HonoluluFieldMain.cs:129`), until `FieldReady`.
+    field_suspend_before: Option<i32>,
     /// Sound ids handed out to effect sounds by resource name.
     effect_sounds: Vec<(i32, String)>,
 }
@@ -243,10 +262,13 @@ impl AudioDirector {
     /// `sample_rate` must be a multiple of 60 (one script tick is a whole number of frames).
     pub fn new(bank: SoundBank, sample_rate: u32) -> Result<Self, String> {
         let field_battle_songs = bank.field_battle_songs.clone();
+        let world_battle_songs = bank.world_battle_songs.clone();
         let metadata = bank.metadata.clone();
         let mut system = SoundSystem::new(Backend::new(sample_rate)?, metadata);
         system.clip_loader = clip_loader(bank);
-        Ok(Self::with_system(system, field_battle_songs))
+        let mut director = Self::with_system(system, field_battle_songs);
+        director.world_battle_songs = world_battle_songs;
+        Ok(director)
     }
 
     /// A director over a ready `SoundSystem` (its clips and metadata already set).
@@ -256,9 +278,11 @@ impl AudioDirector {
         Self {
             system,
             field_battle_songs,
+            world_battle_songs: BattleSongTable::new(),
             pending: None,
-            end_song: None,
-            returning: false,
+            in_world: false,
+            latest_world_song: -1,
+            field_suspend_before: None,
             effect_sounds: Vec::new(),
         }
     }
@@ -271,12 +295,18 @@ impl AudioDirector {
             }
             AudioCue::FieldStarted { map } => {
                 self.system.stopall_map_sndeffects();
+                self.in_world = false;
                 self.system.dispatch_mode = DispatchMode::Field;
                 self.system.game_mode = 1;
                 self.system.fld_map_no = *map;
                 self.system.bgm_field_song_counter = 0;
+                self.field_suspend_before = Some(self.system.suspend_song_id());
             }
-            AudioCue::BattleStarted { map, battle } => self.battle_started(*map, *battle),
+            AudioCue::FieldReady => self.field_ready(),
+            AudioCue::WorldSong { song } => self.world_song(*song),
+            AudioCue::BattleStarted { map, battle, world } => {
+                self.battle_started(*map, *battle, *world)
+            }
             AudioCue::BattleEnded { end } => self.battle_ended(*end),
             AudioCue::BattleLeft => self.battle_left(),
             AudioCue::CardStarted => self.card_started(),
@@ -346,12 +376,59 @@ impl AudioDirector {
         }
     }
 
-    /// `HonoluluFieldMain.cs:313` and `BattleSwirl.RequestPlayBattleEncounterSongForField`: the
-    /// field song is set aside and the table's song plays, unless the table has none or that song
-    /// already plays.
-    fn battle_started(&mut self, map: i32, battle: i32) {
+    /// `HonoluluFieldMain.cs:141-151`, after the field's `StartEvents`.
+    fn field_ready(&mut self) {
+        let Some(before) = self.field_suspend_before.take() else {
+            return;
+        };
+        let now = self.system.suspend_song_id();
+        if before != -1 && now != -1 && before == now {
+            // `FF9Snd.ff9fldsnd_song_restore`.
+            self.system.song_restore();
+        } else {
+            self.system.stop_and_clear_suspend_bgm(-1, false);
+        }
+        if self.latest_world_song != -1
+            && self.latest_world_song == self.system.current_music_id()
+            && self.system.bgm_field_song_counter == 0
+        {
+            self.system.song_stop_current();
+        }
+        self.latest_world_song = -1;
+        self.system.bgm_field_song_counter = 0;
+    }
+
+    /// `ff9.w_musicPlay` (`ff9.cs:6433`): the song set aside comes back when it is the world
+    /// song; otherwise the song set aside is dropped and the world song plays.
+    fn world_song(&mut self, song: i32) {
+        self.in_world = true;
+        self.system.dispatch_mode = DispatchMode::World;
+        self.system.game_mode = 3;
+        let suspended = self.system.suspend_song_id();
+        if song == suspended && suspended != -1 {
+            self.system.song_restore();
+            let restored = self.system.current_music_id();
+            if restored >= 0 {
+                self.system.song_vol(restored, 127);
+            }
+        } else {
+            self.system.stop_and_clear_suspend_bgm(-1, false);
+            self.system.song_play(song, 127, 0);
+        }
+        self.latest_world_song = song;
+    }
+
+    /// `HonoluluFieldMain.cs:313` and `BattleSwirl.RequestPlayBattleEncounterSongForField` /
+    /// `ForWorld` (`BattleSwirl.cs:88`): the song is set aside and the table's song plays, unless
+    /// the table has none or that song already plays.
+    fn battle_started(&mut self, map: i32, battle: i32, world: bool) {
         self.system.dispatch_mode = DispatchMode::All;
-        let song = music_for_battle(&self.field_battle_songs, map, battle);
+        let table = if world {
+            &self.world_battle_songs
+        } else {
+            &self.field_battle_songs
+        };
+        let song = music_for_battle(table, map, battle);
         let current = self.system.current_music_id();
         if song < 0 || song == current {
             return;
@@ -395,28 +472,17 @@ impl AudioDirector {
         self.finish_battle_return();
     }
 
-    /// The battle view closed: the field returns once the end song is over.
+    /// The result screen closed (`BattleResultUI.Hide`): the end song stops at once, looping
+    /// or not, and the song set aside returns.
     fn battle_left(&mut self) {
-        self.returning = true;
-    }
-
-    fn end_song_playing(&self) -> bool {
-        use tantalus_legacy::sound::ProfileType;
-        let Some(song) = self.end_song else {
-            return false;
-        };
-        self.system
-            .profile(song, ProfileType::Music)
-            .is_some_and(|profile| self.system.backend.is_exist(profile.sound_id))
+        self.finish_battle_return();
     }
 
     /// `HonoluluFieldMain.cs:145` and `battle.ff9ShutdownStateBattleResult` (`battle.cs:581`): a
     /// field song set aside comes back at full volume; otherwise the battle song fades out
     /// unless a script asked to keep the field song.
     fn finish_battle_return(&mut self) {
-        self.returning = false;
         self.pending = None;
-        self.end_song = None;
         if self.system.suspend_song_id() >= 0 {
             let current = self.system.current_music_id();
             if current >= 0 {
@@ -431,7 +497,11 @@ impl AudioDirector {
             self.system.song_vol_intplall(120, 0);
             self.system.stop_current_song(120);
         }
-        self.system.dispatch_mode = DispatchMode::Field;
+        self.system.dispatch_mode = if self.in_world {
+            DispatchMode::World
+        } else {
+            DispatchMode::Field
+        };
     }
 
     /// Renders `ticks` script ticks (1/60 s each) of interleaved stereo f32.
@@ -454,11 +524,7 @@ impl AudioDirector {
                     }
                     self.system.song_load(song);
                     self.system.song_play(song, 127, 0);
-                    self.end_song = Some(song);
                 }
-            }
-            if self.returning && self.pending.is_none() && !self.end_song_playing() {
-                self.finish_battle_return();
             }
             out.extend(self.system.run_ticks(1));
         }
@@ -548,27 +614,73 @@ mod tests {
         let mut d = director();
         d.apply(&play(10));
         let _ = d.render(5);
-        d.apply(&AudioCue::BattleStarted { map: 7, battle: 3 });
+        d.apply(&AudioCue::BattleStarted {
+            map: 7,
+            battle: 3,
+            world: false,
+        });
         assert_eq!(d.system.current_music_id(), 0);
         assert_eq!(d.system.suspend_song_id(), 10);
         d.apply(&AudioCue::BattleEnded {
             end: BattleEnd::Victory,
         });
-        d.battle_left();
-        // 30 ticks of fade, then the fanfare (3 ticks long), then the field song again.
+        // 30 ticks of fade, then the fanfare, which goes on (the game's loops) until the
+        // result screen closes; then the field song again.
         let _ = d.render(31);
         assert_eq!(d.system.current_music_id(), VICTORY_SONG);
-        let _ = d.render(10);
+        let _ = d.render(200);
+        assert_eq!(d.system.current_music_id(), VICTORY_SONG);
+        d.apply(&AudioCue::BattleLeft);
         assert_eq!(d.system.current_music_id(), 10);
         assert_eq!(d.system.suspend_song_id(), -1);
         assert!(level(&mut d) > 0);
     }
 
     #[test]
+    fn the_world_song_replaces_the_field_song_and_a_field_without_a_song_stops_it() {
+        let mut d = director();
+        d.system.metadata.music.insert(69, "battle".to_owned());
+        d.apply(&play(10));
+        d.apply(&AudioCue::WorldSong { song: 69 });
+        assert_eq!(d.system.current_music_id(), 69);
+        assert_eq!(d.system.game_mode, 3);
+        // A world battle with a table song sets the world song aside; it comes back.
+        d.world_battle_songs = BTreeMap::from([(9000, BTreeMap::from([(359, 0)]))]);
+        d.apply(&AudioCue::BattleStarted {
+            map: 9000,
+            battle: 359,
+            world: true,
+        });
+        assert_eq!(d.system.current_music_id(), 0);
+        assert_eq!(d.system.suspend_song_id(), 69);
+        d.apply(&AudioCue::BattleEnded {
+            end: BattleEnd::Victory,
+        });
+        let _ = d.render(31);
+        assert_eq!(d.system.current_music_id(), VICTORY_SONG);
+        d.apply(&AudioCue::BattleLeft);
+        assert_eq!(d.system.current_music_id(), 69);
+        // A field whose init plays no song: the world song stops.
+        d.apply(&AudioCue::FieldStarted { map: 7 });
+        d.apply(&AudioCue::FieldReady);
+        assert_eq!(d.system.current_music_id(), -1);
+        // A field whose init plays its song: that song plays.
+        d.apply(&AudioCue::WorldSong { song: 69 });
+        d.apply(&AudioCue::FieldStarted { map: 8 });
+        d.apply(&play(10));
+        d.apply(&AudioCue::FieldReady);
+        assert_eq!(d.system.current_music_id(), 10);
+    }
+
+    #[test]
     fn a_battle_without_a_table_song_leaves_the_field_song_alone() {
         let mut d = director();
         d.apply(&play(10));
-        d.apply(&AudioCue::BattleStarted { map: 7, battle: 99 });
+        d.apply(&AudioCue::BattleStarted {
+            map: 7,
+            battle: 99,
+            world: false,
+        });
         assert_eq!(d.system.current_music_id(), 10);
         assert_eq!(d.system.suspend_song_id(), -1);
     }

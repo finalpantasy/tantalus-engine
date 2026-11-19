@@ -1907,6 +1907,10 @@ impl FightView {
                 // (`FF9StateSystem` game over -> title -> Continue).
                 game.open_load_screen();
             }
+            if done {
+                // `BattleResultUI.Hide` -> `battle.ff9ShutdownStateBattleResult`.
+                game.battle_result_closed();
+            }
             return (events, done);
         }
         let (remember, wait) = game.settings().map_or((false, false), |settings| {

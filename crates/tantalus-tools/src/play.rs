@@ -464,6 +464,39 @@ pub struct PlayGame {
     steam: Option<SteamFile>,
     /// A disc change in progress (`DISCCHANGE`); the field waits until it is done.
     disc_change: Option<DiscChange>,
+    /// The ride whose world song was last asked for (`w_musicRequestNoIdx`); `None` off the
+    /// world map. Runtime-only.
+    world_song_ride: Option<u8>,
+    /// The tick a field started on, until its `FieldReady` cue is sent. Runtime-only.
+    field_ready_due: Option<u64>,
+    /// A live battle ended and its result screen is up: the client sends `BattleLeft` when it
+    /// closes ([`PlayGame::battle_result_closed`]). Runtime-only.
+    result_screen_open: bool,
+}
+
+/// `ff9.w_musicChoice` (`ff9.cs:6468`) over `ff9.w_musicSet`: the world song of the ride's music
+/// index (`s_moveCHRControl.music`) at story point `scenario` (`gEventGlobal` word 0). On foot,
+/// the Mist continent's late story and the desert get their own songs, and disc 4 (scenario
+/// 11090 and up, `WorldConfiguration.GetDisc`) another.
+pub fn world_song(music: u8, scenario: i32) -> i32 {
+    const SET: [i32; 8] = [69, 100, 112, 45, 95, 96, 61, 62];
+    let mut index = if usize::from(music) >= SET.len() {
+        0
+    } else {
+        usize::from(music)
+    };
+    if index == 0 {
+        if (9600..9890).contains(&scenario) {
+            index = 4;
+        }
+        if (9890..9910).contains(&scenario) {
+            index = 5;
+        }
+        if scenario >= 11090 {
+            index = 3;
+        }
+    }
+    SET[index]
 }
 
 /// Ticks the disc picture takes to fade in or out: `SceneDirector` draws it over 100 frames
@@ -597,6 +630,9 @@ impl PlayGame {
             card: None,
             steam: None,
             disc_change: None,
+            world_song_ride: None,
+            field_ready_due: None,
+            result_screen_open: false,
         };
         let mut events = Vec::new();
         game.enter(start, &mut events)?;
@@ -806,6 +842,8 @@ impl PlayGame {
         self.session = Some(session);
         self.audio
             .push((self.ticks, AudioCue::FieldStarted { map }));
+        self.field_ready_due = Some(self.ticks);
+        self.world_song_ride = None;
         self.shown.clear();
         self.cursor = 0;
         self.floor = None;
@@ -1505,7 +1543,54 @@ impl PlayGame {
             self.audio
                 .insert(0, (self.ticks, AudioCue::Volumes { music, sound }));
         }
+        if let Some(started) = self.field_ready_due
+            && self.ticks > started
+        {
+            // The field's first tick ran its init (`StartEvents`).
+            self.field_ready_due = None;
+            self.audio.push((self.ticks, AudioCue::FieldReady));
+        }
         std::mem::take(&mut self.audio)
+    }
+
+    /// The battle result screen closed (`BattleResultUI.Hide`): the end song stops and the song
+    /// set aside comes back.
+    pub fn battle_result_closed(&mut self) {
+        if std::mem::take(&mut self.result_screen_open) {
+            self.audio.push((self.ticks, AudioCue::BattleLeft));
+        }
+    }
+
+    /// Asks for the world song when the ride changed (`w_movementChange`, `ff9.cs:5683`).
+    fn request_world_song(&mut self) {
+        let Some(play) = self.world_play.as_ref() else {
+            self.world_song_ride = None;
+            return;
+        };
+        let ride = play.ride;
+        let music = tantalus_legacy::world::vehicle::VEHICLES
+            .get(usize::from(ride))
+            .map_or(0, |vehicle| vehicle.music);
+        let previous = self.world_song_ride.and_then(|old| {
+            tantalus_legacy::world::vehicle::VEHICLES
+                .get(usize::from(old))
+                .map(|vehicle| vehicle.music)
+        });
+        self.world_song_ride = Some(ride);
+        if previous == Some(music) {
+            return;
+        }
+        let scenario = self
+            .world()
+            .global_memory
+            .get(0, tantalus_legacy::VariableType::UInt16)
+            .unwrap_or(0);
+        self.audio.push((
+            self.ticks,
+            AudioCue::WorldSong {
+                song: world_song(music, scenario),
+            },
+        ));
     }
 
     /// The main menu to draw, with a number that changes when it does.
@@ -1706,6 +1791,7 @@ impl PlayGame {
                     AudioCue::BattleStarted {
                         map,
                         battle: request.battle,
+                        world: false,
                     },
                 ));
                 let outcome = match &self.data.battles {
@@ -1968,7 +2054,12 @@ impl PlayGame {
     /// is reported and skipped. With none left, the field resumes.
     fn start_pending(&mut self, events: &mut Vec<PlayEvent>) {
         let party = self.party();
-        let map = self.map().unwrap_or(0);
+        let on_world = self.world_play.is_some();
+        let map = if on_world {
+            self.world_script_map
+        } else {
+            self.map().unwrap_or(0)
+        };
         loop {
             let Some(pending) = self.pending.as_mut() else {
                 return;
@@ -1991,8 +2082,10 @@ impl PlayGame {
                         AudioCue::BattleStarted {
                             map,
                             battle: request.battle,
+                            world: on_world,
                         },
                     ));
+                    self.result_screen_open = true;
                     return;
                 }
                 Err(report) => {
@@ -2009,7 +2102,10 @@ impl PlayGame {
         }
         // Every battle is over: the field goes on as `tick` would have.
         let pending = self.pending.take().expect("pending");
-        self.audio.push((self.ticks, AudioCue::BattleLeft));
+        // A live fight's result screen sends it when it closes.
+        if !self.result_screen_open {
+            self.audio.push((self.ticks, AudioCue::BattleLeft));
+        }
         if let Some(stage) = pending.stage {
             self.last_battle = Some(stage);
         }
@@ -2313,6 +2409,8 @@ impl PlayGame {
         }
         self.world_play = Some(play);
         self.world_exit = Some(exit);
+        self.world_song_ride = None;
+        self.request_world_song();
         Ok(())
     }
 
@@ -2415,6 +2513,12 @@ impl PlayGame {
         if let Some(session) = self.session.as_mut() {
             play.sync_out_of_script(session.director.world_mut());
         }
+        if self.world_song_ride != self.world_play.as_ref().map(|play| play.ride) {
+            self.request_world_song();
+        }
+        let Some(play) = self.world_play.as_mut() else {
+            return Ok(());
+        };
         if let Some(book) = play.chocograph.clone() {
             // `OpenMenu 5` from the script: the list opens over the world.
             let texts = self.data.menu.chocograph_text.clone();

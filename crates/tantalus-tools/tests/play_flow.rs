@@ -205,3 +205,46 @@ fn the_main_menu_opens_on_the_world_map_on_foot() {
     press(&mut game, pad::START);
     assert!(game.menu_frame().is_none());
 }
+
+/// The world map plays its own song (`ff9.w_musicPlay`): Over the Hill on foot, the chocobo
+/// song on a chocobo; the field song that played before is gone, and a real director plays it.
+#[test]
+fn the_world_map_plays_its_song_and_a_chocobo_its_own() {
+    use tantalus_tools::play_audio::{AudioCue, AudioDirector};
+    let Some(paths) = paths() else { return };
+    let bank =
+        tantalus_tools::sound_bank::SoundBank::open(&paths.streaming_assets, &paths.game_data)
+            .expect("sound bank");
+    // A world map fight takes its song from the world table (`WldBtlEncountBgmMetaData`).
+    let fight_song =
+        tantalus_tools::sound_bank::music_for_battle(&bank.world_battle_songs, 9000, 359);
+    println!("world battle 359 song {fight_song}");
+    assert!(fight_song >= 0);
+    let data = PlayData::load(&paths).expect("play data");
+    let (mut game, _) = PlayGame::new(data, 70).expect("game");
+    game.set_party(&[0, 1]);
+    let mut director = AudioDirector::new(bank, 6000).expect("director");
+    let run = |game: &mut PlayGame, director: &mut AudioDirector| {
+        let cues: Vec<AudioCue> = game.take_audio().into_iter().map(|(_, cue)| cue).collect();
+        for cue in &cues {
+            director.apply(cue);
+        }
+        let _ = director.render(2);
+        cues
+    };
+    game.tick(0).expect("tick");
+    run(&mut game, &mut director);
+    let mut events = Vec::new();
+    game.start_world(None, &mut events).expect("world");
+    let cues = run(&mut game, &mut director);
+    assert!(cues.contains(&AudioCue::WorldSong { song: 69 }), "{cues:?}");
+    assert_eq!(director.system.current_music_id(), 69);
+    game.world_play.as_mut().expect("walking").set_ride(1);
+    game.tick(0).expect("tick");
+    let cues = run(&mut game, &mut director);
+    assert!(
+        cues.contains(&AudioCue::WorldSong { song: 100 }),
+        "{cues:?}"
+    );
+    assert_eq!(director.system.current_music_id(), 100);
+}
