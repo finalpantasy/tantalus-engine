@@ -371,6 +371,7 @@ impl EntryScheduler {
                 }
                 keep
             });
+            self.restart_loop(director, pool, *object)?;
         }
         for request in &step.requests {
             // The request names a uid (`FindObjByUID`); an object created
@@ -419,6 +420,63 @@ impl EntryScheduler {
                     }
                 }
             }
+        }
+        Ok(())
+    }
+
+    /// `DRET` (EventEngine.DoEventCode.cs:2078-2088) sets `sx = 0` and `state = stateInit`
+    /// before `Return`, which then takes the `stateInit` branch (EventEngine.cs:1179-1184): the
+    /// object starts its loop function (tag 1) again from the top at level 7, whether it was in
+    /// its init or anywhere in its loop. Map 2504 at 10580: entry 0's function 26 returns the
+    /// player (entry 20) off the pole, and the restarted loop, now on entrance 255, walks the
+    /// floor instead of holding the player on the pole.
+    fn restart_loop(
+        &mut self,
+        director: &mut FieldDirector,
+        pool: &Pool,
+        object: EntityId,
+    ) -> Result<(), String> {
+        let entry = match director.world().instance_source(object) {
+            Some(source) => usize::from(source),
+            None => object.get() as usize,
+        };
+        let Some(position) = pool
+            .get(entry)
+            .and_then(|functions| functions.iter().position(|(tag, _)| *tag == 1))
+        else {
+            return Ok(());
+        };
+        let key = function_key(entry, position, object);
+        let object_of = |entity: &EntityId, map: &BTreeMap<EntityId, EntityId>| {
+            map.get(entity)
+                .copied()
+                .unwrap_or_else(|| EntityId::new(entry as u64))
+        };
+        let in_init = self
+            .initializing
+            .iter()
+            .any(|(entity, e)| *e == entry && object_of(entity, &self.object_of) == object);
+        let in_loop = director
+            .entry_states()
+            .iter()
+            .any(|(entity, _, _, _)| *entity == key);
+        // `GetObj1` finds no object that was never created: nothing returns.
+        if !in_init && !in_loop {
+            return Ok(());
+        }
+        let object_map = &self.object_of;
+        self.initializing.retain(|(entity, e)| {
+            let keep = !(*e == entry && object_of(entity, object_map) == object);
+            if !keep {
+                director.remove_entry(*entity);
+            }
+            keep
+        });
+        director.remove_entry(key);
+        if let Some(entity) = register_on(director, pool, entry, Some(1), object)?
+            && object.get() != entry as u64
+        {
+            self.object_of.insert(entity, object);
         }
         Ok(())
     }
@@ -1156,6 +1214,40 @@ mod tests {
             "the shared script still runs after ENDSEQ"
         );
         assert!(!director.world().shared_script_active(EntityId::new(0)));
+    }
+
+    /// `DRET` (ReturnEntryFunctions, 0x97) restarts the target object's loop from its top
+    /// (EventEngine.DoEventCode.cs:2078-2088 sets `sx = 0` and `state = stateInit`, and
+    /// `EventEngine.Return` then sets `ip` to function 1). Map 2504 at 10580: entry 0's
+    /// function 26 returns the player (entry 20) off the pole; the restarted loop reads the
+    /// new entrance, where the old one kept the player on the pole.
+    #[test]
+    fn return_entry_functions_restarts_the_object_s_loop() {
+        // Entry 1 loop: Map.Byte[0] += 1, then wait 1 and jump back to the wait, forever.
+        let mut looping = vec![5, 0xd5, 0, 126, 1, 0, 0, 0, 50, 127];
+        looping.extend([0x22, 0, 1, 0x01, 0xfa, 0xff]);
+        let looping = decode_program(&looping).unwrap();
+        // Entry 0 tag 10: wait 3, DRET entry 1, return.
+        let caller = decode_program(&[0x22, 0, 3, 0x97, 0, 1, 4]).unwrap();
+        let pool: Pool = vec![vec![(10, caller)], vec![(1, looping)]];
+        let mut director = new_director(FieldWorld::new(), &pool, 0);
+        let mut scheduler = EntryScheduler::default();
+        register(&mut director, &pool, 0, Some(10)).unwrap();
+        register(&mut director, &pool, 1, Some(1)).unwrap();
+        for _ in 0..12 {
+            let step = director.step().unwrap();
+            scheduler
+                .run_step_scripts(&mut director, &pool, &step)
+                .unwrap();
+            scheduler.settle(&mut director, &pool).unwrap();
+        }
+        let counter = director
+            .world()
+            .map_memory
+            .get(0, tantalus_legacy::VariableType::Byte);
+        assert_eq!(counter, Some(2), "the loop ran its top again after DRET");
+        let looping = function_entity(&pool, 1, 1).unwrap();
+        assert_eq!(status(&director, looping), VmStatus::Waiting);
     }
 
     #[test]

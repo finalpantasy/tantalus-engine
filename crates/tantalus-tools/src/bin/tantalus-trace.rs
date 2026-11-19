@@ -39,7 +39,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--level N] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY[@SCENARIO],...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP[@ANGLE],...] [--wall-regions MAP,...] [--play-card-games] [--win-card-games] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--stub-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY[@SCENARIO],...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP[@ANGLE][#SCENARIO],...] [--wall-regions MAP,...] [--play-card-games] [--win-card-games] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--stub-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--region-points MAP:ENTRY@X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -68,7 +68,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut skip_talk: BTreeSet<(i32, usize, i32)> = BTreeSet::new();
     let mut retalk: BTreeSet<(i32, usize)> = BTreeSet::new();
     let mut ate: BTreeMap<i32, u32> = BTreeMap::new();
-    let mut region_talks: BTreeSet<i32> = BTreeSet::new();
+    let mut region_talks: BTreeMap<i32, i32> = BTreeMap::new();
     let mut region_faces: BTreeMap<i32, i16> = BTreeMap::new();
     let mut wall_regions: BTreeSet<i32> = BTreeSet::new();
     let mut hold: BTreeMap<i32, i32> = BTreeMap::new();
@@ -99,6 +99,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut fight_hp: std::collections::BTreeMap<i32, u32> = Default::default();
     let mut battle_ids: Option<PathBuf> = None;
     let mut waypoints: BTreeMap<i32, Vec<[f32; 2]>> = BTreeMap::new();
+    let mut region_points: BTreeMap<(i32, usize), [f32; 2]> = BTreeMap::new();
     let mut save_at: BTreeMap<i32, (PathBuf, i32)> = BTreeMap::new();
     let mut load_world: Option<PathBuf> = None;
     let mut load_save: Option<PathBuf> = None;
@@ -220,13 +221,22 @@ fn run(args: Vec<String>) -> Result<(), String> {
             // facing (the Lindblum castle lift switch, 2151 entry 3: 154 to 248).
             "--region-talks" => {
                 for part in value()?.split(',') {
-                    let bad = || format!("bad --region-talks entry `{part}`, want MAP[@ANGLE]");
-                    let (map, angle) = match part.trim().split_once('@') {
+                    let bad = || {
+                        format!("bad --region-talks entry `{part}`, want MAP[@ANGLE][#SCENARIO]")
+                    };
+                    // `#SCENARIO`: talk to the field's regions only from that scenario on
+                    // (2505 at 10575: the window ledge, region 2, waits until region 6 has
+                    // set 10580).
+                    let (part, from) = match part.trim().split_once('#') {
+                        Some((part, from)) => (part, from.parse().map_err(|_| bad())?),
+                        None => (part.trim(), 0),
+                    };
+                    let (map, angle) = match part.split_once('@') {
                         Some((map, angle)) => (map, Some(angle)),
-                        None => (part.trim(), None),
+                        None => (part, None),
                     };
                     let map: i32 = map.parse().map_err(|_| bad())?;
-                    region_talks.insert(map);
+                    region_talks.insert(map, from);
                     if let Some(angle) = angle {
                         region_faces.insert(map, angle.parse().map_err(|_| bad())?);
                     }
@@ -448,6 +458,21 @@ fn run(args: Vec<String>) -> Result<(), String> {
                         let point = [x.parse().map_err(|_| bad())?, z.parse().map_err(|_| bad())?];
                         waypoints.entry(map).or_default().push(point);
                     }
+                }
+            }
+            "--region-points" => {
+                for part in value()?.split(',') {
+                    let bad = || format!("bad --region-points entry `{part}`, want MAP:ENTRY@X:Z");
+                    let (key, point) = part.trim().split_once('@').ok_or_else(bad)?;
+                    let (map, entry) = key.split_once(':').ok_or_else(bad)?;
+                    let (x, z) = point.split_once(':').ok_or_else(bad)?;
+                    region_points.insert(
+                        (
+                            map.parse().map_err(|_| bad())?,
+                            entry.parse().map_err(|_| bad())?,
+                        ),
+                        [x.parse().map_err(|_| bad())?, z.parse().map_err(|_| bad())?],
+                    );
                 }
             }
             "--confirm-after" => confirm_after = parse_number(&value()?, "--confirm-after")?,
@@ -725,6 +750,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     play_card_games,
                     backgrounds,
                     waypoints,
+                    region_points,
                     save_at,
                     load_world,
                     load_save: load_save.map(|path| (path, save_slot)),
@@ -1283,7 +1309,8 @@ struct ChainOptions {
     /// story point (Chocobo Hot and Cold: Mene is revisited).
     retalk: BTreeSet<(i32, usize)>,
     ate: BTreeMap<i32, u32>,
-    region_talks: BTreeSet<i32>,
+    /// Fields whose tag-3 regions the explorer confirms in, from a scenario on.
+    region_talks: BTreeMap<i32, i32>,
     /// The facing `--region-talks MAP@ANGLE` gives the player for a region talk.
     region_faces: BTreeMap<i32, i16>,
     wall_regions: BTreeSet<i32>,
@@ -1345,6 +1372,10 @@ struct ChainOptions {
     /// map, once its regions and talks are done: fields that wait for the
     /// player to walk somewhere (map 116's roof waits for Vivi's x <= 900).
     waypoints: BTreeMap<i32, Vec<[f32; 2]>>,
+    /// Where the scripted player stands to enter a region (`--region-points`), by field
+    /// map and region entry, in place of a point at its centre: map 2510's region 15
+    /// tests the player's height, which only the upper half of its ramp passes.
+    region_points: BTreeMap<(i32, usize), [f32; 2]>,
     /// Worlds to write when the chain enters a map (`--save-at`).
     save_at: BTreeMap<i32, (PathBuf, i32)>,
     /// A world written by `--save-at`, to continue from.
@@ -1458,6 +1489,7 @@ fn chain(
         play_card_games,
         backgrounds,
         waypoints,
+        region_points,
         save_at,
         load_world,
         load_save,
@@ -2109,12 +2141,15 @@ fn chain(
                         // tag 3 requests it (the Lindblum temple's offering
                         // spots, 557 entries 11 and 12).
                         let confirm_down = director.world().input_mask() & CONFIRM != 0;
-                        let region_hits: Vec<EntityId> =
-                            if confirm_down && region_talks.contains(&map) {
-                                step.region_occupancy.clone()
-                            } else {
-                                Vec::new()
-                            };
+                        let region_hits: Vec<EntityId> = if confirm_down
+                            && region_talks
+                                .get(&map)
+                                .is_some_and(|from| scenario_counter(director.world()) >= *from)
+                        {
+                            step.region_occupancy.clone()
+                        } else {
+                            Vec::new()
+                        };
                         for trigger in step.talk_triggers.iter().chain(region_hits.iter()) {
                             let entry = trigger.get() as usize;
                             if talk_busy || entry >= pool.len() || talked.contains(&entry) {
@@ -2469,7 +2504,12 @@ fn chain(
                                     && !triggered.contains(&entry)
                                     && exits.contains_key(&entry) == exit
                             })
-                            .map(|(_, region)| inside_point(region))
+                            .map(|(region, inner)| {
+                                region_points
+                                    .get(&(map, region.get() as usize))
+                                    .copied()
+                                    .unwrap_or_else(|| inside_point(inner))
+                            })
                     };
                     let pending_talk = (0..pool.len())
                         .filter(|entry| {
@@ -2479,11 +2519,11 @@ fn chain(
                         })
                         .find_map(|entry| {
                             let id = EntityId::new(entry as u64);
-                            if let Some(region) = world
-                                .regions
-                                .get(&id)
-                                .filter(|_| region_talks.contains(&map))
-                            {
+                            if let Some(region) = world.regions.get(&id).filter(|_| {
+                                region_talks
+                                    .get(&map)
+                                    .is_some_and(|from| scenario_counter(world) >= *from)
+                            }) {
                                 return Some((entry, inside_point(region)));
                             }
                             let state = world.actors.get(&id)?;
