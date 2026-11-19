@@ -87,8 +87,9 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut settle_ticks: u64 = CONTROL_SETTLE;
     let mut talk_grace: u64 = 0;
     let mut heal_after_battle = false;
+    let mut smart_battles = false;
     let mut auto_gear = false;
-    let mut shops: BTreeMap<i32, i32> = BTreeMap::new();
+    let mut shops: BTreeMap<i32, Vec<i32>> = BTreeMap::new();
     let mut live_objects = true;
     let mut win_battles: BTreeSet<i32> = BTreeSet::new();
     let mut win_card_games = false;
@@ -96,6 +97,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut fight_battle: Option<i32> = None;
     let mut fight_party: Vec<i32> = vec![0];
     let mut fight_level: usize = 1;
+    let mut fight_request: Option<PathBuf> = None;
     let mut fight_corpus = false;
     let mut fight_gear = false;
     let mut fight_roll: u8 = 0;
@@ -370,16 +372,18 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 }
             }
             "--heal-after-battle" => heal_after_battle = true,
+            "--smart-battles" => smart_battles = true,
             "--auto-gear" => auto_gear = true,
             "--shops" => {
                 for part in value()?.split(',') {
                     let (field, shop) = part
                         .split_once(':')
-                        .ok_or("--shops takes FIELD:SHOP[,...]")?;
-                    shops.insert(
-                        parse_number(field, "--shops")?,
-                        parse_number(shop, "--shops")?,
-                    );
+                        .ok_or("--shops takes FIELD:SHOP[/SHOP][,...]")?;
+                    let list = shop
+                        .split('/')
+                        .map(|shop| parse_number(shop, "--shops"))
+                        .collect::<Result<Vec<i32>, _>>()?;
+                    shops.insert(parse_number(field, "--shops")?, list);
                 }
             }
             "--win-card-games" => win_card_games = true,
@@ -526,6 +530,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
             "--confirm-after" => confirm_after = parse_number(&value()?, "--confirm-after")?,
             "--battle" => fight_battle = Some(parse_number(&value()?, "--battle")?),
             "--roll" => fight_roll = parse_number(&value()?, "--roll")?,
+            "--request" => fight_request = Some(PathBuf::from(value()?)),
             "--corpus" => fight_corpus = true,
             "--gear" => fight_gear = true,
             "--level" => fight_level = parse_number(&value()?, "--level")?,
@@ -604,7 +609,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
             };
             let base = tantalus_game::new_game::parse_base_stats(&read("BaseStats.csv")?)?;
             let levels = tantalus_game::new_game::parse_leveling(&read("Leveling.csv")?)?;
-            let battles = tantalus_tools::field_battle::FieldBattles::load(
+            let mut battles = tantalus_tools::field_battle::FieldBattles::load(
                 bundle.parent().ok_or("--bundle has no directory")?,
                 &bundle,
                 &ids,
@@ -616,6 +621,22 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     equipment
                 },
             )?;
+            battles.smart = smart_battles;
+            // `--load-world`: the party, gear and items of a saved field world
+            // (a chain `--save-at`), as the chain would send them into battle.
+            let world_party = match &load_world {
+                Some(path) => {
+                    let text = std::fs::read_to_string(path)
+                        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+                    let world: tantalus_game::FieldWorld = serde_json::from_str(&text)
+                        .map_err(|error| format!("cannot decode {}: {error}", path.display()))?;
+                    fight_items = world.items.clone();
+                    Some(tantalus_tools::field_battle::PartyFighter::from_world(
+                        &world, &base, &levels,
+                    ))
+                }
+                None => None,
+            };
             let party: Vec<tantalus_tools::field_battle::PartyFighter> = fight_party
                 .iter()
                 .filter_map(|character| {
@@ -650,6 +671,23 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     })
                 })
                 .collect();
+            let party = world_party.unwrap_or(party);
+            for fighter in &party {
+                eprintln!(
+                    "party {} lv{} hp{}/{} mp{}/{} row{} trance{} equip{:?} sa{:x} mastered{:x?}",
+                    fighter.character,
+                    fighter.level,
+                    fighter.hp,
+                    fighter.max_hp,
+                    fighter.mp,
+                    fighter.max_mp,
+                    fighter.row,
+                    fighter.trance,
+                    fighter.equip,
+                    fighter.support,
+                    fighter.mastered
+                );
+            }
             if fight_corpus {
                 // One line per battle id: id, outcome, ticks, error.
                 for id in battles.battle_ids() {
@@ -675,13 +713,22 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 }
                 return Ok(());
             }
-            let request = tantalus_game::field::world::EncounterRequest {
-                rush: 0,
-                group: None,
-                battle,
-                steiner_state: false,
-                timer: None,
-                pattern_roll: fight_roll,
+            // `--request <file>`: the battle request the chain saved beside a
+            // `TANTALUS_BATTLE_WORLDS` world (group, pattern roll, timer).
+            let request = match &fight_request {
+                Some(path) => serde_json::from_str(
+                    &std::fs::read_to_string(path)
+                        .map_err(|error| format!("cannot read {}: {error}", path.display()))?,
+                )
+                .map_err(|error| format!("cannot decode {}: {error}", path.display()))?,
+                None => tantalus_game::field::world::EncounterRequest {
+                    rush: 0,
+                    group: None,
+                    battle,
+                    steiner_state: false,
+                    timer: None,
+                    pattern_roll: fight_roll,
+                },
             };
             let report = battles.fight_with_items(&request, &party, &fight_items);
             println!(
@@ -843,7 +890,11 @@ fn run(args: Vec<String>) -> Result<(), String> {
                                 }
                                 None => Default::default(),
                             },
-                        )?),
+                        )?)
+                        .map(|mut battles| {
+                            battles.smart = smart_battles;
+                            battles
+                        }),
                         None => None,
                     },
                 },
@@ -1462,7 +1513,7 @@ struct ChainOptions {
     /// a script opens, or one named by `--shops FIELD:SHOP`, sells it better
     /// pieces while the gil lasts.
     auto_gear: bool,
-    shops: BTreeMap<i32, i32>,
+    shops: BTreeMap<i32, Vec<i32>>,
     live_objects: bool,
     /// Battle numbers the probe counts as won without fighting (`--win-battles`), for fights
     /// the stand-in battle engine cannot win yet.
@@ -1845,7 +1896,7 @@ fn chain(
     let gear_tables = match (&characters, &menu_tables, auto_gear) {
         (Some(dir), Some(tables), true) => {
             let stock = tantalus_tools::shop_menu::ShopTables::load(&dir.join("../../../.."))?;
-            Some((tables.db.clone(), stock.shops))
+            Some((tables.db.clone(), stock.shops, tables.clone()))
         }
         (_, _, true) => return Err("--auto-gear needs --character-data".into()),
         _ => None,
@@ -1890,15 +1941,29 @@ fn chain(
         let exits: BTreeMap<usize, i32> = (0..pool.len())
             .filter_map(|entry| Some((entry, exit_destination(&pool[entry])?)))
             .collect();
-        if let Some((db, stock)) = &gear_tables {
+        if let Some((db, stock, tables)) = &gear_tables {
             gear_up(
                 &mut world,
                 db,
                 stock,
-                shops.get(&map).copied(),
+                shops.get(&map).map_or(&[][..], Vec::as_slice),
                 &mut shopped,
                 map,
             );
+            // Then the support abilities the new gear and the AP opened.
+            let mut supports = Vec::new();
+            for member in tantalus_tools::auto_gear::members(&world) {
+                let on = tantalus_tools::ability_menu::auto_support(&mut world, tables, member);
+                if !on.is_empty() {
+                    supports.push((member, on));
+                }
+            }
+            if !supports.is_empty() {
+                println!(
+                    "{}",
+                    serde_json::json!({"auto_support": map, "enabled": supports})
+                );
+            }
         }
         // The first unused route entry for this map; it is used up when the
         // field leaves through its destination.
@@ -2239,45 +2304,23 @@ fn chain(
                     // With `--battles`, fight each one first; the field
                     // still resumes as after a win.
                     if let Some(field_battles) = &field_battles {
-                        let world = director.world();
-                        let party: Vec<tantalus_tools::field_battle::PartyFighter> = world
-                            .party
-                            .iter()
-                            .filter_map(|character| {
-                                let base = *battle_base.get(character)?;
-                                let stats = world.character_stats.get(character)?;
-                                Some(tantalus_tools::field_battle::PartyFighter {
-                                    character: *character,
-                                    hp: stats.current_hp.max(0) as u32,
-                                    max_hp: stats.max_hp.max(0) as u32,
-                                    mp: stats.current_mp.max(0) as u32,
-                                    max_mp: stats.max_mp.max(0) as u32,
-                                    base,
-                                    level: tantalus_game::new_game::level_for_experience(
-                                        &battle_levels,
-                                        world.character_exp.get(character).copied().unwrap_or(0),
-                                    ),
-                                    globals:
-                                        tantalus_tools::field_battle::PartyGlobals::from_globals(
-                                            world.global_memory.bytes(),
-                                        ),
-                                    row: u8::from(!world.back_row.contains(character)),
-                                    trance: world.trance.get(character).copied().unwrap_or(0),
-                                    equip: tantalus_tools::field_battle::PartyFighter::loadout(
-                                        world, *character,
-                                    )
-                                    .0,
-                                    support: tantalus_tools::field_battle::PartyFighter::loadout(
-                                        world, *character,
-                                    )
-                                    .1,
-                                    mastered: tantalus_tools::field_battle::PartyFighter::mastered_abilities(
-                                        world, *character,
-                                    ),
-                                })
-                            })
-                            .collect();
+                        let party = tantalus_tools::field_battle::PartyFighter::from_world(
+                            director.world(),
+                            &battle_base,
+                            &battle_levels,
+                        );
                         for request in &step.encounters {
+                            // `TANTALUS_BATTLE_WORLDS=<dir>`: the field world each battle
+                            // starts from, as `<dir>/<battle>.json`, for `fight --load-world`.
+                            if let Some(dir) = std::env::var_os("TANTALUS_BATTLE_WORLDS") {
+                                let path = Path::new(&dir).join(format!("{}.json", request.battle));
+                                if let Ok(text) = serde_json::to_string(director.world()) {
+                                    let _ = std::fs::write(&path, text);
+                                }
+                                if let Ok(text) = serde_json::to_string(request) {
+                                    let _ = std::fs::write(path.with_extension("req"), text);
+                                }
+                            }
                             if win_battles.contains(&request.battle) {
                                 continue;
                             }
@@ -3235,18 +3278,24 @@ fn gear_up(
     world: &mut tantalus_game::FieldWorld,
     db: &tantalus_legacy::shop::ItemDb,
     stock: &tantalus_legacy::shop::ShopTable,
-    shop: Option<i32>,
+    shop: &[i32],
     shopped: &mut BTreeSet<i32>,
     map: i32,
 ) {
     let members = tantalus_tools::auto_gear::members(world);
-    let open = world
-        .shop_requested
-        .take()
-        .or_else(|| shop.filter(|_| shopped.insert(map)));
+    let mut open: Vec<i32> = world.shop_requested.take().into_iter().collect();
+    if !shop.is_empty() && shopped.insert(map) {
+        open.extend_from_slice(shop);
+    }
     let mut bought = Vec::new();
-    if let Some(items) = open.and_then(|shop| stock.shops.get(&shop)) {
-        bought = tantalus_tools::auto_gear::buy_best(world, db, items, &members);
+    for items in open.iter().filter_map(|shop| stock.shops.get(shop)) {
+        bought.extend(tantalus_tools::auto_gear::buy_best(
+            world, db, items, &members,
+        ));
+    }
+    // Then the medicine, with what the gear left.
+    for items in open.iter().filter_map(|shop| stock.shops.get(shop)) {
+        bought.extend(tantalus_tools::auto_gear::buy_supplies(world, db, items));
     }
     let equipped = tantalus_tools::auto_gear::equip_best(world, db, &members);
     if !bought.is_empty() || !equipped.is_empty() {

@@ -147,6 +147,42 @@ pub struct PartyFighter {
 }
 
 impl PartyFighter {
+    /// The battle party as the field world holds it: each member's HP, MP,
+    /// level (from the total EXP), row, Trance gauge, gear and abilities.
+    pub fn from_world(
+        world: &FieldWorld,
+        base: &BTreeMap<i32, BaseStats>,
+        levels: &[tantalus_game::new_game::LevelRow],
+    ) -> Vec<Self> {
+        world
+            .party
+            .iter()
+            .filter_map(|character| {
+                let base = *base.get(character)?;
+                let stats = world.character_stats.get(character)?;
+                let (equip, support) = Self::loadout(world, *character);
+                Some(Self {
+                    character: *character,
+                    hp: stats.current_hp.max(0) as u32,
+                    max_hp: stats.max_hp.max(0) as u32,
+                    mp: stats.current_mp.max(0) as u32,
+                    max_mp: stats.max_mp.max(0) as u32,
+                    base,
+                    level: tantalus_game::new_game::level_for_experience(
+                        levels,
+                        world.character_exp.get(character).copied().unwrap_or(0),
+                    ),
+                    globals: PartyGlobals::from_globals(world.global_memory.bytes()),
+                    row: u8::from(!world.back_row.contains(character)),
+                    trance: world.trance.get(character).copied().unwrap_or(0),
+                    equip,
+                    support,
+                    mastered: Self::mastered_abilities(world, *character),
+                })
+            })
+            .collect()
+    }
+
     /// The gear and enabled support abilities the field world records for
     /// `character` (`PLAYER.equip`, `PLAYER.sa`); no equipment entry means
     /// the default set. `support_enabled` holds `SupportAbility` indexes
@@ -227,6 +263,10 @@ pub struct FieldBattles {
     /// party has cast (`BattleAchievement.UpdateCommandAchievement`). Not
     /// in the save yet.
     summons_seen: std::sync::Mutex<Vec<i32>>,
+    /// `--smart-battles` (trace stand-in): the stand-in also cures the
+    /// statuses that stop a fight ([`StandInCure`]) and counts a member under
+    /// them as down when it judges the fight lost.
+    pub smart: bool,
 }
 
 /// Item ids below this are weapons; armor rows are `item - ARMOR_BASE`
@@ -1047,6 +1087,7 @@ impl FieldBattles {
             scene_ids: crate::battle_scene_rewards::parse_scene_id_table(&table),
             equipment,
             summons_seen: std::sync::Mutex::new(Vec::new()),
+            smart: false,
         })
     }
 
@@ -1063,6 +1104,7 @@ impl FieldBattles {
             scene_ids,
             equipment,
             summons_seen: std::sync::Mutex::new(Vec::new()),
+            smart: false,
         }
     }
 
@@ -1356,6 +1398,35 @@ impl FieldBattles {
             },
         );
         let mut adapter = adapter.with_hooks(hooks);
+        // `btl_init.SetupBattlePlayer` / `OrganizeEnemyData` (`btl_init.cs:430,494`):
+        // on a normal start every gauge begins at `random16() % max.at`, drawn
+        // from the battle's random stream. The field fights started every
+        // gauge at 0, so a fast enemy always acted first.
+        let mut world = FieldWorld::new();
+        {
+            let mut services = WorldGameServices::new(&mut world);
+            if let Err(error) = adapter.battle_mut().roll_initial_atb(
+                tantalus_legacy::battle::atb::StartType::Normal,
+                &mut tantalus_game::battle::legacy::ServicesRandom {
+                    services: &mut services,
+                },
+            ) {
+                return Err(fail(report, format!("initial ATB roll: {error:?}")));
+            }
+        }
+        // A multipart slave (`TypeNo > 0` with `FLG_MULTIPART`, no model:
+        // `btl_init.cs:46-60,496-500`) has no turn of its own: gauge and
+        // `at_coef` 0.
+        let party_len = party.len();
+        for slave in multipart_slaves(scene, pattern) {
+            let machine = adapter.battle_mut();
+            if let Some(unit) = machine.units.get_mut(party_len + slave) {
+                unit.cur_atb = 0;
+            }
+            if let Some(sched) = machine.sched.get_mut(party_len + slave) {
+                sched.atb_coef = 0;
+            }
+        }
         let mut stage = crate::battle_stage::BattleStage::new(
             report.battle,
             // `EVT_BATTLE_<scene>` to the bare scene name.
@@ -1437,6 +1508,14 @@ impl FieldBattles {
             gear,
             ids,
             spells,
+            cures: if self.smart {
+                menu.iter()
+                    .map(|menu| stand_in_cures(menu, &self.equipment))
+                    .collect()
+            } else {
+                vec![Vec::new(); party.len()]
+            },
+            smart: self.smart,
             trance_menu: menu
                 .iter()
                 .map(|menu| PartyMenu {
@@ -1446,7 +1525,7 @@ impl FieldBattles {
                 .collect(),
             menu,
             adapter,
-            world: FieldWorld::new(),
+            world,
             defeated: Vec::new(),
             rows,
             bonus,
@@ -1463,6 +1542,30 @@ impl FieldBattles {
             state: FightState::Running,
         })
     }
+}
+
+/// The pattern's enemies (by placement index) that are multipart slaves:
+/// `BTL_SCENE.GetMonGeoID` is -1 for a placement with `TypeNo > 0` and
+/// `FLG_MULTIPART`, which makes `enemy.info.slave` 1 (`btl_init.cs:46`).
+fn multipart_slaves(scene: &BattleScene, pattern: usize) -> Vec<usize> {
+    scene
+        .patterns
+        .get(pattern)
+        .map_or_else(Vec::new, |pattern| {
+            pattern
+                .monsters
+                .iter()
+                .take(usize::from(pattern.monster_count))
+                .enumerate()
+                .filter(|(_, placement)| {
+                    placement.type_no > 0
+                        && placement.flags
+                            & tantalus_assets::pc::battle_scene::Placement::FLG_MULTIPART
+                            != 0
+                })
+                .map(|(index, _)| index)
+                .collect()
+        })
 }
 
 /// What a spell does, for the stand-in policy (`Actions.csv` script ids).
@@ -1515,6 +1618,66 @@ fn stand_in_spells(menu: &PartyMenu, equipment: &Equipment) -> Vec<StandInSpell>
             })
         })
         .collect()
+}
+
+/// One status cure a member's menu offers (`--smart-battles`): an item whose
+/// `ItemEffects.csv` script is Soft's 62 or the status recovery 73 (Antidote,
+/// Eye Drops, Echo Screen, Remedy), or a spell with script 12 (Panacea,
+/// Stona, Esuna), and the statuses it removes.
+#[derive(Debug, Clone)]
+struct StandInCure {
+    action: ContentId,
+    cmd_no: u32,
+    item: Option<i32>,
+    mp: u32,
+    cures: u64,
+}
+
+/// Statuses the stand-in cures, worst first: those that end the fight when
+/// the whole party has them (`BattleStatusConst.BattleEnd`: Petrify, Venom,
+/// Stop) with Gradual Petrify, then Confuse and Berserk, then the rest.
+const CURE_SEVERE: u64 = tantalus_legacy::battle::status::PETRIFY
+    | tantalus_legacy::battle::status::VENOM
+    | tantalus_legacy::battle::status::STOP
+    | tantalus_legacy::battle::status::GRADUAL_PETRIFY;
+const CURE_MINOR: u64 = tantalus_legacy::battle::status::CONFUSE
+    | tantalus_legacy::battle::status::BERSERK
+    | tantalus_legacy::battle::status::SILENCE
+    | tantalus_legacy::battle::status::BLIND
+    | tantalus_legacy::battle::status::POISON
+    | tantalus_legacy::battle::status::MINI;
+
+/// The status cures in `menu`'s item and ability lists.
+fn stand_in_cures(menu: &PartyMenu, equipment: &Equipment) -> Vec<StandInCure> {
+    let mut cures: Vec<StandInCure> = menu
+        .commands
+        .iter()
+        .filter_map(|command| match &command.kind {
+            CommandKind::List(list) => Some(list),
+            _ => None,
+        })
+        .flatten()
+        .filter_map(|entry| {
+            let cures = if entry.cmd_no == cmd::ITEM {
+                let row = equipment.item_effects.get(&entry.sub_no)?;
+                matches!(row.script_id, 62 | 73).then_some(row.status)?
+            } else {
+                let row = equipment.actions.get(&entry.sub_no)?;
+                (row.script_id == 12)
+                    .then(|| equipment.status_sets.get(&row.add_status).copied())??
+            };
+            (cures & (CURE_SEVERE | CURE_MINOR) != 0).then(|| StandInCure {
+                action: entry.action.clone(),
+                cmd_no: entry.cmd_no,
+                item: (entry.cmd_no == cmd::ITEM).then_some(entry.sub_no),
+                mp: entry.mp,
+                cures,
+            })
+        })
+        .collect();
+    // Spells first, then the narrowest item (Soft before Remedy).
+    cures.sort_by_key(|cure| (cure.item.is_some(), cure.cures.count_ones()));
+    cures
 }
 
 /// A rough damage figure for the stand-in to compare choices by
@@ -2040,6 +2203,9 @@ pub struct LiveFight {
     ids: StandInActions,
     /// Each member's damage, healing and revive spells, for the stand-in.
     spells: Vec<Vec<StandInSpell>>,
+    /// Each member's status cures (`--smart-battles` only).
+    cures: Vec<Vec<StandInCure>>,
+    smart: bool,
     menu: Vec<PartyMenu>,
     /// [`Self::menu`] with each member's Trance commands.
     trance_menu: Vec<PartyMenu>,
@@ -2275,6 +2441,7 @@ impl LiveFight {
             .flatten()
             .filter(|spell| spell.kind != SpellKind::Damage)
             .map(|spell| spell.cmd_no)
+            .chain(self.cures.iter().flatten().map(|cure| cure.cmd_no))
             .collect();
         let healing = |i: usize| {
             let id = machine.units[i].id;
@@ -2361,6 +2528,46 @@ impl LiveFight {
                 .map(|ally| (ids.remedy.clone(), ally)),
             _ => None,
         };
+        // `--smart-battles`: a member under a status that ends the fight
+        // (Petrify, Venom, Stop) is cured before anyone is healed, but after a
+        // fallen ally is raised; the lesser ones once nobody needs HP.
+        let heal = if self.smart {
+            let silenced = unit.is_under_any_status(tantalus_legacy::battle::status::SILENCE);
+            let cure_for = |severity: u64| {
+                (0..party.len())
+                    .filter(|&i| {
+                        machine.sched[i].in_list
+                            && machine.units[i].cur_hp > 0
+                            && !machine.units[i].is_under_any_status(DEATH)
+                            && !healing(i)
+                    })
+                    .filter_map(|i| {
+                        let bad = machine.units[i].status_current & severity;
+                        (bad != 0).then_some((i, bad))
+                    })
+                    .find_map(|(i, bad)| {
+                        self.cures[actor]
+                            .iter()
+                            .find(|cure| {
+                                cure.cures & bad != 0
+                                    && match cure.item {
+                                        Some(item) => count(item) > 0,
+                                        None => !silenced && cure.mp <= unit.cur_mp,
+                                    }
+                            })
+                            .map(|cure| (cure.action.clone(), i))
+                    })
+            };
+            let reviving = heal.as_ref().is_some_and(|(_, ally)| Some(*ally) == downed);
+            match heal {
+                Some(heal) if reviving => Some(heal),
+                heal => cure_for(CURE_SEVERE)
+                    .or(heal)
+                    .or_else(|| cure_for(CURE_MINOR)),
+            }
+        } else {
+            heal
+        };
         let (action, target) = if let Some(heal) = heal {
             heal
         } else {
@@ -2430,7 +2637,17 @@ impl LiveFight {
             .filter(|&i| machine.sched[i].in_list)
             .map(|i| &machine.units[i])
             .collect();
-        let downed = present.iter().filter(|unit| unit.cur_hp == 0).count();
+        let ended = if self.smart {
+            tantalus_legacy::battle::status::PETRIFY
+                | tantalus_legacy::battle::status::VENOM
+                | tantalus_legacy::battle::status::STOP
+        } else {
+            0
+        };
+        let downed = present
+            .iter()
+            .filter(|unit| unit.cur_hp == 0 || unit.is_under_any_status(ended))
+            .count();
         let count = |item: i32| machine.inventory.get(&item).copied().unwrap_or(0);
         let life = (0..len).any(|i| {
             machine.units[i].cur_hp > 0
@@ -3591,6 +3808,60 @@ mod tests {
         assert_eq!(serial(10, 0, 1550), Some(17));
         assert_eq!(serial(10, 0, 2000), Some(16));
         assert_eq!(serial(12, 0, 0), None);
+    }
+
+    /// `btl_init.cs:430,494`: a normal start gives each gauge
+    /// `random16() % max.at`. The field fights left them all at 0, so Nova
+    /// Dragon (battle 931, `CW_E060`) always took the first turn.
+    #[test]
+    fn a_normal_start_rolls_every_gauge() {
+        let Some(equipment) = memoria_equipment() else {
+            return;
+        };
+        let game = std::env::var_os("TANTALUS_FF9").map_or_else(
+            || std::path::PathBuf::from("E:/SteamLibrary/steamapps/common/FINAL FANTASY IX"),
+            std::path::PathBuf::from,
+        );
+        let assets = game.join("StreamingAssets");
+        let ids = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../audit/battle-scene-ids.tsv");
+        if !assets.join("p0data2.bin").exists() || !ids.exists() {
+            eprintln!("skipped: no game data");
+            return;
+        }
+        let battles = FieldBattles::load(&assets, &assets.join("p0data7.bin"), &ids, equipment)
+            .expect("battle data loads");
+        let request = EncounterRequest {
+            rush: 0,
+            group: None,
+            battle: 931,
+            steiner_state: false,
+            timer: None,
+            pattern_roll: 0,
+        };
+        let mut fighter = zidane();
+        fighter.level = 30;
+        let party = [fighter; 4].map(|mut f| {
+            f.hp = 1000;
+            f.max_hp = 1000;
+            f
+        });
+        let fight = battles
+            .start(&request, &party, &BTreeMap::new())
+            .unwrap_or_else(|report| panic!("{:?}", report.error));
+        let machine = fight.machine();
+        assert_eq!(machine.units.len(), 5);
+        for (unit, sched) in machine.units.iter().zip(&machine.sched) {
+            assert!(unit.cur_atb >= 0 && unit.cur_atb < sched.max_atb);
+        }
+        assert!(
+            machine.units.iter().filter(|unit| unit.cur_atb > 0).count() >= 4,
+            "gauges {:?}",
+            machine
+                .units
+                .iter()
+                .map(|unit| unit.cur_atb)
+                .collect::<Vec<_>>()
+        );
     }
 }
 

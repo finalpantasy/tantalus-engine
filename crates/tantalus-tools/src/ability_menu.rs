@@ -290,6 +290,50 @@ pub fn support_refresh(
     })
 }
 
+/// The support abilities the trace stand-in switches on, best first
+/// (`SupportAbility` indexes): Auto-Life, Auto-Regen, Auto-Haste, the status
+/// guards (Jelly, Locomotion, Insomniac, Clear Headed, Antibody, Body Temp,
+/// Bright Eyes, Loudmouth), HP+ and MP+, then the attack and spell boosts.
+/// Auto-Reflect (it bounces the party's own cures) and Healer (its attacks
+/// heal the enemy) are never picked.
+pub const STAND_IN_SUPPORT: [i32; 52] = [
+    4, 3, 2, 53, 57, 48, 58, 49, 40, 50, 51, 6, 5, 8, 7, 56, 27, 36, 11, 9, 12, 33, 34, 35, 44, 43,
+    29, 28, 21, 13, 14, 15, 16, 17, 18, 19, 20, 25, 54, 52, 39, 59, 60, 61, 41, 42, 32, 30, 31, 37,
+    38, 1,
+];
+
+/// `--auto-gear` (a trace stand-in, not game behavior): switches on, as a
+/// player would in the Ability menu, every support ability `member` can
+/// use in [`STAND_IN_SUPPORT`] order while the magic stones last
+/// ([`toggle_support`]). Returns the abilities it switched on.
+pub fn auto_support(
+    world: &mut FieldWorld,
+    tables: &crate::field_menu::MenuTables,
+    member: i32,
+) -> Vec<i32> {
+    let mut ch = menu_character(world, tables, member);
+    let eqp = equipped_abilities(&tables.db, &ch.equip);
+    let ctx = AbilityContext::default();
+    let table = &tables.abilities.support;
+    let mut enabled = Vec::new();
+    for sa in STAND_IN_SUPPORT {
+        if ch.enabled.contains(&sa) {
+            continue;
+        }
+        let id = tantalus_legacy::menu::ability::support_ability_id(sa);
+        if check_sa_type(&ch, table, &ctx, &eqp, id) == AbilityType::Enable
+            && toggle_support(&mut ch, table, &ctx, &eqp, id).is_ok()
+        {
+            enabled.push(sa);
+        }
+    }
+    if !enabled.is_empty() {
+        world.support_enabled.insert(member, ch.enabled.clone());
+        world.update_character_max(member);
+    }
+    enabled
+}
+
 /// Rows of one tab: (ability id, type).
 fn tab_rows(
     ch: &MenuCharacter,
@@ -562,6 +606,19 @@ pub fn frame(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stand_in_support_list_skips_reflect_and_healer_once_each() {
+        let mut seen = std::collections::BTreeSet::new();
+        for sa in STAND_IN_SUPPORT {
+            assert!(seen.insert(sa), "SA {sa} twice");
+            assert!((0..64).contains(&sa));
+        }
+        // Auto-Reflect bounces the party's cures; Healer's hits heal the foe.
+        assert!(!seen.contains(&0) && !seen.contains(&24));
+        // Auto-Life first, then Auto-Regen.
+        assert_eq!(STAND_IN_SUPPORT[..2], [4, 3]);
+    }
     use crate::field_menu::MenuTables;
     use tantalus_game::field::world::CharacterStats;
     use tantalus_game::new_game::BaseStats;
