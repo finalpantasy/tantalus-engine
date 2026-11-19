@@ -2275,8 +2275,12 @@ fn chain(
                                     .is_some()
                         })
             });
+            // `--pan`: no cutscene taps while view points remain. In the telescope (606) a
+            // Confirm describes the place in view and holds the view there; only the
+            // window closer below runs.
             if confirm_after > 0
                 && !answered_window
+                && pan_index >= pan_points.len()
                 && !director.world().user_control
                 && ticks_run > 0
                 && ticks_run.is_multiple_of(CONFIRM_PERIOD)

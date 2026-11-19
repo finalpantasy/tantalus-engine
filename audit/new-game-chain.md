@@ -817,8 +817,80 @@ The Crystal World to the ending (story27). Start from the story26 worlds; `local
 - No Memoria bug fix was ported, so `audit/approved-differences.csv` is unchanged.
 - Chain: chain131 replaces chain130 (see `local/probe/chain131.reason.txt`). 34 of 164 records differ, all in ticks, operation counts, control timing, confirm presses and final facing. Most are 1 to 4 ticks sooner because a requested walk or turn now returns a frame earlier. Record 18 (map 64, three map bytes at the cut) ends 39 ticks sooner and record 129 (map 255) 72 ticks sooner. Every map, next map, exit, battle, gil count, text id and global byte, the scenario counter included, is unchanged.
 
-Whole new-game route, start to the ending (story27). Run from a worktree root with the tools built, and with each story's worlds copied into `local/probe/` (the `story*-worlds` folders, local only). The route is not one continuous save: disc 1 after Lindblum and parts of disc 2 were probed from preset scenarios, so some steps start from a world an earlier story saved or patched, as noted.
-1. New game (field 70) to Lindblum 565 at 3118, saving `w301.json`: `bash audit/story-route.sh <out>` (the chain99 command with `--save-at 301`, then the story route).
+Whole new-game route, one continuous chain (story28). `local/probe/full_route.sh` (local only, copied below) runs the new game from field 70 as segments of one `tantalus-trace chain` process each (under 590 s). Every segment starts from the world the previous one saved with `--save-at` (`local/probe/route/w<N>.json`); no world is edited and no `--set-global`, `--start-exp`, `--cards` or `--gil` is used. Run it from a worktree root with `tantalus-trace` built (`bash local/probe/full_route.sh [FIRST [LAST]]`); it prints one line per segment and stops when a segment saves no world.
+
+Result: it does not reach the ending yet. Four segments, 315 field visits (153 different fields), 59 battles, 258319 field ticks, about 75 seconds in all (31, 24, 15 and 3 s). It ends in Gizamaluke's Grotto, field 705 at scenario 3720.
+
+```bash
+#!/bin/bash
+# Whole new game, fresh start to the ending, as one chain of segments (story28).
+# Each segment loads the world the previous one saved (--save-at); no world is edited.
+# usage (worktree root, tantalus-trace built): bash local/probe/full_route.sh [FIRST_SEGMENT [LAST_SEGMENT]]
+# Output: local/probe/route/<segment>.jsonl / .err and the worlds local/probe/route/w*.json
+cd "$(dirname "$0")/../.."
+T=${TRACE:-${CARGO_TARGET_DIR:-target}/debug/tantalus-trace.exe}
+G="${FF9_DIR:-/e/SteamLibrary/steamapps/common/FINAL FANTASY IX}"
+M="${MEMORIA_DIR:-/e/FFIX Recomp/.reference/Memoria}"
+R=local/probe/route
+mkdir -p $R
+FIRST=${1:-1}; LAST=${2:-99}
+COMMON=(--bundle "$G/StreamingAssets/p0data7.bin"
+  --event-db "$M/Assembly-CSharp/Global/ff9/FF9DBAll.Events.cs"
+  --atan-table local/probe/ratan_tbl.bin
+  --character-data "$M/Memoria.Patcher/StreamingAssets/Data/Characters"
+  --game-data "$G/x64/FF9_Data"
+  --mes-map "$M/Assembly-CSharp/Global/Event/Engine/EventEngineUtils.cs"
+  --explore --confirm-after 30 --battles audit/battle-scene-ids.tsv)
+# seg N NAME START FROM_WORLD SAVE(MAP[@SC]) [trace args]: one process, under 590 s.
+seg() {
+  local n=$1 name=$2 start=$3 from=$4 save=$5; shift 5
+  [ "$n" -lt "$FIRST" ] || [ "$n" -gt "$LAST" ] && return 0
+  local load=(); [ "$from" != - ] && load=(--load-world $R/$from.json)
+  local t0=$(date +%s)
+  timeout 590 nice "$T" chain "${COMMON[@]}" --start "$start" "${load[@]}" \
+    --save-at "$save:$R/w$n.json" "$@" > $R/$n-$name.jsonl 2> $R/$n-$name.err
+  local rc=$?
+  python -I -X utf8 - $R/$n-$name.jsonl "$n" "$name" "$(( $(date +%s) - t0 ))" "$rc" <<'PY'
+import json, sys
+rows = [json.loads(l) for l in open(sys.argv[1], encoding="utf-8") if l.startswith("{")]
+maps = [r for r in rows if "map" in r and "ticks" in r]
+last = rows[-1] if rows else {}
+print(f"segment {sys.argv[2]} {sys.argv[3]}: {len(maps)} fields, {sum(len(r.get('battles_fought') or []) for r in maps)} battles, "
+      f"{sys.argv[4]} s, rc {sys.argv[5]}, last {maps[-1]['map'] if maps else '-'} @ {maps[-1].get('scenario_counter') if maps else '-'}, end {str(last)[:160]}")
+PY
+  [ -f $R/w$n.json ] || { echo "segment $n did not save w$n.json"; exit 1; }
+}
+
+CH="52:66=1,64:127=1,202:242=1,202:242=0@2100,202:242=1@2200,652:90=11,*:3=6,*:4=1"
+# 1. New game (field 70) to the Ice Cavern (301): the chain99 regression command.
+seg 1 newgame 70 - 301 --ticks 12000 --max-fields 150 --stub-objects \
+  --route "100>101,101>102,102>103,103>105,105>106,106>115,153>150,204>205@2250,205>202@2250,202>200@2250" \
+  --skip-talk 103:8 --hold 115:16,207:16 --choices "$CH" \
+  --waypoints '116@2000:-137/1400:-137/800:-137/-339:1000/-339:1800/-339:2500/1000:5000/2500:8000/3300:10800/3400:11000,154@-807:-5081' \
+  --world-exits 9000:4
+# 2. 301 to Lindblum 565 at 3118 (audit/story-route.sh part 2).
+seg 2 lindblum 301 w1 563@3118 --ticks 12000 --max-fields 104 --stub-objects --route "301>302,563>566" \
+  --skip-talk 103:8,455:1,455:2,455:4 --hold 115:16,207:16,307:16,404:96,504:16,557:16,565:16 \
+  --ate 550:3,551:3,552:3,553:3,554:3,555:3,559:3,561:3,563:3 --region-talks 557 \
+  --choices "$CH,563:99=3" --world-exits 9011:14,9001:-1 --win-battles 296
+# 3. Lindblum castle (air cab to 610), the hunt (606 telescope pan), to the Dragon's Gate 602 at 3700.
+#    601 text 91 choice 2: the lift to the base level (603).
+seg 3 hunt 563 w2 602@3700 --ticks 12000 --max-fields 90 --stub-objects   --route "613>612@3118,612>611@3118,619>617@3700,617>601@3700,601>620@3700,620>603@3700,603>602@3700"   --wall-regions 613 --pan 606@110:225/165:105/400:104/395:190/275:205/300:105 --region-talks 601@200   --ate 550:3,551:3,552:3,553:3,554:3,555:3,559:3,561:3 --hold 557:16,565:16   --choices "$CH,563:99=2,601:91=2" --win-battles 296
+# 4. The Dragon's Gate to Gizamaluke's Grotto (world place 21 is 701 from 3700 on).
+#    702: the dying soldier (entry 5) gives the bell; the door region (entry 8, tag 3) asks
+#    "Ring the bell" only once the bell is held, so both are talked to again (--retalk).
+#    Stops at 705 (3720): see audit/new-game-chain.md, story28.
+seg 4 gizamaluke 602 w3 705 --ticks 12000 --max-fields 6 --stub-objects --heal-after-battle \
+  --choices "*:3=6,*:4=1" --world-exits 9000:21 --region-talks 702 --retalk 702:5,702:8 --route "702>703"
+```
+
+- Segments 1 and 2 are `audit/story-route.sh` with saves; segment 2 runs 7 fields past the script's 97 to reach 563 at 3118 (565 at 3118 cannot be the save point: the field is entered at 3115 and its own cutscene sets 3118).
+- Segment 3: 563's air cab choice 2 flies to the castle (610, 614, 613); the hunt and 3700 follow as in the Lindblum rows above. After 3700 the way out is the lift in 601 (entry 5, a tag 2 region that wants Confirm while facing 153 to 249, so `--region-talks 601@200`; text 91 choice 2 is the base level), then 603 and the Dragon's Gate 602. World place 21 is 700 below 3700 and 701 from 3700 on (`EVT_WORLD_WORLD00`, the `JumpSwitch` at 486, base 2).
+- Tool fix (tantalus-trace, explorer): the telescope in 606 no longer stalls. The explorer's periodic Confirm taps during a scene made the telescope describe the place in view ("Marshland", text 407), which holds the view there, so the `--pan` points were never reached and the field had no control for 12000 ticks. While `--pan` points remain the explorer now only closes open windows. Chain runs and `story-route.sh` use no `--pan` and are unchanged.
+- 702 (`EVT_GIZ_CAVERN_0`): the door region (entry 8) only shows its bubble while global bit 3831 is clear; Confirm in it sets map byte 24 = 0 and the player's loop (entry 10, tag 1) asks "Ring the bell" (text 189) if the bell (global byte 479) is held. The explorer talked to the region once, before the dying soldier gave the bell, then left by region 9 back to 701 and the world map. `--retalk 702:5,702:8` lets each talk reopen the other.
+- Open blocker, 705 (`EVT_GIZ_BELL_1`, scenario 3720): after Mogmi's Kupo Nut lines (texts 147 to 154, choice 153 Yes) the field gives no control for 12000 ticks, with `--stub-objects` and `--live-objects` alike. Map byte 26 is the scene's arrival counter (set to 2, `3 + global byte 4` or `4 + global byte 4`; each actor decrements it at its mark, then all wait for 0 and for map bit 230 to clear). It ends at 254, two decrements past 0, so entries 3, 4, 7 and 10 wait in their `Byte[26] > 0` loops forever and map byte 24 stays 16. Global byte 4 is 1 only when Quina is in the party (618, `EVT_LIND1_CS_LB_MET_0` pc 1729); it is 0 here and entry 11 (Quina) is correctly not created. Not traced further: the next step is to log every write of map byte 26 in 705 and find which actor decrements once too often or late (a sync from an earlier state landing after the reset to 2).
+
+The rest of the route is still the pieced-together list from story27; these steps start from earlier stories' saved worlds (some hand-edited), not from the chain above:
 2. Lindblum to Qu's Marsh, Fossil Roo, Conde Petie and Madain Sari: the segment probes of "Disc 1 segments" and the Fossil Roo and Madain Sari runs above (preset starts such as `--start 1352 --set-global 0:82,1:22 --start-exp 4000`, then `w1424.json` and `w1600.json` from `story16-worlds`).
 3. Madain Sari to the Iifa Tree, field 1800 and the disc change: `bash local/probe/go2.sh` from `w1608.json` at 6810 (`story17-worlds`). It saves `w1812.json`.
 4. Disc 3, Alexandria: `go3.sh 1812 w1812.json 40`, then `go3.sh 1850 w1850_7100.json 8 --world-exits 9000:4 --route "..."` (`story18-worlds`; `w1850_7100` is counter-patched).
@@ -827,7 +899,7 @@ Whole new-game route, start to the ending (story27). Run from a worktree root wi
 7. Ipsen's Castle, the shrines, Terra and Bran Bal: `source env25.sh; go5.sh 2500 w2500.json 40 --suspend-loops` with the story25 options, then `go5.sh 2650 w2650.json 40 ...`.
 8. Pandemonium to disc 4 and Memoria: `bash go26.sh 2700 local/probe/w2700.json 40`, then `bash go26b.sh 2711 local/probe/w2711.json 40 --world-exits 9008:53` (through 3052 and the Silver Dragons to 2900).
 9. Memoria to the ending: `source local/probe/cw.sh; WINB26=$CW26 RT26=2917 bash local/probe/go26b.sh 2900 local/probe/w2900.json 60 --hold 2505:16,2605:96,2917:16,2918:16,2921:16` (ends `{"map": 16000, "stop": "ending"}`).
-Story27 reran step 9 and the start of step 8 (from `w2711.json`, through Pandemonium's elevator and maze). Steps 1 to 7 were not rerun; the commands in steps 5 to 7 are put together from those sections' options.
+Story27 reran step 9 and the start of step 8; story28 replaced its step 1 with the chain above up to 705. Steps 2 to 7 are not rerun.
 
 Story-route stall at field 451 and the cargo ship fight (battle worker 7). `audit/story-route.sh` printed STORY-ROUTE-DIFFERENT at 451 (Dali barrel scene, 12000 ticks, only Steiner, "Waiting ActorAnimation"). Root cause, found by tracing the host's animation events in a good run (01ffe2b) and a bad run: entry 10 of `EVT_DALI_A_AP_AIR_0` plays animation 582 with the loop flag set (`SetAnimationFlags 2`), and the state machine later reaches `TurnTowardObject` plus `PlayAnimation 8198` plus `WaitAnimation` without clearing it. `StartTurn` (DoEventCode.cs:3339) clears `animFlag` only for a turn long enough to need its turn animation (more than 5 frames); when the actor already faces the target it returns early and the loop flag stays, so `WaitAnimation` never ends. Whether the turn is long depends on the actor's facing when the command runs, which follows the pace of the scene (text windows closing under the explorer's confirm presses), so any change in fight length moved it. Not a battle bug; main's "Field turns: TURNA, TURNTO and TURNDS restart the animation flags on a long turn" (45f428c) changed the turn rule and the route passes 451 again (verified on 7606a55: 451 takes 2612 ticks and the route goes on). The route then ended at field 501: battle 296 (CA_E013, Black Waltz No. 3, 11128 HP) is lost by a party that fights at real levels (max HP 233, 158, 305) because the route skips the random battles; the scene ends by an event once his HP is low enough (`tantalus-trace fight --battle 296 --party 0,1,3 --level 22 --gear`: result 5 after 1428 ticks, party alive). `audit/story-route.sh` now passes `--win-battles 296` in part 2, as the Fossil Roo and Madain Sari probes do for their boss fights; the map sequence and scenario counters are unchanged and only six tick counts moved (fight lengths in 307, 310, 312, 352 and 567, and 451), so `audit/story-route-expected.json` was regenerated.
 
