@@ -248,6 +248,8 @@ pub struct EntryScheduler {
     spawned: Vec<(EntityId, u64)>,
     /// The level each requested function was requested at.
     spawned_level: BTreeMap<EntityId, i32>,
+    /// Idle loops set aside because a requested function of their object runs.
+    request_held_loops: BTreeSet<EntityId>,
     pub loops_started: usize,
     /// Keep every object's idle loop running while its talk function runs (the engine's
     /// original behavior, kept for regression traces); off by default, as in the reference.
@@ -465,9 +467,40 @@ impl EntryScheduler {
         }
         self.nest_requests(director);
         if !self.loops_run_during_talks {
+            let held = self.loops_under_requests(pool);
+            for entity in self.request_held_loops.difference(&held) {
+                director.set_suspended(*entity, false);
+            }
             suspend_idle_loops(director, pool);
+            for entity in &held {
+                director.set_suspended(*entity, true);
+            }
+            self.request_held_loops = held;
         }
         Ok(())
+    }
+
+    /// `EventEngine.Request` / `Call` (EventEngine.cs:337-372): a request runs only below the
+    /// object's level, so it always preempts the idle loop (level 7). `Call` saves the loop's `ip`
+    /// and the object runs the requested function alone until `Return` restores the loop. The
+    /// loop keys of the objects with a requested function still running (Desert Palace 2207 at
+    /// 9840: pad entry 6's glow, tag 29, counts its own `Instance.Byte[0]` up to 252, which its
+    /// idle loop keeps resetting between 0 and 128 if both run).
+    fn loops_under_requests(&self, pool: &Pool) -> BTreeSet<EntityId> {
+        self.spawned
+            .iter()
+            .filter_map(|(entity, _)| {
+                let raw = entity.get();
+                let entry = ((raw & 0xFFFF) / 256) as usize;
+                let object = match raw >> 16 {
+                    0 => EntityId::new(entry as u64),
+                    object => EntityId::new(object),
+                };
+                let position = pool.get(entry)?.iter().position(|(tag, _)| *tag == 1)?;
+                let key = function_key(entry, position, object);
+                (key != *entity).then_some(key)
+            })
+            .collect()
     }
 
     /// `EventEngine.Request` / `Call` / `Return`: an object runs one function at a time. A
@@ -1007,6 +1040,49 @@ mod tests {
     /// `EventEngine.Call` saves the idle loop's `ip` while a requested function runs (2207 at
     /// 9840: the pad's glow and its idle loop share `Instance.Byte[0]`): the loop does not advance
     /// until the request returns.
+    #[test]
+    fn a_request_holds_the_object_s_idle_loop_until_it_returns() {
+        let pool: Pool = vec![vec![(1, wait_program(3)), (29, wait_program(12))]];
+        let mut director = new_director(FieldWorld::new(), &pool, 0);
+        let mut scheduler = EntryScheduler::default();
+        let idle = function_entity(&pool, 0, 1).unwrap();
+        let requested = function_entity(&pool, 0, 29).unwrap();
+        register(&mut director, &pool, 0, Some(1)).unwrap();
+        let mut step = director.step().unwrap();
+        step.requests = vec![tantalus_game::RequestedScript {
+            level: 6,
+            target: EntityId::new(0),
+            tag: 29,
+            synchronous: false,
+            sender: None,
+        }];
+        scheduler
+            .run_step_scripts(&mut director, &pool, &step)
+            .unwrap();
+        let mut idle_done_at = None;
+        let mut requested_done_at = None;
+        for tick in 0..40 {
+            scheduler.settle(&mut director, &pool).unwrap();
+            director.step().unwrap();
+            if requested_done_at.is_none() && status(&director, requested) == VmStatus::Completed {
+                requested_done_at = Some(tick);
+            }
+            if idle_done_at.is_none() && status(&director, idle) == VmStatus::Completed {
+                idle_done_at = Some(tick);
+            }
+        }
+        let requested_done_at = requested_done_at.expect("the request finishes");
+        let idle_done_at = idle_done_at.expect("the idle loop carries on afterwards");
+        assert!(
+            idle_done_at > requested_done_at,
+            "idle loop finished at {idle_done_at}, request at {requested_done_at}"
+        );
+    }
+
+    /// `REPLYEW` (0x1A) requests a function of the object whose request started the running one
+    /// (`EventEngine.getSender`) and waits for it (2212 at 9860: Cid's entry asks the party
+    /// leader, who requested it, to turn toward him). The requester's function runs, then both
+    /// requests return.
     #[test]
     fn a_reply_runs_the_requesting_object_s_function() {
         // Entry 0 tag 10: REQEW level 6, entry 1, tag 11. Entry 1 tag 11: REPLYEW level 2,
