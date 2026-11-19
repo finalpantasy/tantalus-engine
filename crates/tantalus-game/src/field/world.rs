@@ -70,6 +70,10 @@ pub struct ActorState {
     pub animation_frames: u16,
     pub animation_frame: u16,
     pub talk_radius: u8,
+    /// `PosObj.collRad` (`SetActorRadii` argument 2, 16 by default): the push range
+    /// `WalkMesh.Collision` mode 2 measures.
+    #[serde(default = "default_collision_radius")]
+    pub collision_radius: u8,
     /// Facing on the `getvobj` member-3 scale, 0..=255 (0 south, 64 west,
     /// 128 north, 192 east).
     pub facing: i16,
@@ -445,6 +449,10 @@ fn default_move_speed() -> u8 {
     30
 }
 
+fn default_collision_radius() -> u8 {
+    16
+}
+
 /// `Actor` constructor: `tspeed` turns at 16 (`StartTurn` treats 0 as 16).
 fn default_turn_speed() -> u8 {
     16
@@ -463,6 +471,7 @@ impl ActorState {
             animation_frame: 0,
             // Reference PosObj defaults both radii to 16.
             talk_radius: 16,
+            collision_radius: 16,
             facing: 0,
             flags: 0,
             path_active: true,
@@ -1510,6 +1519,60 @@ impl FieldWorld {
         if let Some(state) = self.actors.get_mut(&actor) {
             state.talk_radius = radius;
         }
+    }
+
+    /// `SetActorRadii` (`DoEventCode.cs:1457-1479`): `collRad` and `talkRad`.
+    pub fn set_actor_radii(&mut self, actor: EntityId, collision_radius: u8, talk_radius: u8) {
+        if let Some(state) = self.actors.get_mut(&actor) {
+            state.collision_radius = collision_radius;
+            state.talk_radius = talk_radius;
+        }
+    }
+
+    /// The actor the controlled `player` pushes this frame: `WalkMesh.Collision` in mode 2
+    /// (`WalkMesh.cs:896-957`), which `EventCollision.CollisionRequest` runs every frame the
+    /// player has control and then requests the actor's tag 2 (`Request(obj, 1, 2)`,
+    /// `EventCollision.cs:245`). Only objects `has_push` says have a tag 2 count. An actor is
+    /// skipped when the player's flags have bit 4 and its own flags bit 2; it must be within
+    /// 400 in height, 2048 on each axis and `4 * (collRad + player collRad) + speed + 60` in
+    /// the plane; the deepest inside wins.
+    pub fn push_target(
+        &self,
+        player: EntityId,
+        has_push: impl Fn(EntityId) -> bool,
+    ) -> Option<EntityId> {
+        let player_state = self.actors.get(&player)?;
+        let [px, py, pz] = player_state.position;
+        let player_radius = 4.0 * f32::from(player_state.collision_radius);
+        let mut best: Option<(f32, EntityId)> = None;
+        let mut deepest = 0.0f32;
+        for (entity, state) in &self.actors {
+            if *entity == player
+                || self.uncreated.contains(entity)
+                || self.is_object_deleted(*entity)
+                || self.regions.contains_key(entity)
+                || (player_state.flags & 4 != 0 && state.flags & 2 != 0)
+                || !has_push(*entity)
+            {
+                continue;
+            }
+            let dy = state.position[1] - py;
+            let dx = state.position[0] - px;
+            let dz = state.position[2] - pz;
+            if dy <= -400.0 || dy >= 400.0 || dx.abs() >= 2048.0 || dz.abs() >= 2048.0 {
+                continue;
+            }
+            let radius = 4.0 * f32::from(state.collision_radius)
+                + player_radius
+                + f32::from(state.move_speed)
+                + 60.0;
+            let dif = dx * dx + dz * dz - radius * radius;
+            if deepest > dif && (deepest.abs() - dif.abs()).abs() > 1.0 {
+                deepest = dif;
+                best = Some((dif, *entity));
+            }
+        }
+        best.map(|(_, entity)| entity)
     }
 
     /// Objects whose talk radius contains the player while confirm is held.

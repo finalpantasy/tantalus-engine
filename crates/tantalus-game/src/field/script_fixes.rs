@@ -5,7 +5,34 @@
 //! `EventEngine.MoveToward.cs`. Ledger rows: `memoria-field-script-*`.
 
 use super::world::FieldWorld;
-use tantalus_legacy::{HostEvent, VariableType};
+use tantalus_contracts::EntityId;
+use tantalus_legacy::{
+    EventProgram, Expression, ExpressionOp, HostEvent, InstructionKind, VariableRef, VariableScope,
+    VariableType,
+};
+
+/// Memoria's `EBin.expr` skips (`EBin.cs:307`): `(map, entry, function ordinal, offset in
+/// the function, the expression)`. When the object reaches the expression the reference moves
+/// `ip` past it and returns, so the statement does nothing and the function goes on.
+///
+/// Field 705 (Gizamaluke/Bell Room), the female moogle (entry 3, loop function, entry ip 541,
+/// that is function offset 92 + 448 + 1): after the Kupo Nut is given (map byte 24 = 15) she
+/// would set the arrival counter map byte 26 to 2 in the tick Vivi's entry 6 set it to
+/// `4 + Global.Byte[4]`. Entry 3 runs after entry 6 (creation order), so the 2 would stand and
+/// the four arrivals (3, 6, 7, 10) take it past 0: the director advances while two actors
+/// still wait, and they wait for `Byte[26] > 0` to end forever. Skipping it keeps 4.
+const EXPRESSION_SKIPS: &[(i32, u64, u64, u32, VariableRef, i32)] = &[(
+    705,
+    3,
+    1,
+    448,
+    VariableRef {
+        scope: VariableScope::Map,
+        value_type: VariableType::Byte,
+        index: 26,
+    },
+    2,
+)];
 
 impl FieldWorld {
     /// `EBin.SC_COUNTER_SVR`: the first global word.
@@ -115,6 +142,31 @@ impl FieldWorld {
 }
 
 impl FieldWorld {
+    /// Applies [`EXPRESSION_SKIPS`] to a function program being registered for this field:
+    /// `key` is the director key (`entry * 256 + ordinal`, an extra object's in the high bits).
+    /// The skipped statement becomes a `NoOp` of the same length, so the next instruction runs
+    /// in the same tick as in the reference.
+    pub(crate) fn patch_function(&self, key: EntityId, program: &mut EventProgram) {
+        let low = key.get() & 0xffff;
+        let (entry, ordinal) = (low / 256, low % 256);
+        for &(map, skip_entry, skip_ordinal, offset, variable, value) in EXPRESSION_SKIPS {
+            if self.field_map_no != map || entry != skip_entry || ordinal != skip_ordinal {
+                continue;
+            }
+            let expected = Expression(vec![
+                ExpressionOp::Variable(variable),
+                ExpressionOp::Constant(value),
+                ExpressionOp::Assign,
+                ExpressionOp::End,
+            ]);
+            if let Some(instruction) = program.instructions.get_mut(&offset)
+                && instruction.kind == InstructionKind::Evaluate(expected)
+            {
+                instruction.kind = InstructionKind::NoOp(0x05);
+            }
+        }
+    }
+
     /// Whether Memoria drops `event` altogether. `CFLAG` in field 103 (Alexandria square,
     /// the jump rope): objects 6 to 17 are never hidden when the script asks for flags 14
     /// (:2029), so the girls and the crowd stay drawn when the wide view shows them.
@@ -156,5 +208,71 @@ fn rebuild(event: &HostEvent, position: [i32; 3]) -> HostEvent {
             position,
         },
         other => other.clone(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+    use tantalus_legacy::Instruction;
+
+    /// The 705 loop function's two statements around the skip: `Byte[26] = 2` (8 bytes at
+    /// 448) and the `Wait(1)` after it.
+    fn moogle_loop() -> EventProgram {
+        let counter = Expression(vec![
+            ExpressionOp::Variable(VariableRef {
+                scope: VariableScope::Map,
+                value_type: VariableType::Byte,
+                index: 26,
+            }),
+            ExpressionOp::Constant(2),
+            ExpressionOp::Assign,
+            ExpressionOp::End,
+        ]);
+        let mut instructions = BTreeMap::new();
+        for (offset, length, kind) in [
+            (448, 8, InstructionKind::Evaluate(counter)),
+            (456, 3, InstructionKind::Yield(0)),
+        ] {
+            instructions.insert(
+                offset,
+                Instruction {
+                    offset,
+                    length,
+                    kind,
+                },
+            );
+        }
+        EventProgram {
+            instructions,
+            source_length: 459,
+        }
+    }
+
+    fn patched(map: i32, key: u64) -> bool {
+        let mut world = FieldWorld::new();
+        world.field_map_no = map;
+        let mut program = moogle_loop();
+        world.patch_function(EntityId::new(key), &mut program);
+        let skip = &program.instructions[&448];
+        assert_eq!(
+            skip.next_offset(),
+            456,
+            "the skip keeps the statement's length"
+        );
+        skip.kind == InstructionKind::NoOp(0x05)
+    }
+
+    #[test]
+    fn bell_room_moogle_keeps_the_arrival_count() {
+        // EBin.cs:307: map 705, sid 3, ip 541 (entry 3's loop function, offset 448).
+        assert!(patched(705, 3 * 256 + 1));
+        // The same entry's object created with another uid keeps the patch.
+        assert!(patched(705, (9 << 16) | (3 * 256 + 1)));
+        // Other fields, entries and functions run the statement.
+        assert!(!patched(704, 3 * 256 + 1));
+        assert!(!patched(705, 6 * 256 + 1));
+        assert!(!patched(705, 3 * 256));
     }
 }

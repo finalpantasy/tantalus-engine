@@ -39,7 +39,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--level N] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY[@SCENARIO],...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP[@ANGLE][#SCENARIO],...] [--wall-regions MAP,...] [--play-card-games] [--win-card-games] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--stub-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--region-points MAP:ENTRY@X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY[@SCENARIO],...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP[@ANGLE][#SCENARIO],...] [--wall-regions MAP,...] [--push-objects MAP,...] [--play-card-games] [--win-card-games] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--stub-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--region-points MAP:ENTRY@X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -71,6 +71,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut region_talks: BTreeMap<i32, i32> = BTreeMap::new();
     let mut region_faces: BTreeMap<i32, i16> = BTreeMap::new();
     let mut wall_regions: BTreeSet<i32> = BTreeSet::new();
+    let mut push_fields: BTreeSet<i32> = BTreeSet::new();
     let mut hold: BTreeMap<i32, i32> = BTreeMap::new();
     let mut press_when: Vec<PressWhen> = Vec::new();
     let mut pan: BTreeMap<i32, Vec<[i32; 2]>> = BTreeMap::new();
@@ -244,6 +245,15 @@ fn run(args: Vec<String>) -> Result<(), String> {
             }
             // Fields where a region that is not an exit and keeps taking
             // control counts as a wall after a few refusals (the 613 guard).
+            "--push-objects" => {
+                for part in value()?.split(',') {
+                    push_fields.insert(
+                        part.trim()
+                            .parse()
+                            .map_err(|_| format!("bad --push-objects entry `{part}`, want MAP"))?,
+                    );
+                }
+            }
             "--wall-regions" => {
                 for part in value()?.split(',') {
                     wall_regions.insert(
@@ -730,6 +740,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     region_talks,
                     region_faces,
                     wall_regions,
+                    push_fields,
                     hold,
                     press_when,
                     pan,
@@ -1316,6 +1327,8 @@ struct ChainOptions {
     /// The facing `--region-talks MAP@ANGLE` gives the player for a region talk.
     region_faces: BTreeMap<i32, i16>,
     wall_regions: BTreeSet<i32>,
+    /// Fields where the player's push asks actors for their tag 2 (`--push-objects`).
+    push_fields: BTreeSet<i32>,
     /// Pad bits held for a whole field, by field map (`KeyState(Held)`
     /// polls such as map 115's ladder climb, which reads up = 16).
     hold: BTreeMap<i32, i32>,
@@ -1471,6 +1484,7 @@ fn chain(
         region_talks,
         region_faces,
         wall_regions,
+        push_fields,
         hold,
         press_when,
         pan,
@@ -1722,6 +1736,10 @@ fn chain(
             }
         };
         let (pool, decode_errors) = decode_pool(&binary)?;
+        // Entries of type 2 (`InitObject` actors, `cid == 4`): the objects a push reaches.
+        let actor_entries: BTreeSet<usize> = (0..pool.len())
+            .filter(|entry| binary.entry_bytes(*entry).and_then(|bytes| bytes.first()) == Some(&2))
+            .collect();
         let exit_choices: BTreeMap<usize, Vec<i32>> = (0..pool.len())
             .map(|entry| (entry, exit_destinations(&pool[entry])))
             .filter(|(_, destinations)| !destinations.is_empty())
@@ -2434,6 +2452,34 @@ fn chain(
                     director.world_mut().set_input(SELECT | held);
                     pressed = true;
                 } else if let Some((actor, position)) = controlled {
+                    // `EventCollision.CollisionRequest` (EventCollision.cs:245): every frame
+                    // with control, the actor the player pushes (`WalkMesh.Collision` mode 2)
+                    // is asked for its tag 2, as a region the player stands in is below
+                    // (map 704's bell, entry 13, waits there for Confirm). Opt-in per field
+                    // (`--push-objects`): on everywhere it changes the new-game chain from
+                    // field 207 at scenario 2055 on, not looked into yet.
+                    let pushed = push_fields
+                        .contains(&map)
+                        .then(|| {
+                            world.push_target(actor, |object| {
+                                let entry = object.get() as usize;
+                                actor_entries.contains(&entry)
+                                    && pool[entry].iter().any(|(tag, _)| *tag == 2)
+                            })
+                        })
+                        .flatten();
+                    if let Some(object) = pushed {
+                        let entry = object.get() as usize;
+                        let entity = function_entity(&pool, entry, 2);
+                        let finished = director.entry_states().iter().any(|(e, _, status, _)| {
+                            Some(*e) == entity && *status == VmStatus::Completed
+                        });
+                        if finished {
+                            director.remove_entry(entity.expect("tag-2 function exists"));
+                        }
+                        register(&mut director, &pool, entry, Some(2))?;
+                    }
+                    let world = director.world();
                     // The one exit the explorer heads for: the routed
                     // destination, else the least visited one.
                     // An exit that leads to the route target wins; when no exit of the

@@ -1247,9 +1247,13 @@ impl LegacyEventHost for FieldHost<'_> {
                     state.flags = i32::from(*flags);
                 }
                 HostEvent::SetActorRadii {
-                    actor, talk_radius, ..
+                    actor,
+                    collision_radius,
+                    talk_radius,
+                    ..
                 } => {
-                    self.world.set_talk_radius(*actor, *talk_radius);
+                    self.world
+                        .set_actor_radii(*actor, *collision_radius, *talk_radius);
                 }
                 HostEvent::SetupJump {
                     actor,

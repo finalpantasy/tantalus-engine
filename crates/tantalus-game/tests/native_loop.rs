@@ -398,3 +398,30 @@ fn walk_input_eases_the_turn_the_short_way() {
     }
     assert_eq!(director.world().actors[&EntityId::new(1)].facing, 192);
 }
+
+#[test]
+fn the_player_pushes_the_nearest_actor_with_a_push_function() {
+    // WalkMesh.Collision mode 2: reach = 4 * (16 + 16) + speed 30 + 60 = 218 by default.
+    let player = EntityId::new(1);
+    let bell = EntityId::new(13);
+    let far = EntityId::new(14);
+    let mut world = FieldWorld::new();
+    world.add_actor(player, [0.0, 0.0, 0.0]);
+    world.add_actor(bell, [150.0, 26.0, 100.0]);
+    world.add_actor(far, [400.0, 0.0, 0.0]);
+    let all = |_: EntityId| true;
+    assert_eq!(world.push_target(player, all), Some(bell));
+    // Only actors with a tag 2 count.
+    assert_eq!(world.push_target(player, |object| object != bell), None);
+    // A bigger collision radius (SetActorRadii) reaches further: 4 * (70 + 16) + 90 = 434.
+    world.set_actor_radii(far, 70, 16);
+    assert_eq!(world.push_target(player, |object| object == far), Some(far));
+    // More than 400 apart in height is another floor.
+    world.actors.get_mut(&bell).unwrap().position[1] = 500.0;
+    assert_eq!(world.push_target(player, |object| object == bell), None);
+    // The player's flag 4 and the actor's flag 2 together turn the push off.
+    world.actors.get_mut(&bell).unwrap().position[1] = 0.0;
+    world.actors.get_mut(&bell).unwrap().flags = 2;
+    world.actors.get_mut(&player).unwrap().flags = 4;
+    assert_eq!(world.push_target(player, |object| object == bell), None);
+}

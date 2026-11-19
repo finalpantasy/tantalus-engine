@@ -108,8 +108,9 @@ impl FieldDirector {
         &mut self,
         key: EntityId,
         object: EntityId,
-        program: tantalus_legacy::EventProgram,
+        mut program: tantalus_legacy::EventProgram,
     ) -> Result<(), EngineError> {
+        self.world.patch_function(key, &mut program);
         self.scene.add_object_function(key, object, program)
     }
 
