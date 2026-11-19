@@ -509,7 +509,10 @@ fn load_game(
             println!("{}", tantalus_client::live::describe(event));
         }
     }
-    game.world_mode = values.contains_key("--world-map");
+    // The world map is always walked once a field leaves for it (`--world-map` is kept as a
+    // no-op). `--world-exits` is a trace aid: its locations are used, in order, for the next
+    // world exits instead of walking, and the world map runs again once they are used up.
+    game.world_mode = true;
     if let Some(list) = values.get("--world-exits") {
         game.world_exits = list
             .split(',')
@@ -551,8 +554,6 @@ fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
         .and_then(|value| value.parse().ok())
         .unwrap_or(3);
     let result = load_game(&values).and_then(|mut game| {
-        // Without scripted exits the world map is walked.
-        game.world_mode = !values.contains_key("--world-exits");
         // Frame-rate bench scenes (`TANTALUS_BENCH_SCENE=world:FIELD|battle:ID|cards:OPPONENT`).
         if let Ok(scene) = std::env::var("TANTALUS_BENCH_SCENE")
             && let Some((kind, number)) = scene.split_once(':')
@@ -871,6 +872,43 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
                 "bad --presentation, want BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE[:ATE]]".to_owned(),
             );
         }
+    }
+    if let Some(change) = game.disc_change() {
+        // Between discs: black, the disc picture over it while it shows, then the save screen.
+        let mut base = image::RgbaImage::from_pixel(width, height, image::Rgba([0, 0, 0, 255]));
+        if let Some((path, alpha)) = game.disc_picture() {
+            let picture = image::open(&path)
+                .map_err(|error| format!("cannot read {}: {error}", path.display()))?
+                .to_rgba8();
+            let size = tantalus_client::disc_view::picture_size(picture.width(), picture.height());
+            let scale = height as f32 / 240.0;
+            let (w, h) = ((size.x * scale) as u32, (size.y * scale) as u32);
+            let scaled =
+                image::imageops::resize(&picture, w, h, image::imageops::FilterType::Triangle);
+            let left = (i64::from(width) - i64::from(w)) / 2;
+            for (x, y, pixel) in scaled.enumerate_pixels() {
+                let (bx, by) = (left + i64::from(x), i64::from(y));
+                if bx < 0 || bx >= i64::from(width) || by >= i64::from(height) {
+                    continue;
+                }
+                let a = alpha * f32::from(pixel[3]) / 255.0;
+                let target = base.get_pixel_mut(bx as u32, by as u32);
+                for (to, from) in target.0.iter_mut().zip(pixel.0).take(3) {
+                    *to = (f32::from(from) * a + f32::from(*to) * (1.0 - a)) as u8;
+                }
+            }
+        }
+        base.save(&output)
+            .map_err(|error| format!("cannot write {}: {error}", output.display()))?;
+        overlay_menu(&game, &output)?;
+        return Ok(format!(
+            "saved the change to disc {} ({:?}, field {} next) after {} ticks, to {}",
+            change.disc + 1,
+            change.stage,
+            change.field,
+            game.ticks,
+            output.display()
+        ));
     }
     if let Some(play) = game.world_play.as_ref() {
         let mut renderer = tantalus_client::world_view::WorldRenderer::new(std::path::Path::new(

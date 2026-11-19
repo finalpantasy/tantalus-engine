@@ -249,6 +249,9 @@ pub fn describe(event: &PlayEvent) -> String {
         } => format!("** world map {world_map} location {location:?} -> {next:?}"),
         PlayEvent::Script { entry, tag } => format!("   (entry {entry} function {tag})"),
         PlayEvent::WorldWalk { place } => format!("** walking the world map from place {place}"),
+        PlayEvent::DiscChange { field, disc } => {
+            format!("** disc change: disc {} starts at field {field}", disc + 1)
+        }
         PlayEvent::Stopped(reason) => format!("!! stopped: {reason}"),
     }
 }
@@ -754,6 +757,8 @@ fn live_tick_inner(world: &mut World) {
                     }))
                 }
             }
+            // The main menu, save screen and Chocograph list over the world map.
+            bench::time("menu", || crate::menu_view::sync_menu(world, &game));
             drop(game);
             world.insert_resource(live);
             return;
@@ -905,8 +910,10 @@ fn live_tick_inner(world: &mut World) {
             &frame,
             game.ticks,
         );
-        bench::time("menu", || crate::menu_view::sync_menu(world, &game));
     }
+    // Outside the field branch: field 70 (between discs) has no background to draw.
+    bench::time("menu", || crate::menu_view::sync_menu(world, &game));
+    crate::disc_view::sync_disc(world, &game);
     let mut title = format!(
         "Tantalus Engine: {} ({})",
         game.field_name().unwrap_or("-"),

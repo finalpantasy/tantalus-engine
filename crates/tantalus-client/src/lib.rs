@@ -15,6 +15,7 @@ pub mod capture;
 pub mod card_draw;
 pub mod card_view;
 pub mod dialog_view;
+pub mod disc_view;
 pub mod effects;
 pub mod encounter_presentation;
 pub mod field_assets;

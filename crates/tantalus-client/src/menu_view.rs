@@ -6,6 +6,7 @@
 //! menu's revision changes.
 
 use bevy::asset::RenderAssetUsages;
+use bevy::camera::visibility::RenderLayers;
 use bevy::image::ImageSampler;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -43,8 +44,15 @@ pub fn sync_menu(world: &mut World, game: &PlayGame) {
     let mut view = world.remove_non_send::<MenuView>().unwrap_or_default();
     let shown = game.menu_frame();
     let revision = shown.as_ref().map(|(revision, _)| *revision);
-    let mut cameras = world.query_filtered::<Entity, With<Camera2d>>();
-    let camera = cameras.iter(world).next();
+    // The topmost 2D camera: the field's, or the world map's frame camera over it.
+    let mut cameras =
+        world.query_filtered::<(Entity, &Camera, Option<&RenderLayers>), With<Camera2d>>();
+    let top = cameras
+        .iter(world)
+        .max_by_key(|(_, camera, _)| camera.order)
+        .map(|(entity, _, layers)| (entity, layers.cloned()));
+    let camera = top.as_ref().map(|(entity, _)| *entity);
+    let layers = top.and_then(|(_, layers)| layers);
     let attached = match (view.root, camera) {
         (Some(root), Some(camera)) => world
             .get::<ChildOf>(root)
@@ -73,21 +81,30 @@ pub fn sync_menu(world: &mut World, game: &PlayGame) {
             });
         }
         if let Some(Some(assets)) = view.assets.as_ref() {
+            // The world map's camera sits with its frame picture at z 0; draw in front of it.
+            let z = if layers.is_some() { 10.0 } else { WINDOW_Z };
             let root = world
                 .spawn((
-                    Transform::from_xyz(0.0, 0.0, WINDOW_Z),
+                    Transform::from_xyz(0.0, 0.0, z),
                     Visibility::default(),
                     ChildOf(camera),
                 ))
                 .id();
-            spawn_frame(world, assets, root, &frame);
+            spawn_frame(world, assets, root, &frame, layers.as_ref());
             view.root = Some(root);
         }
     }
     world.insert_non_send(view);
 }
 
-fn spawn_frame(world: &mut World, assets: &DialogAssets, root: Entity, frame: &MenuFrame) {
+fn spawn_frame(
+    world: &mut World,
+    assets: &DialogAssets,
+    root: Entity,
+    frame: &MenuFrame,
+    layers: Option<&RenderLayers>,
+) {
+    let layers = layers.cloned().unwrap_or_default();
     // PSX (320x224, y down) -> frame (320x240) -> camera-local (y up).
     let frame_y_offset = (FRAME.y - PSX.y) / 2.0;
     let local =
@@ -140,6 +157,7 @@ fn spawn_frame(world: &mut World, assets: &DialogAssets, root: Entity, frame: &M
                 local(menu_window.x - border.x, menu_window.y - border.y)
                     + Vec3::Z * (index as f32 * 0.1),
             ),
+            layers.clone(),
             ChildOf(root),
         ));
     }
@@ -149,6 +167,7 @@ fn spawn_frame(world: &mut World, assets: &DialogAssets, root: Entity, frame: &M
             Sprite::from_color(Color::srgb(1.0, 0.95, 0.6), Vec2::splat(5.0)),
             Transform::from_translation(local(x, y) + Vec3::Z * 5.0)
                 .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_4)),
+            layers,
             ChildOf(root),
         ));
     }

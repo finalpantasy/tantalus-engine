@@ -114,6 +114,8 @@ pub struct PlayData {
     movies: BTreeMap<(i32, i32), String>,
     /// The Tetra Master tables; `None` when the install's `resources.assets` has none.
     cards: Option<std::sync::Arc<tantalus_game::cards::CardTables>>,
+    /// Memoria's `EmbeddedAsset/UI/Sprites` folder (the disc-change pictures).
+    sprites: PathBuf,
 }
 
 fn read_text(path: &Path) -> Result<String, String> {
@@ -226,6 +228,7 @@ impl PlayData {
             cards: crate::card_play::load_tables(&paths.game_data)
                 .ok()
                 .map(std::sync::Arc::new),
+            sprites: memoria.join("Memoria.Patcher/FF9_Data/EmbeddedAsset/UI/Sprites"),
         })
     }
 
@@ -338,6 +341,9 @@ pub enum PlayEvent {
     Script { entry: usize, tag: u16 },
     /// The player walks the world map from `place`.
     WorldWalk { place: i32 },
+    /// The script changed disc (`DISCCHANGE`): `disc` (0-based) starts at `field` once the
+    /// disc picture and the save prompt are done.
+    DiscChange { field: i32, disc: u8 },
     /// The run cannot go on.
     Stopped(String),
 }
@@ -456,6 +462,59 @@ pub struct PlayGame {
     /// The Steam save file the game came from; when set the save and load screens use it
     /// instead of the JSON slots.
     steam: Option<SteamFile>,
+    /// A disc change in progress (`DISCCHANGE`); the field waits until it is done.
+    disc_change: Option<DiscChange>,
+}
+
+/// Ticks the disc picture takes to fade in or out: `SceneDirector` draws it over 100 frames
+/// each way, at 60 frames a second; the play ticks at 30.
+pub const DISC_FADE_TICKS: u32 = 50;
+
+/// The end of a disc (`EventEngine.DoEventCode.cs` `case DISCCHANGE`): the script sets
+/// `FieldMapNo` and asks for a scene change, `HonoluluFieldMain.ff9fieldDiscCondition` loads
+/// that field, and `SceneDirector.InitDiscChange` (with `DisplayPSXDiscChanges`, on by
+/// default) shows `changetodisc<N>.png` until a button is pressed. Then the save screen
+/// opens, as the PSX does between discs, and the next disc starts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DiscChange {
+    /// The first field of the next disc.
+    pub field: i32,
+    /// The next disc, 0-based (`fieldAndDiscDest >> 14 & 3`).
+    pub disc: u8,
+    pub stage: DiscStage,
+    /// Ticks spent in the current stage.
+    pub ticks: u32,
+}
+
+/// Where a [`DiscChange`] is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiscStage {
+    /// The disc picture fades in and waits for a press.
+    Picture,
+    /// The disc picture fades out.
+    FadeOut,
+    /// The save screen is open.
+    Save,
+}
+
+impl DiscChange {
+    /// The picture's disc number, 2 to 4, while it shows (`SceneDirector._discChange + 1`;
+    /// only discs 1 to 3 have one).
+    pub fn picture(&self) -> Option<u8> {
+        (matches!(self.stage, DiscStage::Picture | DiscStage::FadeOut)
+            && (1..4).contains(&self.disc))
+        .then_some(self.disc + 1)
+    }
+
+    /// How opaque the picture is, 0 to 1.
+    pub fn alpha(&self) -> f32 {
+        let t = (self.ticks as f32 / DISC_FADE_TICKS as f32).min(1.0);
+        match self.stage {
+            DiscStage::Picture => t,
+            DiscStage::FadeOut => 1.0 - t,
+            DiscStage::Save => 0.0,
+        }
+    }
 }
 
 /// A Steam save file (`SavedData_ww.dat`) the play window loaded from and saves to.
@@ -537,6 +596,7 @@ impl PlayGame {
             audio: Vec::new(),
             card: None,
             steam: None,
+            disc_change: None,
         };
         let mut events = Vec::new();
         game.enter(start, &mut events)?;
@@ -891,6 +951,28 @@ impl PlayGame {
             }
             return Ok(true);
         }
+        if let Some(play) = self.world_play.as_ref() {
+            // `WorldHUD.OnKeyMenu`: on the world map the main menu opens on foot only
+            // (`WMUIData.ControlNo == 0`), not over the Chocograph list, and not while the
+            // world script holds the menu off (`SetMenuControl`) or has a window up.
+            let script_allows = play
+                .script()
+                .map(|script| script.world())
+                .is_none_or(|world| {
+                    !world.menu_disabled && !world.windows.values().any(|open| *open)
+                });
+            let opens = pressed & pad::START != 0
+                && held & pad::START != 0
+                && play.ride == 0
+                && self.chocograph_screen.is_none()
+                && script_allows;
+            if opens && let Some(session) = self.session.as_mut() {
+                // `MainMenuUI` has no Save command; the world map saves through its moogle.
+                session.director.world_mut().save_point = false;
+                self.menu = Some(FieldMenu::new());
+            }
+            return Ok(self.menu.is_some());
+        }
         let Some(session) = self.session.as_mut() else {
             return Ok(false);
         };
@@ -932,12 +1014,19 @@ impl PlayGame {
         if self.steam.is_some() {
             return self.save_steam_slot(slot);
         }
-        let map = self.map().ok_or("there is no field to save")?;
+        let (map, position) = match self.disc_change {
+            // A save between discs starts the next disc (the PSX's disc-change save).
+            Some(change) => (change.field, None),
+            None => (
+                self.map().ok_or("there is no field to save")?,
+                player_position(self.world()),
+            ),
+        };
         let world = self.world();
         let save = PlaySave {
             format: SAVE_FORMAT,
             map,
-            position: player_position(world),
+            position,
             ticks: self.ticks,
             world: world.for_save(),
         };
@@ -958,6 +1047,10 @@ impl PlayGame {
         self.menu = None;
         self.shop = None;
         self.stopped = None;
+        self.disc_change = None;
+        // A load leaves the world map for the saved field.
+        self.world_play = None;
+        self.chocograph_screen = None;
         self.ticks = save.ticks;
         self.pending_position = save.position;
         self.enter(save.map, events)
@@ -1005,6 +1098,10 @@ impl PlayGame {
         self.menu = None;
         self.shop = None;
         self.stopped = None;
+        self.disc_change = None;
+        // A load leaves the world map for the saved field.
+        self.world_play = None;
+        self.chocograph_screen = None;
         self.ticks = (save.state.play_time_seconds * 60.0) as u64;
         self.pending_position = None;
         if let Some(steam) = self.steam.as_mut() {
@@ -1035,7 +1132,10 @@ impl PlayGame {
     }
 
     fn save_steam_slot(&mut self, slot: usize) -> Result<(), String> {
-        let map = self.map().ok_or("there is no field to save")?;
+        let map = match self.disc_change {
+            Some(change) => change.field,
+            None => self.map().ok_or("there is no field to save")?,
+        };
         let steam = self.steam.as_ref().ok_or("no save file")?;
         let state =
             steam_save::capture(self.world(), map, self.ticks, &self.data.menu, &steam.base)?;
@@ -1437,6 +1537,10 @@ impl PlayGame {
             self.tick_card(pressed);
             return Ok(events);
         }
+        if self.disc_change.is_some() {
+            self.tick_disc_change(held, pressed, &mut events)?;
+            return Ok(events);
+        }
         if self.tick_menu(held, pressed, &mut events)? {
             return Ok(events);
         }
@@ -1633,8 +1737,101 @@ impl PlayGame {
             }
         }
 
+        // `DISCCHANGE` waits (`FLOW_STATE_WAIT`) while the scene changes to the next disc.
+        if let Some((field, disc)) = self
+            .session
+            .as_mut()
+            .and_then(|session| session.director.world_mut().disc_change.take())
+        {
+            let field = i32::from(field);
+            events.push(PlayEvent::DiscChange { field, disc });
+            self.disc_change = Some(DiscChange {
+                field,
+                disc,
+                stage: DiscStage::Picture,
+                ticks: 0,
+            });
+            return Ok(events);
+        }
         self.leave(step.next_field, step.world_map, &mut events)?;
         Ok(events)
+    }
+
+    /// The disc change in progress, if any.
+    pub fn disc_change(&self) -> Option<&DiscChange> {
+        self.disc_change.as_ref()
+    }
+
+    /// The disc picture to draw now and its opacity (`changetodisc<N>.png`, Memoria's
+    /// `EmbeddedAsset/UI/Sprites`).
+    pub fn disc_picture(&self) -> Option<(PathBuf, f32)> {
+        let change = self.disc_change.as_ref()?;
+        let disc = change.picture()?;
+        Some((
+            self.data.sprites.join(format!("changetodisc{disc}.png")),
+            change.alpha(),
+        ))
+    }
+
+    /// One tick of a disc change: the picture until a press (`SceneDirector`'s wait for any
+    /// control), its fade-out, then the save screen; the next disc's first field once that
+    /// closes.
+    fn tick_disc_change(
+        &mut self,
+        held: i32,
+        pressed: i32,
+        events: &mut Vec<PlayEvent>,
+    ) -> Result<(), String> {
+        let Some(mut change) = self.disc_change else {
+            return Ok(());
+        };
+        change.ticks += 1;
+        let mut open_save = false;
+        match change.stage {
+            DiscStage::Picture => {
+                if change.picture().is_none() {
+                    open_save = true;
+                } else if change.ticks >= DISC_FADE_TICKS && pressed != 0 {
+                    change.stage = DiscStage::FadeOut;
+                    change.ticks = 0;
+                }
+            }
+            DiscStage::FadeOut => open_save = change.ticks >= DISC_FADE_TICKS,
+            DiscStage::Save => {
+                if self.menu.is_some() {
+                    self.tick_menu(held, pressed, events)?;
+                }
+                if self.menu.is_none() {
+                    // Saved or not, the next disc starts.
+                    self.disc_change = None;
+                    if let Some(session) = self.session.take() {
+                        self.world = session.director.world().clone();
+                    }
+                    self.world.save_requested = false;
+                    return self.enter(change.field, events);
+                }
+            }
+        }
+        if open_save {
+            change.stage = DiscStage::Save;
+            change.ticks = 0;
+            let mut menu = FieldMenu::save_screen();
+            menu.slot_labels = self.slot_labels();
+            menu.slots_stale = false;
+            self.menu = Some(menu);
+        }
+        self.disc_change = Some(change);
+        Ok(())
+    }
+
+    /// What a field's `WORLD` call does (`ChangeWorldMap` to `world_map`): the next scripted
+    /// `world_exits` location, else (with `world_mode`) the world map is walked.
+    pub fn leave_for_world(
+        &mut self,
+        world_map: i32,
+        events: &mut Vec<PlayEvent>,
+    ) -> Result<(), String> {
+        self.leave(None, Some(world_map), events)
     }
 
     /// The field change a tick's scripts asked for, if any.
@@ -2110,6 +2307,10 @@ impl PlayGame {
         play.set_forms(&crate::world_data::alternate_form_blocks(
             scenario, discovered,
         ));
+        // The world map's main menu has no Save; only its moogle saves.
+        if let Some(session) = self.session.as_mut() {
+            session.director.world_mut().save_point = false;
+        }
         self.world_play = Some(play);
         self.world_exit = Some(exit);
         Ok(())
