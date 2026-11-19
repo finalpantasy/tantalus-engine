@@ -2675,7 +2675,11 @@ impl EventVm {
                             "object identity cannot be negative",
                         ));
                     }
-                    let object = EntityId::new(object as u64);
+                    // `GetObj1` is `GetObjByUID`, which maps the local uids (250 the
+                    // controlled object, 251-254 the party, 255 this object)
+                    // first (EventEngine.DoEventCode.cs:3474; Pandemonium 2712 entry 0
+                    // function 12 returns 250's elevator ride).
+                    let object = EntityId::new(self.local_uid(host, object) as u64);
                     self.pc = next;
                     events.push(HostEvent::ReturnEntryFunctions { object });
                 }
@@ -2808,6 +2812,13 @@ impl EventVm {
                     };
                     self.pc = next;
                     events.push(HostEvent::RunSharedScript { actor, entry });
+                    // `STARTSEQ` creates the `Seq` object at once, so a
+                    // `WAITSEQ` right after it in the same frame finds it and
+                    // waits (EventEngine.DoEventCode.cs:1371-1404; the
+                    // Pandemonium elevator 2712 runs both back to back): apply now.
+                    host.apply(&events[flushed..])
+                        .map_err(|error| VmError::host(error, self.pc, opcode))?;
+                    flushed = events.len();
                 }
                 InstructionKind::TurnTowardObject { target, speed } => {
                     let target = self.evaluate(host, &target, instruction.offset, opcode)?;
@@ -2877,6 +2888,10 @@ impl EventVm {
                     // uid + UID_OFFSET_SEQ names no shared script: nothing ends.
                     if self.own_object.is_none() {
                         events.push(HostEvent::EndSharedScript { actor });
+                        // `ENDSEQ` disposes the `Seq` at once (DoEventCode.cs:1405-1410).
+                        host.apply(&events[flushed..])
+                            .map_err(|error| VmError::host(error, self.pc, opcode))?;
+                        flushed = events.len();
                     }
                 }
                 InstructionKind::SetMenuControl { enabled, .. } => {

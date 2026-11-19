@@ -287,11 +287,11 @@ impl LegacyEventHost for Host {
                 HostEvent::SetUserControl { .. } => {}
                 HostEvent::RaiseWindows => {}
                 HostEvent::CalculateScreenOrigin => {}
-                HostEvent::RunSharedScript { .. } => {}
+                HostEvent::RunSharedScript { .. } => self.shared_script_active = true,
                 HostEvent::TurnTowardObject { .. } => {}
                 HostEvent::ShowBubbleIcon { .. } => {}
                 HostEvent::SetFieldCamera { .. } => {}
-                HostEvent::EndSharedScript { .. } => {}
+                HostEvent::EndSharedScript { .. } => self.shared_script_active = false,
                 HostEvent::SetMenuControl { .. } => {}
                 HostEvent::SetTileAnimationRate { .. } => {}
                 HostEvent::SetTileAnimationFrameWait { .. } => {}
@@ -4917,6 +4917,25 @@ fn turn_to_position_pathing_and_shared_script_wait() {
     );
 }
 
+/// `STARTSEQ` then `WAITSEQ` in one frame: the reference creates the `Seq` at
+/// once, so the wait holds until it ends (Pandemonium 2712, entries 10 to 12);
+/// `ENDSEQ` then `WAITSEQ` does not wait.
+#[test]
+fn wait_shared_script_sees_a_shared_script_started_in_the_same_frame() {
+    let actor = EntityId::new(12);
+    let mut host = Host::new();
+    let mut vm = EventVm::new(decode_program(&[0x43, 0, 7, 0x44, 4]).unwrap()).with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Waiting);
+    assert_eq!(vm.wait_state(), Some(WaitState::SharedScript));
+    assert_eq!(vm.pc(), 3);
+
+    let mut vm =
+        EventVm::new(decode_program(&[0x43, 0, 7, 0x45, 0x44, 4]).unwrap()).with_entity(actor);
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(report.status, VmStatus::Completed);
+}
+
 #[test]
 fn operand_less_exit_jump_and_animation_commands_use_one_byte_and_actor_context() {
     let actor = EntityId::new(11);
@@ -8416,6 +8435,17 @@ fn dret_returns_entry_functions_for_an_object() {
         report.events,
         [HostEvent::ReturnEntryFunctions {
             object: EntityId::new(9),
+        }]
+    );
+
+    // A local uid names its object (`GetObjByUID`): 255 is the running one.
+    let program = decode_program(&[0x97, 0, 255, 4]).unwrap();
+    let mut vm = EventVm::new(program).with_entity(EntityId::new(18));
+    let report = vm.step(Tick::new(0), &mut host).unwrap();
+    assert_eq!(
+        report.events,
+        [HostEvent::ReturnEntryFunctions {
+            object: EntityId::new(18),
         }]
     );
 }
