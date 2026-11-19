@@ -39,7 +39,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--level N] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY,...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP[@ANGLE],...] [--wall-regions MAP,...] [--play-card-games] [--win-card-games] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--stub-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY[@SCENARIO],...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP[@ANGLE],...] [--wall-regions MAP,...] [--play-card-games] [--win-card-games] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--stub-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -65,7 +65,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     // (map, text, first scenario) -> answer.
     let mut choices: BTreeMap<(i32, u16, i32), i32> = BTreeMap::new();
     let mut route: Vec<(i32, i32, i32)> = Vec::new();
-    let mut skip_talk: BTreeSet<(i32, usize)> = BTreeSet::new();
+    let mut skip_talk: BTreeSet<(i32, usize, i32)> = BTreeSet::new();
     let mut retalk: BTreeSet<(i32, usize)> = BTreeSet::new();
     let mut ate: BTreeMap<i32, u32> = BTreeMap::new();
     let mut region_talks: BTreeSet<i32> = BTreeSet::new();
@@ -99,7 +99,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut fight_hp: std::collections::BTreeMap<i32, u32> = Default::default();
     let mut battle_ids: Option<PathBuf> = None;
     let mut waypoints: BTreeMap<i32, Vec<[f32; 2]>> = BTreeMap::new();
-    let mut save_at: BTreeMap<i32, PathBuf> = BTreeMap::new();
+    let mut save_at: BTreeMap<i32, (PathBuf, i32)> = BTreeMap::new();
     let mut load_world: Option<PathBuf> = None;
     let mut load_save: Option<PathBuf> = None;
     let mut save_slot: Option<String> = None;
@@ -200,12 +200,16 @@ fn run(args: Vec<String>) -> Result<(), String> {
             }
             "--skip-talk" => {
                 for part in value()?.split(',') {
-                    let parsed = part
-                        .trim()
-                        .split_once(':')
-                        .and_then(|(map, entry)| Some((map.parse().ok()?, entry.parse().ok()?)));
+                    // `@SCENARIO`: skip only in visits that start at or past it.
+                    let (step, from) = match part.trim().split_once('@') {
+                        Some((step, from)) => (step, from.parse().ok()),
+                        None => (part.trim(), Some(i32::MIN)),
+                    };
+                    let parsed = step.split_once(':').and_then(|(map, entry)| {
+                        Some((map.parse().ok()?, entry.parse().ok()?, from?))
+                    });
                     skip_talk.insert(parsed.ok_or_else(|| {
-                        format!("bad --skip-talk entry `{part}`, want MAP:ENTRY")
+                        format!("bad --skip-talk entry `{part}`, want MAP:ENTRY[@SCENARIO]")
                     })?);
                 }
             }
@@ -270,10 +274,17 @@ fn run(args: Vec<String>) -> Result<(), String> {
             // and start a later run from it (`--start MAP --load-world`).
             "--save-at" => {
                 let text = value()?;
+                // `MAP@SCENARIO:PATH`: the first visit that starts at or past the scenario.
                 let (map, path) = text
                     .split_once(':')
-                    .and_then(|(map, path)| Some((map.parse().ok()?, PathBuf::from(path))))
-                    .ok_or_else(|| format!("bad --save-at `{text}`, want MAP:PATH"))?;
+                    .and_then(|(map, path)| {
+                        let (map, from) = match map.split_once('@') {
+                            Some((map, from)) => (map, from.parse().ok()?),
+                            None => (map, i32::MIN),
+                        };
+                        Some((map.parse().ok()?, (PathBuf::from(path), from)))
+                    })
+                    .ok_or_else(|| format!("bad --save-at `{text}`, want MAP[@SCENARIO]:PATH"))?;
                 save_at.insert(map, path);
             }
             "--load-world" => load_world = Some(PathBuf::from(value()?)),
@@ -1267,7 +1278,7 @@ struct ChainOptions {
     route: Vec<(i32, i32, i32)>,
     /// Objects the explorer never talks to, by (field map, entry): optional
     /// minigames that hold the field until played (map 103 entry 8, jump rope).
-    skip_talk: BTreeSet<(i32, usize)>,
+    skip_talk: BTreeSet<(i32, usize, i32)>,
     /// Objects the explorer talks to again on a later visit at the same
     /// story point (Chocobo Hot and Cold: Mene is revisited).
     retalk: BTreeSet<(i32, usize)>,
@@ -1335,7 +1346,7 @@ struct ChainOptions {
     /// player to walk somewhere (map 116's roof waits for Vivi's x <= 900).
     waypoints: BTreeMap<i32, Vec<[f32; 2]>>,
     /// Worlds to write when the chain enters a map (`--save-at`).
-    save_at: BTreeMap<i32, PathBuf>,
+    save_at: BTreeMap<i32, (PathBuf, i32)>,
     /// A world written by `--save-at`, to continue from.
     load_world: Option<PathBuf>,
     /// A Steam save file and its slot text (`--load-save`, `--slot`).
@@ -1678,8 +1689,9 @@ fn chain(
             .collect();
         // The first unused route entry for this map; it is used up when the
         // field leaves through its destination.
-        if let Some(path) = save_at.get(&map)
+        if let Some((path, from)) = save_at.get(&map)
             && !saved_maps.contains(&map)
+            && scenario_counter(&world) >= *from
         {
             saved_maps.insert(map);
             let text = serde_json::to_string(&world.for_save())
@@ -1803,8 +1815,8 @@ fn chain(
         let scenario_at_start = scenario_counter(&world);
         let mut talked: BTreeSet<usize> = skip_talk
             .iter()
-            .filter(|(skip_map, _)| *skip_map == map)
-            .map(|(_, entry)| *entry)
+            .filter(|(skip_map, _, from)| *skip_map == map && scenario_at_start >= *from)
+            .map(|(_, entry, _)| *entry)
             .chain(
                 talked_before
                     .iter()
@@ -1833,8 +1845,8 @@ fn chain(
         let mut talk_scenario = scenario_at_start;
         let skipped: BTreeSet<usize> = skip_talk
             .iter()
-            .filter(|(skip_map, _)| *skip_map == map)
-            .map(|(_, entry)| *entry)
+            .filter(|(skip_map, _, from)| *skip_map == map && scenario_at_start >= *from)
+            .map(|(_, entry, _)| *entry)
             .collect();
         let mut talks: Vec<(u64, usize)> = Vec::new();
         if explore {
