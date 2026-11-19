@@ -404,6 +404,90 @@ pub fn hand(game_data: &Path) -> Option<(Image, f32)> {
     Some((image, STEAM_HAND_UI_WIDTH))
 }
 
+/// The PS1 battle digits of the window sheet: 8 by 8 cells, `0`-`7` on line 32, `8` and `9`
+/// on line 40, then `MP` and `Miss`; `Death` on line 48.
+pub struct BattleDigits {
+    pub digits: Vec<Image>,
+    pub miss: Image,
+    /// UI pixels a digit pixel is drawn (1080 / 224).
+    pub ui_per_pixel: f32,
+}
+
+const DIGIT_CELL: usize = 8;
+const MISS: (usize, usize, usize, usize) = (32, 40, 24, 8);
+
+/// The PS1 skin's damage digits (none for the Steam skin, which draws the font).
+pub fn battle_digits() -> Option<BattleDigits> {
+    let art = ps1_art()?;
+    let cell = |rect| Image {
+        width: DIGIT_CELL,
+        height: DIGIT_CELL,
+        rgba: art.window.rgba(rect, FRAME_CLUT),
+    };
+    let digits = (0..10)
+        .map(|d| {
+            let (x, y) = if d < 8 {
+                (d * DIGIT_CELL, 32)
+            } else {
+                ((d - 8) * DIGIT_CELL, 40)
+            };
+            cell((x, y, DIGIT_CELL, DIGIT_CELL))
+        })
+        .collect();
+    Some(BattleDigits {
+        digits,
+        miss: Image {
+            width: MISS.2,
+            height: MISS.3,
+            rgba: art.window.rgba(MISS, FRAME_CLUT),
+        },
+        ui_per_pixel: S,
+    })
+}
+
+/// `Dialog.SetTailPosition` pointer sprites of the window atlas.
+const TAIL_SPRITES: [&str; 4] = [
+    "dialog_pointer_topleft",
+    "dialog_pointer_topright",
+    "dialog_pointer_downleft",
+    "dialog_pointer_downright",
+];
+
+/// The dialog tail pointers of the skin, by sprite name (in UI pixels). The Steam skin's come
+/// from the window atlas the dialog uses; the PS1 skin has none (its tail is a notch drawn into
+/// the frame, not a separate sprite), so the dialog draws a marker.
+pub fn tails(game_data: &Path) -> Vec<(&'static str, Image)> {
+    if active() == UiSkin::Ps1 {
+        return Vec::new();
+    }
+    let atlas = WindowAtlasChoice::Blue.atlas_name();
+    let mut sprites = match tantalus_assets::pc::ui_atlas::load_sprites(
+        &game_data.join(tantalus_assets::pc::dialog_render::WINDOW_ATLAS_FILE),
+        atlas,
+        &TAIL_SPRITES,
+    ) {
+        Ok(sprites) => sprites,
+        Err(error) => {
+            println!("!! dialog tail art: {error}");
+            return Vec::new();
+        }
+    };
+    TAIL_SPRITES
+        .iter()
+        .filter_map(|name| {
+            let sprite = sprites.remove(*name)?;
+            Some((
+                *name,
+                Image {
+                    width: sprite.width as usize,
+                    height: sprite.height as usize,
+                    rgba: sprite.rgba,
+                },
+            ))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -7,7 +7,7 @@
 //! `Dialog.setPositionX/Y` and `ETb.GetMesPos`; sizes are PSX pixels
 //! (320x224) mapped onto the 320x240 field frame the camera projects.
 //!
-//! Not matched: the tail is a plain marker, not the game's tail sprite;
+//! Not matched: the PS1 skin's tail is a plain marker (the PS1 tail is a notch in the frame);
 //! `Dialog.CheckDialogOverlap`; the speaker's eye height (a fixed aim height
 //! stands in); window open/close animation; icons, buttons and sprites in the
 //! text.
@@ -111,6 +111,8 @@ pub struct DialogView {
     assets: Option<Option<DialogAssets>>,
     /// The choice hand of the UI skin (`ui_skin::hand`) and its size in PSX pixels.
     hand: Option<Option<(Handle<Image>, Vec2)>>,
+    /// The skin's tail pointers by `Dialog` sprite name, sized in PSX pixels.
+    tails: Option<HashMap<&'static str, (Handle<Image>, Vec2)>>,
     cache: HashMap<String, Rendered>,
 }
 
@@ -143,6 +145,46 @@ fn load_hand(
         crate::ui_skin::UiSkin::Steam => ImageSampler::linear(),
     };
     Some((images.add(image), size))
+}
+
+/// `Dialog.SetTailPosition` sprite of a tail on the top (`upper`) or bottom edge, on the left
+/// or right side.
+fn tail_sprite_name(upper: bool, left: bool) -> &'static str {
+    match (upper, left) {
+        (true, false) => "dialog_pointer_topleft",
+        (true, true) => "dialog_pointer_topright",
+        (false, false) => "dialog_pointer_downleft",
+        (false, true) => "dialog_pointer_downright",
+    }
+}
+
+/// The skin's tail pointers (`ui_skin::tails`) as images, sized in PSX pixels.
+fn load_tails(
+    game_data: &std::path::Path,
+    images: &mut Assets<Image>,
+) -> HashMap<&'static str, (Handle<Image>, Vec2)> {
+    crate::ui_skin::tails(game_data)
+        .into_iter()
+        .map(|(name, sprite)| {
+            let size = Vec2::new(
+                sprite.width as f32 / RESOURCE_X_MULTIPLIER,
+                sprite.height as f32 / RESOURCE_Y_MULTIPLIER,
+            );
+            let mut image = Image::new(
+                Extent3d {
+                    width: sprite.width as u32,
+                    height: sprite.height as u32,
+                    depth_or_array_layers: 1,
+                },
+                TextureDimension::D2,
+                sprite.rgba,
+                TextureFormat::Rgba8UnormSrgb,
+                RenderAssetUsages::default(),
+            );
+            image.sampler = ImageSampler::linear();
+            (name, (images.add(image), size))
+        })
+        .collect()
 }
 
 /// Draws the open dialog windows of `game`, rebuilding them only when the
@@ -220,6 +262,10 @@ pub fn sync_dialogs(
     if view.hand.is_none() {
         let mut images = world.resource_mut::<Assets<Image>>();
         view.hand = Some(load_hand(game.game_data(), &mut images));
+    }
+    if view.tails.is_none() {
+        let mut images = world.resource_mut::<Assets<Image>>();
+        view.tails = Some(load_tails(game.game_data(), &mut images));
     }
     // Text types in at the appearance speed of the text modifier: three times the animation
     // tick of the field message setting, in glyphs a second at 30 ticks a second.
@@ -485,7 +531,13 @@ fn place_y(y: f32, height: f32, upper: &mut bool) -> f32 {
 }
 
 /// Top-left of the window in PSX pixels, and the tail (x, at-top) when it has one.
-fn place(dialog: &OpenDialog, size: Vec2, anchor: Option<[f32; 2]>) -> (Vec2, Option<(f32, bool)>) {
+/// The tail is `(x, upper, left)`: `upper` puts it on the window's top edge, `left` is the
+/// `TailPosition` side (`Dialog.setPositionX`).
+fn place(
+    dialog: &OpenDialog,
+    size: Vec2,
+    anchor: Option<[f32; 2]>,
+) -> (Vec2, Option<(f32, bool, bool)>) {
     if let Some((x, y)) = dialog.layout.position
         && (x != 0 || y != 0)
     {
@@ -525,7 +577,10 @@ fn place(dialog: &OpenDialog, size: Vec2, anchor: Option<[f32; 2]>) -> (Vec2, Op
         }
         let (x, tail) = place_x(px, size.x, left);
         let bottom = place_y(py, size.y, &mut upper);
-        return (Vec2::new(x, PSX.y - bottom - size.y), Some((tail, upper)));
+        return (
+            Vec2::new(x, PSX.y - bottom - size.y),
+            Some((tail, upper, left)),
+        );
     }
     // Fixed windows (`Dialog` else-branch of `InitializeDialogTransition`).
     let (cx, cy) = if tag("LowerRight") {
@@ -663,21 +718,46 @@ fn spawn_window(
             ChildOf(root),
         ));
     }
-    if let Some((tail_x, upper)) = tail
+    if let Some((tail_x, upper, left)) = tail
         && dialog.flags & (FLAG_NO_TAIL | FLAG_TRANSPARENT) == 0
     {
-        // A marker for the tail, on the edge facing the speaker.
         let y = if upper {
             top_left.y
         } else {
             top_left.y + size.y
         };
-        world.spawn((
-            Sprite::from_color(Color::srgb(0.85, 0.88, 1.0), Vec2::splat(6.0)),
-            Transform::from_translation(local(tail_x, y) + Vec3::Z * (z + 0.01))
-                .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_4)),
-            ChildOf(root),
-        ));
+        // `Dialog.SetTailPosition`: the pointer sprite of the side, hanging off the edge
+        // facing the speaker (a right-side tail draws `*left`, a left-side one `*right`).
+        let name = tail_sprite_name(upper, left);
+        if let Some((image, sprite)) = view.tails.as_ref().and_then(|tails| tails.get(name)) {
+            // Overlap the border by its inner half so the pointer joins the frame.
+            let overlap = BORDER_PADDING as f32 / 2.0 / RESOURCE_Y_MULTIPLIER;
+            let x = if left { tail_x - sprite.x } else { tail_x };
+            let top = if upper {
+                y - sprite.y + overlap
+            } else {
+                y - overlap
+            };
+            world.spawn((
+                Sprite {
+                    image: image.clone(),
+                    custom_size: Some(*sprite),
+                    ..default()
+                },
+                Anchor::TOP_LEFT,
+                Transform::from_translation(local(x, top) + Vec3::Z * (z + 0.01)),
+                ChildOf(root),
+            ));
+        } else {
+            // A marker for the tail without the skin's pointer art, on the edge facing the
+            // speaker.
+            world.spawn((
+                Sprite::from_color(Color::srgb(0.85, 0.88, 1.0), Vec2::splat(6.0)),
+                Transform::from_translation(local(tail_x, y) + Vec3::Z * (z + 0.01))
+                    .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_4)),
+                ChildOf(root),
+            ));
+        }
     }
     if let Some(start) = rendered.choice_line.filter(|_| dialog.choosing) {
         let lines = rendered.line_tops.len();
