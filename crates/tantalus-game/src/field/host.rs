@@ -768,6 +768,16 @@ impl LegacyEventHost for FieldHost<'_> {
             }
             self.record_look(event);
             self.record_overlay(event);
+            match *event {
+                HostEvent::SetPathFloorActive { floor, active } => {
+                    self.world.set_floor_active(floor, active != 0);
+                }
+                HostEvent::SetTriangleActive { triangle, active } => {
+                    self.world
+                        .set_triangle_active(i32::try_from(triangle).unwrap_or(-1), active);
+                }
+                _ => {}
+            }
             self.record_overlay_motion(event);
             self.record_light(event);
             self.record_tex_anim(event);
@@ -1468,6 +1478,9 @@ impl LegacyEventHost for FieldHost<'_> {
                             category: u8::try_from(*category).ok().filter(|v| *v != 255),
                             menu_preset: u8::try_from(*menu_preset).ok().filter(|v| *v != 255),
                         });
+                        if *enable_leveling {
+                            self.world.join_with_leveling(character);
+                        }
                     }
                 }
                 HostEvent::SetPlayerName { character, text } => {

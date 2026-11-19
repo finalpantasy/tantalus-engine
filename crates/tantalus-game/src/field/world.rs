@@ -827,6 +827,11 @@ pub struct FieldWorld {
     /// Field walkmesh backing BGI character queries; absent until the caller
     /// imports the field's navigation mesh.
     navigation: Option<FieldNavigationMesh>,
+    /// The field scripts' walkmesh switches since the field began, in order
+    /// (`BGI_floorSetActive`, `BGI_triSetActive`); runtime-only, a new field's
+    /// walkmesh starts with every triangle active.
+    #[serde(skip)]
+    walk_switches: Vec<WalkSwitch>,
     /// Last actor observed in applied host events; v1 stand-in for the
     /// reference's current-executing-object member target.
     current_actor: Option<EntityId>,
@@ -1047,6 +1052,10 @@ pub struct FieldWorld {
     /// Experience-to-stats provider (runtime-only).
     #[serde(skip)]
     pub level_growth: Option<LevelGrowth>,
+    /// The experience that reaches each level, level 1 first
+    /// (`ff9level.CharacterLevelUps[lv - 1].ExperienceToLevel`; runtime-only provider).
+    #[serde(skip)]
+    pub level_experience: Option<std::sync::Arc<Vec<u64>>>,
 }
 
 impl std::fmt::Debug for FieldWorld {
@@ -1205,6 +1214,7 @@ impl FieldWorld {
             applied_resolutions: BTreeSet::new(),
             atan_table: None,
             navigation: None,
+            walk_switches: Vec::new(),
             current_actor: None,
             player: None,
             confirm_mask: None,
@@ -1267,6 +1277,7 @@ impl FieldWorld {
             sps_frame_counts: None,
             fade_filter: None,
             level_growth: None,
+            level_experience: None,
         }
     }
 
@@ -1344,6 +1355,11 @@ impl FieldWorld {
     pub fn begin_field(&mut self) {
         // `EventEngine` clears `dashinh` when a field starts.
         self.run_disabled = false;
+        // `InitEvents` (EventEngine.cs:558): `usercontrol = 0`; the new field's scripts give
+        // control back. Kept on, a region that tests `IsMovementEnabled` (system variable 2)
+        // under the arrival spot fires before the field's own scene (Gargan Roo 953 from the
+        // trolley ride at 4530 left again by its exit region 4).
+        self.user_control = false;
         self.actor_presentation.clear();
         self.attachments.clear();
         self.bubble_icon = None;
@@ -1373,6 +1389,7 @@ impl FieldWorld {
         self.deleted_objects.clear();
         self.actors.clear();
         self.overlays.clear();
+        self.walk_switches.clear();
         self.camera_log.clear();
         self.view = super::view::FieldView::default();
         self.overlay_motion.clear();
@@ -1770,9 +1787,9 @@ impl FieldWorld {
     pub fn advance(&mut self) {
         self.apply_walk_input();
         self.apply_dialog_signal();
-        let walk_mesh = self
-            .navigation
-            .as_ref()
+        let walkable = walkable_mesh(self.navigation.as_ref(), &self.walk_switches);
+        let walk_mesh = walkable
+            .as_deref()
             .and_then(|mesh| crate::navigation::FieldNavigation::new(mesh).ok());
         let player = self.player;
         // `MoveToward_mixed_ex` snaps an arriving walk onto its target except in field 2204
@@ -2381,6 +2398,7 @@ impl FieldWorld {
     pub fn copy_providers_from(&mut self, template: &FieldWorld) {
         self.atan_table = template.atan_table.clone();
         self.level_growth = template.level_growth.clone();
+        self.level_experience = template.level_experience.clone();
         self.fmv_frame_counts = template.fmv_frame_counts.clone();
         self.animation_frame_counts = template.animation_frame_counts.clone();
         self.sps_frame_counts = template.sps_frame_counts.clone();
@@ -2455,6 +2473,27 @@ impl FieldWorld {
 
     pub fn navigation(&self) -> Option<&FieldNavigationMesh> {
         self.navigation.as_ref()
+    }
+
+    /// The walkmesh an actor can walk on: [`Self::navigation`] without the triangles the
+    /// field scripts switched off. `WalkMesh.BGI_floorSetActive` and `BGI_triSetActive`
+    /// clear bit 1 of `triFlags`, and the walk code skips such triangles
+    /// (`BGI_findAccessibleTriangle`, `FieldMapActorController` neighbours with
+    /// `triFlags == 0`, `GetTriangleIndexAtScreenPos`). Borrowed when nothing is off.
+    pub fn walkable_navigation(&self) -> Option<std::borrow::Cow<'_, FieldNavigationMesh>> {
+        walkable_mesh(self.navigation.as_ref(), &self.walk_switches)
+    }
+
+    /// `SetPathFloorActive` (`EventEngine.DoEventCode.cs` `BGI_floorSetActive`): every
+    /// triangle of `floor`.
+    pub(crate) fn set_floor_active(&mut self, floor: i32, active: bool) {
+        self.walk_switches.push(WalkSwitch::Floor { floor, active });
+    }
+
+    /// `SetTriangleActive` (`BGI_triSetActive`): one triangle by index.
+    pub(crate) fn set_triangle_active(&mut self, triangle: i32, active: bool) {
+        self.walk_switches
+            .push(WalkSwitch::Triangle { triangle, active });
     }
 
     /// `FieldMapActorController.SetPosition(pos, true, true)`: an actor with
@@ -2535,6 +2574,53 @@ impl FieldWorld {
             .get(projection.triangle_index)
             .map(|triangle| triangle.floor)
     }
+}
+
+/// One script switch of walkmesh triangles (`FieldWorld::walk_switches`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WalkSwitch {
+    Floor { floor: i32, active: bool },
+    Triangle { triangle: i32, active: bool },
+}
+
+/// `mesh` without the triangles that `switches`, applied in order over an all-active
+/// walkmesh, leave off; the same mesh when none is off.
+fn walkable_mesh<'a>(
+    mesh: Option<&'a FieldNavigationMesh>,
+    switches: &[WalkSwitch],
+) -> Option<std::borrow::Cow<'a, FieldNavigationMesh>> {
+    let mesh = mesh?;
+    let active = |index: usize, floor: i16| {
+        switches.iter().fold(true, |active, switch| match *switch {
+            WalkSwitch::Floor {
+                floor: f,
+                active: a,
+            } if f == i32::from(floor) => a,
+            WalkSwitch::Triangle {
+                triangle,
+                active: a,
+            } if usize::try_from(triangle).is_ok_and(|t| t == index) => a,
+            _ => active,
+        })
+    };
+    if switches.is_empty()
+        || mesh
+            .triangles
+            .iter()
+            .enumerate()
+            .all(|(index, triangle)| active(index, triangle.floor))
+    {
+        return Some(std::borrow::Cow::Borrowed(mesh));
+    }
+    let mut walkable = mesh.clone();
+    walkable.triangles = mesh
+        .triangles
+        .iter()
+        .enumerate()
+        .filter(|(index, triangle)| active(*index, triangle.floor))
+        .map(|(_, triangle)| triangle.clone())
+        .collect();
+    Some(std::borrow::Cow::Owned(walkable))
 }
 
 #[cfg(test)]

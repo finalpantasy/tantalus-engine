@@ -1606,6 +1606,9 @@ fn chain(
         world.item_id_map = Some(tantalus_game::field::world::default_item_id_map(ids));
     }
     if let Some((base, levels)) = growth_tables {
+        world.level_experience = Some(std::sync::Arc::new(
+            levels.iter().map(|row| u64::from(row.experience)).collect(),
+        ));
         world.level_growth = Some(std::sync::Arc::new(move |character, total_exp| {
             let base = base.get(&character)?;
             let level = levels
@@ -1760,6 +1763,9 @@ fn chain(
                 .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
         }
         let scenario_now = scenario_counter(&world);
+        if std::env::var_os("TRACE_SC").is_some() {
+            eprintln!("field {map} scenario {scenario_now}");
+        }
         let mut route_index = route
             .iter()
             .enumerate()
@@ -1924,6 +1930,7 @@ fn chain(
         let mut ate_last = 0u64;
         let mut operations = 0u64;
         let mut ticks_run = 0u64;
+        let mut debug_sc = scenario_counter(director.world());
         let mut error = None;
         let mut transition = None;
         let mut world_map: Option<i32> = None;
@@ -2027,6 +2034,14 @@ fn chain(
             match director.step() {
                 Ok(step) => {
                     ticks_run += 1;
+                    // TRACE_SC: log each scenario counter change with its tick (stderr).
+                    if std::env::var_os("TRACE_SC").is_some() {
+                        let now = scenario_counter(director.world());
+                        if now != debug_sc {
+                            eprintln!("  tick {ticks_run} scenario {debug_sc} -> {now}");
+                            debug_sc = now;
+                        }
+                    }
                     if let Some(opponent) = (play_card_games || win_card_games)
                         .then(|| director.world_mut().pending_card_game.take())
                         .flatten()
@@ -2592,7 +2607,9 @@ fn chain(
                     let talk_target = pending_talk.map(|(entry, _)| entry);
                     let waypoint = field_waypoints
                         .get(waypoint_index)
-                        .map(|point| snap_to_walkmesh(world.navigation(), *point))
+                        .map(|point| {
+                            snap_to_walkmesh(world.walkable_navigation().as_deref(), *point)
+                        })
                         .or_else(|| {
                             let uid =
                                 object_waypoints.get(waypoint_index - field_waypoints.len())?;
@@ -2616,7 +2633,11 @@ fn chain(
                     };
                     let avoid_target = avoid_floor.and_then(|(entry, _)| {
                         let region = world.regions.get(&EntityId::new(entry as u64))?;
-                        floor_point_in_region(world.navigation(), region, &apart)
+                        floor_point_in_region(
+                            world.walkable_navigation().as_deref(),
+                            region,
+                            &apart,
+                        )
                     });
                     let next = pending_region(false)
                         .or(pending_talk.map(|(_, at)| at))
@@ -2689,7 +2710,10 @@ fn chain(
                                             .get(&EntityId::new(entry as u64))
                                             .and_then(|region| {
                                                 floor_point_in_region(
-                                                    director.world().navigation(),
+                                                    director
+                                                        .world()
+                                                        .walkable_navigation()
+                                                        .as_deref(),
                                                     region,
                                                     &|height: &f32| {
                                                         refused.is_some_and(|refused| {
@@ -2721,7 +2745,8 @@ fn chain(
                                 // spiral tower leaves upward only from above
                                 // 12000), so try each other floor under the
                                 // region before giving up on it.
-                                let mesh = director.world().navigation();
+                                let walkable = director.world().walkable_navigation();
+                                let mesh = walkable.as_deref();
                                 let tried = floors_tried.entry(entry).or_default();
                                 tried.push(position[1]);
                                 let untried = walkmesh_heights(mesh, [position[0], position[2]])
@@ -2770,7 +2795,8 @@ fn chain(
                             // Only an actor standing on the walkmesh follows it;
                             // one a script put elsewhere (map 115's tower top)
                             // keeps its height.
-                            let mesh = director.world().navigation();
+                            let walkable = director.world().walkable_navigation();
+                            let mesh = walkable.as_deref();
                             // Jump straight to a target on the actor's floor;
                             // walk the mesh only to reach another floor.
                             let on_mesh = position[1].abs() >= 32000.0

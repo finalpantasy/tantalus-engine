@@ -272,6 +272,9 @@ pub fn new_game_world(
     let mut world = FieldWorld::new();
     world.character_stats = tantalus_game::new_game::new_game_character_stats(base, levels);
     let (base, levels) = (base.clone(), levels.to_vec());
+    world.level_experience = Some(std::sync::Arc::new(
+        levels.iter().map(|row| u64::from(row.experience)).collect(),
+    ));
     world.level_growth = Some(std::sync::Arc::new(move |character, total_exp| {
         let base = base.get(&character)?;
         let level = levels
@@ -2339,9 +2342,14 @@ fn clamp_to_walkmesh(world: &mut FieldWorld, before: Option<[f32; 3]>, floor: &m
     if before == Some(after) || !world.user_control {
         return;
     }
-    let Some(mesh) = world.navigation() else {
+    // Triangles the field scripts switched off are not walkable (`BGI_floorSetActive`).
+    let Some(walkable) = world
+        .walkable_navigation()
+        .map(std::borrow::Cow::into_owned)
+    else {
         return;
     };
+    let mesh = &walkable;
     let Ok(navigation) = tantalus_game::navigation::FieldNavigation::new(mesh) else {
         return;
     };

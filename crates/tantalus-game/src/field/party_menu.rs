@@ -27,14 +27,60 @@ impl FieldWorld {
         let roster: Vec<RosterEntry> = (0..ROSTER_SIZE)
             .map(|slot_no| RosterEntry {
                 slot_no,
-                available: members.contains(&slot_no)
-                    || self
-                        .party_reserve
-                        .is_some_and(|mask| mask & (1 << slot_no) != 0),
+                available: self.on_roster(i32::from(slot_no)),
             })
             .collect();
         self.party_menu = Some(PartyInfo::from_event(minimum, fixed_mask, &roster, members));
         self.open_party_menu();
+    }
+
+    /// `info.party != 0` for `character` (a `slot_no`): the last `FULLMEMBER` mask has its bit,
+    /// or it is in the party (`FF9Play_SetParty` -> `FF9Play_Add`).
+    pub fn on_roster(&self, character: i32) -> bool {
+        self.party.contains(&character)
+            || u32::try_from(character).is_ok_and(|bit| {
+                bit < u32::from(ROSTER_SIZE)
+                    && self
+                        .party_reserve
+                        .is_some_and(|mask| mask & (1 << bit) != 0)
+            })
+    }
+
+    /// `JOIN` with leveling on (`ff9play.FF9Play_Change(play, true, ..)`): the character comes
+    /// up to `FF9Play_GetAvgLevel`, the average level of the other roster characters (1 when
+    /// there are none), and never goes down. A new level sets the experience to that level's
+    /// threshold and rebuilds the maximums (`FF9Play_Build(play, lv, false, false)`: current
+    /// HP and MP are kept, capped). Needs [`FieldWorld::level_experience`].
+    pub fn join_with_leveling(&mut self, character: i32) {
+        let Some(table) = self.level_experience.clone() else {
+            return;
+        };
+        if table.is_empty() {
+            return;
+        }
+        let level = |world: &FieldWorld, id: i32| {
+            let exp = world.character_exp.get(&id).copied().unwrap_or(0);
+            table
+                .iter()
+                .take_while(|&&threshold| threshold <= exp)
+                .count()
+                .clamp(1, table.len())
+        };
+        let others: Vec<usize> = (0..i32::from(ROSTER_SIZE))
+            .filter(|&id| id != character && self.on_roster(id))
+            .map(|id| level(self, id))
+            .collect();
+        let average = if others.is_empty() {
+            1
+        } else {
+            others.iter().sum::<usize>() / others.len()
+        };
+        let current = level(self, character);
+        let wanted = current.max(average);
+        if wanted != current {
+            self.character_exp.insert(character, table[wanted - 1]);
+            self.update_character_max(character);
+        }
     }
 
     /// The open party screen, if any.

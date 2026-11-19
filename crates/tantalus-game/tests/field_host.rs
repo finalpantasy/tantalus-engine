@@ -244,6 +244,122 @@ fn bgi_floor_is_the_floor_the_actor_stands_on() {
 }
 
 #[test]
+fn switched_off_floors_leave_the_walkable_walkmesh() {
+    // Burmecia 755 from scenario 3830 runs `EnablePath(3, 0)`, `EnablePath(2, 1)`: the upper
+    // floor (3) that gave way is off, so an actor over both floors stands on floor 2
+    // (`WalkMesh.BGI_floorSetActive` clears `triFlags & 1`; `BGI_triSetActive` one triangle).
+    use tantalus_contracts::{FieldNavigationMesh, NavigationTriangle, Point3};
+
+    let at = |x, y, z| Point3 { x, y, z };
+    let mesh = FieldNavigationMesh {
+        vertices: vec![
+            at(0, -2075, 0),
+            at(100, -2075, 0),
+            at(0, -2075, 100),
+            at(0, -1073, 0),
+            at(100, -1073, 0),
+            at(0, -1073, 100),
+        ],
+        triangles: vec![
+            NavigationTriangle {
+                vertices: [0, 1, 2],
+                floor: 3,
+                offset: at(0, 0, 0),
+            },
+            NavigationTriangle {
+                vertices: [3, 4, 5],
+                floor: 2,
+                offset: at(0, 0, 0),
+            },
+        ],
+        active_floor: 0,
+        active_triangle: 0,
+        actor_anchor: at(10, 0, 10),
+    };
+    let floors = |world: &FieldWorld| -> Vec<i16> {
+        world
+            .walkable_navigation()
+            .unwrap()
+            .triangles
+            .iter()
+            .map(|triangle| triangle.floor)
+            .collect()
+    };
+    let run = |world: &mut FieldWorld, code: &[u8]| {
+        let mut scene = FieldScene::new();
+        scene
+            .add_entry(actor(1), decode_program(code).unwrap())
+            .unwrap();
+        scene
+            .step(Tick::new(0), &mut FieldHost::new(world))
+            .unwrap();
+    };
+    let mut world = FieldWorld::new();
+    world.provide_navigation(mesh);
+    assert_eq!(floors(&world), [3, 2]);
+    // 0xCB EnablePath(3, 0); 0xCB EnablePath(2, 1); end.
+    run(&mut world, &[0xcb, 0, 3, 0, 0xcb, 0, 2, 1, 4]);
+    assert_eq!(floors(&world), [2]);
+    // The full mesh keeps every triangle (triangle numbers stay the BGI's).
+    assert_eq!(world.navigation().unwrap().triangles.len(), 2);
+    // 0x9A EnablePathTriangle(0, 1) turns one triangle of the switched-off floor back on.
+    run(&mut world, &[0x9a, 0, 0, 0, 1, 4]);
+    assert_eq!(floors(&world), [3, 2]);
+    // A new field starts with the whole walkmesh.
+    run(&mut world, &[0xcb, 0, 2, 0, 4]);
+    assert_eq!(floors(&world), [3]);
+    world.begin_field();
+    assert_eq!(floors(&world), [3, 2]);
+}
+
+#[test]
+fn join_with_leveling_brings_a_member_up_to_the_roster_average() {
+    // Treno 908 at disc 2: `SetPartyReserve(1036)` (Garnet, Steiner, Marcus), then
+    // `SetCharacterData(10, 1, 12, ..)` for Marcus: `FF9Play_Change(play, true, ..)` raises
+    // him to `FF9Play_GetAvgLevel`, the other roster members' average, at that level's
+    // experience; a member above the average keeps his level.
+    let mut world = FieldWorld::new();
+    world.level_experience = Some(std::sync::Arc::new(vec![0, 100, 300, 600, 1000]));
+    world.party_reserve = Some((1 << 2) | (1 << 3) | (1 << 9));
+    world.character_exp.insert(2, 300); // level 3
+    world.character_exp.insert(3, 1000); // level 5
+    world.character_exp.insert(0, 1000); // not on the roster: not counted
+    let run = |world: &mut FieldWorld, code: &[u8]| {
+        let mut scene = FieldScene::new();
+        scene
+            .add_entry(actor(1), decode_program(code).unwrap())
+            .unwrap();
+        scene
+            .step(Tick::new(0), &mut FieldHost::new(world))
+            .unwrap();
+    };
+    // 0xFE JOIN: character 10 (Marcus, id 9), leveling on, equipment set 12, keep the rest.
+    run(&mut world, &[0xfe, 0, 10, 1, 12, 255, 255, 4]);
+    assert_eq!(
+        world.character_exp.get(&9),
+        Some(&600),
+        "(3 + 5) / 2 = level 4"
+    );
+    // Leveling off leaves the level alone.
+    world.character_exp.insert(9, 0);
+    run(&mut world, &[0xfe, 0, 10, 0, 12, 255, 255, 4]);
+    assert_eq!(world.character_exp.get(&9), Some(&0));
+    // Steiner (level 5) is above the average of Garnet (3) and Marcus (1): unchanged.
+    run(&mut world, &[0xfe, 0, 3, 1, 255, 255, 255, 4]);
+    assert_eq!(world.character_exp.get(&3), Some(&1000));
+}
+
+#[test]
+fn a_new_field_starts_without_user_control() {
+    // `EventEngine.InitEvents` (EventEngine.cs:558) sets `usercontrol = 0`: a region that
+    // tests `IsMovementEnabled` under the arrival spot must wait for the field's scripts.
+    let mut world = FieldWorld::new();
+    world.user_control = true;
+    world.begin_field();
+    assert!(!world.user_control);
+}
+
+#[test]
 fn object_member_reads_use_reference_member_semantics() {
     use tantalus_legacy::ObjectMemberRef;
 

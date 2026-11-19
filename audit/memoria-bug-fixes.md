@@ -90,6 +90,7 @@ Owner decision: Tantalus includes every Memoria bug fix for the vanilla game. Op
 | G68 | Dialog text appearance speed set to PSX timing (about 14 s vs 23 s Steam) | CL 2025.05.12 | text | always | done (owner call): keep vanilla dialog speed (`TurboDialog` off) |
 | G69 | Moogle animation restored when reading mognet letters | CL 2025.05.12 | field | always | todo |
 | G70 | Text opcode fixes: `[u][/u]` alignment, `[XTAB=0]`, negative `[FEED]` offsets blocked | CL 2024.11.17; `FFIXTextTag.cs:203`, `TextOpCodeModifier.cs:101` | text | always | todo (verify) |
+| G71 | Gizamaluke Bell Room: the female moogle no longer resets the arrival counter after the Kupo Nut, so the scene ends (softlock) | `EBin.cs:307` (`expr`, map 705, sid 3, ip 541) | field script | always | done: `EXPRESSION_SKIPS` in `field/script_fixes.rs`, test `bell_room_moogle_keeps_the_arrival_count`; ledger `memoria-field-script-705-bell-room-moogle` |
 
 ## Visual and field fixes (original-game art or script glitches)
 
@@ -134,4 +135,4 @@ Crash and leak fixes in the launcher, Mod Manager, Model Viewer, SaXAudio and So
 
 ## Counts
 
-Rows: 70 gameplay, 24 visual. Gameplay: done 6 (G01-G06), n/a 15, todo 15, todo (verify) 34. Visual: n/a 3, todo (verify) 1, todo 20. See the report for the priority list.
+Rows: 71 gameplay, 24 visual. Gameplay: done 6 (G01-G06), n/a 15, todo 15, todo (verify) 34. Visual: n/a 3, todo (verify) 1, todo 20. See the report for the priority list.
