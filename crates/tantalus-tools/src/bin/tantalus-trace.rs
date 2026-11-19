@@ -882,6 +882,8 @@ const PAD_RIGHT: i32 = 0x20;
 const PAD_DOWN: i32 = 0x40;
 const PAD_LEFT: i32 = 0x80;
 /// `--pan`: how near (in view pixels) counts as there, and ticks between presses.
+/// `FF9Define.FLDSCRPT_EVTNO_ENDING`: the field number that starts the ending.
+const ENDING_FIELD: i32 = 16000;
 const PAN_SLACK: i32 = 2;
 const PAN_PRESS_GAP: u64 = 30;
 /// Ticks without control or new text before the cutscene taps add
@@ -1693,6 +1695,14 @@ fn chain(
     let mut world_exits_used = vec![false; world_exits.len()];
     let mut saved_maps: BTreeSet<i32> = BTreeSet::new();
     for field_number in 0..max_fields {
+        // `ChangeField(16000)` (`FF9Define.FLDSCRPT_EVTNO_ENDING`) leaves the field for the
+        // ending mode (HonoluluFieldMain.cs:240, `nextMode = 4`): `EndingMain` plays FMV059,
+        // the ending text, FMV060 (the credits) and the last image, then sets the game-finish
+        // flag. No field script runs after it, so the chain ends here.
+        if map == ENDING_FIELD {
+            println!("{}", serde_json::json!({"map": map, "stop": "ending"}));
+            return Ok(());
+        }
         let Some(name) = db.get(&map) else {
             println!(
                 "{}",

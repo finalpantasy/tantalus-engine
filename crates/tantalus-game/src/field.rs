@@ -231,9 +231,13 @@ impl FieldScene {
             {
                 continue;
             }
+            let was_completed = vm.status() == VmStatus::Completed;
             let report = vm
                 .step(tick, host)
                 .map_err(|error| FieldError { entity, error })?;
+            if !was_completed && vm.status() == VmStatus::Completed {
+                host.function_returned(entity);
+            }
             disposed_shared.extend(report.events.iter().filter_map(|event| match event {
                 HostEvent::RunSharedScript { actor, .. } | HostEvent::EndSharedScript { actor } => {
                     Some(*actor)

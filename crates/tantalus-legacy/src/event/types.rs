@@ -2093,6 +2093,11 @@ pub trait LegacyEventHost {
         None
     }
 
+    /// A function the scene runs reached its end (`EventEngine.Return`).
+    fn function_returned(&mut self, entity: EntityId) {
+        let _ = entity;
+    }
+
     /// True once the object was deleted (`DisposeObj`); the scene then
     /// stops every function that runs against it.
     fn object_deleted(&mut self, entity: EntityId) -> bool {

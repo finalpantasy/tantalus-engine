@@ -1991,6 +1991,10 @@ impl LegacyEventHost for FieldHost<'_> {
         self.world.is_object_deleted(entity)
     }
 
+    fn function_returned(&mut self, entity: EntityId) {
+        self.world.return_request_function(entity);
+    }
+
     fn read_custom_variable(&mut self, _variable: u16) -> Result<i32, EngineError> {
         Err(Self::unknown("custom variable"))
     }

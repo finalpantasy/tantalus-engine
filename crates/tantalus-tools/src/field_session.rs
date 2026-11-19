@@ -368,6 +368,7 @@ impl EntryScheduler {
                 let keep = *base != object.get();
                 if !keep {
                     director.remove_entry(*entity);
+                    director.world_mut().untrack_request_function(*entity);
                 }
                 keep
             });
@@ -408,6 +409,9 @@ impl EntryScheduler {
                         self.object_of.insert(entity, object);
                     }
                     director.set_sender(entity, request.sender);
+                    director
+                        .world_mut()
+                        .track_request_function(entity, EntityId::new(uid));
                     self.spawned.push((entity, uid));
                     self.spawned_level.insert(entity, request.level);
                 }
@@ -502,7 +506,7 @@ impl EntryScheduler {
         self.spawned.retain(|(entity, base)| {
             let complete = done_entity(entity);
             if complete {
-                done.push(*base);
+                done.push((*entity, *base));
             }
             !complete
         });
@@ -517,8 +521,11 @@ impl EntryScheduler {
         for object in finished_shared {
             director.world_mut().finish_shared_script(object);
         }
-        for base in done {
-            director.world_mut().complete_request(EntityId::new(base));
+        // A function the scene saw return has already restored its object's level.
+        for (entity, base) in done {
+            if director.world_mut().untrack_request_function(entity) {
+                director.world_mut().complete_request(EntityId::new(base));
+            }
         }
         for (entity, entry) in ready {
             let object = self
@@ -1214,6 +1221,47 @@ mod tests {
             "the shared script still runs after ENDSEQ"
         );
         assert!(!director.world().shared_script_active(EntityId::new(0)));
+    }
+
+    /// `EventEngine.Return` (EventEngine.cs:1127-1160) restores the object's level the moment
+    /// its requested function returns, so an object later in the same frame can request it
+    /// again. Crystal World 2926: after battle 936 the player's level-0 function 14 returns and
+    /// Kuja's `REQ 2 8 22` in the same frame gives the player control; the request was dropped
+    /// while the object's level stayed 0 until the end of the frame.
+    #[test]
+    fn a_request_returned_earlier_in_the_frame_frees_its_object() {
+        // Entry 0 tag 10: REQ level 0, object 1, tag 5; return.
+        let main = decode_program(&[0x10, 0, 0, 1, 5, 4]).unwrap();
+        // Entry 1 tag 5 returns at once; tag 6 adds 1 to Map.Byte[0].
+        let quick = decode_program(&[4]).unwrap();
+        let count = decode_program(&[5, 0xd5, 0, 126, 1, 0, 0, 0, 50, 127, 4]).unwrap();
+        // Entry 2 tag 1: REQ level 2, object 1, tag 6; return.
+        let asker = decode_program(&[0x10, 0, 2, 1, 6, 4]).unwrap();
+        let pool: Pool = vec![
+            vec![(10, main)],
+            vec![(5, quick), (6, count)],
+            vec![(1, asker)],
+        ];
+        let mut director = new_director(FieldWorld::new(), &pool, 0);
+        let mut scheduler = EntryScheduler::default();
+        register(&mut director, &pool, 0, Some(10)).unwrap();
+        for frame in 0..4 {
+            if frame == 1 {
+                // Object 2 asks in the frame where object 1's level-0 function returns.
+                register(&mut director, &pool, 2, Some(1)).unwrap();
+            }
+            let step = director.step().unwrap();
+            scheduler
+                .run_step_scripts(&mut director, &pool, &step)
+                .unwrap();
+            scheduler.settle(&mut director, &pool).unwrap();
+        }
+        let counter = director
+            .world()
+            .map_memory
+            .get(0, tantalus_legacy::VariableType::Byte);
+        assert_eq!(counter, Some(1), "object 1 took the level-2 request");
+        assert_eq!(director.world().object_level(EntityId::new(1)), 7);
     }
 
     /// `DRET` (ReturnEntryFunctions, 0x97) restarts the target object's loop from its top

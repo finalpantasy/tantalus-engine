@@ -759,6 +759,10 @@ pub struct FieldWorld {
     /// Requested functions still running, per target object: the script
     /// level of each call (`Obj.level` is the lowest, the running one).
     pending_requests: BTreeMap<EntityId, Vec<i32>>,
+    /// Running requested functions (function key) and the object each was requested on, so
+    /// that a function's return restores its object's level within the frame (runtime-only).
+    #[serde(skip)]
+    request_functions: BTreeMap<EntityId, EntityId>,
     /// Entries `InitObject` created an object for this field (runtime-only).
     #[serde(skip)]
     object_inits: BTreeSet<u8>,
@@ -1167,6 +1171,7 @@ impl FieldWorld {
             dialog_signals: BTreeMap::new(),
             pending_signals: std::collections::VecDeque::new(),
             pending_requests: BTreeMap::new(),
+            request_functions: BTreeMap::new(),
             object_inits: BTreeSet::new(),
             uncreated: BTreeSet::new(),
             instance_sources: BTreeMap::new(),
@@ -1346,6 +1351,7 @@ impl FieldWorld {
         self.window_texts.clear();
         self.window_speakers.clear();
         self.pending_requests.clear();
+        self.request_functions.clear();
         self.choice_mask = -1;
         self.object_inits.clear();
         self.uncreated.clear();
@@ -1576,6 +1582,31 @@ impl FieldWorld {
                 self.pending_requests.remove(&entity);
             }
         }
+    }
+
+    /// `function` runs a request made on `object`.
+    pub fn track_request_function(&mut self, function: EntityId, object: EntityId) {
+        self.request_functions.insert(function, object);
+    }
+
+    /// The requested `function` returned. `EventEngine.Return` (EventEngine.cs:1127-1160) pops
+    /// the call at once and restores the object's level, so an object later in the same frame's
+    /// `ObjList` pass can request it again (Crystal World 2926: after battle 936 the player's
+    /// level-0 function 14 returns, and Kuja's `REQ 2 8 22` in the same frame then gives the
+    /// player control). `true` when the request was still pending.
+    pub fn return_request_function(&mut self, function: EntityId) -> bool {
+        match self.request_functions.remove(&function) {
+            Some(object) => {
+                self.complete_request(object);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// The requested `function` stopped without a `Return` (`DRET`, a dropped entry).
+    pub fn untrack_request_function(&mut self, function: EntityId) -> bool {
+        self.request_functions.remove(&function).is_some()
     }
 
     /// `DRET`: every requested function of `entity` returned at once.
