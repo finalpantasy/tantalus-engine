@@ -28,7 +28,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use tantalus_contracts::{EngineError, EntityId, ErrorCategory, Tick};
-use tantalus_legacy::{EventProgram, EventVm, LegacyEventHost, VmError, VmStatus, VmStepReport};
+use tantalus_legacy::{
+    EventProgram, EventVm, HostEvent, LegacyEventHost, VmError, VmStatus, VmStepReport,
+};
 
 #[derive(Debug)]
 pub struct FieldScene {
@@ -198,6 +200,10 @@ impl FieldScene {
         {
             self.battle_end = None;
         }
+        // Objects whose shared script a `STARTSEQ` or `ENDSEQ` disposed this
+        // tick: `DisposeObj` unlinks the old `Seq` at once, so it does not
+        // run later in the same pass (EventEngine.DoEventCode.cs:1371-1410).
+        let mut disposed_shared: Vec<EntityId> = Vec::new();
         for entity in self.run_order() {
             if self.suspended.contains(&entity) {
                 continue;
@@ -205,6 +211,13 @@ impl FieldScene {
             let Some(vm) = self.entries.get_mut(&entity) else {
                 continue;
             };
+            if vm.own_object().is_some()
+                && vm
+                    .entity()
+                    .is_some_and(|object| disposed_shared.contains(&object))
+            {
+                continue;
+            }
             if self.battle_end.is_some_and(|key| key != entity)
                 && vm.entity() != Some(EntityId::new(0))
             {
@@ -221,6 +234,12 @@ impl FieldScene {
             let report = vm
                 .step(tick, host)
                 .map_err(|error| FieldError { entity, error })?;
+            disposed_shared.extend(report.events.iter().filter_map(|event| match event {
+                HostEvent::RunSharedScript { actor, .. } | HostEvent::EndSharedScript { actor } => {
+                    Some(*actor)
+                }
+                _ => None,
+            }));
             reports.push(FieldStep { entity, report });
         }
         Ok(reports)

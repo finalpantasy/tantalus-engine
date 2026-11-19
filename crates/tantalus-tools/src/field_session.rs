@@ -333,9 +333,21 @@ impl EntryScheduler {
         pool: &Pool,
         step: &DirectorStep,
     ) -> Result<(), String> {
+        // ENDSEQ: the object's shared script is disposed
+        // (EventEngine.DoEventCode.cs:1405).
+        for object in &step.ended_shared_scripts {
+            let key = EntityId::new(SHARED_SCRIPT_KEY + object.get());
+            if self.shared_running.remove(&key).is_some() {
+                director.remove_entry(key);
+            }
+        }
         // STARTSEQ: a new shared script replaces the object's previous one
         // (`DisposeObj` of uid + UID_OFFSET_SEQ).
         for (object, entry) in &step.shared_scripts {
+            // An `ENDSEQ` later in the same tick already disposed it.
+            if !director.world().shared_script_active(*object) {
+                continue;
+            }
             let Ok(entry) = usize::try_from(*entry) else {
                 continue;
             };
@@ -1109,6 +1121,41 @@ mod tests {
         assert_eq!(status(&director, reply), VmStatus::Completed);
         assert_eq!(status(&director, replying), VmStatus::Completed);
         assert_eq!(status(&director, asking), VmStatus::Completed);
+    }
+
+    /// `ENDSEQ` (0x45) disposes the calling object's shared script
+    /// (EventEngine.DoEventCode.cs:1405), so a `WAITSEQ` after it goes on at once. Gulug 2363
+    /// at 9950: entry 46's function 15 ends its glow loop (entry 8) after the battle; while the
+    /// loop kept running it reset `Map.Byte[34]`, which entry 35 and entry 41's countdown also
+    /// use, and the countdown never reached 0.
+    #[test]
+    fn end_shared_script_stops_the_object_s_shared_script() {
+        // Entry 0 tag 10: STARTSEQ entry 1, wait 5, ENDSEQ, WAITSEQ, return.
+        // Entry 1 (the shared script): wait 1 and jump back, forever.
+        let caller = decode_program(&[0x43, 0, 1, 0x22, 0, 5, 0x45, 0x44, 4]).unwrap();
+        let endless = decode_program(&[0x22, 0, 1, 0x01, 0xfa, 0xff]).unwrap();
+        let pool: Pool = vec![vec![(10, caller)], vec![(0, endless)]];
+        let mut director = new_director(FieldWorld::new(), &pool, 0);
+        let mut scheduler = EntryScheduler::default();
+        let calling = function_entity(&pool, 0, 10).unwrap();
+        let shared = EntityId::new(SHARED_SCRIPT_KEY);
+        register(&mut director, &pool, 0, Some(10)).unwrap();
+        let mut shared_seen = false;
+        for _ in 0..30 {
+            let step = director.step().unwrap();
+            scheduler
+                .run_step_scripts(&mut director, &pool, &step)
+                .unwrap();
+            scheduler.settle(&mut director, &pool).unwrap();
+            shared_seen |= director.entry_states().iter().any(|(e, ..)| *e == shared);
+        }
+        assert!(shared_seen, "the shared script started");
+        assert_eq!(status(&director, calling), VmStatus::Completed);
+        assert!(
+            !director.entry_states().iter().any(|(e, ..)| *e == shared),
+            "the shared script still runs after ENDSEQ"
+        );
+        assert!(!director.world().shared_script_active(EntityId::new(0)));
     }
 
     #[test]

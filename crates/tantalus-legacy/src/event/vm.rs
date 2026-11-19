@@ -2873,7 +2873,11 @@ impl EventVm {
                         ));
                     };
                     self.pc = next;
-                    events.push(HostEvent::EndSharedScript { actor });
+                    // In a shared script `gExec` is the `Seq` itself, whose
+                    // uid + UID_OFFSET_SEQ names no shared script: nothing ends.
+                    if self.own_object.is_none() {
+                        events.push(HostEvent::EndSharedScript { actor });
+                    }
                 }
                 InstructionKind::SetMenuControl { enabled, .. } => {
                     self.pc = next;

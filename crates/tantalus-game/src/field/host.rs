@@ -1410,6 +1410,12 @@ impl LegacyEventHost for FieldHost<'_> {
                 HostEvent::RunSharedScript { actor, .. } => {
                     self.world.start_shared_script(*actor);
                 }
+                // `ENDSEQ` disposes the object's shared script at once, so a
+                // `WAITSEQ` after it does not wait
+                // (EventEngine.DoEventCode.cs:1398-1410).
+                HostEvent::EndSharedScript { actor } => {
+                    self.world.finish_shared_script(*actor);
+                }
                 HostEvent::EnableDialogChoices { choices, .. } => {
                     // `CHOOSEPARAM` -> `ETb.SetChooseParam` (EventEngine.DoEventCode.cs).
                     self.world.choice_mask = *choices;

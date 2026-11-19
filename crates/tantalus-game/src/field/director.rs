@@ -48,6 +48,11 @@ pub struct DirectorStep {
     /// script when it returns.
     #[serde(default)]
     pub shared_scripts: Vec<(EntityId, i32)>,
+    /// `ENDSEQ` (StopSharedScript) this tick: the objects whose shared
+    /// script the caller disposes (`DisposeObj` of uid + UID_OFFSET_SEQ,
+    /// EventEngine.DoEventCode.cs:1405).
+    #[serde(default)]
+    pub ended_shared_scripts: Vec<EntityId>,
     /// Entries created this tick by `NEW`/`NEW2`/`NEW3` (InitializeCode,
     /// InitializeRegion, InitializeObject), in order. The reference starts
     /// only entry 0 at field load; every other object starts its init
@@ -312,6 +317,14 @@ impl FieldDirector {
                 _ => None,
             })
             .collect();
+        let ended_shared_scripts = steps
+            .iter()
+            .flat_map(|step| step.report.events.iter())
+            .filter_map(|event| match event {
+                HostEvent::EndSharedScript { actor } => Some(*actor),
+                _ => None,
+            })
+            .collect();
         let returned: Vec<EntityId> = steps
             .iter()
             .flat_map(|step| step.report.events.iter())
@@ -357,6 +370,7 @@ impl FieldDirector {
             talk_triggers,
             region_occupancy,
             shared_scripts,
+            ended_shared_scripts,
             initialized,
             instances,
             returned,
