@@ -27,6 +27,10 @@ pub struct EventVm {
     request_target: Option<EntityId>,
     /// Script level of the `REQEW` request being waited for.
     request_level: i32,
+    /// uid of the object whose request started this function
+    /// (`EventEngine.getSender`): the `REPLY` family (0x16, 0x18, 0x1A)
+    /// requests a function of that object.
+    sender: Option<EntityId>,
     pc: u32,
     variables: BTreeMap<(VariableScope, u16), i32>,
     expression_value: i32,
@@ -44,6 +48,7 @@ impl EventVm {
             own_object: None,
             request_target: None,
             request_level: i32::MAX,
+            sender: None,
             pc: 0,
             variables: BTreeMap::new(),
             expression_value: 0,
@@ -122,6 +127,12 @@ impl EventVm {
 
     /// Names the object `DELETE` disposes for this function when it is not
     /// `entity` (shared scripts).
+    /// The requesting object's uid, for `REPLY` (`EventEngine.Call` stores the
+    /// caller's uid in the pushed frame, `getSender` reads it back).
+    pub fn set_sender(&mut self, sender: Option<EntityId>) {
+        self.sender = sender;
+    }
+
     pub fn with_own_object(mut self, object: EntityId) -> Self {
         self.own_object = Some(object);
         self
@@ -1583,6 +1594,60 @@ impl EventVm {
                     let running = self.evaluate(host, &running, instruction.offset, opcode)? != 0;
                     self.pc = next;
                     events.push(HostEvent::SetTimerRunning { running });
+                }
+                // `REPLY` (DoEventCode.cs:235): `Request(getSender(gExec), level, tag, false)`,
+                // the `REQ` path aimed at the object that requested this function.
+                InstructionKind::RequestCallerAsync { level, tag } if self.sender.is_some() => {
+                    let level = self.evaluate(host, &level, instruction.offset, opcode)?;
+                    let target = self.sender.expect("guarded");
+                    self.pc = next;
+                    if host.async_request_accepted(target, level) {
+                        events.push(HostEvent::RequestScriptAsync { level, target, tag });
+                        host.apply(&events[flushed..])
+                            .map_err(|error| VmError::host(error, self.pc, opcode))?;
+                        flushed = events.len();
+                    }
+                }
+                // `REPLYSW` (DoEventCode.cs:242): wait until the sender accepts the level.
+                InstructionKind::RequestCallerWhenReady { level, tag } if self.sender.is_some() => {
+                    let level = self.evaluate(host, &level, instruction.offset, opcode)?;
+                    let target = self.sender.expect("guarded");
+                    if host
+                        .script_request_acceptable(target, level)
+                        .map_err(|error| VmError::host(error, instruction.offset, opcode))?
+                    {
+                        self.pc = next;
+                        events.push(HostEvent::RequestScriptAsync { level, target, tag });
+                        host.apply(&events[flushed..])
+                            .map_err(|error| VmError::host(error, self.pc, opcode))?;
+                        flushed = events.len();
+                    } else {
+                        self.wait = Some(WaitState::ScriptReadiness { level, target, tag });
+                        self.status = VmStatus::Waiting;
+                    }
+                }
+                // `REPLYEW` (DoEventCode.cs:256): the `REQEW` path on the sender; wait for the
+                // function to return, or stay while the sender is busy.
+                InstructionKind::RequestCallerSync { level, tag } if self.sender.is_some() => {
+                    let level = self.evaluate(host, &level, instruction.offset, opcode)?;
+                    let target = self.sender.expect("guarded");
+                    if host
+                        .script_request_acceptable(target, level)
+                        .map_err(|error| VmError::host(error, instruction.offset, opcode))?
+                    {
+                        self.pc = next;
+                        self.wait = Some(WaitState::ScriptRequest);
+                        self.request_target = Some(target);
+                        self.request_level = level;
+                        self.status = VmStatus::Waiting;
+                        events.push(HostEvent::RequestScriptSync { level, target, tag });
+                        host.apply(&events[flushed..])
+                            .map_err(|error| VmError::host(error, self.pc, opcode))?;
+                        flushed = events.len();
+                    } else {
+                        self.pc = instruction.offset;
+                        break;
+                    }
                 }
                 InstructionKind::RequestCallerAsync { level, tag } => {
                     let level = self.evaluate(host, &level, instruction.offset, opcode)?;

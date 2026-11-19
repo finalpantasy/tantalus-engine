@@ -167,6 +167,18 @@ impl FieldScene {
         Ok(())
     }
 
+    /// The object a function key's VM acts on.
+    pub fn entry_object(&self, entity: EntityId) -> Option<EntityId> {
+        self.entries.get(&entity).and_then(EventVm::entity)
+    }
+
+    /// Record the requester's uid on a requested function (`EventEngine.Call`).
+    pub fn set_sender(&mut self, entity: EntityId, sender: Option<EntityId>) {
+        if let Some(vm) = self.entries.get_mut(&entity) {
+            vm.set_sender(sender);
+        }
+    }
+
     /// Drop an entry's VM (for re-running a finished function from its start).
     pub fn remove_entry(&mut self, entity: EntityId) -> Option<EventVm> {
         self.entries.remove(&entity)

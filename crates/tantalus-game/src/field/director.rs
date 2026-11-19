@@ -22,6 +22,9 @@ pub struct RequestedScript {
     pub target: EntityId,
     pub tag: u8,
     pub synchronous: bool,
+    /// uid of the requesting object (`EventEngine.Call` keeps it for `getSender`).
+    #[serde(default)]
+    pub sender: Option<EntityId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -156,6 +159,11 @@ impl FieldDirector {
         self.scene.begin_battle_end(key);
     }
 
+    /// Record the requester's uid on a requested function (`REPLY` targets it).
+    pub fn set_sender(&mut self, entity: EntityId, sender: Option<EntityId>) {
+        self.scene.set_sender(entity, sender);
+    }
+
     pub fn set_suspended(&mut self, entity: EntityId, suspended: bool) {
         self.scene.set_suspended(entity, suspended);
     }
@@ -274,14 +282,24 @@ impl FieldDirector {
             .sum();
         let requests = steps
             .iter()
-            .flat_map(|step| step.report.events.iter())
-            .filter_map(|event| match event {
+            .flat_map(|step| {
+                // An object without a uid answers to its own id (`local_uid`).
+                let sender = self.scene.entry_object(step.entity).map(|object| {
+                    self.world
+                        .uid_of(object)
+                        .and_then(|uid| u64::try_from(uid).ok())
+                        .map_or(object, EntityId::new)
+                });
+                step.report.events.iter().map(move |event| (sender, event))
+            })
+            .filter_map(|(sender, event)| match event {
                 HostEvent::RequestScriptAsync { level, target, tag }
                 | HostEvent::RequestScriptSync { level, target, tag } => Some(RequestedScript {
                     level: *level,
                     target: *target,
                     tag: *tag,
                     synchronous: matches!(event, HostEvent::RequestScriptSync { .. }),
+                    sender,
                 }),
                 _ => None,
             })

@@ -392,6 +392,7 @@ impl EntryScheduler {
                     if object.get() != target as u64 {
                         self.object_of.insert(entity, object);
                     }
+                    director.set_sender(entity, request.sender);
                     self.spawned.push((entity, uid));
                     self.spawned_level.insert(entity, request.level);
                 }
@@ -968,12 +969,14 @@ mod tests {
                 target: EntityId::new(0),
                 tag: 18,
                 synchronous: false,
+                sender: None,
             },
             tantalus_game::RequestedScript {
                 level: 4,
                 target: EntityId::new(0),
                 tag: 19,
                 synchronous: false,
+                sender: None,
             },
         ];
         scheduler
@@ -999,6 +1002,37 @@ mod tests {
             older_done_at > newer_done_at,
             "level 6 finished at {older_done_at} before level 4 at {newer_done_at}"
         );
+    }
+
+    /// `EventEngine.Call` saves the idle loop's `ip` while a requested function runs (2207 at
+    /// 9840: the pad's glow and its idle loop share `Instance.Byte[0]`): the loop does not advance
+    /// until the request returns.
+    #[test]
+    fn a_reply_runs_the_requesting_object_s_function() {
+        // Entry 0 tag 10: REQEW level 6, entry 1, tag 11. Entry 1 tag 11: REPLYEW level 2,
+        // tag 12. Entry 0 tag 12: wait 5 frames.
+        let reqew = decode_program(&[0x14, 0, 6, 1, 11, 4]).unwrap();
+        let replyew = decode_program(&[0x1a, 0, 2, 12, 4]).unwrap();
+        let pool: Pool = vec![
+            vec![(10, reqew), (12, wait_program(5))],
+            vec![(11, replyew)],
+        ];
+        let mut director = new_director(FieldWorld::new(), &pool, 0);
+        let mut scheduler = EntryScheduler::default();
+        let asking = function_entity(&pool, 0, 10).unwrap();
+        let reply = function_entity(&pool, 0, 12).unwrap();
+        let replying = function_entity(&pool, 1, 11).unwrap();
+        register(&mut director, &pool, 0, Some(10)).unwrap();
+        for _ in 0..30 {
+            let step = director.step().unwrap();
+            scheduler
+                .run_step_scripts(&mut director, &pool, &step)
+                .unwrap();
+            scheduler.settle(&mut director, &pool).unwrap();
+        }
+        assert_eq!(status(&director, reply), VmStatus::Completed);
+        assert_eq!(status(&director, replying), VmStatus::Completed);
+        assert_eq!(status(&director, asking), VmStatus::Completed);
     }
 
     #[test]

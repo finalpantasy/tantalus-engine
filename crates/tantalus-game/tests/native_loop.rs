@@ -123,6 +123,7 @@ fn director_step_surfaces_script_requests_for_orchestration() {
             target: EntityId::new(2),
             tag: 5,
             synchronous: false,
+            sender: Some(EntityId::new(0)),
         }]
     );
     // The host recorded the pending request under the target entity.
@@ -153,6 +154,7 @@ fn request_orchestration_cycle_spawns_completes_and_clears() {
             target: EntityId::new(1),
             tag: 7,
             synchronous: false,
+            sender: Some(EntityId::new(0)),
         }]
     );
     assert!(director.world().request_pending(EntityId::new(1)));
