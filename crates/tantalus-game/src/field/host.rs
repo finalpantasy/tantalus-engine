@@ -1484,6 +1484,8 @@ impl LegacyEventHost for FieldHost<'_> {
                         if *enable_leveling {
                             self.world.join_with_leveling(character);
                         }
+                        // `FF9FEqp_UpdateSA`: the new gear may drop an ability.
+                        self.world.refresh_support(character);
                     }
                 }
                 HostEvent::SetPlayerName { character, text } => {

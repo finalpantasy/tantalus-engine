@@ -184,6 +184,10 @@ impl PlayData {
                 &lossy("CharacterParameters.csv")?,
             )?,
         ));
+        // `JOIN`'s `FF9FEqp_UpdateSA` reads the item and ability tables.
+        new_game.support_refresh = Some(crate::ability_menu::support_refresh(std::sync::Arc::new(
+            menu.clone(),
+        )));
         let shops = crate::shop_menu::ShopTables::load(memoria)?;
         new_game.items = tantalus_game::new_game::parse_initial_items(&read_text(
             &characters.join("../Items/InitialItems.csv"),

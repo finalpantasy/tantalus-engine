@@ -39,7 +39,7 @@ fn main() -> ExitCode {
 
 const USAGE: &str = "usage: tantalus-trace disasm --bundle <path> --event <name>.eb [--entry N]
        tantalus-trace fight --bundle <path> --battles <battle-scene-ids.tsv> --character-data <dir> --battle N [--party 0,9,10] [--level N] [--globals SCENARIO:TRANCE:DEPRESS] [--items ID:COUNT,...] [--hp CHARACTER:HP,...] [--roll 0-99]
-       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY[@SCENARIO],...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP[@ANGLE][#SCENARIO],...] [--wall-regions MAP,...] [--tour MAP,...] [--push-objects MAP,...] [--play-card-games] [--win-card-games] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--stub-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--region-points MAP:ENTRY@X:Z,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
+       tantalus-trace chain --bundle <path> --event-db <FF9DBAll.Events.cs> --atan-table <path> [--start N] [--max-fields N] [--ticks N] [--confirm-after N] [--explore] [--walk-demo] [--character-data <Data/Characters dir>] [--item-table <Assembly-CSharp.dll>] [--game-data <FF9_Data dir> --mes-map <EventEngineUtils.cs> [--language us]] [--choices MAP:TEXT=N[@SCENARIO],...] [--route MAP>DEST[@SCENARIO],...] [--skip-talk MAP:ENTRY[@SCENARIO],...] [--retalk MAP:ENTRY,...] [--ate MAP:PRESSES,...] [--region-talks MAP[@ANGLE][#SCENARIO],...] [--wall-regions MAP,...] [--tour MAP,...] [--push-objects MAP,...] [--play-card-games] [--win-card-games] [--gil N] [--settle TICKS] [--talk-grace TICKS] [--heal-after-battle] [--live-objects] [--stub-objects] [--win-battles N,...] [--dwell TICKS] [--waypoint-objects MAP:UID,...] [--hold MAP:MASK,...] [--pan MAP@X:Y/X:Y,...] [--waypoints MAP@X:Z/X:Z,...] [--region-points MAP:ENTRY@X:Z,...] [--region-order MAP:ENTRY/ENTRY/...,...] [--battles <battle-scene-ids.tsv>] [--world-exits WORLD:LOCATION[@SCENARIO],...] [--actor-track <dir>]";
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut iter = args.into_iter();
@@ -105,6 +105,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut battle_ids: Option<PathBuf> = None;
     let mut waypoints: BTreeMap<i32, Vec<[f32; 2]>> = BTreeMap::new();
     let mut region_points: BTreeMap<(i32, usize), [f32; 2]> = BTreeMap::new();
+    let mut region_order: BTreeMap<i32, Vec<usize>> = BTreeMap::new();
     let mut save_at: BTreeMap<i32, (PathBuf, i32)> = BTreeMap::new();
     let mut load_world: Option<PathBuf> = None;
     let mut load_save: Option<PathBuf> = None;
@@ -510,6 +511,18 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     );
                 }
             }
+            "--region-order" => {
+                for part in value()?.split(',') {
+                    let bad =
+                        || format!("bad --region-order entry `{part}`, want MAP:ENTRY/ENTRY/...");
+                    let (map, list) = part.trim().split_once(':').ok_or_else(bad)?;
+                    let list = list
+                        .split('/')
+                        .map(|entry| entry.trim().parse().map_err(|_| bad()))
+                        .collect::<Result<Vec<usize>, _>>()?;
+                    region_order.insert(map.parse().map_err(|_| bad())?, list);
+                }
+            }
             "--confirm-after" => confirm_after = parse_number(&value()?, "--confirm-after")?,
             "--battle" => fight_battle = Some(parse_number(&value()?, "--battle")?),
             "--roll" => fight_roll = parse_number(&value()?, "--roll")?,
@@ -807,6 +820,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     backgrounds,
                     waypoints,
                     region_points,
+                    region_order,
                     save_at,
                     load_world,
                     load_save: load_save.map(|path| (path, save_slot)),
@@ -1478,6 +1492,11 @@ struct ChainOptions {
     /// map and region entry, in place of a point at its centre: map 2510's region 15
     /// tests the player's height, which only the upper half of its ramp passes.
     region_points: BTreeMap<(i32, usize), [f32; 2]>,
+    /// Regions the scripted player enters in this order before anything else
+    /// (`--region-order`), by field map; the next one is taken once the last one
+    /// took control. The Black Mage Village forest (1463) repeats one screen and
+    /// only the right regions in the right order (9, 9, 8, 9) lead on.
+    region_order: BTreeMap<i32, Vec<usize>>,
     /// Worlds to write when the chain enters a map (`--save-at`).
     save_at: BTreeMap<i32, (PathBuf, i32)>,
     /// A world written by `--save-at`, to continue from.
@@ -1597,6 +1616,7 @@ fn chain(
         backgrounds,
         waypoints,
         region_points,
+        region_order,
         save_at,
         load_world,
         load_save,
@@ -1803,22 +1823,31 @@ fn chain(
     }
     let mut world_exits_used = vec![false; world_exits.len()];
     let mut saved_maps: BTreeSet<i32> = BTreeSet::new();
-    // `--auto-gear`: the item and shop tables under the Memoria data root.
-    let gear_tables = match (&characters, auto_gear) {
-        (Some(dir), true) => {
-            let root = dir.join("../../../..");
-            let tables = tantalus_tools::field_menu::MenuTables::load(
-                &root,
+    // The item and ability tables under the Memoria data root: `JOIN`'s
+    // `FF9FEqp_UpdateSA` and `--auto-gear` (with the shop tables).
+    let menu_tables = match &characters {
+        Some(dir) => {
+            let tables = std::sync::Arc::new(tantalus_tools::field_menu::MenuTables::load(
+                &dir.join("../../../.."),
                 Default::default(),
                 Vec::new(),
                 Default::default(),
                 Default::default(),
                 Default::default(),
-            )?;
-            let stock = tantalus_tools::shop_menu::ShopTables::load(&root)?;
-            Some((tables.db, stock.shops))
+            )?);
+            world.support_refresh = Some(tantalus_tools::ability_menu::support_refresh(
+                tables.clone(),
+            ));
+            Some(tables)
         }
-        (None, true) => return Err("--auto-gear needs --character-data".into()),
+        None => None,
+    };
+    let gear_tables = match (&characters, &menu_tables, auto_gear) {
+        (Some(dir), Some(tables), true) => {
+            let stock = tantalus_tools::shop_menu::ShopTables::load(&dir.join("../../../.."))?;
+            Some((tables.db.clone(), stock.shops))
+        }
+        (_, _, true) => return Err("--auto-gear needs --character-data".into()),
         _ => None,
     };
     let mut shopped: BTreeSet<i32> = BTreeSet::new();
@@ -2067,6 +2096,8 @@ fn chain(
         let mut texts_shown: Vec<(u64, u16)> = Vec::new();
         let mut last_texts: BTreeMap<u8, u16> = BTreeMap::new();
         let mut last_control = director.world().user_control;
+        let field_region_order = region_order.get(&map).cloned().unwrap_or_default();
+        let mut region_order_index = 0usize;
         let mut track = match &actor_track {
             Some(dir) => {
                 let path = dir.join(format!("{field_number:03}_{map}.jsonl"));
@@ -2147,6 +2178,19 @@ fn chain(
             if control != last_control {
                 let stage = director.world().map_memory.bytes()[24];
                 control_changes.push((ticks_run, control, stage));
+                // `--region-order`: the region the player stands in took control.
+                if !control
+                    && let Some(entry) = field_region_order.get(region_order_index)
+                    && let Some(region) =
+                        director.world().regions.get(&EntityId::new(*entry as u64))
+                    && let Some(state) = director
+                        .world()
+                        .control_actor
+                        .and_then(|actor| director.world().actors.get(&actor))
+                    && region.contains(state.position[0], state.position[2])
+                {
+                    region_order_index += 1;
+                }
                 last_control = control;
             }
             if walk_demo {
@@ -2669,9 +2713,12 @@ fn chain(
                             .map(|(entry, _)| entry)
                     };
                     let chosen_exit = pick_exit(true).or_else(|| pick_exit(false));
+                    let ordered_entry = field_region_order.get(region_order_index).copied();
                     let has_tag2 = |region: &EntityId| {
                         let entry = region.get() as usize;
-                        let routed = !exits.contains_key(&entry) || chosen_exit == Some(entry);
+                        let routed = !exits.contains_key(&entry)
+                            || chosen_exit == Some(entry)
+                            || ordered_entry == Some(entry);
                         routed && entry < pool.len() && pool[entry].iter().any(|(tag, _)| *tag == 2)
                     };
                     let hit = tantalus_game::field::region::regions_at(
@@ -2765,7 +2812,19 @@ fn chain(
                             &apart,
                         )
                     });
-                    let next = pending_region(false)
+                    let ordered = field_region_order
+                        .get(region_order_index)
+                        .and_then(|entry| {
+                            let region = world.regions.get(&EntityId::new(*entry as u64))?;
+                            Some(
+                                region_points
+                                    .get(&(map, *entry))
+                                    .copied()
+                                    .unwrap_or_else(|| inside_point(region)),
+                            )
+                        });
+                    let next = ordered
+                        .or_else(|| pending_region(false))
                         .or(pending_talk.map(|(_, at)| at))
                         .or(waypoint)
                         .or(avoid_target)
@@ -2788,8 +2847,11 @@ fn chain(
                             tour_index += 1;
                         }
                     }
-                    let talking = pending_region(false).is_none() && talk_target.is_some();
-                    let walking = pending_region(false).is_none()
+                    let talking = ordered.is_none()
+                        && pending_region(false).is_none()
+                        && talk_target.is_some();
+                    let walking = ordered.is_none()
+                        && pending_region(false).is_none()
                         && talk_target.is_none()
                         && waypoint.is_some();
                     // A player leaving through an exit walks toward it, so

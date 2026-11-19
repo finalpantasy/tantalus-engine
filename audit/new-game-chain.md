@@ -841,6 +841,18 @@ Result (story31): fifteen segments. The chain now leaves Cleyra, passes the Red 
 - Segment 14 goes on from Lindblum (1352, 5690) with the story16 inputs: `--world-exits 9000:22` (Qu's Marsh 650), `652:90=11`, `--route 660>655`, then 662 > 663 > Fossil Roo 1422 (5900) > 1423 > 1424. Battle 83 (`BSC_FR_E033`, Lani, 15708 HP) is lost: `--win-battles` in segment 15. Segment 15 also forces 102 (`BSC_FR_R008`, a Fossil Roo random battle of four 619 HP enemies, lost in 1411); the route's party (Zidane, Garnet, Vivi, Quina) is far below the story16 probe, which ran with `--start-exp 3000000`.
 - Open: segment 15 circles the Fossil Roo maze at 5900 (1409, 1413, 1416, 1420 for 120 fields, 54 random battles, all won) and never takes the way out (1420 > 1409 (SL5) > 1404 > 1425). Next: the 1420 switches and the SL5 ride; the route aids are in the Fossil Roo notes above.
 
+Result (story32): eighteen segments. The chain leaves Fossil Roo, passes Conde Petie, the Black Mage Village forest and village, the Mountain Path, Madain Sari and the Iifa Tree, and crosses the disc 2 to disc 3 change (1800 > 1812, 6990, saved as `w18.json`); segment 18 runs on into disc 3 Alexandria and stops at 1806 at 7060 (the explorer artifact story18 cleared with `--wall-regions 1806`). No engine fault was found on the way; the fixes are route input and one explorer option. One engine gap from battle10 is closed:
+
+- `JOIN` now runs `ff9feqp.FF9FEqp_UpdateSA` after `FF9Play_Change` (EventEngine.DoEventCode.cs, JOIN): an enabled support ability that no equipped item grants and that is not learned is switched off, and HP+/MP+ maximums follow (`FieldWorld::refresh_support`, a runtime provider the tools fill with `ability_menu::support_refresh`, which runs the existing `update_sa` port). Test: `ability_menu::tests::join_drops_a_support_ability_the_new_gear_does_not_grant`. The route has no support ability switched on, so the chain does not move.
+- Fossil Roo maze (segment 15) was route input. The SL5 ride (1409) ends in 1404 (MV5), whose ride script branches on global bit 3236: set, it writes global byte 408 = 4 and MV5's main `JumpSwitch` (base 2, cases 2 to 6) changes to 1425, the exit; clear, 408 = 6 sends it to 1417, back into the maze. Bit 3236 is Switch No. 1 in 1420 (DN3 region 12, a tag 3 region, text 221, choice 0 flips the bit). The switches and rails behave as the scripts say; the explorer never pressed region 12. `--region-talks 1420` gives 1420 > 1409 > 1404 > 1425 (5990) > world 9003 place 33 > Conde Petie.
+- Conde Petie at 6130 sends the party to the Black Mage Village (world place 31, the forest 1463 at 6170). 1463 repeats one screen: map byte 24 is the stage, regions 7, 8, 9 and 11 run `ExitField` and the field reloads; region 9 raises the stage at 1 and 2, region 8 at 3, region 9 at 4 changes to 1464, region 7 lowers it. The explorer jumped into region 8 (not an exit) on every reload. New trace option `--region-order MAP:ENTRY/ENTRY/...`: the explorer enters the listed regions first, in order, and takes the next once the region it stands in took control; an exit region in the list counts as routed. `--region-order 1463:9/9/8/9`.
+- Black Mage Village: 1451's region 11 (initialized below 6208 when global 236 has bit 2) sets 6207 and leads to 1452; the explorer took region 7 to 1452. `--region-order 1451:11`. Then 6208, 6210, 6212 by themselves and world place 33 back to Conde Petie (6240).
+- Conde Petie at 6240 to 6270: `1500>1501@6240` (the explorer took the world map exit); 1505 sets 6250 (the wedding); `1505>1507@6250`: 1507's dwarf (entry 3, initialized only at 6250) starts the altar scene, whose fields hand on with `Global Int16 2 = -1` (1506 > 1505, which sets 6260, > 1509 > 1503 > 1504, which sets 6270). 1503's exit to 1504 is initialized only from 6270. Then the Mountain Path (1550, 6300) and Madain Sari (world place 34, 1600 at 6600).
+- Madain Sari to the disc change: the story17 inputs, plus the village loops as routes: `1600>1601@6800,1601>1602@6800,1602>1606@6800,1606>1607@6800,1607>1608@6800` (1608 sets 6810), `1603>1601@6840,...,1607>1608@6840` (6850) and `1757>1758@6910,1758>1657@6910` (6920). 1600 at 6690 goes straight to the world map and place 37 (the Iifa Tree, 1650).
+- Battles forced with `--win-battles` in the new segments: 83 (15: `BSC_FR_E033`, Lani), 107 (17: `BSC_CM_E051`, Ralvuimago, 8106 HP, taken to 3908) and 132 (18: `BSC_MS_E075`, Amarant, Zidane alone). 102 is won.
+- Open: segment 19 (disc 3 from 1812): the story18 inputs (`--wall-regions 1806` and the 7100 wharf route) and on.
+
+
 ```bash
 #!/bin/bash
 # Whole new game, fresh start to the ending, as one chain of segments (story28).
@@ -860,12 +872,26 @@ COMMON=(--bundle "$G/StreamingAssets/p0data7.bin"
   --character-data "$M/Memoria.Patcher/StreamingAssets/Data/Characters"
   --game-data "$G/x64/FF9_Data"
   --mes-map "$M/Assembly-CSharp/Global/Event/Engine/EventEngineUtils.cs"
-  --explore --confirm-after 30 --battles audit/battle-scene-ids.tsv)
+  --explore --confirm-after 30 --battles audit/battle-scene-ids.tsv
+  --auto-gear --shops "${SHOPS:-354:0,562:1,1055:5,1352:7}")
+# --auto-gear (battle10, trace stand-in): best owned weapon and armor on every field, and the
+# shops the route walks through sell better pieces: Dali 354 (shop 0), Lindblum 562 (1),
+# Cleyra 1055 (5), Lindblum castle 1352 (7), the field scripts' OpenMenu(2, shop).
 # seg N NAME START FROM_WORLD SAVE(MAP[@SC]) [trace args]: one process, under 590 s.
 seg() {
   local n=$1 name=$2 start=$3 from=$4 save=$5; shift 5
   [ "$n" -lt "$FIRST" ] || [ "$n" -gt "$LAST" ] && return 0
   local load=(); [ "$from" != - ] && load=(--load-world $R/$from.json)
+  # NOWIN=1: drop the segment's --win-battles (to see which fights the party now wins).
+  if [ -n "$NOWIN" ]; then
+    local args=() skip=0
+    for a in "$@"; do
+      [ $skip = 1 ] && { skip=0; continue; }
+      [ "$a" = --win-battles ] && { skip=1; continue; }
+      args+=("$a")
+    done
+    set -- "${args[@]}"
+  fi
   local t0=$(date +%s)
   timeout 590 nice "$T" chain "${COMMON[@]}" --start "$start" "${load[@]}" \
     --save-at "$save:$R/w$n.json" "$@" > $R/$n-$name.jsonl 2> $R/$n-$name.err
@@ -888,25 +914,31 @@ seg 1 newgame 70 - 301 --ticks 12000 --max-fields 150 --stub-objects \
   --skip-talk 103:8 --hold 115:16,207:16 --choices "$CH" \
   --waypoints '116@2000:-137/1400:-137/800:-137/-339:1000/-339:1800/-339:2500/1000:5000/2500:8000/3300:10800/3400:11000,154@-807:-5081' \
   --world-exits 9000:4
-# 2. 301 to Lindblum 565 at 3118 (audit/story-route.sh part 2).
+# 2. 301 to Lindblum 565 at 3118 (audit/story-route.sh part 2). Black Waltz No. 3 (296) is fought:
+#    its script ends the fight (result 5) once its HP is under the 10000 margin. Battle 21 (308,
+#    Zidane alone against the Black Mage and Sealion) is lost since random battles take their
+#    pattern by rate (battle9): the harder Ice Cavern patterns use up the Potions: --win-battles
+#    (battle10: no shop before it; Zidane at level 7 takes the Sealion to 128 of 472 HP).
 seg 2 lindblum 301 w1 563@3118 --ticks 12000 --max-fields 104 --stub-objects --route "301>302,563>566" \
   --skip-talk 103:8,455:1,455:2,455:4 --hold 115:16,207:16,307:16,404:96,504:16,557:16,565:16 \
   --ate 550:3,551:3,552:3,553:3,554:3,555:3,559:3,561:3,563:3 --region-talks 557 \
-  --choices "$CH,563:99=3" --world-exits 9011:14,9001:-1 --win-battles 296
+  --choices "$CH,563:99=3" --world-exits 9011:14,9001:-1 --win-battles 21
 # 3. Lindblum castle (air cab to 610), the hunt (606 telescope pan), to the Dragon's Gate 602 at 3700.
-#    601 text 91 choice 2: the lift to the base level (603).
-seg 3 hunt 563 w2 602@3700 --ticks 12000 --max-fields 90 --stub-objects   --route "613>612@3118,612>611@3118,619>617@3700,617>601@3700,601>620@3700,620>603@3700,603>602@3700"   --wall-regions 613 --pan 606@110:225/165:105/400:104/395:190/275:205/300:105 --region-talks 601@200   --ate 550:3,551:3,552:3,553:3,554:3,555:3,559:3,561:3 --hold 557:16,565:16   --choices "$CH,563:99=2,601:91=2" --win-battles 296
+#    601 text 91 choice 2: the lift to the base level (603). 24000 ticks: the hunt clock runs
+#    out on the field once the hunt battle is short (battle9).
+seg 3 hunt 563 w2 602@3700 --ticks 24000 --max-fields 90 --stub-objects   --route "613>612@3118,612>611@3118,619>617@3700,617>601@3700,601>620@3700,620>603@3700,603>602@3700"   --wall-regions 613 --pan 606@110:225/165:105/400:104/395:190/275:205/300:105 --region-talks 601@200   --ate 550:3,551:3,552:3,553:3,554:3,555:3,559:3,561:3 --hold 557:16,565:16   --choices "$CH,563:99=2,601:91=2"
 # 4. The Dragon's Gate to Gizamaluke's Grotto (world place 21 is 701 from 3700 on), to 706 at 3730.
 #    702: the dying soldier (entry 5) gives the bell; the door region (entry 8, tag 3) asks
 #    "Ring the bell" only once the bell is held, so both are talked to again (--retalk).
 #    705: Mogmi's Kupo Nut scene (story29 fix). 704: the bell on the floor (entry 13, an actor
 #    with a tag 2 push function) is at -81:256; ringing door 7 opens the moogle room 706.
-#    Battle 327 (BSC_GZ_R001, a random battle) is lost by the route's party: --win-battles.
+#    Battle 327 (BSC_GZ_R001, a random battle) is lost by the route's party (level 8, battle10
+#    --auto-gear): --win-battles.
 seg 4 gizamaluke 602 w3 706@3730 --ticks 12000 --max-fields 20 --stub-objects --heal-after-battle   --choices "*:3=6,*:4=1" --world-exits 9000:21 --region-talks 702 --retalk 702:5,702:8,704:7,704:13   --route "702>703" --win-battles 327 --waypoints 704@-81:256 --push-objects 704
 # 5. 706: Moguta gives the bell for the boss door (global bit 3818); door 8 of 704 leads to 707
 #    (Gizamaluke, battle 326, won). South Gate (801 soldiers are tag 3 regions; 813's seat fires
 #    past x 224, z -470), back through 707 to the world map; place 18 is Burmecia (750, 3800).
-seg 5 boss 706 w4 750 --ticks 12000 --max-fields 20 --stub-objects --heal-after-battle   --choices "*:3=6,*:4=1" --skip-talk 704:7 --win-battles 327 --region-talks 801 --wall-regions 801   --waypoints "813@400:-600" --world-exits 9000:18
+seg 5 boss 706 w4 750 --ticks 12000 --max-fields 20 --stub-objects --heal-after-battle   --choices "*:3=6,*:4=1" --skip-talk 704:7 --region-talks 801 --wall-regions 801   --waypoints "813@400:-600" --world-exits 9000:18
 # 6. Burmecia to the end of disc 1 (768, field 70's DISCCHANGE), disc 2 to Treno (908, 4400).
 #    755 from 3830: the scripts switch the fallen floor 3 off (EnablePath, story30 engine fix),
 #    so the player re-enters on floor 2 and reaches region 10 (to 756, height below 1500).
@@ -915,9 +947,10 @@ seg 6 burmecia 750 w5 908 --ticks 12000 --max-fields 60 --stub-objects --heal-af
 #    Dagger's auction scene (4430, 4435, PartyAdd 2) before Marcus's bar talk (900, 4442).
 #    Live objects (no --stub-objects): 914's trapdoor (region 8) and 953's lever (region 5)
 #    and 952's gargant stop are tag 3 regions (--region-talks); 914's region 10 (player tag
-#    31, never ends) is skipped. Battle 76 (BSC_GR_E017, Ralvurahva) is lost: --win-battles.
+#    31, never ends) is skipped. Battle 76 (BSC_GR_E017, Ralvurahva) is won since battle10
+#    (Lindblum and Summit Station gear, --auto-gear).
 #    Gargan Roo -> 1201 (4600) -> 769 -> world map; place 19 is Cleyra's trunk (1000).
-seg 7 treno 908 w6 1000 --ticks 12000 --max-fields 120 --heal-after-battle   --choices "*:3=6,*:4=1,903:110=1,903:113=6" --wall-regions 903 --region-talks 914#4470,953#4515,952#4520 --win-battles 76 --skip-talk 914:10 --hold 912:16 --route "903>904@4400,904>909@4420,908>905@4450,905>913@4450" --world-exits 9000:19
+seg 7 treno 908 w6 1000 --ticks 12000 --max-fields 120 --heal-after-battle   --choices "*:3=6,*:4=1,903:110=1,903:113=6" --wall-regions 903 --region-talks 914#4470,953#4515,952#4520 --skip-talk 914:10 --hold 912:16 --route "903>904@4400,904>909@4420,908>905@4450,905>913@4450" --world-exits 9000:19
 # 8. Cleyra (story20 probe inputs) on.
 seg 8 cleyra 1000 w7 1007 --region-talks 1006 --ticks 12000 --max-fields 150 --stub-objects --heal-after-battle --choices "*:3=6,*:4=1,1007:105=1"   --hold "1000:16,1001:16,1002:16,1003:16,1004:16,1005:16,1006:16,1007:16,1008:16,1009:16,1010:16,1011:16,1012:16,1013:16,1014:16,1015:16,1016:16,1017:16,1018:16,1050:16,1100:16"   --route "1001>1002,1002>1003,1051>1055@4700,1055>1054@4700,1054>1058@4700,1058>1059@4700,1059>1058@4720,1058>1054@4720,1054>1055@4720,1055>1051@4725,1051>1052@4727,1016>1014@4888,1014>1012@4888,1012>1011@4888,1011>1010@4888,1006>1007@4660,1006>1005@4660"
 # 9. Back in 1006 from 1007 (bit 3863 set, region 4 now leads to 1005). The explorer heads for the regions that
@@ -929,7 +962,8 @@ seg 8 cleyra 1000 w7 1007 --region-talks 1006 --ticks 12000 --max-fields 150 --s
 seg 9 trunk 1007 w8 1050 --region-talks 1006 --wall-regions 1006,1008,1009,1010,1011,1012,1013,1014,1015,1016,1017,1018 --skip-talk 1006:9 --ticks 12000 --max-fields 40 --stub-objects --heal-after-battle --choices "*:3=6,*:4=1,1007:105=1"   --hold "1000:16,1001:16,1002:16,1003:16,1004:16,1005:16,1006:16,1007:16,1008:16,1009:16,1010:16,1011:16,1012:16,1013:16,1014:16,1015:16,1016:16,1017:16,1018:16,1050:16,1100:16"   --route "1006>1005@4660,1012>1014,1014>1015,1015>1017,1017>1050"
 # 10. The settlement (1050 at 4660): the cathedral (story20 route) and the attack on Cleyra. Route entries are
 #     taken first-unused-first; 1051's ATE chain at 4700 skips 1054>1058, so the later steps come first.
-#     Battle 300 (BSC_CY_E018, the Antlion in 1052, 13938 HP with the 10000 boss margin) is lost: --win-battles.
+#     Battle 300 (BSC_CY_E018, the Antlion in 1052, 13938 HP with the 10000 boss margin) is lost: --win-battles
+#     (battle10: the party takes it to 11512 HP).
 seg 10 settlement 1050 w9 1100@4888 --ticks 12000 --max-fields 36 --stub-objects --heal-after-battle --choices "*:3=6,*:4=1" --win-battles 300 --wall-regions 1006,1008,1009,1010,1011,1012,1013,1014,1015,1016,1017,1018   --hold "1000:16,1001:16,1002:16,1003:16,1004:16,1005:16,1006:16,1007:16,1008:16,1009:16,1010:16,1011:16,1012:16,1013:16,1014:16,1015:16,1016:16,1017:16,1018:16,1050:16,1100:16"   --route "1051>1052@4727,1055>1051@4725,1059>1058@4720,1058>1054@4720,1054>1055@4720,1051>1055@4700,1055>1054@4700,1054>1058@4700,1058>1059@4700,1016>1014@4888,1014>1012@4888,1012>1011@4888,1011>1010@4888"
 # 11. 4888 (1100, saved on the way from 1101): the way on is back down the ladder (1100, Down held: entry 4's tag 11 climbs on Up 16 and
 #     down on 192/32) and the trunk to 1010 (Down held on its vines too), where entry 13 sets 4900.
@@ -938,19 +972,39 @@ seg 11 descent 1100 w10 1105@4910 --ticks 12000 --max-fields 13 --stub-objects -
 # 12. 1105 at 4910 (the town under attack): live objects. The player tag 1 (stage 6) waits for z >= 200 below
 #     height 300 with no exit open; the waypoint is the scene's own walk target. --tour walks the walkmesh
 #     where nothing else is left (1104's entry 23 waits for height 180 or less). Battle 299 (BSC_CY_E022,
-#     Beatrix, 14736 HP) is lost: --win-battles. Then the Red Rose (1150 to 1153) and Alexandria (1208, 5020).
-seg 12 attack 1105 w11 1208@5020 --ticks 12000 --max-fields 16 --win-battles 299 --waypoints 1105@-873:1853 --tour 1101,1102,1103,1104,1105,1106,1107,1108,1109,1110 --heal-after-battle --choices "*:3=6,*:4=1" --wall-regions 1006,1008,1009,1010,1011,1012,1013,1014,1015,1016,1017,1018,1101,1102,1103,1104,1105,1106,1107,1108,1109,1110   --hold "1010:64,1011:64,1012:64,1013:64,1014:64,1015:64,1016:64,1017:64,1018:64,1100:64"   --route "1100>1018@4888,1018>1016@4888,1016>1014@4888,1014>1012@4888,1012>1011@4888,1011>1010@4888"
+#     Beatrix, 14736 HP) is a scripted loss the scene allows: no --win-battles needed (battle10). Then the Red Rose (1150 to 1153) and Alexandria (1208, 5020).
+seg 12 attack 1105 w11 1208@5020 --ticks 12000 --max-fields 16 --waypoints 1105@-873:1853 --tour 1101,1102,1103,1104,1105,1106,1107,1108,1109,1110 --heal-after-battle --choices "*:3=6,*:4=1" --wall-regions 1006,1008,1009,1010,1011,1012,1013,1014,1015,1016,1017,1018,1101,1102,1103,1104,1105,1106,1107,1108,1109,1110   --hold "1010:64,1011:64,1012:64,1013:64,1014:64,1015:64,1016:64,1017:64,1018:64,1100:64"   --route "1100>1018@4888,1018>1016@4888,1016>1014@4888,1014>1012@4888,1012>1011@4888,1011>1010@4888"
 # 13. Alexandria castle (1208 at 5020, story20 inputs): the cage swings with Square/Circle along the swing
 #     (map int24 40), Steiner climbs the chain in 1209 with Up held; 1215's stairs lead to 1214. The castle's
-#     "I have to focus on escaping" regions are walls. Battles 65 (BSC_AC_E028H, three black mages in 1203) and
-#     75 (BSC_GR_E032, Ralvuimago in Gargan Roo 955) are lost: --win-battles. Gargan Roo to Pinnacle Rocks (1250).
-seg 13 alexandria 1208 w12 1250 --ticks 12000 --max-fields 50 --win-battles 65,75 --heal-after-battle --choices "*:3=6,*:4=1" --press-when "1208:42:0:0:32,1208:42:255:255:128" --hold 1209:16 --wall-regions 1200,1201,1202,1203,1204,1205,1206,1207,1208,1209,1210,1211,1212,1213,1214,1215,1216,1217,1218,1219,1220,1221,1222,1223,1224,1225,1226 --route "1215>1214@5050,1214>1224@5050,1224>1206@5050"
+#     "I have to focus on escaping" regions are walls. Battle 65 (BSC_AC_E028H, three black mages in 1203) is won
+#     since battle10 (--auto-gear gear; Beatrix has her whole Seiken and White Magic lists); 75 (BSC_GR_E032,
+#     Ralvuimago in Gargan Roo 955, taken to 2125 of 3352 HP) is lost: --win-battles. Gargan Roo to Pinnacle Rocks (1250).
+seg 13 alexandria 1208 w12 1250 --ticks 12000 --max-fields 50 --win-battles 75 --heal-after-battle --choices "*:3=6,*:4=1" --press-when "1208:42:0:0:32,1208:42:255:255:128" --hold 1209:16 --wall-regions 1200,1201,1202,1203,1204,1205,1206,1207,1208,1209,1210,1211,1212,1213,1214,1215,1216,1217,1218,1219,1220,1221,1222,1223,1224,1225,1226 --route "1215>1214@5050,1214>1224@5050,1224>1206@5050"
 # 14. Pinnacle Rocks (1250 at 5300) on. 1252's moogle menu (text 4) is left with Cancel (choice 6). Lindblum
 #     (1352, 5690) to Qu's Marsh: world place 22 is 650; 652's moogle help menu; 660>655 is the marsh maze.
 seg 14 pinnacle 1250 w13 1424 --ticks 12000 --max-fields 40 --heal-after-battle --choices "1252:4=6,652:90=11,*:3=6,*:4=1" --world-exits 9000:22 --route "660>655"
 # 15. Fossil Roo (1424 at 5900, the story16 Fossil Roo inputs). Battle 83 (BSC_FR_E033, Lani, 15708 HP) is lost:
-#     --win-battles; 107 is Ralvuimago in 1555 (story16). Gargant rides need region talks and --talk-grace.
-seg 15 fossil 1424 w14 9999 --ticks 12000 --max-fields 120 --heal-after-battle --choices "*:3=6,*:4=1" --win-battles 83,102,107 --region-talks 1405,1406,1407,1408,1409 --talk-grace 100 --retalk 1405:7,1406:7,1407:7,1408:7,1409:7 --world-exits 9000:4,9003:33,9003:34@6300 --skip-talk 1420:14,1420:15,1420:16 --hold 1550:64,1551:64,1552:64,1553:64,1554:64 --route "1424>1405,1411>1418,1418>1407,1420>1409,1404>1425,1550>1551,1555>1556"
+#     --win-battles (seg 14 also meets it at 1424 after its save). 102 (Fossil Roo random) is won since battle10.
+#     Gargant rides need region talks and --talk-grace. 1420's region 12 (Switch No. 1, text 221, choice 0 flips
+#     global bit 3236) is a tag 3 region: --region-talks 1420. With the bit set, the SL5 ride (1409) ends in 1404
+#     with global byte 408 = 4, which MV5's JumpSwitch (base 2) sends to the exit 1425; clear, it is 6 (to 1417).
+#     1425 (5990) > world 9003 place 33 > Conde Petie 1500 (6000 to 6130), saved at 1500 at 6130.
+seg 15 fossil 1424 w14 1500@6130 --ticks 12000 --max-fields 120 --heal-after-battle --choices "*:3=6,*:4=1" --win-battles 83 --region-talks 1405,1406,1407,1408,1409,1420 --talk-grace 100 --retalk 1405:7,1406:7,1407:7,1408:7,1409:7 --world-exits 9000:4,9003:33,9003:34@6300 --skip-talk 1420:14,1420:15,1420:16 --hold 1550:64,1551:64,1552:64,1553:64,1554:64 --route "1424>1405,1411>1418,1418>1407,1420>1409,1404>1425,1550>1551,1555>1556"
+# 16. Conde Petie (1500 at 6130) to Black Mage Village: world place 31 is the forest 1463 (6170). 1463 repeats one
+#     screen: map byte 24 is the stage and its regions re-enter the field (ExitField); 9, 9, 8 raise it to 4 and
+#     region 9 then leads to 1464 (--region-order, a story32 explorer option). Saved at 1464.
+seg 16 forest 1500 w15 1464 --ticks 12000 --max-fields 4 --heal-after-battle --choices "*:3=6,*:4=1" --world-exits 9003:31 --route "1463>1464" --region-order 1463:9/9/8/9
+# 17. Black Mage Village (1450, 6170) back to Conde Petie and over the Mountain Path to Madain Sari (6620).
+#     1451's region 11 (taken only below 6208) sets 6207: --region-order 1451:11. 6212 (1450), world place 33 is
+#     Conde Petie (1500, 6240); 1500>1501 keeps the explorer off the world map exit. 6250 is the wedding talk
+#     in 1505; then 1507's dwarf (entry 3, only at 6250) starts the altar scene (1506 > 1505 6260 > 1509 > 1503 >
+#     1504 6270) and the Mountain Path (1550 6300). Battle 107 (BSC_CM_E051, Ralvuimago in 1555, 8106 HP) is lost
+#     (the party took it to 3908): --win-battles. Place 34 is Madain Sari (1600, 6600); saved at 1600 at 6620.
+seg 17 bmv 1464 w16 1600@6620 --ticks 12000 --max-fields 120 --heal-after-battle --choices "*:3=6,*:4=1" --world-exits 9003:33,9003:34@6300 --hold 1550:64,1551:64,1552:64,1553:64,1554:64 --route "1500>1501@6240,1505>1507@6250,1550>1551,1555>1556" --region-order 1451:11 --win-battles 107
+# 18. Madain Sari (6622) to the Iifa Tree and the disc 2 to disc 3 change (1800 > 1812, 6990): the story17 inputs,
+#     with the village loops at 6800 and 6840 as routes. Battle 132 (BSC_MS_E075, Amarant, Zidane alone) is lost:
+#     --win-battles. Saved at 1812. The run goes on into disc 3 Alexandria and stops at 1806 (7060).
+seg 18 madain 1600 w17 1812 --ticks 12000 --max-fields 150 --heal-after-battle --choices "1650:96=2,1652:136=1,1757:289=2,1654:196=2,1602:33=0,*:3=6,*:4=1" --world-exits 9003:37@6690,9003:34@6795,9003:37@6890 --region-talks 1606,1755,1602 --retalk 1755:11,1755:13,1755:18,1755:22 --skip-talk 1755:12,1755:17 --hold 1550:64,1551:64,1552:64,1553:64,1554:64,1655:192 --route "1600>1601@6622,1601>1603@6622,1603>1605@6622,1500>1501@6690,1550>1551,1555>1556,1651>1653,1758>1757,1600>1601@6800,1601>1602@6800,1602>1606@6800,1606>1607@6800,1607>1608@6800,1600>1601@6810,1601>1603@6810,1603>1605@6810,1603>1601@6840,1601>1602@6840,1602>1606@6840,1606>1607@6840,1607>1608@6840,1757>1758@6910,1758>1657@6910" --win-battles 132
 ```
 
 - Segments 1 and 2 are `audit/story-route.sh` with saves; segment 2 runs 7 fields past the script's 97 to reach 563 at 3118 (565 at 3118 cannot be the save point: the field is entered at 3115 and its own cutscene sets 3118).

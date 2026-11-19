@@ -19,7 +19,7 @@ use tantalus_legacy::battle::rewards::PaEntry;
 use tantalus_legacy::menu::ability::{
     AbilityContext, AbilityType, ActionInfo, ability_lists, active_index, ap_of, check_aa_type,
     check_sa_type, equipped_abilities, has_ap, is_support, max_ap_of, max_capacity, mp_cost,
-    play_update, support_index, support_row_display, toggle_support,
+    play_update, support_index, support_row_display, toggle_support, update_sa,
 };
 use tantalus_legacy::menu::{MenuCharacter, MenuConfig, SupportRow, SupportTable};
 use tantalus_legacy::shop::stats;
@@ -271,6 +271,23 @@ pub fn menu_character(
     }
     play_update(&mut ch, &tables.abilities.support, MenuConfig::default());
     ch
+}
+
+/// The world's `FF9FEqp_UpdateSA` provider ([`FieldWorld::refresh_support`],
+/// run after `JOIN`): [`update_sa`] on the character as the menu sees it.
+pub fn support_refresh(
+    tables: std::sync::Arc<crate::field_menu::MenuTables>,
+) -> tantalus_game::field::world::SupportRefresh {
+    std::sync::Arc::new(move |world, member| {
+        let mut ch = menu_character(world, &tables, member);
+        update_sa(
+            &mut ch,
+            &tables.db,
+            &tables.abilities.support,
+            MenuConfig::default(),
+        );
+        Some(ch.enabled)
+    })
 }
 
 /// Rows of one tab: (ability id, type).
@@ -694,5 +711,62 @@ mod tests {
         state.press(pad::CONFIRM, &mut world, &tables, &mut message, 0);
         assert!(world.support_enabled[&0].is_empty());
         assert_eq!(menu_character(&world, &tables, 0).cur_capa, 10);
+    }
+
+    /// `JOIN` runs `FF9FEqp_UpdateSA` after the new gear (`EventEngine.DoEventCode.cs`
+    /// JOIN, `ff9feqp.cs:26`): an enabled support ability that no equipped item grants
+    /// and that is not learned is switched off; a learned one or one the gear grants stays.
+    #[test]
+    fn join_drops_a_support_ability_the_new_gear_does_not_grant() {
+        use tantalus_game::field::world::EquipmentSets;
+        use tantalus_legacy::shop::data::ItemData;
+        let mut tables = tables();
+        tables.db.items.insert(
+            40,
+            ItemData {
+                price: 0,
+                selling_price: 0,
+                equip: !0,
+                kind: 128,
+                sort: 0.0,
+                eq_lv: 0.0,
+                bonus: 0,
+                ability: vec![193],
+                weapon_power: Some(10),
+                armor: None,
+            },
+        );
+        let tables = std::sync::Arc::new(tables);
+        let mut world = world();
+        world.ability_pa.get_mut(&0).unwrap().insert(193, 5);
+        world.learned_abilities.get_mut(&0).unwrap().remove(&193);
+        world.support_refresh = Some(support_refresh(tables.clone()));
+        let mut sets = EquipmentSets::default();
+        sets.sets.insert(1, [40, -1, -1, -1, -1]);
+        sets.sets.insert(2, [41, -1, -1, -1, -1]);
+        world.equipment_sets = Some(std::sync::Arc::new(sets));
+        let join = |world: &mut FieldWorld, set: u8| {
+            use tantalus_contracts::{EntityId, Tick};
+            use tantalus_game::{FieldHost, FieldScene};
+            let mut scene = FieldScene::new();
+            let code = [0xfe, 0, 0, 0, set, 255, 255, 4];
+            let program = tantalus_legacy::decode_program(&code).unwrap();
+            scene.add_entry(EntityId::new(1), program).unwrap();
+            scene
+                .step(Tick::new(0), &mut FieldHost::new(world))
+                .unwrap();
+        };
+        world.support_enabled.insert(0, vec![1]);
+        // Set 1's weapon grants SA 1 (ability 193): it stays on.
+        join(&mut world, 1);
+        assert_eq!(world.support_enabled[&0], vec![1]);
+        // Set 2's weapon does not, and 5 of 20 AP is not learned: off.
+        join(&mut world, 2);
+        assert!(world.support_enabled[&0].is_empty());
+        // Learned, it stays on whatever the gear.
+        world.apply_ap(0, 193, 20, 20);
+        world.support_enabled.insert(0, vec![1]);
+        join(&mut world, 2);
+        assert_eq!(world.support_enabled[&0], vec![1]);
     }
 }

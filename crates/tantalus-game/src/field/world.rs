@@ -696,6 +696,12 @@ const REEQUIP_SETS: [(i32, i32); 3] = [(12, 9), (13, 11), (14, 10)];
 
 pub type LevelGrowth = std::sync::Arc<dyn Fn(i32, u64) -> Option<CharacterStats> + Send + Sync>;
 
+/// `ff9feqp.FF9FEqp_UpdateSA` for one character: its enabled support
+/// abilities after the refresh, or `None` to keep them. A provider, since the
+/// item and ability tables the refresh reads are loaded outside this crate.
+pub type SupportRefresh =
+    std::sync::Arc<dyn Fn(&FieldWorld, i32) -> Option<Vec<i32>> + Send + Sync>;
+
 fn is_zero_i32(value: &i32) -> bool {
     *value == 0
 }
@@ -1076,6 +1082,9 @@ pub struct FieldWorld {
     /// The predefined equipment sets `JOIN` equips (runtime-only provider).
     #[serde(skip)]
     pub equipment_sets: Option<std::sync::Arc<EquipmentSets>>,
+    /// `FF9FEqp_UpdateSA`, run after `JOIN` (runtime-only provider).
+    #[serde(skip)]
+    pub support_refresh: Option<SupportRefresh>,
     /// The experience that reaches each level, level 1 first
     /// (`ff9level.CharacterLevelUps[lv - 1].ExperienceToLevel`; runtime-only provider).
     #[serde(skip)]
@@ -1303,6 +1312,7 @@ impl FieldWorld {
             level_growth: None,
             level_experience: None,
             equipment_sets: None,
+            support_refresh: None,
         }
     }
 
@@ -2487,6 +2497,29 @@ impl FieldWorld {
         self.sps_frame_counts = template.sps_frame_counts.clone();
         self.item_id_map = template.item_id_map.clone();
         self.equipment_sets = template.equipment_sets.clone();
+        self.support_refresh = template.support_refresh.clone();
+    }
+
+    /// `ff9feqp.FF9FEqp_UpdateSA(player)` (`ff9feqp.cs:26`), as `JOIN` runs it
+    /// after `FF9Play_Change` (`EventEngine.DoEventCode.cs`, "Make sure equipped
+    /// abilities are still valid"): an enabled support ability that no equipped
+    /// item grants and that is not learned yet is switched off. A change runs
+    /// `FF9Play_Update` ([`Self::update_character_max`], as
+    /// `FF9Abil_SetEnableSA` does). Without the [`Self::support_refresh`]
+    /// provider nothing changes.
+    pub fn refresh_support(&mut self, character: i32) {
+        let Some(refresh) = self.support_refresh.clone() else {
+            return;
+        };
+        let Some(enabled) = refresh(self, character) else {
+            return;
+        };
+        let current = self.support_enabled.get(&character);
+        if current.map_or(enabled.is_empty(), |current| *current == enabled) {
+            return;
+        }
+        self.support_enabled.insert(character, enabled);
+        self.update_character_max(character);
     }
 
     pub fn provide_atan_table(&mut self, bytes: Vec<u8>) {
