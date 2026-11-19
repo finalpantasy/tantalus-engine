@@ -21,7 +21,7 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::sprite::Anchor;
 use tantalus_assets::pc::dialog_render::{
     BORDER_PADDING, DialogAssets, LINE_HEIGHT, PHRASE_Y_PADDING, RESOURCE_X_MULTIPLIER,
-    RESOURCE_Y_MULTIPLIER, SizeMode, WindowAtlasChoice, WindowText,
+    RESOURCE_Y_MULTIPLIER, SizeMode, WindowText,
 };
 use tantalus_contracts::LegacyFieldCamera;
 use tantalus_tools::play::{OpenDialog, PlayGame};
@@ -109,37 +109,27 @@ pub struct DialogView {
     /// The game tick each open window first appeared on, for the typing speed.
     opened: HashMap<(u8, u16), u64>,
     assets: Option<Option<DialogAssets>>,
-    /// The choice hand (`cursor_hand_choice` of the Icon Atlas) and its size in PSX pixels.
+    /// The choice hand of the UI skin (`ui_skin::hand`) and its size in PSX pixels.
     hand: Option<Option<(Handle<Image>, Vec2)>>,
     cache: HashMap<String, Rendered>,
 }
 
-/// `FF9UIDataTool.IconSpriteName[1]`: the hand cursor of choices, in the Icon Atlas.
-const HAND_FILE: &str = "sharedassets2.assets";
-const HAND_ATLAS: &str = "Icon Atlas";
-const HAND_SPRITE: &str = "cursor_hand_choice";
-
-/// The hand cursor as an image and its size in PSX pixels (the atlas is in UI pixels).
+/// The skin's hand cursor (`FF9UIDataTool.IconSpriteName[1]` on Steam) as an image and its
+/// size in PSX pixels (the skin gives its width in UI pixels, `PointerManager.PointerSize`).
 fn load_hand(
     game_data: &std::path::Path,
     images: &mut Assets<Image>,
 ) -> Option<(Handle<Image>, Vec2)> {
-    let mut sprites = tantalus_assets::pc::ui_atlas::load_sprites(
-        &game_data.join(HAND_FILE),
-        HAND_ATLAS,
-        &[HAND_SPRITE],
-    )
-    .map_err(|error| println!("!! dialog hand cursor art: {error}"))
-    .ok()?;
-    let sprite = sprites.remove(HAND_SPRITE)?;
+    let (sprite, ui_width) = crate::ui_skin::hand(game_data)?;
+    let ui_height = ui_width * sprite.height as f32 / sprite.width.max(1) as f32;
     let size = Vec2::new(
-        sprite.width as f32 / RESOURCE_X_MULTIPLIER,
-        sprite.height as f32 / RESOURCE_Y_MULTIPLIER,
+        ui_width / RESOURCE_X_MULTIPLIER,
+        ui_height / RESOURCE_Y_MULTIPLIER,
     );
     let mut image = Image::new(
         Extent3d {
-            width: sprite.width,
-            height: sprite.height,
+            width: sprite.width as u32,
+            height: sprite.height as u32,
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
@@ -147,7 +137,11 @@ fn load_hand(
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::default(),
     );
-    image.sampler = ImageSampler::linear();
+    // PS1 pixel art stays sharp; the Steam art is drawn filtered.
+    image.sampler = match crate::ui_skin::active() {
+        crate::ui_skin::UiSkin::Ps1 => ImageSampler::nearest(),
+        crate::ui_skin::UiSkin::Steam => ImageSampler::linear(),
+    };
     Some((images.add(image), size))
 }
 
@@ -160,10 +154,10 @@ static PRELOAD: std::sync::Mutex<Option<std::thread::JoinHandle<Result<DialogAss
 
 /// Starts loading the dialog assets for [`sync_dialogs`] to pick up.
 pub fn preload(game_data: &std::path::Path) {
-    let path = game_data.join("resources.assets");
+    let game_data = game_data.to_path_buf();
     if let Ok(mut slot) = PRELOAD.lock() {
         *slot = Some(std::thread::spawn(move || {
-            DialogAssets::load(&path, WindowAtlasChoice::Blue).map_err(|error| error.to_string())
+            crate::ui_skin::dialog_assets(&game_data)
         }));
     }
 }
@@ -209,13 +203,11 @@ pub fn sync_dialogs(
         })
         .collect();
     if view.assets.is_none() {
-        let path = game.game_data().join("resources.assets");
         let loaded = match PRELOAD.lock().ok().and_then(|mut slot| slot.take()) {
             Some(handle) => handle
                 .join()
                 .unwrap_or_else(|_| Err("the preload thread failed".to_owned())),
-            None => DialogAssets::load(&path, WindowAtlasChoice::Blue)
-                .map_err(|error| error.to_string()),
+            None => crate::ui_skin::dialog_assets(game.game_data()),
         };
         view.assets = Some(match loaded {
             Ok(assets) => Some(assets),

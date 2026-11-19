@@ -13,9 +13,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::Path;
 
-use tantalus_assets::pc::dialog_render::{
-    DialogAssets, FONT_SIZE, GlyphSource, Image, WindowAtlasChoice, measure_baseline,
-};
+use tantalus_assets::pc::dialog_render::{DialogAssets, FONT_SIZE, Image, measure_baseline};
 
 use crate::battle_raster::Frame;
 
@@ -97,38 +95,17 @@ pub struct BattleHud {
     windows: RefCell<HashMap<(i32, i32), Image>>,
     /// Text lines drawn lately, by text and color.
     texts: RefCell<HashMap<(String, [u8; 3]), Image>>,
-    /// The hand cursor (`FF9UIDataTool.IconSpriteName[1]`, `cursor_hand_choice` of the Icon
-    /// Atlas), pointing right; `None` draws a stand-in arrow.
-    hand: Option<Image>,
+    /// The skin's hand cursor pointing right and its width in UI pixels (`ui_skin::hand`);
+    /// `None` draws a stand-in arrow.
+    hand: Option<(Image, f32)>,
 }
 
-/// Where the hand cursor sprite lives (`presentation_view` reads the same atlas).
-const HAND_FILE: &str = "sharedassets2.assets";
-const HAND_ATLAS: &str = "Icon Atlas";
-const HAND_SPRITE: &str = "cursor_hand_choice";
-/// The hand's width in UI pixels (`PointerManager.PointerSize`, 114 by 62).
-const HAND_UI_WIDTH: f32 = 114.0;
-
 impl BattleHud {
-    /// Loads the font and window art from `FF9_Data/resources.assets`.
+    /// Loads the font, window and hand art of the UI skin (`ui_skin`).
     pub fn load(game_data: &Path) -> Result<Self, String> {
-        let assets =
-            DialogAssets::load(&game_data.join("resources.assets"), WindowAtlasChoice::Blue)
-                .map_err(|error| error.to_string())?;
+        let assets = crate::ui_skin::dialog_assets(game_data)?;
         let baseline = measure_baseline(assets.glyphs(), FONT_SIZE);
-        let hand = tantalus_assets::pc::ui_atlas::load_sprites(
-            &game_data.join(HAND_FILE),
-            HAND_ATLAS,
-            &[HAND_SPRITE],
-        )
-        .map_err(|error| println!("!! battle hand cursor art: {error}"))
-        .ok()
-        .and_then(|mut sprites| sprites.remove(HAND_SPRITE))
-        .map(|sprite| Image {
-            width: sprite.width as usize,
-            height: sprite.height as usize,
-            rgba: sprite.rgba,
-        });
+        let hand = crate::ui_skin::hand(game_data);
         Ok(Self {
             assets,
             baseline,
@@ -409,13 +386,13 @@ impl Ui<'_> {
     /// The hand cursor pointing right with its fingertip at `(x, y)` (UI pixels): the sprite
     /// when it loaded, else a stand-in arrow.
     fn hand_at(&mut self, x: f32, y: f32) {
-        let Some(hand) = self.hud.hand.as_ref() else {
+        let Some((hand, hand_width)) = self.hud.hand.as_ref() else {
             self.triangle(x, y, [[-34.0, -18.0], [-34.0, 18.0], [0.0, 0.0]]);
             return;
         };
         // UI pixels per texel, so the sprite is `PointerSize` wide; `blit_scaled` takes frame
         // pixels per source texel.
-        let ui = HAND_UI_WIDTH / hand.width.max(1) as f32;
+        let ui = hand_width / hand.width.max(1) as f32;
         let (w, h) = (hand.width as f32 * ui, hand.height as f32 * ui);
         blit_scaled(
             self.frame,

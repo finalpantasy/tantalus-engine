@@ -24,7 +24,7 @@ fn main() -> ExitCode {
     tantalus_legacy::battle::machine::set_keep_rest_time_default(keep_rest || env_on);
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--load SLOT|menu] [--save-dir DIR] [--load-save SavedData_ww.dat [--slot auto|N|SLOT:SAVE|list] [--save-to FILE]] [--scale N] [--mute]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] [--party 0,1,2,3] [--hurt 1] [--give 2,3] [--presentation BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE[:ATE]]] [--audio-log] [--audio-wav FILE] --output <png> [--size WxH]
+            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--load SLOT|menu] [--save-dir DIR] [--load-save SavedData_ww.dat [--slot auto|N|SLOT:SAVE|list] [--save-to FILE]] [--ui-skin ps1|steam] [--psx-discs DIR] [--config FILE] [--scale N] [--mute]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] [--party 0,1,2,3] [--hurt 1] [--give 2,3] [--presentation BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE[:ATE]]] [--audio-log] [--audio-wav FILE] --output <png> [--size WxH]
 tantalus-client capture-battle <play flags> --battles <tsv> [--ticks N] [--hold ...] [--auto-confirm N] [--battle N] [--at SECONDS,...] [--camera N] [--window-frame <png>] [--live 1] --output <png> [--size WxH]"
         );
         return ExitCode::SUCCESS;
@@ -374,7 +374,9 @@ fn run_track_capture(args: &[std::ffi::OsString]) -> ExitCode {
     }
 }
 
-const PLAY_FLAGS: [&str; 15] = [
+const PLAY_FLAGS: [&str; 17] = [
+    "--ui-skin",
+    "--psx-discs",
     "--world-map",
     "--assets",
     "--game-data",
@@ -396,6 +398,12 @@ const PLAY_FLAGS: [&str; 15] = [
 fn load_game(
     values: &std::collections::BTreeMap<String, String>,
 ) -> Result<tantalus_tools::play::PlayGame, String> {
+    // `--ui-skin ps1|steam` and `--psx-discs DIR` (or the config's `ui_skin` / `psx_discs`).
+    tantalus_client::ui_skin::set(tantalus_client::ui_skin::SkinSettings::resolve(
+        values.get("--config").map(std::path::Path::new),
+        values.get("--ui-skin").map(String::as_str),
+        values.get("--psx-discs").map(String::as_str),
+    )?);
     let path = |flag: &str| {
         values
             .get(flag)
@@ -1582,18 +1590,15 @@ fn overlay_menu(
     output: &std::path::Path,
 ) -> Result<(), String> {
     use tantalus_assets::pc::dialog_render::{
-        BORDER_PADDING, DEFAULT_TEXT_COLOR, DialogAssets, RESOURCE_X_MULTIPLIER,
-        RESOURCE_Y_MULTIPLIER, WindowAtlasChoice, WindowText,
+        BORDER_PADDING, DEFAULT_TEXT_COLOR, RESOURCE_X_MULTIPLIER, RESOURCE_Y_MULTIPLIER,
+        WindowText,
     };
     use tantalus_tools::field_menu::Tint;
     let Some((_, frame)) = game.menu_frame() else {
         return Ok(());
     };
-    let assets = DialogAssets::load(
-        &game.game_data().join("resources.assets"),
-        WindowAtlasChoice::Blue,
-    )
-    .map_err(|error| format!("menu art: {error}"))?;
+    let assets = tantalus_client::ui_skin::dialog_assets(game.game_data())
+        .map_err(|error| format!("menu art: {error}"))?;
     let mut base = image::open(output)
         .map_err(|error| format!("cannot read {}: {error}", output.display()))?
         .to_rgba8();

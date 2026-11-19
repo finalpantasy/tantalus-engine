@@ -855,7 +855,7 @@ pub struct RenderedDialog {
 /// The font and window sprites of an install, loaded once so many entries can be
 /// laid out and drawn (the dialogs of a play session).
 pub struct DialogAssets {
-    glyphs: FontdueSource,
+    glyphs: Box<dyn GlyphSource + Send>,
     window: WindowSprites,
 }
 
@@ -917,12 +917,18 @@ impl DialogAssets {
             body: sprite(BODY_SPRITE)?,
             border: sprite(BORDER_SPRITE)?,
         };
-        Ok(Self { glyphs, window })
+        Ok(Self::from_parts(Box::new(glyphs), window))
+    }
+
+    /// Assets from another font and window art (the play window's PS1 skin draws the PS1
+    /// game's font and window through the same layout and drawing).
+    pub fn from_parts(glyphs: Box<dyn GlyphSource + Send>, window: WindowSprites) -> Self {
+        Self { glyphs, window }
     }
 
     /// The font, at [`FONT_SIZE`] (other UI text, such as the battle HUD).
-    pub fn glyphs(&self) -> &FontdueSource {
-        &self.glyphs
+    pub fn glyphs(&self) -> &dyn GlyphSource {
+        self.glyphs.as_ref()
     }
 
     /// The window sprites.
@@ -937,9 +943,9 @@ impl DialogAssets {
         mode: SizeMode,
         framed: bool,
     ) -> Option<(Image, DialogLayout)> {
-        let layout = layout_entry(entry, &self.glyphs, mode, 0);
+        let layout = layout_entry(entry, self.glyphs(), mode, 0);
         let window = framed.then_some(&self.window);
-        let image = render_page(&layout, 0, &self.glyphs, window)?;
+        let image = render_page(&layout, 0, self.glyphs(), window)?;
         Some((image, layout))
     }
 
@@ -952,11 +958,11 @@ impl DialogAssets {
         framed: bool,
         visible: usize,
     ) -> Option<(Image, DialogLayout)> {
-        let layout = layout_entry(entry, &self.glyphs, mode, 0);
+        let layout = layout_entry(entry, self.glyphs(), mode, 0);
         let mut partial = layout.clone();
         partial.pages.get_mut(0)?.glyphs.truncate(visible);
         let window = framed.then_some(&self.window);
-        let image = render_page(&partial, 0, &self.glyphs, window)?;
+        let image = render_page(&partial, 0, self.glyphs(), window)?;
         Some((image, layout))
     }
 }
@@ -999,7 +1005,7 @@ impl DialogAssets {
         );
         self.window
             .draw_sliced(&mut image, (0, 0, canvas_w, canvas_h));
-        let baseline = measure_baseline(&self.glyphs, FONT_SIZE);
+        let baseline = measure_baseline(self.glyphs(), FONT_SIZE);
         let to_u8 = |c: f32| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
         for run in texts {
             let width: i32 = run

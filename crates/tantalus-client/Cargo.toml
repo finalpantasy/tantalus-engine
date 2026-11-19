@@ -24,6 +24,8 @@ tantalus-game = { path = "../tantalus-game" }
 tantalus-tools = { path = "../tantalus-tools" }
 tantalus-legacy = { path = "../tantalus-legacy" }
 tantalus-sfx = { path = "../tantalus-sfx" }
+# The PS1 skin's UI art, read from the owner's discs.
+tantalus-psxaudio = { path = "../tantalus-psxaudio" }
 # The battle and world frames draw through Bevy's own wgpu (same version, no extra features).
 wgpu = { version = "29.0.4", default-features = false }
 # Saves the capture with the open menu drawn over it.

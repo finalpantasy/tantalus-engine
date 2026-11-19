@@ -2,8 +2,9 @@
 //!
 //! Read-only disc access (`disc`), the `FF9.IMG` archive (`img`), Square's AKAO sample banks and
 //! sequences (`akao`), a PS1 SPU model (`spu`), the sequencer that drives it (`sequencer`) and an
-//! offline renderer (`render`). Nothing here ships or stores game audio: everything is read from
-//! the user's discs at run time and written under the user's own data folder.
+//! offline renderer (`render`), plus the resident UI art (`ui_art`: font, icons, window sheets) the
+//! play window's PS1 skin draws with. Nothing here ships or stores game data: everything is read
+//! from the user's discs at run time and written under the user's own data folder.
 //!
 //! References (documentation only, no code copied): psx-spx "Sound Processing Unit" for the SPU
 //! (<https://psx-spx.consoledev.net/soundprocessingunitspu/>); the ff7-flat-wiki "AKAO sequence"
@@ -20,3 +21,4 @@ pub mod sequencer;
 pub mod sfx;
 pub mod spu;
 pub mod tables;
+pub mod ui_art;

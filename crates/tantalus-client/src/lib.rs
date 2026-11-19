@@ -34,6 +34,7 @@ pub mod smooth;
 pub mod sps_view;
 pub mod track;
 pub mod trance_glow;
+pub mod ui_skin;
 pub mod view_scroll;
 pub mod widescreen;
 pub mod widescreen_data;

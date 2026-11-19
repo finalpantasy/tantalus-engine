@@ -13,7 +13,7 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::sprite::Anchor;
 use tantalus_assets::pc::dialog_render::{
     BORDER_PADDING, DEFAULT_TEXT_COLOR, DialogAssets, RESOURCE_X_MULTIPLIER, RESOURCE_Y_MULTIPLIER,
-    WindowAtlasChoice, WindowText,
+    WindowText,
 };
 use tantalus_tools::field_menu::{MenuFrame, Tint};
 use tantalus_tools::play::PlayGame;
@@ -71,8 +71,7 @@ pub fn sync_menu(world: &mut World, game: &PlayGame) {
     view.revision = revision;
     if let (Some((_, frame)), Some(camera)) = (shown, camera) {
         if view.assets.is_none() {
-            let path = game.game_data().join("resources.assets");
-            view.assets = Some(match DialogAssets::load(&path, WindowAtlasChoice::Blue) {
+            view.assets = Some(match crate::ui_skin::dialog_assets(game.game_data()) {
                 Ok(assets) => Some(assets),
                 Err(error) => {
                     println!("!! menu font and window art: {error}");

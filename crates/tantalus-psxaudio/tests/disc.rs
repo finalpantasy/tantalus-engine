@@ -89,3 +89,19 @@ fn renders_a_song() {
         );
     }
 }
+
+#[test]
+#[ignore = "needs the owner's discs"]
+fn reads_the_resident_ui_art() {
+    use tantalus_psxaudio::ui_art::{UiArt, glyph_code, read_ui_file};
+    let file = read_ui_file(&disc_dir()).unwrap();
+    let art = UiArt::parse(&file).unwrap();
+    assert_eq!((art.font.width, art.font.height), (256, 120));
+    assert_eq!((art.icons.width, art.window.width), (256, 256));
+    assert!(art.glyphs.len() > 100);
+    // `A` is 9 pixels wide in the pen, `1` sits 2 pixels right inside its 8-pixel cell.
+    let a = art.glyphs[glyph_code('A').unwrap()];
+    assert_eq!((a.x, a.y, a.advance), (118, 0, 9));
+    let one = art.glyphs[glyph_code('1').unwrap()];
+    assert_eq!((one.offset, one.width, one.advance), (2, 4, 8));
+}
