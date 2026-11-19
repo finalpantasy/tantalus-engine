@@ -168,8 +168,8 @@ impl Layout {
         Self {
             line: 14.0 * y,
             margin: 4.0 * x,
-            party_w: 188.0 * x,
-            columns: [10.0 * x, 60.0 * x, 104.0 * x, 140.0 * x],
+            party_w: 184.0 * x,
+            columns: [10.0 * x, 60.0 * x, 102.0 * x, 136.0 * x],
             header_y: 4.0 * y,
             first_row_y: 16.0 * y,
             party_pad_h: 19.0 * y,
@@ -177,9 +177,9 @@ impl Layout {
             mp_right: 28.0 * x,
             header_shift: 14.0 * x,
             atb: (5.0 * y, 44.0 * x, 4.0 * y),
-            left_w: 120.0 * x,
+            left_w: 124.0 * x,
             command_x: 18.0 * x,
-            side_x: 68.0 * x,
+            side_x: 72.0 * x,
             rows_pad_h: 10.0 * y,
             row_y: 4.0 * y,
             list_text_x: 18.0 * x,
@@ -358,20 +358,22 @@ impl BattleHud {
         for [x, y] in &hud.target {
             ui.hand_down(x / scale, y / scale);
         }
-        // The result screen (`BattleResultUI`), centered.
+        // The result screen (`BattleResultUI`): the info line in its own
+        // window at the top, the page's lines in a window under it.
         if let Some((title, lines)) = &hud.results {
-            let w = 1100.0;
-            let h = 150.0 + line * lines.len() as f32;
-            let (x, y) = ((ui_width - w) / 2.0, (UI_HEIGHT - h) / 2.0 - 80.0);
+            let info_w = ui.measure(title) + 160.0;
+            ui.window((ui_width - info_w) / 2.0, 40.0, info_w, 100.0);
+            ui.text((ui_width - ui.measure(title)) / 2.0, 62.0, title, WHITE);
+            let widest = lines
+                .iter()
+                .map(|entry| ui.measure(&entry.text) + ui.measure(&entry.right))
+                .fold(0.0, f32::max);
+            let w = (widest + 320.0).clamp(1100.0, ui_width - 2.0 * lay.margin);
+            let h = 60.0 + line * lines.len() as f32;
+            let (x, y) = ((ui_width - w) / 2.0, 170.0);
             ui.window(x, y, w, h);
-            ui.text(
-                (ui_width - ui.measure(title)) / 2.0,
-                y + 30.0,
-                title,
-                YELLOW,
-            );
             for (row, entry) in lines.iter().enumerate() {
-                let ty = y + 110.0 + line * row as f32;
+                let ty = y + 30.0 + line * row as f32;
                 let color = if entry.enabled { WHITE } else { YELLOW };
                 ui.text(x + 80.0, ty, &entry.text, color);
                 ui.text_right(x + w - 80.0, ty, &entry.right, color);

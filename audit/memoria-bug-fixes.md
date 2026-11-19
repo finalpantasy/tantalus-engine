@@ -38,7 +38,7 @@ Owner decision: Tantalus includes every Memoria bug fix for the vanilla game. Op
 | G16 | Default targeting of spells usable on single and multiple targets | CL 2025.07.04 | ability | always | todo (verify) |
 | G17 | Death-dealing attack commands (Avenger with Add Status) showed "Miss" instead of "Death" | CL 2025.07.04 | battle text | always | todo (verify) |
 | G18 | SA features changing caster statuses did not apply when the caster was also the target | CL 2025.07.04 | status | always | todo (verify) |
-| G19 | Missing captions on the battle result screen | CL 2025.07.04 | text | always | todo |
+| G19 | Missing captions on the battle result screen | CL 2025.07.04 | text | always | done (English only): `tantalus-client/src/battle_view.rs` `results_lines`; ledger `memoria-battle-result-captions` |
 | G20 | Steiner Magic Sword attacks were far too long; wait removed when only one attack is queued | CL 2024.08.05 | battle | always | todo (verify): `machine.rs:204-215` `CommandTimings` exists; the Memoria timing change is not confirmed |
 | G21 | Occasional double input in battle | CL 2024.08.05 | battle UI | always | n/a (Unity input); verify no repeat in Tantalus input |
 | G22 | Gradual Petrify and Doom countdown disappeared (dynamic ATB, model change after Trance) | CL 2024.06.09, CL 2026.11.09 | status | always | todo (verify): `battle/status.rs` has the statuses; the display countdown is UI |

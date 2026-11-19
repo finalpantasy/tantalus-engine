@@ -1825,6 +1825,9 @@ pub struct FightView {
     pub results: Option<tantalus_tools::play::BattleResults>,
     /// Seconds L1 and R1 have been held (`BattleHUD._runCounter`).
     run_held: f64,
+    /// The result screen's page: 0 the EXP and AP, 1 the gil and items
+    /// (`BattleResultUI.DisplayEXPAndAPInfo`, `DisplayGilAndItemInfo`).
+    result_page: usize,
     window: Option<BattleWindow>,
     pub battle: i32,
     pub scene_name: String,
@@ -1865,6 +1868,7 @@ impl FightView {
             ended: None,
             results: None,
             run_held: 0.0,
+            result_page: 0,
             window: None,
             battle: stage.battle,
             scene_name: stage.scene.clone(),
@@ -1918,7 +1922,18 @@ impl FightView {
                 .results
                 .as_ref()
                 .is_some_and(|results| matches!(results.outcome.as_str(), "victory" | "defeat"));
-            let done = *shown >= HOLD_SECONDS && (!waits || pressed & pad::CONFIRM != 0);
+            let confirmed = *shown >= HOLD_SECONDS && pressed & pad::CONFIRM != 0;
+            let victory = self
+                .results
+                .as_ref()
+                .is_some_and(|results| results.outcome == "victory");
+            // Confirm on the EXP and AP page turns to the gil and items page
+            // (`BattleResultUI` `EndEXPAndAP` -> `StartGilAndItem`).
+            if confirmed && victory && self.result_page == 0 {
+                self.result_page = 1;
+                return (events, false);
+            }
+            let done = *shown >= HOLD_SECONDS && (!waits || confirmed);
             if done
                 && self
                     .results
@@ -1999,8 +2014,25 @@ impl FightView {
                     .as_ref()
                     .filter(|_| *shown >= 1.0)
                     .map(|results| {
+                        let world = game.world();
+                        // (total EXP, EXP still to the next level) after the battle
+                        // (`BattleResultUI.DisplayCharacterInfo`).
+                        let progress = |character: i32, level: usize| {
+                            let exp = world.character_exp.get(&character).copied().unwrap_or(0);
+                            let next = world
+                                .level_experience
+                                .as_ref()
+                                .and_then(|table| table.get(level).copied())
+                                .map(|to_level| to_level.saturating_sub(exp));
+                            (exp, next)
+                        };
                         results_lines(
                             results,
+                            ResultPage {
+                                page: self.result_page,
+                                gil_now: world.gil,
+                                progress: &progress,
+                            },
                             &|character| tantalus_tools::play::character_name(character).to_owned(),
                             &item_name,
                         )
@@ -2258,11 +2290,28 @@ pub fn eat_message(result: u8) -> &'static str {
     }
 }
 
-/// The result screen's title and lines for `results`: EXP per member with
-/// any level gained, AP, gil, the items won and stolen, a card; a defeat is
-/// the game over screen.
+/// The result screen state [`results_lines`] draws from.
+pub struct ResultPage<'a> {
+    /// 0: EXP and AP; 1: gil and items.
+    pub page: usize,
+    /// The party's gil after the battle.
+    pub gil_now: u32,
+    /// `(character, level)` -> (total EXP, EXP to the next level, `None` at the top level).
+    pub progress: &'a dyn Fn(i32, usize) -> (u64, Option<u64>),
+}
+
+/// The result screen's info line and lines for `results`, one page of
+/// `BattleResultUI`: page 0 (`DisplayEXPAndAPInfo`, `DisplayCharacterInfo`)
+/// the EXP and AP won, then each member's level, total EXP and EXP to the
+/// next level with "Level Up!" under a member who rose; page 1
+/// (`DisplayGilAndItemInfo`) the gil won, the party's gil, the items won and
+/// stolen and a card, or "No item received.". The captions are the English
+/// `Localization` rows (`BattleResultInfoEXPAP`, `BattleResultInfoGilItem`,
+/// `EXP`, `NoItemGet`). A defeat is the game over screen. Lines with
+/// `enabled` false are drawn yellow.
 pub fn results_lines(
     results: &tantalus_tools::play::BattleResults,
+    page: ResultPage<'_>,
     name: &dyn Fn(i32) -> String,
     item_name: &dyn Fn(i32) -> Option<String>,
 ) -> (String, Vec<crate::battle_hud::ListLine>) {
@@ -2274,30 +2323,47 @@ pub fn results_lines(
     };
     let item = |id: u32| item_name(id as i32).unwrap_or_else(|| format!("Item {id}"));
     match results.outcome.as_str() {
-        "victory" => {
-            let mut lines = Vec::new();
-            for &(character, exp, from, to) in &results.exp {
-                lines.push(plain(name(character), format!("{exp} EXP")));
+        "victory" if page.page == 0 => {
+            let exp = results.exp.iter().map(|e| e.1).max().unwrap_or(0);
+            let mut lines = vec![
+                plain("EXP".into(), exp.to_string()),
+                plain("AP".into(), results.ap.to_string()),
+            ];
+            for &(character, _, from, to) in &results.exp {
+                let (total, next) = (page.progress)(character, to);
+                let next = next.map_or_else(|| "-".to_owned(), |n| n.to_string());
+                lines.push(plain(
+                    format!("{}  Lv {to}", name(character)),
+                    format!("EXP {total}  Next Lv {next}"),
+                ));
                 if to > from {
                     lines.push(ListLine {
-                        text: format!("  Level up! Lv {from} -> {to}"),
+                        text: "  Level Up!".into(),
                         right: String::new(),
                         enabled: false,
                     });
                 }
             }
-            lines.push(plain("AP".into(), results.ap.to_string()));
-            lines.push(plain("Gil".into(), results.gil.to_string()));
+            ("Received EXP and AP!".to_owned(), lines)
+        }
+        "victory" => {
+            let mut lines = vec![
+                plain("Gil".into(), results.gil.to_string()),
+                plain("Current Gil".into(), page.gil_now.to_string()),
+            ];
             for &(id, count) in &results.items {
-                lines.push(plain(item(id), format!("x{count}")));
+                lines.push(plain(item(id), count.to_string()));
             }
             for &id in &results.stolen {
-                lines.push(plain(format!("{} (stolen)", item(id)), "x1".into()));
+                lines.push(plain(format!("{} (stolen)", item(id)), "1".into()));
             }
             if let Some(card) = results.card {
-                lines.push(plain(format!("Card {card}"), "x1".into()));
+                lines.push(plain(format!("Card {card}"), "1".into()));
             }
-            ("Victory".to_owned(), lines)
+            if lines.len() == 2 {
+                lines.push(plain("No item received.".into(), String::new()));
+            }
+            ("Received Item(s) and Gil".to_owned(), lines)
         }
         "defeat" => (
             "GAME OVER".to_owned(),
@@ -2355,29 +2421,46 @@ mod tests {
             stolen: vec![88],
             card: None,
         };
-        let (title, lines) = results_lines(&results, &|id| format!("C{id}"), &|item| {
-            Some(format!("I{item}"))
-        });
-        assert_eq!(title, "Victory");
-        let texts: Vec<&str> = lines.iter().map(|line| line.text.as_str()).collect();
+        let progress = |character: i32, level: usize| (100 + character as u64, Some(level as u64));
+        let page = |page| ResultPage {
+            page,
+            gil_now: 500,
+            progress: &progress,
+        };
+        let name = |id| format!("C{id}");
+        let item = |item| Some(format!("I{item}"));
+        let (title, lines) = results_lines(&results, page(0), &name, &item);
+        assert_eq!(title, "Received EXP and AP!");
+        let rows: Vec<(&str, &str)> = lines
+            .iter()
+            .map(|line| (line.text.as_str(), line.right.as_str()))
+            .collect();
         assert_eq!(
-            texts,
+            rows,
             [
-                "C0",
-                "  Level up! Lv 2 -> 3",
-                "C1",
-                "AP",
-                "Gil",
-                "I236",
-                "I88 (stolen)"
+                ("EXP", "50"),
+                ("AP", "2"),
+                ("C0  Lv 3", "EXP 100  Next Lv 3"),
+                ("  Level Up!", ""),
+                ("C1  Lv 2", "EXP 101  Next Lv 2"),
             ]
         );
+        let (title, lines) = results_lines(&results, page(1), &name, &item);
+        assert_eq!(title, "Received Item(s) and Gil");
+        let texts: Vec<&str> = lines.iter().map(|line| line.text.as_str()).collect();
+        assert_eq!(texts, ["Gil", "Current Gil", "I236", "I88 (stolen)"]);
+        let empty = tantalus_tools::play::BattleResults {
+            outcome: "victory".into(),
+            ..Default::default()
+        };
+        let (_, lines) = results_lines(&empty, page(1), &name, &item);
+        assert_eq!(lines[2].text, "No item received.");
         let lost = tantalus_tools::play::BattleResults {
             outcome: "defeat".into(),
             ..Default::default()
         };
         assert_eq!(
-            results_lines(&lost, &|_| String::new(), &|_| None).0,
+            results_lines(&lost, page(0), &|_| String::new(), &|_| None).0,
             "GAME OVER"
         );
     }
