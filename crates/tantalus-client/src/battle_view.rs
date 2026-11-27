@@ -2114,6 +2114,47 @@ impl FightView {
             self.battle, self.scene_name
         )
     }
+
+    /// The command menu, result screen and battle machine, for the play harness's log.
+    pub fn harness_state(&self, game: &tantalus_tools::play::PlayGame) -> String {
+        // Each unit's gauge, `sel_mode` and HP; the ready queue; the commands running.
+        let machine = game.battle().map(|fight| {
+            let machine = fight.machine();
+            let units: Vec<String> = (0..machine.units.len())
+                .filter(|&i| machine.sched[i].in_list)
+                .map(|i| {
+                    format!(
+                        "{}{}/{}s{}h{}",
+                        if machine.units[i].is_player { "p" } else { "e" },
+                        machine.units[i].cur_atb,
+                        machine.sched[i].max_atb,
+                        machine.sched[i].sel_mode,
+                        machine.units[i].cur_hp,
+                    )
+                })
+                .collect();
+            format!(
+                " phase {:?} ready {:?} running {} units {}",
+                machine.phase,
+                machine.ready_players,
+                machine.running.len(),
+                units.join(","),
+            )
+        });
+        format!(
+            "battle {} unit {:?} {:?} command {} list {} target {} opening {} ended {} page {}{}",
+            self.battle,
+            self.menu.unit,
+            self.menu.level,
+            self.menu.command,
+            self.menu.list,
+            self.menu.target,
+            self.opening,
+            self.ended.is_some(),
+            self.result_page,
+            machine.unwrap_or_default(),
+        )
+    }
 }
 
 /// The menu as the HUD draws it.

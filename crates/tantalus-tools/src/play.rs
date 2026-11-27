@@ -1091,7 +1091,17 @@ impl PlayGame {
         self.chocograph_screen = None;
         self.ticks = save.ticks;
         self.pending_position = save.position;
-        self.enter(save.map, events)
+        self.enter(save.map, events)?;
+        // A save made on the world map (map 9000 to 9012) goes back to walking it, where its
+        // world script puts the player (`FF9StateSystem.Load` -> `SceneDirector.Replace
+        // ("WorldMap")`), instead of running the world script as a field.
+        if (9000..=9012).contains(&save.map) && self.stopped.is_none() {
+            self.world_script_map = save.map;
+            // No field init follows: its `FieldReady` would stop the world song.
+            self.field_ready_due = None;
+            self.resume_world()?;
+        }
+        Ok(())
     }
 
     /// Starts from a save of a Steam save file (`--load-save`): the saved party, items, gil,

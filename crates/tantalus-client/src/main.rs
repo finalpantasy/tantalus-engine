@@ -24,7 +24,7 @@ fn main() -> ExitCode {
     tantalus_legacy::battle::machine::set_keep_rest_time_default(keep_rest || env_on);
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--load SLOT|menu] [--save-dir DIR] [--load-save SavedData_ww.dat [--slot auto|N|SLOT:SAVE|list] [--save-to FILE]] [--ui-skin ps1|steam] [--psx-discs DIR] [--config FILE] [--scale N] [--mute]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] [--party 0,1,2,3] [--hurt 1] [--give 2,3] [--presentation BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE[:ATE]]] [--audio-log] [--audio-wav FILE] --output <png> [--size WxH]
+            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--load SLOT|menu] [--save-dir DIR] [--load-save SavedData_ww.dat [--slot auto|N|SLOT:SAVE|list] [--save-to FILE]] [--ui-skin ps1|steam] [--psx-discs DIR] [--config FILE] [--scale N] [--mute] [--harness DIR [--script FROM-TO:HEXMASK,...|@FILE] [--auto-confirm N] [--frames N] [--shot-every N] [--harness-hz HZ] [--battle attack|row2|row4|mix|flee]]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] [--party 0,1,2,3] [--hurt 1] [--give 2,3] [--presentation BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE[:ATE]]] [--audio-log] [--audio-wav FILE] --output <png> [--size WxH]
 tantalus-client capture-battle <play flags> --battles <tsv> [--ticks N] [--hold ...] [--auto-confirm N] [--battle N] [--at SECONDS,...] [--camera N] [--window-frame <png>] [--live 1] --output <png> [--size WxH]"
         );
         return ExitCode::SUCCESS;
@@ -540,7 +540,19 @@ fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
     let (mute, args) = take_switch(args, "--mute");
     let args = &args[..];
     let mut allowed = PLAY_FLAGS.to_vec();
-    allowed.extend(["--scale", "--fps-cap", "--fps-interp", "--config"]);
+    allowed.extend([
+        "--scale",
+        "--fps-cap",
+        "--fps-interp",
+        "--config",
+        "--harness",
+        "--script",
+        "--auto-confirm",
+        "--frames",
+        "--shot-every",
+        "--harness-hz",
+        "--battle",
+    ]);
     let Some(values) = flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
     };
@@ -561,6 +573,13 @@ fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
         .get("--scale")
         .and_then(|value| value.parse().ok())
         .unwrap_or(3);
+    let harness = match harness_settings(&values, &fps) {
+        Ok(harness) => harness,
+        Err(error) => {
+            eprintln!("play failed: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
     let result = load_game(&values).and_then(|mut game| {
         // Frame-rate bench scenes (`TANTALUS_BENCH_SCENE=world:FIELD|battle:ID|cards:OPPONENT`).
         if let Ok(scene) = std::env::var("TANTALUS_BENCH_SCENE")
@@ -582,7 +601,7 @@ fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
             }
         }
         let assets = PathBuf::from(&values["--assets"]);
-        tantalus_client::live::play(game, assets, scale, mute, fps)
+        tantalus_client::live::play(game, assets, scale, mute, fps, harness)
             .map_err(|error| error.to_string())
     });
     match result {
@@ -592,6 +611,45 @@ fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// `play --harness DIR [--script FROM-TO:HEXMASK,...|@FILE] [--auto-confirm N] [--frames N]
+/// [--shot-every N] [--harness-hz HZ]`: the play window hidden, driven by a button script on a
+/// virtual clock, with a PNG every N frames and `frames.jsonl` in DIR (see `play_harness`).
+fn harness_settings(
+    values: &std::collections::BTreeMap<String, String>,
+    fps: &tantalus_client::smooth::FpsSettings,
+) -> Result<Option<tantalus_client::play_harness::HarnessSettings>, String> {
+    let Some(out) = values.get("--harness") else {
+        return Ok(None);
+    };
+    let number = |flag: &str, default: u64| -> Result<u64, String> {
+        values.get(flag).map_or(Ok(default), |value| {
+            value.parse().map_err(|_| format!("bad {flag}"))
+        })
+    };
+    let hz = match values.get("--harness-hz") {
+        Some(value) => value.parse().map_err(|_| "bad --harness-hz")?,
+        None => match fps.cap {
+            tantalus_client::smooth::FpsCap::Limit(rate) => f64::from(rate),
+            _ => 60.0,
+        },
+    };
+    Ok(Some(tantalus_client::play_harness::HarnessSettings {
+        out: PathBuf::from(out),
+        script: match values.get("--script") {
+            Some(text) => tantalus_client::play_harness::parse_script(text)?,
+            None => Vec::new(),
+        },
+        auto_confirm: number("--auto-confirm", 0)?,
+        frames: number("--frames", 600)?,
+        shot_every: number("--shot-every", 10)?,
+        hz,
+        battle: values
+            .get("--battle")
+            .map(|text| tantalus_client::play_harness::BattlePolicy::parse(text))
+            .transpose()?,
+    }))
 }
 
 /// `--hold FROM-TO:HEXMASK,...` ranges of held pad bits.

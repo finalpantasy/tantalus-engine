@@ -256,6 +256,27 @@ pub fn describe(event: &PlayEvent) -> String {
     }
 }
 
+/// Where the play window's sound goes.
+enum Sound {
+    /// The audio thread and the sound card.
+    Device(crate::audio::LiveAudio),
+    /// The play harness: in-process, no device, the cues kept for its log.
+    Headless(Box<std::sync::Mutex<(crate::play_harness::HeadlessSound, Vec<String>)>>),
+}
+
+impl Sound {
+    fn cues(&self, cues: Vec<AudioCue>) {
+        match self {
+            Sound::Device(audio) => audio.cues(cues),
+            Sound::Headless(sound) => {
+                let mut sound = sound.lock().expect("harness sound");
+                let lines = sound.0.apply(&cues);
+                sound.1.extend(lines);
+            }
+        }
+    }
+}
+
 #[derive(Resource)]
 struct Live {
     game: std::sync::Mutex<PlayGame>,
@@ -285,7 +306,7 @@ struct Live {
     /// (`None` inside when they failed to load).
     battle_hud: std::sync::Mutex<Option<Option<crate::battle_hud::BattleHud>>>,
     /// Sound output; `None` with `--mute`.
-    audio: Option<crate::audio::LiveAudio>,
+    audio: Option<Sound>,
     /// The cutscene movie on screen, with the pad bits held when it began or last changed.
     movie: Option<(crate::movie_view::MoviePlayer, i32)>,
     /// The Tetra Master game on screen.
@@ -317,12 +338,22 @@ pub fn play(
     scale: u32,
     mute: bool,
     fps: crate::smooth::FpsSettings,
+    harness: Option<crate::play_harness::HarnessSettings>,
 ) -> Result<(), ClientError> {
     let scale = scale.clamp(1, 8);
     game.live_battles = true;
     game.live_movies = true;
-    let audio =
-        (!mute).then(|| crate::audio::LiveAudio::start(&streaming_assets, game.game_data()));
+    let audio = match &harness {
+        // The harness never opens a device: its sound runs in-process for the log.
+        Some(_) => crate::play_harness::HeadlessSound::open(&streaming_assets, game.game_data())
+            .map(|sound| Sound::Headless(Box::new(std::sync::Mutex::new((sound, Vec::new()))))),
+        None => (!mute).then(|| {
+            Sound::Device(crate::audio::LiveAudio::start(
+                &streaming_assets,
+                game.game_data(),
+            ))
+        }),
+    };
     crate::dialog_view::preload(game.game_data());
     let models = crate::actor_models::ActorModels::new(&streaming_assets);
     let streaming_assets_for_sps = streaming_assets.clone();
@@ -335,7 +366,15 @@ pub fn play(
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "Tantalus Engine".into(),
-                        present_mode: fps.present_mode(),
+                        // The harness's window is never shown (its frames are read back).
+                        visible: harness.is_none(),
+                        focused: harness.is_none(),
+                        skip_taskbar: harness.is_some(),
+                        present_mode: if harness.is_some() {
+                            bevy::window::PresentMode::AutoNoVsync
+                        } else {
+                            fps.present_mode()
+                        },
                         resolution: WindowResolution::new(
                             FIELD_FRAME.0 as u32 * scale,
                             FIELD_FRAME.1 as u32 * scale,
@@ -379,10 +418,21 @@ pub fn play(
             world_pose_at: None,
         })
         .insert_resource(FrameCap(crate::smooth::FrameLimiter::new(
-            fps.frame_budget(),
+            fps.frame_budget().filter(|_| harness.is_none()),
         )))
-        .add_systems(Update, live_tick)
+        .add_systems(Update, (live_tick, harness_frame).chain())
         .add_systems(Last, hold_frame_cap);
+    if let Some(settings) = harness {
+        // A virtual clock: each frame is exactly one display interval of play.
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_secs_f64(1.0 / settings.hz),
+        ))
+        .insert_resource(bevy::winit::WinitSettings {
+            focused_mode: bevy::winit::UpdateMode::Continuous,
+            unfocused_mode: bevy::winit::UpdateMode::Continuous,
+        })
+        .insert_resource(crate::play_harness::Harness::new(settings).map_err(ClientError::new)?);
+    }
     app.run();
     Ok(())
 }
@@ -454,7 +504,7 @@ fn step_overlay_motion(
 
 /// Hands the sound requests a game step made (script sounds, menu presses, battle songs) to the
 /// audio thread.
-fn send_audio(audio: Option<&crate::audio::LiveAudio>, game: &mut PlayGame) {
+fn send_audio(audio: Option<&Sound>, game: &mut PlayGame) {
     let cues: Vec<AudioCue> = game.take_audio().into_iter().map(|(_, cue)| cue).collect();
     if let Some(audio) = audio {
         audio.cues(cues);
@@ -563,9 +613,21 @@ fn note_window_size(world: &mut World) {
     }
 }
 
+/// This display frame's length: the clock's, or exactly one harness interval (`1 / hz` in
+/// f64, so two 60 Hz frames make one 30 Hz tick with no nanosecond rounding left over).
+fn frame_delta(world: &World) -> f64 {
+    match world.get_resource::<crate::play_harness::Harness>() {
+        Some(harness) => 1.0 / harness.settings.hz,
+        None => world.resource::<Time>().delta_secs_f64(),
+    }
+}
+
 fn live_tick_inner(world: &mut World) {
-    let delta = world.resource::<Time>().delta_secs_f64();
-    let held = pad_bits(world.resource::<ButtonInput<KeyCode>>());
+    let delta = frame_delta(world);
+    let held = match world.get_resource_mut::<crate::play_harness::Harness>() {
+        Some(mut harness) => harness.next_held(),
+        None => pad_bits(world.resource::<ButtonInput<KeyCode>>()),
+    };
     note_window_size(world);
     let mut live = world.remove_resource::<Live>().expect("live state");
     // The software-drawn views change at most 30 times a second, so a
@@ -935,6 +997,63 @@ fn live_tick_inner(world: &mut World) {
         && window.title != title
     {
         window.title = title;
+    }
+    world.insert_resource(live);
+}
+
+/// The play harness's log line and PNG for the frame `live_tick` just played.
+fn harness_frame(world: &mut World) {
+    if !world.contains_resource::<crate::play_harness::Harness>() {
+        return;
+    }
+    let delta = frame_delta(world);
+    let title = {
+        let mut windows = world.query_filtered::<&Window, With<PrimaryWindow>>();
+        windows
+            .single(world)
+            .map(|window| window.title.clone())
+            .unwrap_or_default()
+    };
+    let live = world.remove_resource::<Live>().expect("live state");
+    {
+        let game = live.game.lock().expect("game lock");
+        let (song, cues) = match &live.audio {
+            Some(Sound::Headless(sound)) => {
+                let mut sound = sound.lock().expect("harness sound");
+                sound.0.advance(delta);
+                (sound.0.music(), std::mem::take(&mut sound.1))
+            }
+            _ => (-1, Vec::new()),
+        };
+        let menu = game.menu_frame().is_some();
+        let (mode, position) = if live.movie.is_some() {
+            ("movie", None)
+        } else if live.fight.is_some() {
+            ("battle", None)
+        } else if live.card.is_some() {
+            ("card", None)
+        } else if let Some(play) = game.world_play.as_ref() {
+            let pos = play.walker.pos;
+            (
+                if menu { "world+menu" } else { "world" },
+                Some([pos.x, pos.y, pos.z]),
+            )
+        } else {
+            let position = live.frames.current().and_then(player_position);
+            (if menu { "field+menu" } else { "field" }, position)
+        };
+        let t = crate::smooth::alpha(live.elapsed, live.fps.interpolate);
+        let state = crate::play_harness::FrameState {
+            mode,
+            game: &game,
+            position,
+            battle: live.fight.as_ref().map(|view| view.harness_state(&game)),
+            title: &title,
+            view: live.views.view(t),
+            song,
+            cues,
+        };
+        crate::play_harness::end_frame(world, delta, state);
     }
     world.insert_resource(live);
 }
