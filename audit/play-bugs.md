@@ -30,7 +30,7 @@ frame-rate setting.
 | PB7 | P1 | fixed | no | Music stops for good after a story battle that kept the field song (no battle song, no win pose) |
 | PB3 | P2 | fixed | no | A button held across a battle or movie end is a new press on the first field tick |
 | PB4 | P2 | fixed | partly | First field after launch shows the clear color instead of the background for 5 to 20 frames |
-| PB5 | P2 | open, unverified | no | Random battles take about a minute (one enemy action ran 12 s) |
+| PB5 | P2 | matches (rates); pacing unverified | no | Random battles take about a minute (one enemy action ran 12 s) |
 | PB6 | P2 | fixed | no | Battle HUD (party panel, enemy list) is up during the opening camera |
 
 ### PB1: vanilla 30 fps judders (fixed)
@@ -146,13 +146,28 @@ frame-rate setting.
   `e4-wip3-2`, `e4-wip3-3`): no frame with the clear color (`tools/clear.py`); frame 7 before
   and after in `hunt/out/pb4-before-after.png`.
 
-### PB5: long random battles (open, unverified)
+### PB5: long random battles (ATB rates match; not a bug as far as checked)
 
 - Repro: slot 8 (`hunt/out/x8-lo`, Zuu, Attack only): 63 s to win; turns 16 to 32 s apart. The
   machine log shows the ATB frozen during the opening camera (6 s, by design,
   `PHASE_ENTER`) and one command running 12 s (t1232 to t1592) with the others queued
   (`sel_mode` 1) while Zuu's spell plays.
-- Not judged a bug yet: needs a Steam timing reference of the same battle.
+- Compared with the C# and the Steam defaults (fix1), each the same:
+  - Tick rate: one ATB add per battle tick, 15 a second (`HonoluluBattleMain.UpdateBattleFrame`,
+    `BattleTPS = 15`); the live view runs 15 battle ticks a second (`battle_view.rs`).
+  - Add per tick: `at_coef * ATBSpeedFactor` (`HonoluluBattleMain.cs:459`) with
+    `GetATBCoef` 10 for Battle Speed 1 and factor 4 (`atb::atb_step`, `base_atb_coef`,
+    `DEFAULT_ATB_SPEED_FACTOR`); the saves keep the Steam defaults (`FF9CFG`: `btl_speed` 1,
+    `atb` 1 = Wait, `camera` 0), so 40 a tick, 600 a second.
+  - Gauge size: `(60 - Dexterity) * 160` (`btl_para.GetMaxATB`): Zidane's 5760 in slot 8
+    (Dexterity 24) fills in 9.6 s, as the machine log shows (`p5760/5760`).
+  - Stops: no ATB until the opening camera ends (`IsNativeEnableAtb` reads `_commandEnable`,
+    which `FF9BMenu_EnableMenu(true)` sets at the end of `PHASE_MENU_ON`); with Wait, none
+    while a member's menu is past the command window; a unit with a queued command
+    (`sel_mode != 0`) does not fill.
+- So a turn is the 9.6 s fill plus the time its command waits behind the others and plays.
+  The commands' own lengths come from the effect and sequence data and were not timed against
+  a Steam capture of the same battle; that is what is still unverified.
 
 ### PB6: HUD during the opening camera (fixed)
 
