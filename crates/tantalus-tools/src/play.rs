@@ -2717,6 +2717,16 @@ impl PlayGame {
         play.set_forms(&crate::world_data::alternate_form_blocks(
             scenario, discovered,
         ));
+        // `w_frameMapConstructor` -> `w_movementChange` (`ff9.cs:5665`): the ride is
+        // gEventGlobal 190, so a save made on a chocobo or in an airship loads riding it.
+        let ride = globals
+            .get(190, tantalus_legacy::VariableType::Byte)
+            .unwrap_or(0);
+        if let Ok(ride) = u8::try_from(ride)
+            && (1..=9).contains(&ride)
+        {
+            play.set_ride(ride);
+        }
         // The world map's main menu has no Save; only its moogle saves.
         if let Some(session) = self.session.as_mut() {
             session.director.world_mut().save_point = false;

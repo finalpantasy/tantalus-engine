@@ -293,3 +293,43 @@ fn the_title_screen_starts_a_new_game_or_continues() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A world map save made in an airship loads in the airship: `w_frameMapConstructor` ->
+/// `w_movementChange` takes the ride from gEventGlobal 190, which the save keeps.
+#[test]
+fn a_world_map_save_in_an_airship_loads_flying() {
+    let Some(paths) = paths() else { return };
+    let save = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../local/probe/play-audit/saves/slot5.json");
+    if !save.is_file() {
+        return;
+    }
+    let dir = temp_dir("airship");
+    std::fs::copy(&save, dir.join("slot1.json")).expect("copy save");
+    let data = PlayData::load(&paths).expect("play data");
+    let (mut game, _) = PlayGame::new(data, 70).expect("game");
+    game.set_save_dir(dir.clone());
+    let mut events = Vec::new();
+    game.load_slot(1, &mut events).expect("load");
+    for _ in 0..5 {
+        game.tick(0).expect("tick");
+    }
+    assert_eq!(game.world_play.as_ref().expect("walking").ride, 0);
+    game.world_play.as_mut().expect("walking").set_ride(8);
+    for _ in 0..5 {
+        game.tick(0).expect("tick");
+    }
+    game.save_slot(2).expect("save");
+    let mut events = Vec::new();
+    game.load_slot(2, &mut events)
+        .expect("load the airship save");
+    let play = game.world_play.as_ref().expect("on the world map");
+    assert_eq!(play.ride, 8, "the Hilda Garde III again");
+    // On foot again, a save loads on foot.
+    game.world_play.as_mut().expect("walking").set_ride(0);
+    game.tick(0).expect("tick");
+    game.save_slot(3).expect("save");
+    game.load_slot(3, &mut events).expect("load");
+    assert_eq!(game.world_play.as_ref().expect("walking").ride, 0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
