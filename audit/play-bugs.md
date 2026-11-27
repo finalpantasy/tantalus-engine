@@ -34,6 +34,7 @@ frame-rate setting.
 | PB6 | P2 | fixed | no | Battle HUD (party panel, enemy list) is up during the opening camera |
 | PB9 | P3 | fixed | no | The load list runs past its window's right edge in the PS1 skin and names places by event id (`EVT_ICE_IC_ENT_0`) |
 | PB10 | P3 | fixed | no | After a game over the field song keeps playing under the title screen |
+| PB11 | P1 | fixed | no | A disc change from a field without a background shows black instead of the disc picture and the save screen |
 
 ### PB1: vanilla 30 fps judders (fixed)
 
@@ -239,6 +240,18 @@ frame-rate setting.
   from frame 4917 with song -1 to the end (before: 92), cues "result screen closed" then
   "title screen: every sound stops". Unit test `the_title_after_a_game_over_stops_the_field_song`.
   Not ported: the title's own music (`TitleUI` plays the `FMV000` movie sound).
+
+### PB11: black disc change on a field without a background (fixed)
+
+- Repro: fix2 rerun `hunt/out/h31-lo` and `h31-hi` (slot 31, field 70, which has no background,
+  then movie FMV017 and the change to disc 2): from the movie's end to field 800 every frame is
+  black (`sd 0.0`), with the save list up from t611 to t620.
+- Cause: the disc picture (`disc_view`) and the save list (`menu_view`) hang under the topmost
+  2D camera, and a field without a background has none.
+- Fix: `disc_view` opens its own black camera (layer 27, order 18) while the disc change lasts;
+  the picture draws on it and the save list, which takes the topmost camera, follows.
+- Check: `hunt/out/d31-lo` shows the "Change to DISC 2" picture at t541 and the save list with
+  place names at t616.
 
 ## Checked and fine
 

@@ -6,6 +6,7 @@
 //! held until a button is pressed and fading out over 100 frames.
 
 use bevy::asset::RenderAssetUsages;
+use bevy::camera::RenderTarget;
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -16,6 +17,10 @@ use crate::dialog_view::{FRAME, WINDOW_Z};
 /// What the disc view has on screen.
 #[derive(Default)]
 pub struct DiscView {
+    /// Its own black camera while the disc change lasts: the field before it may have no
+    /// camera (a field without a background, as at the end of disc 1), and the save screen
+    /// draws on the topmost camera.
+    camera: Option<Entity>,
     root: Option<Entity>,
     sprite: Option<Entity>,
     path: Option<std::path::PathBuf>,
@@ -43,9 +48,48 @@ fn clear(world: &mut World, view: &mut DiscView) {
     view.path = None;
 }
 
+/// The disc change's render layer and camera order: over the field's and the world map's
+/// cameras, under the game over and title cameras.
+const DISC_LAYER: usize = 27;
+const DISC_ORDER: isize = 18;
+
+/// A black camera over the whole window for the disc change.
+fn open_camera(world: &mut World) -> Entity {
+    // A recording window renders to an image; draw where the other cameras do.
+    let mut targets = world.query_filtered::<&RenderTarget, With<Camera2d>>();
+    let target = targets.iter(world).next().cloned();
+    let camera = world
+        .spawn((
+            Camera2d,
+            Camera {
+                order: DISC_ORDER,
+                clear_color: ClearColorConfig::Custom(Color::BLACK),
+                ..default()
+            },
+            Transform::default(),
+            RenderLayers::layer(DISC_LAYER),
+        ))
+        .id();
+    if let Some(target) = target {
+        world.entity_mut(camera).insert(target);
+    }
+    camera
+}
+
 /// Draws the disc picture of `game`, or removes it.
 pub fn sync_disc(world: &mut World, game: &PlayGame) {
     let mut view = world.remove_non_send::<DiscView>().unwrap_or_default();
+    if game.disc_change().is_none() {
+        clear(world, &mut view);
+        if let Some(camera) = view.camera.take()
+            && let Ok(entity) = world.get_entity_mut(camera)
+        {
+            entity.despawn();
+        }
+        world.insert_non_send(view);
+        return;
+    }
+    let camera = *view.camera.get_or_insert_with(|| open_camera(world));
     let Some((path, alpha)) = game.disc_picture() else {
         clear(world, &mut view);
         world.insert_non_send(view);
@@ -53,14 +97,9 @@ pub fn sync_disc(world: &mut World, game: &PlayGame) {
     };
     if view.path.as_ref() != Some(&path) {
         clear(world, &mut view);
-        let mut cameras =
-            world.query_filtered::<(Entity, &Camera, Option<&RenderLayers>), With<Camera2d>>();
-        let top = cameras
-            .iter(world)
-            .max_by_key(|(_, camera, _)| camera.order)
-            .map(|(entity, _, layers)| (entity, layers.cloned()));
-        match (top, image::open(&path)) {
-            (Some((camera, layers)), Ok(picture)) => {
+        let layers = RenderLayers::layer(DISC_LAYER);
+        match image::open(&path) {
+            Ok(picture) => {
                 let picture = picture.to_rgba8();
                 let size = picture_size(picture.width(), picture.height());
                 let image = Image::new(
@@ -75,15 +114,9 @@ pub fn sync_disc(world: &mut World, game: &PlayGame) {
                     RenderAssetUsages::default(),
                 );
                 let handle = world.resource_mut::<Assets<Image>>().add(image);
-                let z = if layers.is_some() {
-                    20.0
-                } else {
-                    WINDOW_Z + 0.5
-                };
-                let layers = layers.unwrap_or_default();
                 let root = world
                     .spawn((
-                        Transform::from_xyz(0.0, 0.0, z),
+                        Transform::from_xyz(0.0, 0.0, WINDOW_Z + 0.5),
                         Visibility::default(),
                         ChildOf(camera),
                     ))
@@ -110,8 +143,7 @@ pub fn sync_disc(world: &mut World, game: &PlayGame) {
                 view.root = Some(root);
                 view.sprite = Some(sprite);
             }
-            (_, Err(error)) => println!("!! disc picture {}: {error}", path.display()),
-            (None, _) => {}
+            Err(error) => println!("!! disc picture {}: {error}", path.display()),
         }
         view.path = Some(path);
     }
