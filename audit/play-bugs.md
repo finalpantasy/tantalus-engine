@@ -32,6 +32,8 @@ frame-rate setting.
 | PB4 | P2 | fixed | partly | First field after launch shows the clear color instead of the background for 5 to 20 frames |
 | PB5 | P2 | matches (rates); pacing unverified | no | Random battles take about a minute (one enemy action ran 12 s) |
 | PB6 | P2 | fixed | no | Battle HUD (party panel, enemy list) is up during the opening camera |
+| PB9 | P3 | open | no | The load list runs past its window's right edge in the PS1 skin and names places by event id (`EVT_ICE_IC_ENT_0`) |
+| PB10 | P3 | open | no | After a game over the field song keeps playing under the title screen |
 
 ### PB1: vanilla 30 fps judders (fixed)
 
@@ -198,6 +200,22 @@ frame-rate setting.
 - Fix: the result overlay is not built for `escape` / `party_flee` outcomes; the battle still
   holds and closes by itself as before.
 - Check: unit tests and clippy; not rerun in the harness.
+
+### PB9: load list wider than its window, event ids as place names (open)
+
+- Repro: ui3 `hunt/out/t3-ps1/f000060.png` (title, Load Game, PS1 skin): the slot rows run
+  past the window's right edge; in both skins the place is the field's event id
+  (`EVT_LIND1_TN_LB_RFS_0`), not its name. `play.rs` `slot_labels` uses
+  `PlayData::field_name`, which is the event id; the window width is fixed.
+- Not fixed: the save screen's own layout (`SaveLoadUI`) and the place name table are not
+  ported.
+
+### PB10: field song under the title after a game over (open)
+
+- Repro: ui3 `hunt/out/d3-ps1` (`--battle idle --hurt 1`, slot 9): after the game over the
+  title shows from frame 4917 and `frames.jsonl` still reports song 92 to the end.
+- Cause: `GameOverUI.GoToTitleScene` loads the title scene, which stops the field's music;
+  `PlayGame::open_title` only opens the menu over the paused field.
 
 ## Checked and fine
 
