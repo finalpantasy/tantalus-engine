@@ -488,6 +488,125 @@ pub fn tails(game_data: &Path) -> Vec<(&'static str, Image)> {
         .collect()
 }
 
+/// `BattleParameters.csv` `AvatarSprite` of each character (`FF9UIDataTool.AvatarSpriteName`):
+/// Zidane, Vivi, Garnet (long hair), Steiner, Freya, Quina, Eiko, Amarant, Cinna, Marcus,
+/// Blank, Beatrix.
+const FACE_SPRITES: [&str; 12] = [
+    "face00", "face01", "face02", "face04", "face07", "face05", "face06", "face08", "face09",
+    "face10", "face11", "face12",
+];
+/// `GraphicResources.FaceAtlasName`, in `sharedassets2.assets`.
+const FACE_ATLAS: &str = "Face Atlas";
+
+/// The member portraits by character id (`FF9UIDataTool.DisplayCharacterAvatar`). Both skins
+/// draw the install's `Face Atlas`: the PS1 portraits were not found in the discs' resident
+/// files.
+pub fn faces(game_data: &Path) -> HashMap<i32, Image> {
+    let sprites = match tantalus_assets::pc::ui_atlas::load_sprites(
+        &game_data.join(HAND_FILE),
+        FACE_ATLAS,
+        &FACE_SPRITES,
+    ) {
+        Ok(sprites) => sprites,
+        Err(error) => {
+            println!("!! portrait art: {error}");
+            return HashMap::new();
+        }
+    };
+    FACE_SPRITES
+        .iter()
+        .enumerate()
+        .filter_map(|(character, name)| {
+            let sprite = sprites.get(*name)?;
+            Some((
+                character as i32,
+                Image {
+                    width: sprite.width as usize,
+                    height: sprite.height as usize,
+                    rgba: sprite.rgba.clone(),
+                },
+            ))
+        })
+        .collect()
+}
+
+/// The cached copy of the discs' game over picture.
+const GAME_OVER_CACHE: &str = "game-over.tim";
+
+/// The PS1 game over picture (`tantalus_psxaudio::ui_art::GAME_OVER_FILE`), from the cache or
+/// the discs.
+fn ps1_game_over() -> Result<Image, String> {
+    let cache = cache_dir().join(GAME_OVER_CACHE);
+    let bytes = match std::fs::read(&cache) {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            let discs = settings()
+                .discs
+                .as_deref()
+                .ok_or("no cached game over picture and no disc folder")?;
+            let bytes = tantalus_psxaudio::ui_art::read_resident_file(
+                discs,
+                tantalus_psxaudio::ui_art::GAME_OVER_FILE,
+            )?;
+            if let Err(error) =
+                std::fs::create_dir_all(cache_dir()).and_then(|()| std::fs::write(&cache, &bytes))
+            {
+                println!("ui skin: cannot cache the game over picture: {error}");
+            }
+            bytes
+        }
+    };
+    let tim = Tim::parse(&bytes)?;
+    Ok(Image {
+        width: tim.width,
+        height: tim.height,
+        rgba: tim.rgba((0, 0, tim.width, tim.height), 0),
+    })
+}
+
+/// The Steam game over picture: the `gameover` texture of `GameOverUI.GameOverSprite`.
+fn steam_game_over(game_data: &Path) -> Result<Image, String> {
+    use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
+    let mut file = StandaloneSerialized::open(&game_data.join(HAND_FILE))
+        .map_err(|error| error.to_string())?;
+    let textures: Vec<_> = file
+        .objects()
+        .iter()
+        .filter(|object| object.class_id == tantalus_assets::pc::ui_atlas::TEXTURE_2D_CLASS_ID)
+        .cloned()
+        .collect();
+    for object in textures {
+        if file.object_name(&object).ok().as_deref() != Some("gameover") {
+            continue;
+        }
+        let bytes = file
+            .read_object(&object)
+            .map_err(|error| error.to_string())?;
+        let texture = tantalus_assets::pc::texture::Texture2D::parse(&bytes, "gameover")
+            .map_err(|error| error.to_string())?;
+        let rgba = texture.rgba_bytes().map_err(|error| error.to_string())?;
+        return Ok(Image {
+            width: texture.width.max(0) as usize,
+            height: texture.height.max(0) as usize,
+            rgba,
+        });
+    }
+    Err("no `gameover` texture".to_owned())
+}
+
+/// The game over picture of the skin (`GameOverUI`), the PS1 one when the PS1 skin draws.
+pub fn game_over_picture(game_data: &Path) -> Option<Image> {
+    if active() == UiSkin::Ps1 {
+        match ps1_game_over() {
+            Ok(image) => return Some(image),
+            Err(error) => println!("ui skin: PS1 game over picture: {error}; using the Steam one"),
+        }
+    }
+    steam_game_over(game_data)
+        .map_err(|error| println!("!! game over picture: {error}"))
+        .ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

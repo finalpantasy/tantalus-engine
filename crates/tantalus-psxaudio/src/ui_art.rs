@@ -267,8 +267,19 @@ impl UiArt {
     }
 }
 
+/// File of the resident group (the group holding the UI file) with the game over picture: a
+/// bare 16-bit TIM of 320 by 224 pixels, the whole PS1 screen (the Steam `gameover` sprite's
+/// source).
+pub const GAME_OVER_FILE: u32 = 11;
+
 /// Reads the resident UI file from the first disc image found in `disc_dir`.
 pub fn read_ui_file(disc_dir: &std::path::Path) -> Result<Vec<u8>, String> {
+    read_resident_file(disc_dir, 1)
+}
+
+/// Reads file `id` of the resident group (the group whose file 1 is the UI file) from the first
+/// disc image found in `disc_dir`.
+pub fn read_resident_file(disc_dir: &std::path::Path, id: u32) -> Result<Vec<u8>, String> {
     let discs = find_discs(disc_dir);
     let (_, path) = discs
         .first()
@@ -280,9 +291,18 @@ pub fn read_ui_file(disc_dir: &std::path::Path) -> Result<Vec<u8>, String> {
         let Ok(data) = img.read(&mut disc, file) else {
             continue;
         };
-        if UiArt::is_ui_file(&data) {
+        if !UiArt::is_ui_file(&data) {
+            continue;
+        }
+        if id == 1 {
             return Ok(data);
         }
+        let wanted = img
+            .group(file.group)
+            .find(|f| f.id == id)
+            .copied()
+            .ok_or_else(|| format!("{}: the resident group has no file {id}", path.display()))?;
+        return img.read(&mut disc, &wanted);
     }
     Err(format!("{} has no resident UI file", path.display()))
 }

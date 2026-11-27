@@ -24,7 +24,7 @@ fn main() -> ExitCode {
     tantalus_legacy::battle::machine::set_keep_rest_time_default(keep_rest || env_on);
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--load SLOT|menu] [--save-dir DIR] [--load-save SavedData_ww.dat [--slot auto|N|SLOT:SAVE|list] [--save-to FILE]] [--ui-skin ps1|steam] [--psx-discs DIR] [--config FILE] [--scale N] [--mute] [--harness DIR [--script FROM-TO:HEXMASK,...|@FILE] [--auto-confirm N] [--frames N] [--shot-every N] [--harness-hz HZ] [--battle attack|row2|row4|mix|flee]]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] [--party 0,1,2,3] [--hurt 1] [--give 2,3] [--presentation BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE[:ATE]]] [--audio-log] [--audio-wav FILE] --output <png> [--size WxH]
+            "tantalus-client capture --mode <2d|3d|hybrid> --output <png>\ntantalus-client capture-field --bundle <unityraw> --field <field> --output <png> [--size WxH]\ntantalus-client view-field --bundle <unityraw> --field <name> [--scale N]\ntantalus-client view-track --assets <StreamingAssets> --track <NNN_MAP.jsonl> [--scale N]\ntantalus-client capture-track --assets <StreamingAssets> --track <file> --tick T --output <png> [--size WxH]\ntantalus-client play --assets <StreamingAssets> --game-data <FF9_Data> --memoria <Memoria root> --atan <ratan_tbl.bin> [--battles <battle-scene-ids.tsv>] [--start 70] [--world-exits LOCATION,...] [--load SLOT|menu] [--save-dir DIR] [--load-save SavedData_ww.dat [--slot auto|N|SLOT:SAVE|list] [--save-to FILE]] [--ui-skin ps1|steam] [--psx-discs DIR] [--config FILE] [--scale N] [--mute] [--harness DIR [--script FROM-TO:HEXMASK,...|@FILE] [--auto-confirm N] [--frames N] [--shot-every N] [--harness-hz HZ] [--battle attack|row2|row4|mix|flee|idle] [--hurt 1]]\ntantalus-client capture-play <play flags> --ticks N [--hold FROM-TO:HEXMASK,...] [--auto-confirm N] [--party 0,1,2,3] [--hurt 1] [--give 2,3] [--presentation BUBBLE:HERE:FADEMODE:C:M:Y[:SCALE[:ATE]]] [--audio-log] [--audio-wav FILE] --output <png> [--size WxH]
 tantalus-client capture-battle <play flags> --battles <tsv> [--ticks N] [--hold ...] [--auto-confirm N] [--battle N] [--at SECONDS,...] [--camera N] [--window-frame <png>] [--live 1] --output <png> [--size WxH]"
         );
         return ExitCode::SUCCESS;
@@ -552,6 +552,7 @@ fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
         "--shot-every",
         "--harness-hz",
         "--battle",
+        "--hurt",
     ]);
     let Some(values) = flag_values(args, &allowed) else {
         return ExitCode::FAILURE;
@@ -599,6 +600,10 @@ fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
             for event in &events {
                 println!("{}", tantalus_client::live::describe(event));
             }
+        }
+        // `--hurt 1`: the party at a quarter of its HP (a harness aid to reach a defeat).
+        if values.contains_key("--hurt") {
+            game.hurt_party();
         }
         let assets = PathBuf::from(&values["--assets"]);
         tantalus_client::live::play(game, assets, scale, mute, fps, harness)

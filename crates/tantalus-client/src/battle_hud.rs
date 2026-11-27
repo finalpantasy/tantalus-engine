@@ -71,6 +71,37 @@ pub struct MenuDraw {
     pub help: Option<String>,
 }
 
+/// The battle result screen (`BattleResultUI`) or the game over picture (`GameOverUI`).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ResultDraw {
+    /// The info line (`infoLabelGameObject`).
+    pub title: String,
+    /// The page's lines: EXP and AP won, or the gil and items.
+    pub lines: Vec<ListLine>,
+    /// One row per party member on the EXP and AP page (`CharacterBattleResultInfoHUD`).
+    pub members: Vec<ResultMember>,
+    /// The game over picture's opacity (a defeat): the screen is the picture over black.
+    pub game_over: Option<f32>,
+}
+
+/// One member row of the EXP and AP page (`BattleResultUI.DisplayCharacterInfo`).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ResultMember {
+    pub character: i32,
+    pub name: String,
+    pub level: usize,
+    pub exp: u64,
+    /// EXP to the next level; `None` at the top level.
+    pub next: Option<u64>,
+    /// The "Level Up!" sprite (`levelUpSpriteTween`).
+    pub level_up: bool,
+    /// Off the EXP share (`IsEnableDraw` false): the portrait at half opacity under the dim
+    /// cover.
+    pub dim: bool,
+    /// The ability-learned panel (`abilityLearnedPanelTween`): the ability's name.
+    pub learned: Option<String>,
+}
+
 /// Everything the HUD shows in one frame.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct HudDraw {
@@ -84,8 +115,8 @@ pub struct HudDraw {
     pub numbers: Vec<([f32; 2], i64, f64)>,
     /// A line across the top (the battle's end, Steal's take).
     pub banner: Option<String>,
-    /// The result screen: a title and its lines.
-    pub results: Option<(String, Vec<ListLine>)>,
+    /// The result screen.
+    pub results: Option<ResultDraw>,
     /// Whether `AllMenuPanel` (party panel, command menu or enemy list) shows.
     pub panels: bool,
 }
@@ -107,6 +138,11 @@ pub struct BattleHud {
     /// UI pixels of room above a text line's top for glyphs taller than the font size (the PS1
     /// font's 12-line cells).
     text_lift: i32,
+    /// Member portraits by character id (`ui_skin::faces`).
+    faces: HashMap<i32, Image>,
+    /// The game over picture, read at the first defeat (`ui_skin::game_over_picture`).
+    game_over: RefCell<Option<Option<Image>>>,
+    game_data: std::path::PathBuf,
 }
 
 /// Where the panels go, in UI pixels. The Steam numbers follow `BattleHUD`'s panels by eye
@@ -207,6 +243,9 @@ impl BattleHud {
             layout: if ps1 { Layout::ps1() } else { Layout::steam() },
             digits: crate::ui_skin::battle_digits(),
             text_lift: if ps1 { 12 } else { 0 },
+            faces: crate::ui_skin::faces(game_data),
+            game_over: RefCell::new(None),
+            game_data: game_data.to_owned(),
         })
     }
 
@@ -365,29 +404,17 @@ impl BattleHud {
         for [x, y] in &hud.target {
             ui.hand_down(x / scale, y / scale);
         }
-        // The result screen (`BattleResultUI`): the info line in its own
-        // window at the top, the page's lines in a window under it.
-        if let Some((title, lines)) = &hud.results {
-            let info_w = ui.measure(title) + 160.0;
-            ui.window((ui_width - info_w) / 2.0, 40.0, info_w, 100.0);
-            ui.text((ui_width - ui.measure(title)) / 2.0, 62.0, title, WHITE);
-            let widest = lines
-                .iter()
-                .map(|entry| ui.measure(&entry.text) + ui.measure(&entry.right))
-                .fold(0.0, f32::max);
-            let w = (widest + 320.0).clamp(1100.0, ui_width - 2.0 * lay.margin);
-            let h = 60.0 + line * lines.len() as f32;
-            let (x, y) = ((ui_width - w) / 2.0, 170.0);
-            ui.window(x, y, w, h);
-            for (row, entry) in lines.iter().enumerate() {
-                let ty = y + 30.0 + line * row as f32;
-                let color = if entry.enabled { WHITE } else { YELLOW };
-                ui.text(x + 80.0, ty, &entry.text, color);
-                ui.text_right(x + w - 80.0, ty, &entry.right, color);
-            }
+        if let Some(results) = &hud.results {
+            ui.results(results, ui_width);
         }
         // Damage numbers bounce up and settle (`btl2d` digits).
-        for ([x, y], amount, since) in &hud.numbers {
+        // The result screen and the game over picture cover the numbers.
+        let numbers = if hud.results.is_some() {
+            &[][..]
+        } else {
+            &hud.numbers[..]
+        };
+        for ([x, y], amount, since) in numbers {
             let (text, color) = match amount {
                 0 => ("Miss".to_owned(), WHITE),
                 amount if *amount < 0 => ((-amount).to_string(), GREEN),
@@ -403,6 +430,14 @@ impl BattleHud {
         }
     }
 }
+
+/// Result screen placement, UI pixels: the info window's top, the page window's top, a member
+/// row's height and pitch, and the portrait's size (`BattleResultUI` panels, placed by eye).
+const RESULT_INFO_Y: f32 = 40.0;
+const RESULT_PAGE_Y: f32 = 170.0;
+const MEMBER_H: f32 = 170.0;
+const MEMBER_PITCH: f32 = 180.0;
+const PORTRAIT: f32 = 140.0;
 
 /// Drawing in UI pixels onto the frame.
 struct Ui<'a> {
@@ -436,6 +471,121 @@ impl Ui<'_> {
             image
         });
         blit_scaled(self.frame, image, x, y, self.scale);
+    }
+
+    /// The result screen: the info line in its own window at the top, the page's lines in a
+    /// window under it, then the member rows (EXP and AP page); a defeat is the game over
+    /// picture alone.
+    fn results(&mut self, results: &ResultDraw, ui_width: f32) {
+        let hud = self.hud;
+        let line = hud.layout.line;
+        if let Some(alpha) = results.game_over {
+            self.rect(0.0, 0.0, ui_width, UI_HEIGHT, [0, 0, 0], 1.0);
+            let mut cached = hud.game_over.borrow_mut();
+            let picture =
+                cached.get_or_insert_with(|| crate::ui_skin::game_over_picture(&hud.game_data));
+            if let Some(picture) = picture.as_ref() {
+                // The whole screen's height, centered (`GameOverUI.GameOverSprite`).
+                let w = UI_HEIGHT * picture.width as f32 / picture.height.max(1) as f32;
+                self.picture(picture, (ui_width - w) / 2.0, 0.0, w, alpha);
+            } else {
+                let text = "GAME OVER";
+                self.text((ui_width - self.measure(text)) / 2.0, 500.0, text, WHITE);
+            }
+            return;
+        }
+        let info_w = self.measure(&results.title) + 160.0;
+        self.window((ui_width - info_w) / 2.0, RESULT_INFO_Y, info_w, 100.0);
+        self.text(
+            (ui_width - self.measure(&results.title)) / 2.0,
+            RESULT_INFO_Y + 22.0,
+            &results.title,
+            WHITE,
+        );
+        let widest = results
+            .lines
+            .iter()
+            .map(|entry| self.measure(&entry.text) + self.measure(&entry.right))
+            .fold(0.0, f32::max);
+        let w = (widest + 320.0).clamp(1100.0, ui_width - 2.0 * hud.layout.margin);
+        let x = (ui_width - w) / 2.0;
+        let h = 60.0 + line * results.lines.len() as f32;
+        self.window(x, RESULT_PAGE_Y, w, h);
+        for (row, entry) in results.lines.iter().enumerate() {
+            let ty = RESULT_PAGE_Y + 30.0 + line * row as f32;
+            let color = if entry.enabled { WHITE } else { YELLOW };
+            self.text(x + 80.0, ty, &entry.text, color);
+            self.text_right(x + w - 80.0, ty, &entry.right, color);
+        }
+        let top = RESULT_PAGE_Y + h + 10.0;
+        for (row, member) in results.members.iter().enumerate() {
+            self.member(member, x, top + MEMBER_PITCH * row as f32, w);
+        }
+    }
+
+    /// One member row: portrait, name, level, EXP and EXP to the next level, the "Level Up!"
+    /// mark and the ability-learned panel over the row's right part.
+    fn member(&mut self, member: &ResultMember, x: f32, y: f32, w: f32) {
+        let hud = self.hud;
+        let line = hud.layout.line;
+        self.window(x, y, w, MEMBER_H);
+        let pad = (MEMBER_H - PORTRAIT) / 2.0;
+        if let Some(face) = hud.faces.get(&member.character) {
+            let alpha = if member.dim { 0.5 } else { 1.0 };
+            // Fit in a `PORTRAIT` square, centered.
+            let fit = PORTRAIT / face.width.max(face.height).max(1) as f32;
+            let (w, h) = (face.width as f32 * fit, face.height as f32 * fit);
+            let left = x + 30.0 + (PORTRAIT - w) / 2.0;
+            self.picture(face, left, y + pad + (PORTRAIT - h) / 2.0, w, alpha);
+        }
+        let text_x = x + 30.0 + PORTRAIT + 40.0;
+        let name_y = y + MEMBER_H / 2.0 - line;
+        let color = if member.dim { GRAY } else { WHITE };
+        self.text(text_x, name_y, &member.name, color);
+        self.text(text_x, name_y + line, "Lv", YELLOW);
+        self.text_right(
+            text_x + 200.0,
+            name_y + line,
+            &member.level.to_string(),
+            color,
+        );
+        if member.level_up {
+            self.text(text_x + 240.0, name_y + line, "Level Up!", YELLOW);
+        }
+        let right = x + w - 60.0;
+        let label_x = right - 520.0;
+        self.text(label_x, name_y, "EXP", YELLOW);
+        self.text_right(right, name_y, &member.exp.to_string(), color);
+        self.text(label_x, name_y + line, "Next Lv", YELLOW);
+        let next = member
+            .next
+            .map_or_else(|| "-".to_owned(), |next| next.to_string());
+        self.text_right(right, name_y + line, &next, color);
+        if let Some(ability) = &member.learned {
+            let panel_w = self.measure(ability) + 160.0;
+            let panel_x = x + w - panel_w - 20.0;
+            self.window(panel_x, y + pad, panel_w, MEMBER_H - 2.0 * pad);
+            self.text(
+                panel_x + 80.0,
+                y + MEMBER_H / 2.0 - line / 2.0,
+                ability,
+                WHITE,
+            );
+        }
+    }
+
+    /// `image` drawn `w` UI pixels wide (its height to scale) at opacity `alpha`.
+    fn picture(&mut self, image: &Image, x: f32, y: f32, w: f32, alpha: f32) {
+        let ui = w / image.width.max(1) as f32;
+        if alpha >= 1.0 {
+            blit_scaled(self.frame, image, x / ui, y / ui, self.scale * ui);
+            return;
+        }
+        let mut faded = image.clone();
+        for px in faded.rgba.chunks_exact_mut(4) {
+            px[3] = (f32::from(px[3]) * alpha.max(0.0)).round() as u8;
+        }
+        blit_scaled(self.frame, &faded, x / ui, y / ui, self.scale * ui);
     }
 
     fn measure(&self, text: &str) -> f32 {

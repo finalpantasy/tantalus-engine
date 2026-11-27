@@ -189,7 +189,8 @@ impl AbilityTables {
         })
     }
 
-    fn name(&self, id: i32) -> String {
+    /// The ability's name (`FF9TextTool.ActionAbilityName` or `SupportAbilityName`).
+    pub fn name(&self, id: i32) -> String {
         if is_support(id) {
             let index = support_index(id).unwrap_or(0);
             self.support_names

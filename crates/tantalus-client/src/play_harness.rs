@@ -43,8 +43,8 @@ pub struct HarnessSettings {
 
 /// What the harness does in battle: each time a member's command menu opens it taps one
 /// command, one tap every [`TAP_TICKS`]: the first row (Attack), the second (Steal or the first
-/// magic list), the fourth (Item, the first item), the three in turn, or L1 and R1 held to
-/// flee. Confirm taps close the result screen.
+/// magic list), the fourth (Item, the first item), the three in turn, L1 and R1 held to flee,
+/// or nothing (`idle`, to lose a fight). Confirm taps close the result screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BattlePolicy {
     Attack,
@@ -52,6 +52,7 @@ pub enum BattlePolicy {
     Row4,
     Mix,
     Flee,
+    Idle,
 }
 
 impl BattlePolicy {
@@ -62,7 +63,12 @@ impl BattlePolicy {
             "row4" => Self::Row4,
             "mix" => Self::Mix,
             "flee" => Self::Flee,
-            _ => return Err(format!("bad --battle `{text}` (attack|row2|row4|mix|flee)")),
+            "idle" => Self::Idle,
+            _ => {
+                return Err(format!(
+                    "bad --battle `{text}` (attack|row2|row4|mix|flee|idle)"
+                ));
+            }
         })
     }
 
@@ -77,7 +83,7 @@ impl BattlePolicy {
             Self::Row2 => ROWS[1],
             Self::Row4 => ROWS[2],
             Self::Mix => ROWS[(turn % 3) as usize],
-            Self::Flee => &[],
+            Self::Flee | Self::Idle => &[],
         }
     }
 
@@ -90,6 +96,9 @@ impl BattlePolicy {
         }
         if self == Self::Flee {
             return pad::L1 | pad::R1;
+        }
+        if self == Self::Idle {
+            return 0;
         }
         let taps = self.taps(turn);
         // Still in the menu once the pattern is done (an item or spell that cannot be used

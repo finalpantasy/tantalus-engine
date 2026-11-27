@@ -958,8 +958,8 @@ pub struct Overlay {
     /// Units under the target cursor.
     pub target: Vec<usize>,
     pub banner: Option<String>,
-    /// The result screen ([`results_lines`]).
-    pub results: Option<(String, Vec<crate::battle_hud::ListLine>)>,
+    /// The result screen ([`results_draw`]).
+    pub results: Option<crate::battle_hud::ResultDraw>,
     /// `AllMenuPanel` off: `PHASE_ENTER` (the opening camera) and from `PHASE_MENU_OFF` (the
     /// battle's end), `battle.cs` `FF9BMenu_EnableMenu`.
     pub hide_panels: bool,
@@ -1829,9 +1829,8 @@ pub struct FightView {
     pub results: Option<tantalus_tools::play::BattleResults>,
     /// Seconds L1 and R1 have been held (`BattleHUD._runCounter`).
     run_held: f64,
-    /// The result screen's page: 0 the EXP and AP, 1 the gil and items
-    /// (`BattleResultUI.DisplayEXPAndAPInfo`, `DisplayGilAndItemInfo`).
-    result_page: usize,
+    /// Where the result screen is (`BattleResultUI.currentState`) and its count.
+    result: ResultCount,
     window: Option<BattleWindow>,
     pub battle: i32,
     pub scene_name: String,
@@ -1872,7 +1871,7 @@ impl FightView {
             ended: None,
             results: None,
             run_held: 0.0,
-            result_page: 0,
+            result: ResultCount::default(),
             window: None,
             battle: stage.battle,
             scene_name: stage.scene.clone(),
@@ -1920,32 +1919,58 @@ impl FightView {
         let mut events = Vec::new();
         if let Some((_, shown)) = &mut self.ended {
             *shown += delta;
+            let shown = *shown;
+            let outcome = self
+                .results
+                .as_ref()
+                .map_or("", |results| results.outcome.as_str());
             // The result screen waits for Confirm; an escape or other end
             // closes by itself.
-            let waits = self
-                .results
-                .as_ref()
-                .is_some_and(|results| matches!(results.outcome.as_str(), "victory" | "defeat"));
-            let confirmed = *shown >= HOLD_SECONDS && pressed & pad::CONFIRM != 0;
-            let victory = self
-                .results
-                .as_ref()
-                .is_some_and(|results| results.outcome == "victory");
-            // Confirm on the EXP and AP page turns to the gil and items page
-            // (`BattleResultUI` `EndEXPAndAP` -> `StartGilAndItem`).
-            if confirmed && victory && self.result_page == 0 {
-                self.result_page = 1;
-                return (events, false);
-            }
-            let done = *shown >= HOLD_SECONDS && (!waits || confirmed);
-            if done
-                && self
-                    .results
-                    .as_ref()
-                    .is_some_and(|results| results.outcome == "defeat")
+            let waits = matches!(outcome, "victory" | "defeat");
+            let confirmed = shown >= HOLD_SECONDS && pressed & pad::CONFIRM != 0;
+            if outcome == "victory"
+                && let Some(results) = self.results.as_ref()
             {
+                let world = game.world();
+                let exp_now = |character: i32| world.character_exp.get(&character).copied();
+                let befores: Vec<(i32, u64)> = results
+                    .exp
+                    .iter()
+                    .map(|&(character, gained, _, _)| {
+                        let now = exp_now(character).unwrap_or(0);
+                        (character, now.saturating_sub(u64::from(gained)))
+                    })
+                    .collect();
+                let mut sounds = Vec::new();
+                if shown >= 1.0 {
+                    self.result.clock += delta;
+                }
+                while self.result.clock >= RESULT_FRAME {
+                    self.result.clock -= RESULT_FRAME;
+                    sounds.extend(
+                        self.result
+                            .frame(results, &|exp| game.level_of(exp), &befores),
+                    );
+                }
+                if confirmed {
+                    sounds.extend(self.result.confirm(
+                        results,
+                        &|exp| game.level_of(exp),
+                        &befores,
+                    ));
+                }
+                for id in sounds {
+                    game.result_sound(id);
+                }
+                if self.result.state != ResultState::Closed {
+                    return (events, false);
+                }
+            }
+            let done = shown >= HOLD_SECONDS
+                && (!waits || confirmed || self.result.state == ResultState::Closed);
+            if done && outcome == "defeat" {
                 // Game over: back to the saved games
-                // (`FF9StateSystem` game over -> title -> Continue).
+                // (`GameOverUI.GoToTitleScene` -> title -> Continue).
                 game.open_load_screen();
             }
             if done {
@@ -2025,26 +2050,29 @@ impl FightView {
                     .filter(|results| !matches!(results.outcome.as_str(), "escape" | "party_flee"))
                     .map(|results| {
                         let world = game.world();
-                        // (total EXP, EXP still to the next level) after the battle
-                        // (`BattleResultUI.DisplayCharacterInfo`).
-                        let progress = |character: i32, level: usize| {
-                            let exp = world.character_exp.get(&character).copied().unwrap_or(0);
-                            let next = world
+                        let exp_now = |character: i32| {
+                            world.character_exp.get(&character).copied().unwrap_or(0)
+                        };
+                        let to_level = |level: usize| {
+                            world
                                 .level_experience
                                 .as_ref()
                                 .and_then(|table| table.get(level).copied())
-                                .map(|to_level| to_level.saturating_sub(exp));
-                            (exp, next)
                         };
-                        results_lines(
+                        results_draw(
                             results,
-                            ResultPage {
-                                page: self.result_page,
+                            &ResultPage {
+                                count: &self.result,
+                                seconds: shown - 1.0,
                                 gil_now: world.gil,
-                                progress: &progress,
+                                exp_now: &exp_now,
+                                level_of: &|exp| game.level_of(exp),
+                                to_level: &to_level,
                             },
                             &|character| tantalus_tools::play::character_name(character).to_owned(),
                             &item_name,
+                            &|id| game.ability_name(id),
+                            &|card| game.card_name(card).map(str::to_owned),
                         )
                     }),
                 hide_panels: true,
@@ -2158,7 +2186,7 @@ impl FightView {
             )
         });
         format!(
-            "battle {} unit {:?} {:?} command {} list {} target {} opening {} ended {} page {}{}",
+            "battle {} unit {:?} {:?} command {} list {} target {} opening {} ended {} result {:?}{}",
             self.battle,
             self.menu.unit,
             self.menu.level,
@@ -2167,7 +2195,7 @@ impl FightView {
             self.menu.target,
             self.opening,
             self.ended.is_some(),
-            self.result_page,
+            self.result.state,
             machine.unwrap_or_default(),
         )
     }
@@ -2348,66 +2376,317 @@ pub fn eat_message(result: u8) -> &'static str {
     }
 }
 
-/// The result screen state [`results_lines`] draws from.
-pub struct ResultPage<'a> {
-    /// 0: EXP and AP; 1: gil and items.
-    pub page: usize,
-    /// The party's gil after the battle.
-    pub gil_now: u32,
-    /// `(character, level)` -> (total EXP, EXP to the next level, `None` at the top level).
-    pub progress: &'a dyn Fn(i32, usize) -> (u64, Option<u64>),
+/// One frame of the result screen's count: `BattleResultUI.Update` runs once a frame at the
+/// game's 30 frames a second.
+const RESULT_FRAME: f64 = 1.0 / 30.0;
+/// `BattleResultUI.EXPMinTick`, `EXPDefaultAdd`, `EXPTickMax`, `GilCountTick`, `GilDefaultAdd`.
+const EXP_MIN_TICK: u32 = 16;
+const EXP_DEFAULT_ADD: u32 = 32;
+const EXP_TICK_MAX: u32 = 192;
+const GIL_COUNT_TICK: u32 = 32;
+const GIL_DEFAULT_ADD: u32 = 1;
+/// Frames an ability-learned panel stays up (`BattleResultUI.ApDraw`: `WaitForSeconds(1f)`
+/// between its clipping tween in and out) and frames each tween takes (by eye).
+const LEARN_SHOW: u32 = 30;
+const LEARN_TWEEN: u32 = 8;
+const LEARN_PERIOD: u32 = LEARN_SHOW + 2 * LEARN_TWEEN;
+
+/// `BattleResultUI.ResultState`, as far as the play window goes (no item-full dialog).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub enum ResultState {
+    /// The EXP and AP page before Confirm starts the count.
+    #[default]
+    Start,
+    /// EXP and AP count up (`EXPAndAPTick`).
+    ExpTick,
+    /// The count is done (`EndEXPAndAP`).
+    ExpEnd,
+    /// The gil and items page before Confirm starts the gil count (`StartGilAndItem`).
+    GilStart,
+    /// Gil counts into the party's purse (`GilTick`).
+    GilTick,
+    /// Everything paid; Confirm closes (`End`).
+    End,
+    /// Closed (`Hide`).
+    Closed,
 }
 
-/// The result screen's info line and lines for `results`, one page of
-/// `BattleResultUI`: page 0 (`DisplayEXPAndAPInfo`, `DisplayCharacterInfo`)
-/// the EXP and AP won, then each member's level, total EXP and EXP to the
-/// next level with "Level Up!" under a member who rose; page 1
-/// (`DisplayGilAndItemInfo`) the gil won, the party's gil, the items won and
-/// stolen and a card, or "No item received.". The captions are the English
-/// `Localization` rows (`BattleResultInfoEXPAP`, `BattleResultInfoGilItem`,
-/// `EXP`, `NoItemGet`). A defeat is the game over screen. Lines with
-/// `enabled` false are drawn yellow.
-pub fn results_lines(
+/// The result screen's state and its counts.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ResultCount {
+    pub state: ResultState,
+    /// Frames since the EXP count began; it keeps running on the EXP page so an
+    /// ability-learned panel finishes.
+    pub frames: u32,
+    /// Frames since the gil count began.
+    pub gil_frames: u32,
+    /// Seconds not yet counted as a frame.
+    clock: f64,
+}
+
+/// EXP added a frame for a share of `value` (`BattleResultUI.InitialInfo`).
+pub fn exp_step(value: u32) -> u32 {
+    if value < EXP_MIN_TICK {
+        1
+    } else if value < EXP_MIN_TICK * EXP_DEFAULT_ADD {
+        value.div_ceil(EXP_MIN_TICK)
+    } else if value / EXP_DEFAULT_ADD > EXP_TICK_MAX {
+        value.div_ceil(EXP_TICK_MAX)
+    } else {
+        EXP_DEFAULT_ADD
+    }
+}
+
+/// Gil added a frame for `value` won (`BattleResultUI.InitialInfo`): one a frame, as
+/// `GilDefaultAdd` is 1.
+pub fn gil_step(value: u32) -> u32 {
+    if value < GIL_COUNT_TICK {
+        1
+    } else if value < GIL_COUNT_TICK * GIL_DEFAULT_ADD {
+        value.div_ceil(GIL_COUNT_TICK)
+    } else {
+        GIL_DEFAULT_ADD
+    }
+}
+
+/// EXP of a `value` share counted after `frames` frames (`BattleResultUI.UpdateExp`).
+fn exp_counted(value: u32, frames: u32) -> u32 {
+    exp_step(value).saturating_mul(frames).min(value)
+}
+
+/// The frame the `index`-th ability-learned panel of a member comes up on: every ability is
+/// learned on the first AP frame (AP counts one a frame and a battle pays a few), and a
+/// member's panels follow one another (`DisplayApWin` waits for `isReadyToShowNextAbil`).
+fn learn_start(index: usize) -> u32 {
+    1 + index as u32 * LEARN_PERIOD
+}
+
+impl ResultCount {
+    /// Whether the EXP and AP count is over (`UpdateState`): every share counted, the AP
+    /// counted one a frame and every learned ability's panel started.
+    fn exp_done(results: &tantalus_tools::play::BattleResults, frames: u32) -> bool {
+        results
+            .exp
+            .iter()
+            .all(|&(_, value, _, _)| exp_counted(value, frames) >= value)
+            && frames >= u32::from(results.ap)
+            && results
+                .learned
+                .iter()
+                .all(|(_, list)| frames >= learn_start(list.len().saturating_sub(1)))
+    }
+
+    /// Each EXP line's level after `frames` frames of the count.
+    fn levels(
+        results: &tantalus_tools::play::BattleResults,
+        frames: u32,
+        level_of: &dyn Fn(u64) -> usize,
+        befores: &[(i32, u64)],
+    ) -> Vec<usize> {
+        results
+            .exp
+            .iter()
+            .zip(befores)
+            .map(|(&(_, value, _, _), &(_, before))| {
+                level_of(before + u64::from(exp_counted(value, frames)))
+            })
+            .collect()
+    }
+
+    /// One frame of the count; returns the sounds it plays: the level-up chime (683, once a
+    /// frame, `ShowLevelUpAnimation`), the ability-learned sound (1043, `ApLearned`) and the
+    /// count's end (103, `UpdateState`).
+    fn frame(
+        &mut self,
+        results: &tantalus_tools::play::BattleResults,
+        level_of: &dyn Fn(u64) -> usize,
+        befores: &[(i32, u64)],
+    ) -> Vec<i32> {
+        use tantalus_tools::play_audio::menu_sound;
+        let mut sounds = Vec::new();
+        match self.state {
+            ResultState::ExpTick => {
+                let before = Self::levels(results, self.frames, level_of, befores);
+                self.frames += 1;
+                let after = Self::levels(results, self.frames, level_of, befores);
+                if after.iter().zip(&before).any(|(now, was)| now > was) {
+                    sounds.push(menu_sound::LEVEL_UP);
+                }
+                if self.frames == 1 && results.learned.iter().any(|(_, list)| !list.is_empty()) {
+                    sounds.push(menu_sound::ABILITY_LEARNED);
+                }
+                if Self::exp_done(results, self.frames) {
+                    sounds.push(menu_sound::CONFIRM);
+                    self.state = ResultState::ExpEnd;
+                }
+            }
+            ResultState::ExpEnd => self.frames = self.frames.saturating_add(1),
+            ResultState::GilTick => {
+                self.gil_frames += 1;
+                if gil_step(results.gil).saturating_mul(self.gil_frames) >= results.gil {
+                    self.state = ResultState::End;
+                }
+            }
+            _ => {}
+        }
+        sounds
+    }
+
+    /// Confirm (`BattleResultUI.OnKeyConfirm`); returns the sounds it plays.
+    fn confirm(
+        &mut self,
+        results: &tantalus_tools::play::BattleResults,
+        level_of: &dyn Fn(u64) -> usize,
+        befores: &[(i32, u64)],
+    ) -> Vec<i32> {
+        use tantalus_tools::play_audio::menu_sound;
+        let mut sounds = Vec::new();
+        self.state = match self.state {
+            ResultState::Start => {
+                // `InitialNormal`: with nothing to count the page starts at `EndEXPAndAP`.
+                let nothing = results.exp.iter().all(|line| line.1 == 0) && results.ap == 0;
+                if nothing {
+                    ResultState::GilStart
+                } else {
+                    ResultState::ExpTick
+                }
+            }
+            ResultState::ExpTick => {
+                // The rest of the count at once, then the gil page (`ApplyTweenAndFade`).
+                let before = Self::levels(results, self.frames, level_of, befores);
+                let after = Self::levels(results, u32::MAX, level_of, befores);
+                if after.iter().zip(&before).any(|(now, was)| now > was) {
+                    sounds.push(menu_sound::LEVEL_UP);
+                }
+                if self.frames == 0 && results.learned.iter().any(|(_, list)| !list.is_empty()) {
+                    sounds.push(menu_sound::ABILITY_LEARNED);
+                }
+                ResultState::GilStart
+            }
+            ResultState::ExpEnd => ResultState::GilStart,
+            ResultState::GilStart if results.gil == 0 => ResultState::End,
+            ResultState::GilStart => ResultState::GilTick,
+            ResultState::GilTick => {
+                self.gil_frames = u32::MAX;
+                ResultState::End
+            }
+            ResultState::End | ResultState::Closed => ResultState::Closed,
+        };
+        sounds
+    }
+}
+
+/// What [`results_draw`] reads besides the battle's pay.
+pub struct ResultPage<'a> {
+    pub count: &'a ResultCount,
+    /// Seconds the result screen has been up (the game over picture fades in over the first).
+    pub seconds: f64,
+    /// The party's gil after the battle.
+    pub gil_now: u32,
+    /// A character's total EXP after the battle.
+    pub exp_now: &'a dyn Fn(i32) -> u64,
+    /// The level of a total EXP.
+    pub level_of: &'a dyn Fn(u64) -> usize,
+    /// EXP to reach the level after `level` (`ff9level.CharacterLevelUps[level]`), `None` at
+    /// the top.
+    pub to_level: &'a dyn Fn(usize) -> Option<u64>,
+}
+
+/// The result screen of `results` as the HUD draws it (`BattleResultUI`). The EXP and AP page
+/// (`DisplayEXPAndAPInfo`, `DisplayCharacterInfo`): the EXP share and AP won, then a row per
+/// party member with portrait, level, total EXP and EXP to the next level counting up after
+/// Confirm, "Level Up!" once the member rose and each learned ability's panel in turn. The gil
+/// and items page (`DisplayGilAndItemInfo`): the gil won counting down into the party's gil,
+/// the items won and stolen, the card by name, or "No item received.". The captions are the
+/// English `Localization` rows (`BattleResultInfoEXPAP`, `BattleResultInfoGilItem`, `EXP`,
+/// `NoItemGet`). A defeat is the game over picture (`GameOverUI`).
+pub fn results_draw(
     results: &tantalus_tools::play::BattleResults,
-    page: ResultPage<'_>,
+    page: &ResultPage<'_>,
     name: &dyn Fn(i32) -> String,
     item_name: &dyn Fn(i32) -> Option<String>,
-) -> (String, Vec<crate::battle_hud::ListLine>) {
-    use crate::battle_hud::ListLine;
+    ability_name: &dyn Fn(i32) -> String,
+    card_name: &dyn Fn(u32) -> Option<String>,
+) -> crate::battle_hud::ResultDraw {
+    use crate::battle_hud::{ListLine, ResultDraw, ResultMember};
     let plain = |text: String, right: String| ListLine {
         text,
         right,
         enabled: true,
     };
     let item = |id: u32| item_name(id as i32).unwrap_or_else(|| format!("Item {id}"));
+    let count = page.count;
     match results.outcome.as_str() {
-        "victory" if page.page == 0 => {
-            let exp = results.exp.iter().map(|e| e.1).max().unwrap_or(0);
-            let mut lines = vec![
-                plain("EXP".into(), exp.to_string()),
+        "victory" if count.state < ResultState::GilStart => {
+            let share = results.exp.iter().map(|e| e.1).max().unwrap_or(0);
+            let lines = vec![
+                plain("EXP".into(), share.to_string()),
                 plain("AP".into(), results.ap.to_string()),
             ];
-            for &(character, _, from, to) in &results.exp {
-                let (total, next) = (page.progress)(character, to);
-                let next = next.map_or_else(|| "-".to_owned(), |n| n.to_string());
-                lines.push(plain(
-                    format!("{}  Lv {to}", name(character)),
-                    format!("EXP {total}  Next Lv {next}"),
-                ));
-                if to > from {
-                    lines.push(ListLine {
-                        text: "  Level Up!".into(),
-                        right: String::new(),
-                        enabled: false,
-                    });
-                }
+            let frames = if count.state == ResultState::Start {
+                0
+            } else {
+                count.frames
+            };
+            let members = results
+                .party
+                .iter()
+                .take(4)
+                .map(|&character| {
+                    let now = (page.exp_now)(character);
+                    let line = results.exp.iter().find(|line| line.0 == character);
+                    let (exp, from) = match line {
+                        Some(&(_, value, from, _)) => (
+                            now.saturating_sub(u64::from(value))
+                                + u64::from(exp_counted(value, frames)),
+                            from,
+                        ),
+                        None => (now, (page.level_of)(now)),
+                    };
+                    let level = (page.level_of)(exp);
+                    let learned = results
+                        .learned
+                        .iter()
+                        .find(|(who, _)| *who == character)
+                        .and_then(|(_, list)| {
+                            list.iter().enumerate().find_map(|(index, &ability)| {
+                                let start = learn_start(index);
+                                (frames >= start && frames < start + LEARN_PERIOD)
+                                    .then(|| ability_name(ability))
+                            })
+                        });
+                    ResultMember {
+                        character,
+                        name: name(character),
+                        level,
+                        exp,
+                        // `nextLvl - exp`; at the top level `nextLvl` is the EXP itself.
+                        next: Some((page.to_level)(level).map_or(0, |to| to.saturating_sub(exp))),
+                        level_up: level > from,
+                        dim: line.is_none(),
+                        learned,
+                    }
+                })
+                .collect();
+            ResultDraw {
+                title: "Received EXP and AP!".to_owned(),
+                lines,
+                members,
+                game_over: None,
             }
-            ("Received EXP and AP!".to_owned(), lines)
         }
         "victory" => {
+            let counted = match count.state {
+                ResultState::GilTick => gil_step(results.gil)
+                    .saturating_mul(count.gil_frames)
+                    .min(results.gil),
+                ResultState::End | ResultState::Closed => results.gil,
+                _ => 0,
+            };
+            let before = page.gil_now.saturating_sub(results.gil);
             let mut lines = vec![
-                plain("Gil".into(), results.gil.to_string()),
-                plain("Current Gil".into(), page.gil_now.to_string()),
+                plain("Gil".into(), (results.gil - counted).to_string()),
+                plain("Current Gil".into(), (before + counted).to_string()),
             ];
             for &(id, count) in &results.items {
                 lines.push(plain(item(id), count.to_string()));
@@ -2416,18 +2695,27 @@ pub fn results_lines(
                 lines.push(plain(format!("{} (stolen)", item(id)), "1".into()));
             }
             if let Some(card) = results.card {
-                lines.push(plain(format!("Card {card}"), "1".into()));
+                let card = card_name(card).unwrap_or_else(|| format!("Card {card}"));
+                lines.push(plain(card, "1".into()));
             }
             if lines.len() == 2 {
                 lines.push(plain("No item received.".into(), String::new()));
             }
-            ("Received Item(s) and Gil".to_owned(), lines)
+            ResultDraw {
+                title: "Received Item(s) and Gil".to_owned(),
+                lines,
+                ..ResultDraw::default()
+            }
         }
-        "defeat" => (
-            "GAME OVER".to_owned(),
-            vec![plain("Confirm: load a saved game".into(), String::new())],
-        ),
-        other => (other.to_owned(), Vec::new()),
+        "defeat" => ResultDraw {
+            title: "GAME OVER".to_owned(),
+            game_over: Some(page.seconds.clamp(0.0, 1.0) as f32),
+            ..ResultDraw::default()
+        },
+        other => ResultDraw {
+            title: other.to_owned(),
+            ..ResultDraw::default()
+        },
     }
 }
 
@@ -2468,58 +2756,176 @@ pub fn set_title(world: &mut bevy::ecs::world::World, title: String) {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn results_lines_show_level_ups_and_game_over() {
-        let results = tantalus_tools::play::BattleResults {
+    fn exp_and_gil_steps_follow_battle_result_ui() {
+        // Under `EXPMinTick` one a frame; under 16 * 32 sixteen frames; then 32 a frame,
+        // at most 192 frames.
+        assert_eq!(exp_step(10), 1);
+        assert_eq!(exp_step(100), 7);
+        assert_eq!(exp_step(1000), 32);
+        assert_eq!(exp_step(10_000), 53);
+        assert_eq!(gil_step(500), 1);
+    }
+
+    fn victory() -> tantalus_tools::play::BattleResults {
+        tantalus_tools::play::BattleResults {
             outcome: "victory".into(),
-            gil: 30,
+            party: vec![0, 1, 2],
+            learned: vec![(0, vec![5, 7])],
+            gil: 3,
             ap: 2,
-            exp: vec![(0, 50, 2, 3), (1, 50, 2, 2)],
+            // Zidane 40 EXP from Lv 2 to 3; Vivi 40 EXP staying at 2; Dagger got none.
+            exp: vec![(0, 40, 2, 3), (1, 40, 2, 2)],
             items: vec![(236, 1)],
             stolen: vec![88],
-            card: None,
-        };
-        let progress = |character: i32, level: usize| (100 + character as u64, Some(level as u64));
-        let page = |page| ResultPage {
-            page,
-            gil_now: 500,
-            progress: &progress,
-        };
+            card: Some(12),
+        }
+    }
+
+    #[test]
+    fn the_result_screen_counts_exp_then_gil() {
+        let results = victory();
+        // Level 3 from 100 EXP; after the battle Zidane has 110, Vivi 60, Dagger 20.
+        let level_of = |exp: u64| if exp >= 100 { 3 } else { 2 };
+        let exp_now = |character: i32| [110, 60, 20][character as usize];
+        let to_level = |level: usize| Some(if level >= 3 { 200 } else { 100 });
         let name = |id| format!("C{id}");
         let item = |item| Some(format!("I{item}"));
-        let (title, lines) = results_lines(&results, page(0), &name, &item);
-        assert_eq!(title, "Received EXP and AP!");
-        let rows: Vec<(&str, &str)> = lines
+        let ability = |id| format!("A{id}");
+        let card = |id| Some(format!("Card{id}"));
+        let draw = |count: &ResultCount| {
+            let page = ResultPage {
+                count,
+                seconds: 2.0,
+                gil_now: 503,
+                exp_now: &exp_now,
+                level_of: &level_of,
+                to_level: &to_level,
+            };
+            results_draw(&results, &page, &name, &item, &ability, &card)
+        };
+        let befores = [(0, 70), (1, 20)];
+        let mut count = ResultCount::default();
+        // Before Confirm: the EXP before the battle.
+        let start = draw(&count);
+        assert_eq!(start.title, "Received EXP and AP!");
+        let row = |draw: &crate::battle_hud::ResultDraw, i: usize| {
+            let m = &draw.members[i];
+            (m.exp, m.level, m.next, m.level_up, m.dim, m.learned.clone())
+        };
+        assert_eq!(row(&start, 0), (70, 2, Some(30), false, false, None));
+        assert_eq!(row(&start, 2), (20, 2, Some(80), false, true, None));
+        assert!(count.confirm(&results, &level_of, &befores).is_empty());
+        assert_eq!(count.state, ResultState::ExpTick);
+        // 40 EXP is 3 a frame (16 frames): Zidane passes 100 on frame 10.
+        let mut sounds = Vec::new();
+        for _ in 0..10 {
+            sounds.extend(count.frame(&results, &level_of, &befores));
+        }
+        assert_eq!(sounds, [1043, 683]);
+        let mid = draw(&count);
+        assert_eq!(
+            row(&mid, 0),
+            (100, 3, Some(100), true, false, Some("A5".to_owned()))
+        );
+        // The second learned ability's panel starts 46 frames after the first.
+        for _ in 10..47 {
+            sounds.extend(count.frame(&results, &level_of, &befores));
+        }
+        assert_eq!(count.state, ResultState::ExpEnd);
+        assert_eq!(sounds.last(), Some(&103));
+        assert_eq!(row(&draw(&count), 0).5, Some("A7".to_owned()));
+        assert_eq!(row(&draw(&count), 0).0, 110);
+        // Confirm: the gil page, then the gil counts one a frame.
+        count.confirm(&results, &level_of, &befores);
+        let gil = draw(&count);
+        assert_eq!(gil.title, "Received Item(s) and Gil");
+        let lines: Vec<(&str, &str)> = gil
+            .lines
             .iter()
             .map(|line| (line.text.as_str(), line.right.as_str()))
             .collect();
         assert_eq!(
-            rows,
+            lines,
             [
-                ("EXP", "50"),
-                ("AP", "2"),
-                ("C0  Lv 3", "EXP 100  Next Lv 3"),
-                ("  Level Up!", ""),
-                ("C1  Lv 2", "EXP 101  Next Lv 2"),
+                ("Gil", "3"),
+                ("Current Gil", "500"),
+                ("I236", "1"),
+                ("I88 (stolen)", "1"),
+                ("Card12", "1"),
             ]
         );
-        let (title, lines) = results_lines(&results, page(1), &name, &item);
-        assert_eq!(title, "Received Item(s) and Gil");
-        let texts: Vec<&str> = lines.iter().map(|line| line.text.as_str()).collect();
-        assert_eq!(texts, ["Gil", "Current Gil", "I236", "I88 (stolen)"]);
-        let empty = tantalus_tools::play::BattleResults {
-            outcome: "victory".into(),
-            ..Default::default()
-        };
-        let (_, lines) = results_lines(&empty, page(1), &name, &item);
-        assert_eq!(lines[2].text, "No item received.");
+        count.confirm(&results, &level_of, &befores);
+        count.frame(&results, &level_of, &befores);
+        assert_eq!(draw(&count).lines[1].right, "501");
+        count.frame(&results, &level_of, &befores);
+        count.frame(&results, &level_of, &befores);
+        assert_eq!(count.state, ResultState::End);
+        assert_eq!(draw(&count).lines[0].right, "0");
+        count.confirm(&results, &level_of, &befores);
+        assert_eq!(count.state, ResultState::Closed);
+    }
+
+    #[test]
+    fn confirm_during_the_count_pays_the_rest_at_once() {
+        let results = victory();
+        let level_of = |exp: u64| if exp >= 100 { 3 } else { 2 };
+        let befores = [(0, 70), (1, 20)];
+        let mut count = ResultCount::default();
+        count.confirm(&results, &level_of, &befores);
+        assert_eq!(
+            count.confirm(&results, &level_of, &befores),
+            [683, 1043],
+            "the level up still sounds"
+        );
+        assert_eq!(count.state, ResultState::GilStart);
+    }
+
+    #[test]
+    fn a_defeat_is_the_game_over_picture_and_an_empty_victory_says_so() {
         let lost = tantalus_tools::play::BattleResults {
             outcome: "defeat".into(),
             ..Default::default()
         };
-        assert_eq!(
-            results_lines(&lost, page(0), &|_| String::new(), &|_| None).0,
-            "GAME OVER"
+        let count = ResultCount::default();
+        let page = ResultPage {
+            count: &count,
+            seconds: 0.5,
+            gil_now: 0,
+            exp_now: &|_| 0,
+            level_of: &|_| 1,
+            to_level: &|_| None,
+        };
+        let none = |_: i32| None;
+        let no_card = |_: u32| None;
+        let draw = results_draw(
+            &lost,
+            &page,
+            &|_| String::new(),
+            &none,
+            &|_| String::new(),
+            &no_card,
         );
+        assert_eq!(draw.game_over, Some(0.5));
+        let empty = tantalus_tools::play::BattleResults {
+            outcome: "victory".into(),
+            ..Default::default()
+        };
+        let mut count = ResultCount::default();
+        count.confirm(&empty, &|_| 1, &[]);
+        assert_eq!(count.state, ResultState::GilStart);
+        let page = ResultPage {
+            count: &count,
+            ..page
+        };
+        let draw = results_draw(
+            &empty,
+            &page,
+            &|_| String::new(),
+            &none,
+            &|_| String::new(),
+            &no_card,
+        );
+        assert_eq!(draw.lines[2].text, "No item received.");
     }
 
     use super::*;

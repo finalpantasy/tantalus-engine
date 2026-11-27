@@ -2073,6 +2073,28 @@ impl PlayGame {
         self.data.item_names.get(&id).map(String::as_str)
     }
 
+    /// Name of ability `id` (an active ability, or 192 + a support ability).
+    pub fn ability_name(&self, id: i32) -> String {
+        self.data.menu.abilities.name(id)
+    }
+
+    /// Name of Tetra Master card `id` (`FF9TextTool.CardName`).
+    pub fn card_name(&self, id: u32) -> Option<&str> {
+        let id = i32::try_from(id).ok()?;
+        self.data.menu.card_names.get(&id).map(String::as_str)
+    }
+
+    /// Level of a character with `exp` total EXP (`ff9level.CharacterLevelUps`).
+    pub fn level_of(&self, exp: u64) -> usize {
+        self.data.menu.level(exp)
+    }
+
+    /// A sound of the battle result screen (`BattleResultUI`: level up 683, ability learned
+    /// 1043, the count's end 103).
+    pub fn result_sound(&mut self, id: i32) {
+        self.audio.push((self.ticks, AudioCue::Effect { id }));
+    }
+
     /// Starts the first pending battle that sets up; one that cannot start
     /// is reported and skipped. With none left, the field resumes.
     fn start_pending(&mut self, events: &mut Vec<PlayEvent>) {
@@ -2203,15 +2225,40 @@ impl PlayGame {
                 .collect()
         };
         let before = levels(world);
-        let learned = |world: &FieldWorld| -> usize {
-            world.learned_abilities.values().map(|set| set.len()).sum()
-        };
-        let learned_before = learned(world);
+        let learned_before = world.learned_abilities.clone();
         pay_rewards(&report, world);
         let after = levels(world);
-        let learned_after = learned(world);
         let victory = report.outcome.as_deref() == Some("victory");
+        // The abilities each member learned from the AP (`BattleResultUI.ApLearned`), in the
+        // order `AddAp` meets them.
+        let learned: Vec<(i32, Vec<i32>)> = report
+            .reward_ap_lines
+            .iter()
+            .filter(|_| victory)
+            .map(|(character, _, goals)| {
+                let had = learned_before.get(character);
+                let now = world.learned_abilities.get(character);
+                let new = goals
+                    .iter()
+                    .map(|&(ability, _)| ability)
+                    .filter(|ability| {
+                        now.is_some_and(|set| set.contains(ability))
+                            && !had.is_some_and(|set| set.contains(ability))
+                    })
+                    .fold(Vec::new(), |mut list, ability| {
+                        if !list.contains(&ability) {
+                            list.push(ability);
+                        }
+                        list
+                    });
+                (*character, new)
+            })
+            .filter(|(_, new)| !new.is_empty())
+            .collect();
+        let party = world.party.clone();
         self.last_results = Some(BattleResults {
+            party,
+            learned,
             outcome: report.outcome.clone().unwrap_or_default(),
             gil: if victory { report.reward_gil } else { 0 },
             ap: if victory { report.reward_ap } else { 0 },
@@ -2233,23 +2280,8 @@ impl PlayGame {
             stolen: report.items_stolen.clone(),
             card: report.reward_card.filter(|_| victory),
         });
-        if victory {
-            // `BattleResultUI`: a level-up chime (683) once, and the ability-learned sound
-            // (1043) once. The EXP, AP and gil tick loops (105, 109) go with count-up
-            // animations this result screen does not have.
-            let mut sounds = Vec::new();
-            if before.iter().zip(&after).any(|(from, to)| to > from) {
-                sounds.push(menu_sound::LEVEL_UP);
-            }
-            if learned_after > learned_before {
-                sounds.push(menu_sound::ABILITY_LEARNED);
-            }
-            self.audio.extend(
-                sounds
-                    .into_iter()
-                    .map(|id| (self.ticks, AudioCue::Effect { id })),
-            );
-        }
+        // The result screen's sounds (level up 683, ability learned 1043, the end of the count
+        // 103) play from the play window as its count-up reaches them (`result_sound`).
         if let Some(stage) = report.stage.take() {
             pending.stage = Some(stage);
         }
@@ -2626,6 +2658,10 @@ impl PlayGame {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct BattleResults {
     pub outcome: String,
+    /// The party in slot order (`FF9.party.member`), the result screen's rows.
+    pub party: Vec<i32>,
+    /// `(character, abilities)` learned from this battle's AP (`BattleResultUI.ApLearned`).
+    pub learned: Vec<(i32, Vec<i32>)>,
     pub gil: u32,
     pub ap: u16,
     /// `(character, EXP, level before, level after)`.
