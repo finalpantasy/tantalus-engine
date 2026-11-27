@@ -31,7 +31,7 @@ frame-rate setting.
 | PB3 | P2 | fixed | no | A button held across a battle or movie end is a new press on the first field tick |
 | PB4 | P2 | open | partly | First field after launch shows the clear color instead of the background for 5 to 20 frames |
 | PB5 | P2 | open, unverified | no | Random battles take about a minute (one enemy action ran 12 s) |
-| PB6 | P2 | open | no | Battle HUD (party panel, enemy list) is up during the opening camera |
+| PB6 | P2 | fixed | no | Battle HUD (party panel, enemy list) is up during the opening camera |
 
 ### PB1: vanilla 30 fps judders (fixed)
 
@@ -146,11 +146,21 @@ frame-rate setting.
   (`sel_mode` 1) while Zuu's spell plays.
 - Not judged a bug yet: needs a Steam timing reference of the same battle.
 
-### PB6: HUD during the opening camera (open)
+### PB6: HUD during the opening camera (fixed)
 
 - Repro: slot 4, `hunt/out/s4-hi/f000600.png` (t300, 11 ticks into battle 101): party panel and
   enemy list are drawn while the opening camera sweeps the cave wall. `battle_view.rs:2053`
-  holds back only the command menu. Check `BattleHUD` against Memoria before changing.
+  holds back only the command menu.
+- Cause: in the C# the party panel, the command menu and the enemy (target) list are all
+  children of `AllMenuPanel` (`BattleHUD.UI.AllMenuPanel.cs`). `BattleHUD.Show` turns it off
+  (`BattleHUD.Scene.cs`), and only `FF9BMenu_EnableMenu(true)` at the end of
+  `PHASE_MENU_ON` (`battle.cs:122`) turns it on; `PHASE_MENU_OFF` turns it off again at the
+  battle's end (`battle.cs:135`).
+- Fix: `HudDraw::panels` (`Overlay::hide_panels`): the panels are not drawn while the opening
+  camera plays (`PHASE_ENTER`) nor once the battle has ended (the result screen and its
+  banner); damage numbers, the banner and the result window still draw.
+- Check: slot 4 after the fix (fix1 `hunt/out/h4-hi`, `hunt/out/pb6-after.png`): f600 to f930
+  (the opening) show no HUD; f990 on show the party panel and the enemy list.
 
 ## Checked and fine
 

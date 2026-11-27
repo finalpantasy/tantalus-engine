@@ -86,6 +86,8 @@ pub struct HudDraw {
     pub banner: Option<String>,
     /// The result screen: a title and its lines.
     pub results: Option<(String, Vec<ListLine>)>,
+    /// Whether `AllMenuPanel` (party panel, command menu or enemy list) shows.
+    pub panels: bool,
 }
 
 /// The font and window art, and windows drawn so far.
@@ -219,133 +221,138 @@ impl BattleHud {
         };
         let lay = self.layout;
         let line = lay.line;
-        // Party panel, bottom right (`PartyDetailPanel`).
-        let party_w = lay.party_w;
-        let party_h = lay.party_pad_h + line * hud.party.len().max(1) as f32;
-        let party_x = ui_width - party_w - lay.margin;
-        let party_y = UI_HEIGHT - party_h - lay.margin;
-        ui.window(party_x, party_y, party_w, party_h);
-        let columns = lay.columns.map(|column| party_x + column);
-        let header_y = party_y + lay.header_y;
-        ui.text(columns[1] + lay.header_shift, header_y, "HP", YELLOW);
-        ui.text(columns[2] + lay.header_shift, header_y, "MP", YELLOW);
-        ui.text(columns[3] + lay.header_shift, header_y, "ATB", YELLOW);
-        for (row, member) in hud.party.iter().enumerate() {
-            let y = party_y + lay.first_row_y + line * row as f32;
-            let color = if member.hp.0 == 0 {
-                RED
-            } else if member.hp.0 * 4 <= member.hp.1 {
-                YELLOW
-            } else {
-                WHITE
-            };
-            if member.asked {
-                ui.hand(columns[0] - 10.0, y + 8.0);
-            }
-            ui.text(columns[0], y, &member.name, color);
-            ui.text_right(
-                columns[1] + lay.hp_right,
-                y,
-                &member.hp.0.to_string(),
-                color,
-            );
-            ui.text_right(
-                columns[2] + lay.mp_right,
-                y,
-                &member.mp.0.to_string(),
-                color,
-            );
-            // ATB gauge (`BattleHUD.ATBGauge`): blue while it fills,
-            // yellow when full.
-            let (bx, by, bw, bh) = (columns[3], y + lay.atb.0, lay.atb.1, lay.atb.2);
-            ui.rect(bx - 3.0, by - 3.0, bw + 6.0, bh + 6.0, [20, 20, 40], 1.0);
-            let fill = if member.atb >= 1.0 {
-                [230, 210, 70]
-            } else {
-                [90, 150, 230]
-            };
-            ui.rect(bx, by, bw * member.atb.clamp(0.0, 1.0), bh, fill, 1.0);
-            // Trance gauge under it (`BattleHUD` `TranceSlider`), pink;
-            // brighter while in Trance.
-            if let Some((trance, active)) = member.trance {
-                let (ty, th) = (by + bh + 4.0, 8.0);
-                ui.rect(bx - 3.0, ty - 2.0, bw + 6.0, th + 4.0, [30, 15, 30], 1.0);
-                let fill = if active {
-                    [255, 150, 230]
+        // `AllMenuPanel` (party panel, command menu, enemy list) is off until
+        // `PHASE_MENU_ON` ends and again from `PHASE_MENU_OFF`
+        // (`battle.cs` `FF9BMenu_EnableMenu`, `BattleHUD.Scene.cs` `Show`).
+        if hud.panels {
+            // Party panel, bottom right (`PartyDetailPanel`).
+            let party_w = lay.party_w;
+            let party_h = lay.party_pad_h + line * hud.party.len().max(1) as f32;
+            let party_x = ui_width - party_w - lay.margin;
+            let party_y = UI_HEIGHT - party_h - lay.margin;
+            ui.window(party_x, party_y, party_w, party_h);
+            let columns = lay.columns.map(|column| party_x + column);
+            let header_y = party_y + lay.header_y;
+            ui.text(columns[1] + lay.header_shift, header_y, "HP", YELLOW);
+            ui.text(columns[2] + lay.header_shift, header_y, "MP", YELLOW);
+            ui.text(columns[3] + lay.header_shift, header_y, "ATB", YELLOW);
+            for (row, member) in hud.party.iter().enumerate() {
+                let y = party_y + lay.first_row_y + line * row as f32;
+                let color = if member.hp.0 == 0 {
+                    RED
+                } else if member.hp.0 * 4 <= member.hp.1 {
+                    YELLOW
                 } else {
-                    [220, 80, 170]
+                    WHITE
                 };
-                ui.rect(bx, ty, bw * trance.clamp(0.0, 1.0), th, fill, 1.0);
-            }
-        }
-        // Left: the command menu, or the enemy names.
-        let left_w: f32 = lay.left_w;
-        let left_x = lay.margin;
-        match &hud.menu {
-            Some(menu) => {
-                let rows = menu.commands.len().min(4);
-                let h = lay.rows_pad_h + line * rows as f32;
-                let y = UI_HEIGHT - h - lay.margin;
-                // The list replaces the command window (`AbilityPanel`
-                // over `CommandPanel`).
-                let commands = if menu.list.is_some() {
-                    &[][..]
-                } else {
-                    ui.window(left_x, y, left_w, h);
-                    &menu.commands[..]
-                };
-                for (index, command) in commands.iter().enumerate() {
-                    // Side column: Defend beside the first row, Change
-                    // beside the last.
-                    let (row, x) = match index {
-                        0..=3 => (index, left_x + lay.command_x),
-                        4 => (0, left_x + lay.side_x),
-                        _ => (rows.saturating_sub(1), left_x + lay.side_x),
-                    };
-                    let ty = y + lay.row_y + line * row as f32;
-                    let color = if command.enabled { WHITE } else { GRAY };
-                    ui.text(x, ty, &command.text, color);
-                    if index == menu.command_cursor && menu.list.is_none() && !menu.targeting {
-                        ui.hand(x - 10.0, ty + 8.0);
-                    }
+                if member.asked {
+                    ui.hand(columns[0] - 10.0, y + 8.0);
                 }
-                if let Some((lines, cursor)) = &menu.list {
-                    let shown = 6usize;
-                    let first = cursor.saturating_sub(shown - 1);
-                    let list_h = lay.rows_pad_h + line * shown.min(lines.len()).max(1) as f32;
-                    let list_w = left_w;
-                    let list_x = left_x;
-                    let list_y = UI_HEIGHT - list_h - lay.margin;
-                    ui.window(list_x, list_y, list_w, list_h);
-                    for (row, entry) in lines.iter().enumerate().skip(first).take(shown) {
-                        let ty = list_y + lay.row_y + line * (row - first) as f32;
-                        let color = if entry.enabled { WHITE } else { GRAY };
-                        ui.text(list_x + lay.list_text_x, ty, &entry.text, color);
-                        ui.text_right(
-                            list_x + list_w - lay.list_right_inset,
-                            ty,
-                            &entry.right,
-                            color,
-                        );
-                        if row == *cursor && !menu.targeting {
-                            ui.hand(list_x + lay.list_text_x - 10.0, ty + 8.0);
+                ui.text(columns[0], y, &member.name, color);
+                ui.text_right(
+                    columns[1] + lay.hp_right,
+                    y,
+                    &member.hp.0.to_string(),
+                    color,
+                );
+                ui.text_right(
+                    columns[2] + lay.mp_right,
+                    y,
+                    &member.mp.0.to_string(),
+                    color,
+                );
+                // ATB gauge (`BattleHUD.ATBGauge`): blue while it fills,
+                // yellow when full.
+                let (bx, by, bw, bh) = (columns[3], y + lay.atb.0, lay.atb.1, lay.atb.2);
+                ui.rect(bx - 3.0, by - 3.0, bw + 6.0, bh + 6.0, [20, 20, 40], 1.0);
+                let fill = if member.atb >= 1.0 {
+                    [230, 210, 70]
+                } else {
+                    [90, 150, 230]
+                };
+                ui.rect(bx, by, bw * member.atb.clamp(0.0, 1.0), bh, fill, 1.0);
+                // Trance gauge under it (`BattleHUD` `TranceSlider`), pink;
+                // brighter while in Trance.
+                if let Some((trance, active)) = member.trance {
+                    let (ty, th) = (by + bh + 4.0, 8.0);
+                    ui.rect(bx - 3.0, ty - 2.0, bw + 6.0, th + 4.0, [30, 15, 30], 1.0);
+                    let fill = if active {
+                        [255, 150, 230]
+                    } else {
+                        [220, 80, 170]
+                    };
+                    ui.rect(bx, ty, bw * trance.clamp(0.0, 1.0), th, fill, 1.0);
+                }
+            }
+            // Left: the command menu, or the enemy names.
+            let left_w: f32 = lay.left_w;
+            let left_x = lay.margin;
+            match &hud.menu {
+                Some(menu) => {
+                    let rows = menu.commands.len().min(4);
+                    let h = lay.rows_pad_h + line * rows as f32;
+                    let y = UI_HEIGHT - h - lay.margin;
+                    // The list replaces the command window (`AbilityPanel`
+                    // over `CommandPanel`).
+                    let commands = if menu.list.is_some() {
+                        &[][..]
+                    } else {
+                        ui.window(left_x, y, left_w, h);
+                        &menu.commands[..]
+                    };
+                    for (index, command) in commands.iter().enumerate() {
+                        // Side column: Defend beside the first row, Change
+                        // beside the last.
+                        let (row, x) = match index {
+                            0..=3 => (index, left_x + lay.command_x),
+                            4 => (0, left_x + lay.side_x),
+                            _ => (rows.saturating_sub(1), left_x + lay.side_x),
+                        };
+                        let ty = y + lay.row_y + line * row as f32;
+                        let color = if command.enabled { WHITE } else { GRAY };
+                        ui.text(x, ty, &command.text, color);
+                        if index == menu.command_cursor && menu.list.is_none() && !menu.targeting {
+                            ui.hand(x - 10.0, ty + 8.0);
                         }
                     }
+                    if let Some((lines, cursor)) = &menu.list {
+                        let shown = 6usize;
+                        let first = cursor.saturating_sub(shown - 1);
+                        let list_h = lay.rows_pad_h + line * shown.min(lines.len()).max(1) as f32;
+                        let list_w = left_w;
+                        let list_x = left_x;
+                        let list_y = UI_HEIGHT - list_h - lay.margin;
+                        ui.window(list_x, list_y, list_w, list_h);
+                        for (row, entry) in lines.iter().enumerate().skip(first).take(shown) {
+                            let ty = list_y + lay.row_y + line * (row - first) as f32;
+                            let color = if entry.enabled { WHITE } else { GRAY };
+                            ui.text(list_x + lay.list_text_x, ty, &entry.text, color);
+                            ui.text_right(
+                                list_x + list_w - lay.list_right_inset,
+                                ty,
+                                &entry.right,
+                                color,
+                            );
+                            if row == *cursor && !menu.targeting {
+                                ui.hand(list_x + lay.list_text_x - 10.0, ty + 8.0);
+                            }
+                        }
+                    }
+                    if let Some(help) = &menu.help {
+                        let w = (ui.measure(help) + 120.0).max(400.0);
+                        ui.window((ui_width - w) / 2.0, 20.0, w, 100.0);
+                        ui.text((ui_width - ui.measure(help)) / 2.0, 42.0, help, WHITE);
+                    }
                 }
-                if let Some(help) = &menu.help {
-                    let w = (ui.measure(help) + 120.0).max(400.0);
-                    ui.window((ui_width - w) / 2.0, 20.0, w, 100.0);
-                    ui.text((ui_width - ui.measure(help)) / 2.0, 42.0, help, WHITE);
-                }
-            }
-            None => {
-                let shown = hud.enemies.len().clamp(1, 4);
-                let h = lay.rows_pad_h + line * shown as f32;
-                let y = UI_HEIGHT - h - lay.margin;
-                ui.window(left_x, y, left_w, h);
-                for (row, name) in hud.enemies.iter().take(shown).enumerate() {
-                    let ty = y + lay.row_y + line * row as f32;
-                    ui.text(left_x + lay.enemy_x, ty, name, WHITE);
+                None => {
+                    let shown = hud.enemies.len().clamp(1, 4);
+                    let h = lay.rows_pad_h + line * shown as f32;
+                    let y = UI_HEIGHT - h - lay.margin;
+                    ui.window(left_x, y, left_w, h);
+                    for (row, name) in hud.enemies.iter().take(shown).enumerate() {
+                        let ty = y + lay.row_y + line * row as f32;
+                        ui.text(left_x + lay.enemy_x, ty, name, WHITE);
+                    }
                 }
             }
         }

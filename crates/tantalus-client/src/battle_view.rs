@@ -960,6 +960,9 @@ pub struct Overlay {
     pub banner: Option<String>,
     /// The result screen ([`results_lines`]).
     pub results: Option<(String, Vec<crate::battle_hud::ListLine>)>,
+    /// `AllMenuPanel` off: `PHASE_ENTER` (the opening camera) and from `PHASE_MENU_OFF` (the
+    /// battle's end), `battle.cs` `FF9BMenu_EnableMenu`.
+    pub hide_panels: bool,
 }
 
 impl BattleScene {
@@ -1415,6 +1418,7 @@ fn hud_draw(
         numbers,
         banner,
         results: overlay.results.clone(),
+        panels: !overlay.hide_panels,
     }
 }
 
@@ -2039,6 +2043,7 @@ impl FightView {
                             &item_name,
                         )
                     }),
+                hide_panels: true,
                 ..Overlay::default()
             };
             return self
@@ -2051,9 +2056,14 @@ impl FightView {
         };
         let stage = fight.stage();
         let seconds = self.seconds(stage);
-        // `PHASE_ENTER`: the opening camera plays without the command menu.
+        // `PHASE_ENTER`: the opening camera plays without the command menu, the party panel
+        // and the enemy list (`BattleHUD.Show` leaves `AllMenuPanel` off until
+        // `PHASE_MENU_ON` ends, `battle.cs:122`).
         let mut overlay = if stage.frames.len() < self.opening {
-            Overlay::default()
+            Overlay {
+                hide_panels: true,
+                ..Overlay::default()
+            }
         } else {
             menu_overlay(fight, &self.menu, &item_name)
         };
@@ -2291,6 +2301,7 @@ pub fn menu_overlay(
         target: targeted,
         banner: None,
         results: None,
+        hide_panels: false,
     }
 }
 
