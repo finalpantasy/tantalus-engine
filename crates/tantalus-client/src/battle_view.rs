@@ -2019,6 +2019,10 @@ impl FightView {
                     .results
                     .as_ref()
                     .filter(|_| *shown >= 1.0)
+                    // An escape shows no result panel: `BattleResultUI.Show` takes
+                    // `InitialNone` (`AllPanel` off, hidden after 0.3 s), as
+                    // `BattleHUD.GoToBattleResult` clears the bonus on a flee.
+                    .filter(|results| !matches!(results.outcome.as_str(), "escape" | "party_flee"))
                     .map(|results| {
                         let world = game.world();
                         // (total EXP, EXP still to the next level) after the battle
@@ -2423,7 +2427,6 @@ pub fn results_lines(
             "GAME OVER".to_owned(),
             vec![plain("Confirm: load a saved game".into(), String::new())],
         ),
-        "escape" | "party_flee" => ("Escaped".to_owned(), Vec::new()),
         other => (other.to_owned(), Vec::new()),
     }
 }

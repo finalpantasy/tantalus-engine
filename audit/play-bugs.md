@@ -184,6 +184,20 @@ frame-rate setting.
   banner); damage numbers, the banner and the result window still draw.
 - Check: slot 4 after the fix (fix1 `hunt/out/h4-hi`, `hunt/out/pb6-after.png`): f600 to f930
   (the opening) show no HUD; f990 on show the party panel and the enemy list.
+  The end-of-battle case was checked in the fix1 rerun: `hunt/out/g9-hi/f004170.png` (result
+  screen) and `hunt/out/g7-hi/f002850.png` (escape) show no party panel.
+
+### PB8: empty "Escaped" panel after a flee (fixed)
+
+- Repro: slot 7 (flee), fix1 `hunt/out/g7-hi/f002850.png` (t1425, about 1 s after the flee):
+  an "Escaped" title and an empty result window sit over the battle until it fades.
+- Cause: in the C# a flee clears the bonus (`BattleHUD.GoToBattleResult` ->
+  `btl_sys.ClearBattleBonus`), so `BattleResultUI.Show` takes `InitialNone`: `AllPanel` is
+  off and the screen hides itself after 0.3 s. No title and no window are shown.
+  `battle_view.rs` `results_lines` gave escapes an "Escaped" page instead.
+- Fix: the result overlay is not built for `escape` / `party_flee` outcomes; the battle still
+  holds and closes by itself as before.
+- Check: unit tests and clippy; not rerun in the harness.
 
 ## Checked and fine
 
