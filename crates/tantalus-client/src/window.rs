@@ -131,12 +131,19 @@ pub fn find_field(
     )))
 }
 
+/// Rows of the field the game shows (`FieldMap.PsxFieldHeightNative`): the
+/// field camera's viewport (`PSXCameraAspect.LateUpdate`) is this many rows
+/// of the 240-row frame, centered, so nothing of the field (background,
+/// models, effects) draws in the 8 rows above and below it.
+pub const FIELD_ROWS: f32 = 224.0;
+
 /// Gives the field's 2D camera a projection that always shows the whole
 /// field view. With a known target size ([`crate::widescreen::set_target`])
 /// the view is the widescreen one: `widescreen::field_width()` art pixels
-/// over the 240 rows, in the centered viewport of that aspect (pillarboxed
-/// where the art is narrower, letterboxed to a fixed `--aspect`). Without
-/// one, the whole 320x240 frame fits the window.
+/// over [`FIELD_ROWS`] rows, in the centered viewport of the 240-row frame's
+/// aspect less its top and bottom 8 rows (pillarboxed where the art is
+/// narrower, letterboxed to a fixed `--aspect`). Without one, the whole
+/// 320x240 frame fits the window.
 pub fn fit_field_frame(world: &mut World) {
     use bevy::camera::Viewport;
     use bevy::camera::visibility::RenderLayers;
@@ -146,17 +153,21 @@ pub fn fit_field_frame(world: &mut World) {
     let viewport = crate::widescreen::target().map(|(width, height)| {
         let (sx, sy, sw, sh) = crate::widescreen::screen_rect(width, height);
         let (x, y, w, h) = crate::widescreen::fit_rect(sw, sh, view_width / view_height);
+        let (top, rows) = field_rows(h);
         Viewport {
-            physical_position: UVec2::new(sx + x, sy + y),
-            physical_size: UVec2::new(w.max(1), h.max(1)),
+            physical_position: UVec2::new(sx + x, sy + y + top),
+            physical_size: UVec2::new(w.max(1), rows.max(1)),
             ..default()
         }
     });
     for camera in cameras {
-        let scaling_mode = if viewport.is_some() {
+        let scaling_mode = if let Some(viewport) = &viewport {
+            // The art pixels the cut viewport holds, so the scale stays the 240-row frame's.
+            let rows = viewport.physical_size.y as f32;
+            let frame_rows = rows * view_height / FIELD_ROWS;
             ScalingMode::Fixed {
                 width: view_width,
-                height: view_height,
+                height: view_height * rows / frame_rows.max(1.0),
             }
         } else {
             ScalingMode::AutoMin {
@@ -173,6 +184,13 @@ pub fn fit_field_frame(world: &mut World) {
             camera.viewport = viewport.clone();
         }
     }
+}
+
+/// The viewport rows of the field in a 240-row frame `height` pixels tall: the first row and
+/// the count ([`FIELD_ROWS`] of the 240, centered).
+pub fn field_rows(height: u32) -> (u32, u32) {
+    let cut = ((height as f32 * (FIELD_FRAME.1 - FIELD_ROWS) / FIELD_FRAME.1) / 2.0).round() as u32;
+    (cut, height.saturating_sub(2 * cut))
 }
 
 /// Fits the camera showing a battle or world frame of `frame` pixels to the
@@ -204,5 +222,15 @@ pub fn fit_frame_camera(world: &mut World, camera: Entity, frame: (u32, u32)) {
     }));
     if let Some(mut camera) = entity.get_mut::<Camera>() {
         camera.viewport = viewport;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_field_viewport_is_224_of_240_rows() {
+        assert_eq!(super::field_rows(240), (8, 224));
+        assert_eq!(super::field_rows(1080), (36, 1008));
+        assert_eq!(super::field_rows(360), (12, 336));
     }
 }

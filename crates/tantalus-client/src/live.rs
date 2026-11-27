@@ -359,7 +359,7 @@ pub fn play(
     let streaming_assets_for_sps = streaming_assets.clone();
     let battle_assets = crate::battle_view::BattleAssets::new(&streaming_assets);
     let mut app = App::new();
-    app.insert_resource(ClearColor(Color::srgb_u8(18, 24, 36)))
+    app.insert_resource(ClearColor(Color::BLACK))
         .add_plugins(
             DefaultPlugins
                 .set(ImagePlugin::default_nearest())
