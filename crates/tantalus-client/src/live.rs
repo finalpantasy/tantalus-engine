@@ -4,7 +4,8 @@
 //!
 //! Keys: arrows or WASD walk (and move a choice cursor), Enter, Space or
 //! Z confirm, Backspace or X cancel, Q triangle, E square, Tab select,
-//! P start. Dialog lines, battles and field changes print to the console
+//! P start. A gamepad works too (A confirm, B cancel, Y triangle, X square, bumpers L1/R1,
+//! triggers L2/R2, Back select, Start, d-pad and left stick). Dialog lines, battles and field changes print to the console
 //! and the current line shows in the window title (the client has no font
 //! yet). Battles are fought live in the battle view
 //! ([`crate::battle_view::FightView`]): the arrows, Enter and Backspace
@@ -63,6 +64,104 @@ pub fn pad_bits(keys: &ButtonInput<KeyCode>) -> i32 {
     KEYS.iter()
         .filter(|(key, _)| keys.pressed(*key))
         .fold(0, |bits, (_, bit)| bits | bit)
+}
+
+/// Gamepad button to `EventInput` bits. The Steam game's default XInput layout is
+/// `HonoInputManager.defaultJoystickInputKeys` read through `HonoInputManager.CheckRawXInput`:
+/// JoystickButton0 (XInput A) Confirm, 1 (B) Cancel, 3 (Y) Menu, 2 (X) Special, 4 (LB)
+/// LeftBumper, 5 (RB) RightBumper, 7 (Start) Pause, 6 (Back) Select. As on the keyboard
+/// (Enter, Backspace, Q, E, brackets, P, Tab), Confirm sets CONFIRM and CIRCLE, Cancel sets
+/// CANCEL and CROSS, Menu is TRIANGLE and Special is SQUARE. bevy names the face buttons by
+/// position: South is A, East B, West X, North Y.
+const PAD_BUTTONS: [(GamepadButton, i32); 12] = [
+    (GamepadButton::South, pad::CONFIRM | pad::CIRCLE),
+    (GamepadButton::East, pad::CANCEL | pad::CROSS),
+    (GamepadButton::North, pad::TRIANGLE),
+    (GamepadButton::West, pad::SQUARE),
+    (GamepadButton::LeftTrigger, pad::L1),
+    (GamepadButton::RightTrigger, pad::R1),
+    (GamepadButton::Start, pad::START),
+    (GamepadButton::Select, pad::SELECT),
+    // `UnityXInput.Input.GetXAxis`: the d-pad overrides the stick on both axes.
+    (GamepadButton::DPadUp, pad::UP),
+    (GamepadButton::DPadDown, pad::DOWN),
+    (GamepadButton::DPadLeft, pad::LEFT),
+    (GamepadButton::DPadRight, pad::RIGHT),
+];
+
+/// `CheckRawXInput`: a trigger is a button once `Triggers.Left/Right > 0.75f`.
+pub const TRIGGER_PRESS: f32 = 0.75;
+
+/// Left stick dead zone for the digital directions: `HonoInputManager.GetDirectionKey` uses
+/// `Mathf.Max(0.3f, AnalogThreadhold)`; `AnalogThreadhold` is `Configuration.AnalogControl
+/// .StickThreshold`, default 10 / 100 (`Memoria.ini`, `ControlSection`), so 0.3 holds.
+/// Analog walk speed (`EventInput.ProcessInput` reads the stick magnitude) is not done yet.
+pub const STICK_DEAD_ZONE: f32 = 0.3;
+
+/// One gamepad's state, apart from bevy, so the mapping is testable.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct PadSample {
+    /// Buttons held, in `PAD_BUTTONS` order.
+    pub buttons: [bool; 12],
+    pub stick_x: f32,
+    pub stick_y: f32,
+    pub left_trigger: f32,
+    pub right_trigger: f32,
+}
+
+impl PadSample {
+    /// Reads one bevy gamepad.
+    pub fn read(gamepad: &Gamepad) -> Self {
+        let mut buttons = [false; 12];
+        for (held, (button, _)) in buttons.iter_mut().zip(PAD_BUTTONS) {
+            *held = gamepad.pressed(button);
+        }
+        Self {
+            buttons,
+            stick_x: gamepad.get(GamepadAxis::LeftStickX).unwrap_or(0.0),
+            stick_y: gamepad.get(GamepadAxis::LeftStickY).unwrap_or(0.0),
+            left_trigger: gamepad.get(GamepadButton::LeftTrigger2).unwrap_or(0.0),
+            right_trigger: gamepad.get(GamepadButton::RightTrigger2).unwrap_or(0.0),
+        }
+    }
+
+    /// The pad bits this gamepad holds.
+    pub fn bits(&self) -> i32 {
+        let mut bits = 0;
+        for (held, (_, bit)) in self.buttons.iter().zip(PAD_BUTTONS) {
+            if *held {
+                bits |= bit;
+            }
+        }
+        if self.left_trigger > TRIGGER_PRESS {
+            bits |= pad::L2;
+        }
+        if self.right_trigger > TRIGGER_PRESS {
+            bits |= pad::R2;
+        }
+        // bevy's y axis is up-positive, like Unity's "Vertical".
+        if self.stick_x < -STICK_DEAD_ZONE {
+            bits |= pad::LEFT;
+        }
+        if self.stick_x > STICK_DEAD_ZONE {
+            bits |= pad::RIGHT;
+        }
+        if self.stick_y > STICK_DEAD_ZONE {
+            bits |= pad::UP;
+        }
+        if self.stick_y < -STICK_DEAD_ZONE {
+            bits |= pad::DOWN;
+        }
+        bits
+    }
+}
+
+/// Every connected gamepad's pad bits (any pad can press).
+fn gamepad_bits(world: &mut World) -> i32 {
+    let mut query = world.query::<&Gamepad>();
+    query
+        .iter(world)
+        .fold(0, |bits, gamepad| bits | PadSample::read(gamepad).bits())
 }
 
 /// The world's actors as one marker frame: every actor placed somewhere
@@ -635,7 +734,7 @@ fn live_tick_inner(world: &mut World) {
     let delta = frame_delta(world);
     let held = match world.get_resource_mut::<crate::play_harness::Harness>() {
         Some(mut harness) => harness.next_held(),
-        None => pad_bits(world.resource::<ButtonInput<KeyCode>>()),
+        None => pad_bits(world.resource::<ButtonInput<KeyCode>>()) | gamepad_bits(world),
     };
     note_window_size(world);
     let mut live = world.remove_resource::<Live>().expect("live state");
@@ -1092,6 +1191,78 @@ mod tests {
             pad_bits(&keys),
             pad::UP | pad::RIGHT | pad::CONFIRM | pad::CIRCLE
         );
+    }
+
+    fn held(button: GamepadButton) -> PadSample {
+        let mut s = PadSample::default();
+        let at = PAD_BUTTONS.iter().position(|(b, _)| *b == button).unwrap();
+        s.buttons[at] = true;
+        s
+    }
+
+    #[test]
+    fn gamepad_buttons_map_to_pad_bits() {
+        assert_eq!(PadSample::default().bits(), 0);
+        assert_eq!(
+            held(GamepadButton::South).bits(),
+            pad::CONFIRM | pad::CIRCLE
+        );
+        assert_eq!(held(GamepadButton::East).bits(), pad::CANCEL | pad::CROSS);
+        assert_eq!(held(GamepadButton::North).bits(), pad::TRIANGLE);
+        assert_eq!(held(GamepadButton::West).bits(), pad::SQUARE);
+        assert_eq!(held(GamepadButton::LeftTrigger).bits(), pad::L1);
+        assert_eq!(held(GamepadButton::RightTrigger).bits(), pad::R1);
+        assert_eq!(held(GamepadButton::Start).bits(), pad::START);
+        assert_eq!(held(GamepadButton::Select).bits(), pad::SELECT);
+        assert_eq!(held(GamepadButton::DPadUp).bits(), pad::UP);
+        assert_eq!(held(GamepadButton::DPadLeft).bits(), pad::LEFT);
+    }
+
+    #[test]
+    fn stick_and_triggers_use_thresholds() {
+        let mut s = PadSample {
+            stick_x: 0.29,
+            stick_y: -0.29,
+            ..PadSample::default()
+        };
+        assert_eq!(s.bits(), 0);
+        s.stick_x = 0.31;
+        s.stick_y = -0.9;
+        assert_eq!(s.bits(), pad::RIGHT | pad::DOWN);
+        s.stick_x = -1.0;
+        s.stick_y = 0.5;
+        assert_eq!(s.bits(), pad::LEFT | pad::UP);
+        let mut t = PadSample {
+            left_trigger: 0.75,
+            right_trigger: 0.76,
+            ..PadSample::default()
+        };
+        assert_eq!(t.bits(), pad::R2);
+        t.left_trigger = 1.0;
+        assert_eq!(t.bits(), pad::L2 | pad::R2);
+    }
+
+    #[test]
+    fn keyboard_and_pad_or_together() {
+        let mut keys = ButtonInput::<KeyCode>::default();
+        keys.press(KeyCode::ArrowUp);
+        keys.press(KeyCode::Enter);
+        let mut s = held(GamepadButton::West);
+        s.stick_x = 1.0;
+        assert_eq!(
+            pad_bits(&keys) | s.bits(),
+            pad::UP | pad::CONFIRM | pad::CIRCLE | pad::SQUARE | pad::RIGHT
+        );
+    }
+
+    #[test]
+    fn world_gamepad_bits_reads_gamepad_entities() {
+        let mut world = World::new();
+        assert_eq!(gamepad_bits(&mut world), 0);
+        let mut state = Gamepad::default();
+        state.digital_mut().press(GamepadButton::DPadDown);
+        world.spawn(state);
+        assert_eq!(gamepad_bits(&mut world), pad::DOWN);
     }
 
     #[test]
