@@ -99,9 +99,10 @@ pub struct WorldPlay {
     /// Which minimap shows (`w_naviMapno`): 0 the first continent, 1 the world.
     pub navi_map: u8,
     /// The `w_moveCHRControl` entry in use: 0 on foot, 1 to 5 the chocobos,
-    /// 6 the gold chocobo in the air, 7 the Blue Narciss under sail.
+    /// 6 the gold chocobo in the air, 7 the Blue Narciss under sail, 8 the
+    /// Hilda Garde III and 9 the Invincible in the air.
     pub ride: u8,
-    /// Speed and heading while `ride` is 6 or 7.
+    /// Speed and heading while `ride` is 6 to 9.
     air: VehicleMotion,
     /// Where the Blue Narciss lies at anchor after the player left it.
     pub moored: Option<Vec3>,
@@ -149,6 +150,22 @@ const BOARD_REACH: f32 = 8.0;
 /// The topograph a ship may be left at (`w_movementGetGetoff`, case 7).
 const PORT_TOPOGRAPH: i32 = 53;
 const AIR_MIN_HEIGHT: f32 = 6.0;
+/// How close the player has to be to a parked airship to board it, in world units.
+const AIRSHIP_BOARD_REACH: f32 = 12.0;
+/// `w_movementGetGetoff`, cases 8 and 9: the spot an airship sets the player down on is
+/// within 350 (fixed point) of the ground under the ship.
+const AIRSHIP_LANDING_STEP: f32 = 350.0 / 256.0;
+/// Topographs an airship may not come down on (`w_movementGetGetoff`, cases 8 and 9).
+const AIRSHIP_NO_LANDING: [i32; 3] = [45, 46, 52];
+/// Spots an airship may not come down near, `(x, z, radius)` in world units
+/// (`w_movementGetGetoff` cases 8 and 9, and `checkGettingOffPosSpecially`).
+const AIRSHIP_NO_LANDING_SPOTS: [(f32, f32, f32); 4] = [
+    // `(UnityUnit(x) >> 3) - 6140`, `(UnityUnit(z) >> 3) + 15176` within 120.
+    (6140.0 / 32.0, -15176.0 / 32.0, 120.0 / 32.0),
+    (189.2, -475.2, 10.12),
+    (1088.0, -952.4, 18.5),
+    (896.4, -350.0, 10.0),
+];
 const AIR_MAX_HEIGHT: f32 = 140.0;
 /// How much of the turn toward the heading the camera takes each frame.
 const AIR_CAMERA_FOLLOW: f32 = 0.04;
@@ -294,16 +311,18 @@ impl WorldPlay {
 
     /// Switches to the vehicle `control` (`w_moveCHRControl` entry): 0 on
     /// foot, 1 to 5 the chocobos (the foot movement with their own speed and
-    /// ground limits), 6 the gold chocobo in the air and 7 the Blue Narciss
-    /// (a ship on the water topographs, `VehicleSpec` kind 2). The ship only
+    /// ground limits), 6 the gold chocobo in the air, 7 the Blue Narciss
+    /// (a ship on the water topographs, `VehicleSpec` kind 2), 8 the Hilda
+    /// Garde III and 9 the Invincible (airships, the flight of
+    /// `w_movementPlaneOperation` with their own `VehicleSpec`). The ship only
     /// casts off from water; anything else is ignored.
     pub fn set_ride(&mut self, control: u8) {
-        if control == self.ride || control > 7 {
+        if control == self.ride || control > 9 {
             return;
         }
         let old = &self.walker;
         let (pos, rot_y, rot_true, camera) = (old.pos, old.rot_y, old.rot_true, old.camera);
-        let flying = control == 6;
+        let flying = matches!(control, 6 | 8 | 9);
         let motor = control >= 6;
         if control == 7 && !self.water_at(pos) {
             return;
@@ -329,6 +348,15 @@ impl WorldPlay {
         }
         self.walker = walker;
         self.ride = control;
+        // `w_movementChange` reads the ride from gEventGlobal 190: keep it in
+        // step, so the script and a save see the vehicle.
+        if let Some(script) = self.script.as_mut() {
+            script.world_mut().global_memory.set(
+                190,
+                tantalus_legacy::VariableType::Byte,
+                i32::from(control),
+            );
+        }
     }
 
     /// Gets off the vehicle (`w_movementGetGetoff`, `ff9.cs:5464`): the
@@ -353,6 +381,9 @@ impl WorldPlay {
             ignore_exceptions: true,
             control_type: 0,
         };
+        if self.airship().is_some() {
+            return self.land_airship(spec, foot, &mode);
+        }
         if self.flying() {
             let ground = self.walk.nwp_hit(origin, &mode, None);
             if ground.pno != 1000 || origin.y - ground.height > AIR_START_HEIGHT * 2.0 {
@@ -403,14 +434,95 @@ impl WorldPlay {
         true
     }
 
-    /// Boards the anchored Blue Narciss when the player stands next to it.
-    pub fn board(&mut self) -> bool {
-        let Some(ship) = self.moored else {
+    /// The airship the player flies (ride 8 or 9).
+    pub fn airship(&self) -> Option<crate::world_script::Ship> {
+        use crate::world_script::Ship;
+        match self.ride {
+            8 => Some(Ship::HildaGarde3),
+            9 => Some(Ship::Invincible),
+            _ => None,
+        }
+    }
+
+    /// Lands the airship (`w_movementGetGetoff`, cases 8 and 9): not over
+    /// topographs 45, 46 and 52 nor near the spots the game keeps clear; the
+    /// sweep from behind the ship around both sides probes rays of
+    /// `radius * j / 5` (`j` 1 to 8; `radius` for the first ray's last
+    /// probe), every probe ground an on-foot player may stand on, the last
+    /// within 350 of the ground under the ship. The ship then stands on the
+    /// ground where it was, turned as it flew, and the player steps off at
+    /// the spot. False when there is no spot, and nothing changes.
+    fn land_airship(&mut self, spec: &VehicleSpec, foot: &VehicleSpec, mode: &RaycastMode) -> bool {
+        let Some(ship) = self.airship() else {
             return false;
         };
-        let pos = self.walker.pos;
-        if self.ride != 0 || (pos.x - ship.x).hypot(pos.z - ship.z) > BOARD_REACH {
+        let origin = self.walker.pos;
+        let near_spot = AIRSHIP_NO_LANDING_SPOTS
+            .iter()
+            .any(|&(x, z, radius)| (origin.x - x).hypot(origin.z - z) < radius);
+        let under = self.walk.nwp_hit(origin, mode, None);
+        if near_spot || under.pno != 1000 || AIRSHIP_NO_LANDING.contains(&((under.id & 0xFC) >> 2))
+        {
             return false;
+        }
+        let radius = f32::from(spec.radius) / 256.0;
+        let heading = self.walker.rot_true;
+        let mut landing = None;
+        'sweep: for step in 0..8 {
+            for sign in [1.0_f32, -1.0] {
+                // The sweep starts behind the ship (`PsxRot(3072)`).
+                let angle = heading + 180.0 + sign * step as f32 * 22.5;
+                let mut spot = origin;
+                let mut clear = true;
+                for probe in 1..=8 {
+                    let divisor = if step == 0 && sign > 0.0 && probe == 8 {
+                        8.0
+                    } else {
+                        5.0
+                    };
+                    spot = advance_xz(origin, angle, radius * probe as f32 / divisor);
+                    let hit = self.walk.nwp_hit(spot, mode, None);
+                    if hit.pno != 1000 || !foot.can_enter(hit.id) {
+                        clear = false;
+                        break;
+                    }
+                    spot.y = hit.height;
+                }
+                if clear && (spot.y - under.height).abs() <= AIRSHIP_LANDING_STEP {
+                    landing = Some(wrap_position_keep_y(spot));
+                    break 'sweep;
+                }
+            }
+        }
+        let Some(spot) = landing else {
+            return false;
+        };
+        let parked = crate::world_script::ParkedShip {
+            ship,
+            pos: [origin.x, under.height, origin.z],
+            facing: (heading.rem_euclid(360.0) / 360.0 * 256.0) as u8,
+        };
+        match self.ships.iter_mut().find(|other| other.ship == ship) {
+            Some(other) => *other = parked,
+            None => self.ships.push(parked),
+        }
+        self.walker.pos = spot;
+        self.set_ride(0);
+        true
+    }
+
+    /// Boards the anchored Blue Narciss, or else a parked airship (the Hilda
+    /// Garde III, the Invincible), when the player stands next to it.
+    pub fn board(&mut self) -> bool {
+        if self.ride != 0 {
+            return false;
+        }
+        let pos = self.walker.pos;
+        let Some(ship) = self.moored else {
+            return self.board_airship();
+        };
+        if (pos.x - ship.x).hypot(pos.z - ship.z) > BOARD_REACH {
+            return self.board_airship();
         }
         self.walker.pos = ship;
         self.set_ride(7);
@@ -423,9 +535,50 @@ impl WorldPlay {
         }
     }
 
+    /// Boards the nearest parked airship within reach: the player takes the
+    /// controls where it stands, turned as it is (`w_moveCHRControl` 8 or 9).
+    fn board_airship(&mut self) -> bool {
+        use crate::world_script::Ship;
+        let pos = self.walker.pos;
+        let near = self
+            .ships
+            .iter()
+            .filter(|parked| matches!(parked.ship, Ship::HildaGarde3 | Ship::Invincible))
+            .map(|parked| {
+                (
+                    (pos.x - parked.pos[0]).hypot(pos.z - parked.pos[2]),
+                    *parked,
+                )
+            })
+            .filter(|(distance, _)| *distance <= AIRSHIP_BOARD_REACH)
+            .min_by(|a, b| a.0.total_cmp(&b.0));
+        let Some((_, parked)) = near else {
+            return false;
+        };
+        let control = if parked.ship == Ship::HildaGarde3 {
+            8
+        } else {
+            9
+        };
+        let yaw = f32::from(parked.facing) * 360.0 / 256.0;
+        let (rot_y, rot_true) = (self.walker.rot_y, self.walker.rot_true);
+        self.walker.pos = Vec3::new(parked.pos[0], parked.pos[1], parked.pos[2]);
+        self.walker.rot_y = yaw;
+        self.walker.rot_true = yaw;
+        self.set_ride(control);
+        if self.ride == control {
+            true
+        } else {
+            self.walker.pos = pos;
+            self.walker.rot_y = rot_y;
+            self.walker.rot_true = rot_true;
+            false
+        }
+    }
+
     /// Whether the player is in the air.
     pub fn flying(&self) -> bool {
-        self.ride == 6
+        matches!(self.ride, 6 | 8 | 9)
     }
 
     /// Whether the player is on the Blue Narciss.

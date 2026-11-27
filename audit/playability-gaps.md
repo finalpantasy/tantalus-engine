@@ -46,7 +46,7 @@ Question: does the real play window (`tantalus-client play`, the `play-now.exe` 
 | World | Reaching the world map with the owner's launch line | works (fixed 2026-11-19) | `play` and `capture-play` always walk the world map; `--world-exits` locations are used in order for the next exits and the world map runs once they are used up. Test `play_flow.rs` `world_exits_run_out_into_the_world_map` |
 | World | Arrival point on the world map | partly | `start_world` puts the player at the centre of the first matching place cell, not at the reference exit spot |
 | World | Vehicles: Blue Narciss | partly | Boards next to the moored ship (`world_play.rs` `board`) |
-| World | Vehicles: Hilda Garde 3, Invincible | missing | `set_ride` ignores control > 7; parked airships draw but cannot be flown |
+| World | Vehicles: Hilda Garde 3, Invincible | partly (ui3, 2026-11-27) | `set_ride` takes 8 and 9: the airships fly with `w_movementPlaneOperation` and their own `VehicleSpec`, Square next to a parked one boards it, Square in the air lands it (`w_movementGetGetoff` cases 8 and 9) and it stays parked where it came down; `world_view.rs` draws the flown ship. Left: boarding and landing are the Square shortcut the Blue Narciss uses, not the world script's (`w_frameSetParameter` 1 and 28 are still stubs); no landing or take-off animation; the ride is not restored from gEventGlobal 190 when a world map save loads |
 | World | Sea | partly | Flat alpha layer at opacity 190 (`world_view.rs:30`); no wave or scroll |
 | World | Place names, world titles | missing | G58 still open; nothing draws the continent or place name |
 | Battle | Party and enemy models, backgrounds | works (replay) | `mb3.png`: Zuu, Zidane, Vivi, Freya, Cleyra trunk background |
@@ -72,7 +72,7 @@ Items 1, 2 and 5 were fixed 2026-11-19 (worker play-p0); 3 and 4 are still open.
 1. **Disc change: fixed.** `PlayGame` runs Memoria's disc picture, a save prompt and the next disc's first field (see the table). Left: the picture is drawn over black, not over the next field's fade-in as `SceneDirector` does.
 2. **World map turned off by `--world-exits`: fixed.** The play window always walks the world map; `--world-exits` is a trace aid used up first.
 3. **Title screen and Continue: done (ui3, 2026-11-27).** See the Start rows. `TitleUI.OnKeyConfirm`: Continue (the slot written last, sound 1261, refusal 102), New Game (`ReInitStateSystem`, sound 3096, field 70), Load Game (the load screen, sound 103). Game over goes to the title. Test: `tests/play_flow.rs` `the_title_screen_starts_a_new_game_or_continues`.
-4. **Airships cannot be flown: open.** Hilda Garde 3 and the Invincible are parked props (`set_ride` returns for control > 7). Notes from play-p0 (draft in the same patch): `ff9.cs:1659-1706` has their `s_moveCHRControl` (type 1, speed 500, radius 640 and 720) and `VehicleSpec` 8 and 9 exist, so `set_ride` can accept 8 and 9 with `fly()`; landing is `w_movementGetGetoff` cases 8 and 9 (probes at `radius * j / 5`, each within 350 of param 194); the real boarding and landing go through the world script (`w_frameSetParameter` 1 = `w_movementChange` from gEventGlobal 190, 28 = the get-off search), both stubs in `WorldEffects`; `world_view.rs` draws rides above 7 as chocobos (`CHOCOBO_TINTS[ride - 1]` would panic). Files: `crates/tantalus-tools/src/world_play.rs`, `world_script.rs`, `crates/tantalus-client/src/world_view.rs`.
+4. **Airships fly: partly done (ui3, 2026-11-27).** `world_play.rs` `set_ride` accepts 8 and 9 (flying, gEventGlobal 190 kept in step), `board_airship`, `land_airship` (`w_movementGetGetoff` cases 8 and 9: topographs 45, 46, 52 and the game's kept-clear spots refused; probes at `radius * j / 5`, the first ray's last at `radius`; the spot within 350 of the ground under the ship); `world_view.rs` draws rides 8 and 9 as the ships. Test: `tests/world_play.rs` `airships_board_fly_and_land`. Left: see the Vehicles row; the script's own boarding (`w_frameSetParameter` 1 = `w_movementChange` from gEventGlobal 190, 28 = the get-off search) is still a stub in `WorldEffects`.
 5. **World map menu: fixed in part.** The main menu works on foot. Left: the world map's moogle (Square on foot, `WorldHUD` `button_mog`) and its save, which needs a world-map save and load (G39); Square on foot still calls the yellow chocobo instead.
 
 ### P1: badly wrong
@@ -122,7 +122,7 @@ Items 1, 2 and 5 were fixed 2026-11-19 (worker play-p0); 3 and 4 are still open.
 | G58 Mist Continent title stuck | blocked | no world titles drawn (gap 15) |
 | G59 navi mode reset | yes, small | the minimap now exists, so this row is no longer blocked |
 | G60 minimap bugs | yes, small | the minimap is drawn now (`world_minimap.rs`); the row's "no minimap" note is stale |
-| G61 auto-flight, ship flapping and tilt | blocked | airships not flyable (gap 4); Blue Narciss and the gold chocobo do move now |
+| G61 auto-flight, ship flapping and tilt | open | airships fly now (gap 4); auto-flight, flapping and tilt are not drawn |
 | G62 field teleports (1207, 768, 1554, Fossil Roo) | yes | partial; 768 and 1554 still open |
 | G64 Steiner transparent (#896) | yes | not located |
 | G66 Tetra Master analog stick | no for now | there is no analog input (gap 7) |

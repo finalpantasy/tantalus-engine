@@ -354,6 +354,23 @@ impl WorldRenderer {
                 &place(NARCISS_SCALE, plain),
                 time,
             ),
+            // The airships the player flies (`w_moveCHRControl` 8, 9).
+            8 => draw_character(
+                &mut frame,
+                &camera,
+                &self.models,
+                (HILDA_MODEL, HILDA_IDLE),
+                &place(HILDA_SCALE, plain),
+                time,
+            ),
+            9 => draw_character(
+                &mut frame,
+                &camera,
+                &self.models,
+                (INVINCIBLE_MODEL, INVINCIBLE_IDLE),
+                &place(INVINCIBLE_SCALE, plain),
+                time,
+            ),
             ride => {
                 let (mount, rider) = match (ride, moving) {
                     (6, _) => (CHOCOBO_FLY, RIDER_FLY),

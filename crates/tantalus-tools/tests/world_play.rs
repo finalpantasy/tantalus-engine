@@ -354,3 +354,66 @@ fn the_chocograph_list_opens_from_the_script_and_picks_the_hint_map() {
     assert!(play.chocograph_cancel());
     assert_eq!(play.hintmap, 0);
 }
+
+/// The Hilda Garde III and the Invincible (`w_moveCHRControl` 8 and 9): the
+/// player boards a parked airship next to it, flies it with the plane
+/// controls, lands it on flat ground (`w_movementGetGetoff`, cases 8 and 9)
+/// and finds it parked where it came down.
+#[test]
+fn airships_board_fly_and_land() {
+    use tantalus_tools::world_script::{ParkedShip, Ship};
+    let Some(dir) = streaming() else {
+        eprintln!("install not found; skipping");
+        return;
+    };
+    let assets = Arc::new(WorldAssets::load(&dir, 1).expect("world assets"));
+    for (ship, control) in [(Ship::HildaGarde3, 8u8), (Ship::Invincible, 9)] {
+        let mut play = WorldPlay::new(assets.clone(), BTreeMap::new(), 1100.0, -800.0, 1).unwrap();
+        let here = play.walker.pos;
+        play.ships.push(ParkedShip {
+            ship,
+            pos: [here.x + 4.0, here.y, here.z],
+            facing: 0,
+        });
+        assert_eq!(play.parked_ships().count(), 1);
+        // Too far away: nothing to board.
+        play.walker.pos.x += 40.0;
+        assert!(!play.board(), "{ship:?} out of reach");
+        play.walker.pos = here;
+        assert!(play.board(), "{ship:?} boards");
+        assert_eq!(play.ride, control);
+        assert!(play.flying());
+        assert_eq!(
+            play.parked_ships().count(),
+            0,
+            "the flown ship is not parked"
+        );
+        let start = play.walker.pos;
+        for _ in 0..90 {
+            play.tick(UP, 0, CONFIRM, false);
+        }
+        let flown = (play.walker.pos.x - start.x).hypot(play.walker.pos.z - start.z);
+        assert!(flown > 10.0, "{ship:?} flies {flown}");
+        // Find flat ground to come down on.
+        let mut landed = None;
+        for step in 0..400 {
+            play.walker.pos.x = 900.0 + step as f32 * 2.0;
+            play.walker.pos.z = -800.0;
+            let at = play.walker.pos;
+            if play.get_off() {
+                landed = Some(at);
+                break;
+            }
+        }
+        let at = landed.unwrap_or_else(|| panic!("{ship:?} finds somewhere to land"));
+        assert_eq!(play.ride, 0);
+        let parked: Vec<_> = play.parked_ships().copied().collect();
+        assert_eq!(parked.len(), 1);
+        assert_eq!(parked[0].ship, ship);
+        assert!((parked[0].pos[0] - at.x).abs() < 1e-3 && (parked[0].pos[2] - at.z).abs() < 1e-3);
+        let off = (play.walker.pos.x - at.x).hypot(play.walker.pos.z - at.z);
+        assert!(off > 0.5, "the player steps off beside the ship ({off})");
+        assert!(play.board(), "{ship:?} boards again where it landed");
+        assert_eq!(play.ride, control);
+    }
+}
