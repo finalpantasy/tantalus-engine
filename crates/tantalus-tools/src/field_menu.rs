@@ -442,6 +442,28 @@ fn usable(tables: &MenuTables, id: u16) -> bool {
         && tables.effects.contains_key(&id)
 }
 
+/// Where the lead character and the place start on a save slot row.
+const SLOT_WHO_X: f32 = 28.0;
+const SLOT_PLACE_X: f32 = 124.0;
+/// The longest place a save slot row shows: the room to the list window's right edge at the
+/// PS1 font's widest average (about 7 pixels a letter).
+const SLOT_PLACE_CHARS: usize = 25;
+
+/// A save slot row (`SaveLoadUI` file info: the lead's name and level, the location name and
+/// the gil), split by tabs for the list's columns.
+pub fn slot_label(slot: usize, who: &str, place: &str, gil: impl std::fmt::Display) -> String {
+    format!("{slot}\t{who}\t{place}\t{gil} Gil")
+}
+
+/// `place` cut to fit the save list: past [`SLOT_PLACE_CHARS`] letters it ends in `...`.
+fn fit_place(place: &str) -> String {
+    if place.chars().count() <= SLOT_PLACE_CHARS {
+        return place.to_owned();
+    }
+    let kept: String = place.chars().take(SLOT_PLACE_CHARS - 3).collect();
+    format!("{}...", kept.trim_end())
+}
+
 fn text(x: f32, row: f32, value: impl Into<String>, tint: Tint) -> MenuText {
     MenuText {
         x,
@@ -911,6 +933,7 @@ impl FieldMenu {
             Screen::Cards(state) => state.frame(&mut frame, world, tables),
             Screen::Slots { save, cursor, .. } => {
                 let mut texts = Vec::new();
+                let mut gil = None;
                 for slot in 0..SLOTS {
                     let label = self
                         .slot_labels
@@ -922,11 +945,33 @@ impl FieldMenu {
                     } else {
                         Tint::White
                     };
-                    texts.push(text(12.0, slot as f32, label, tint));
+                    let row = slot as f32;
+                    match label.split('\t').collect::<Vec<_>>().as_slice() {
+                        // `slot_label`: the slot, the lead and level, the place; the gil goes to
+                        // the window under the list for the slot under the cursor.
+                        [number, who, place, money] => {
+                            texts.push(text(12.0, row, *number, tint));
+                            texts.push(text(SLOT_WHO_X, row, *who, tint));
+                            texts.push(text(SLOT_PLACE_X, row, fit_place(place), tint));
+                            if slot == *cursor {
+                                gil = Some((*money).to_owned());
+                            }
+                        }
+                        _ => texts.push(text(12.0, row, label, tint)),
+                    }
                 }
                 frame
                     .windows
                     .push(window(8.0, 8.0, 304.0, SLOTS as f32, texts));
+                if let Some(gil) = gil {
+                    frame.windows.push(window(
+                        136.0,
+                        8.0 + SLOTS as f32 * ROW + 12.0,
+                        176.0,
+                        1.0,
+                        vec![right(168.0, 0.0, gil, Tint::White)],
+                    ));
+                }
                 frame.windows.push(window(
                     8.0,
                     8.0 + SLOTS as f32 * ROW + 12.0,

@@ -31,6 +31,9 @@ pub struct PlaySave {
     /// Game ticks played.
     pub ticks: u64,
     pub world: FieldWorld,
+    /// The place the save screen names (`FF9.mapNameStr` when saving); older saves have none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub place: Option<String>,
 }
 
 /// The default save folder.
@@ -123,6 +126,7 @@ mod tests {
             position: Some([1.0, 2.0, 3.0]),
             ticks: 99,
             world: world.for_save(),
+            place: None,
         };
         write(&dir, 3, &save).expect("write");
         let loaded = read(&dir, 3).expect("read").expect("slot exists");

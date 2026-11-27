@@ -194,6 +194,12 @@ impl FieldText {
     /// Reads and parses the `.mes` resource `key` from the Unity container.
     fn read_mes(&self, key: &str) -> Result<tantalus_assets::pc::mes::MesFile, String> {
         use tantalus_assets::pc::mes::parse_mes_bytes;
+        let script = self.read_text_bytes(key)?;
+        parse_mes_bytes(&script, key).map_err(|error| error.to_string())
+    }
+
+    /// The bytes of the text resource `key` from the Unity container.
+    fn read_text_bytes(&self, key: &str) -> Result<Vec<u8>, String> {
         use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
         let (file_name, path_id) = self
             .container
@@ -211,7 +217,16 @@ impl FieldText {
         let asset = file
             .read_text_asset(&object)
             .map_err(|error| error.to_string())?;
-        parse_mes_bytes(&asset.script, key).map_err(|error| error.to_string())
+        Ok(asset.script)
+    }
+
+    /// The field location names by field id (`LocationNameImporter.LoadInternal`:
+    /// `Location/loc_name.mes`, one `id:name` line each, with `FF9TextTool.RemoveOpCode`), the
+    /// names the save screen shows (`FF9TextTool.LocationName`).
+    pub fn location_names(&self) -> Result<BTreeMap<i32, String>, String> {
+        let key = format!("embeddedasset/text/{}/location/loc_name", self.language);
+        let bytes = self.read_text_bytes(&key)?;
+        Ok(parse_location_names(&String::from_utf8_lossy(&bytes)))
     }
 
     /// Item names by item id (`ItemImporter`: `Item/itm_name.mes`), for the
@@ -454,10 +469,56 @@ pub fn load_tile_animations(
     Err(format!("no field bundle registers `{name}`"))
 }
 
+/// `LocationNameImporter.LoadInternal`: `id:name` lines; `[..]` and `{..}` codes removed
+/// (`FF9TextTool.RemoveOpCode`); a later line for the same id wins.
+pub fn parse_location_names(text: &str) -> BTreeMap<i32, String> {
+    let mut names = BTreeMap::new();
+    for line in text.split('\n') {
+        let line = line.replace('\r', "");
+        let Some((id, name)) = line.split_once(':') else {
+            continue;
+        };
+        let Ok(id) = id.trim().parse::<i32>() else {
+            continue;
+        };
+        names.insert(id, remove_op_codes(name));
+    }
+    names
+}
+
+/// `FF9TextTool.RemoveOpCode`: drops every `[..]` and `{..}` run.
+fn remove_op_codes(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut close = None;
+    for c in text.chars() {
+        match close {
+            Some(end) if c == end => close = None,
+            Some(_) => {}
+            None if c == '[' => close = Some(']'),
+            None if c == '{' => close = Some('}'),
+            None => out.push(c),
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod layout_tests {
     use super::*;
     use tantalus_assets::pc::mes::tokenize;
+
+    #[test]
+    fn location_names_drop_their_codes() {
+        let names = parse_location_names(
+            "300:[STRT=22,1]Ice Cavern/Entrance[ENDN]\r\n301:{W40}Ice Path\nnot a line\n",
+        );
+        assert_eq!(
+            names.get(&300).map(String::as_str),
+            Some("Ice Cavern/Entrance")
+        );
+        assert_eq!(names.get(&301).map(String::as_str), Some("Ice Path"));
+        assert_eq!(names.len(), 2);
+    }
 
     #[test]
     fn layout_reads_choices_size_position_and_names() {

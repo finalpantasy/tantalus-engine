@@ -32,7 +32,7 @@ frame-rate setting.
 | PB4 | P2 | fixed | partly | First field after launch shows the clear color instead of the background for 5 to 20 frames |
 | PB5 | P2 | matches (rates); pacing unverified | no | Random battles take about a minute (one enemy action ran 12 s) |
 | PB6 | P2 | fixed | no | Battle HUD (party panel, enemy list) is up during the opening camera |
-| PB9 | P3 | open | no | The load list runs past its window's right edge in the PS1 skin and names places by event id (`EVT_ICE_IC_ENT_0`) |
+| PB9 | P3 | fixed | no | The load list runs past its window's right edge in the PS1 skin and names places by event id (`EVT_ICE_IC_ENT_0`) |
 | PB10 | P3 | fixed | no | After a game over the field song keeps playing under the title screen |
 
 ### PB1: vanilla 30 fps judders (fixed)
@@ -201,14 +201,26 @@ frame-rate setting.
   holds and closes by itself as before.
 - Check: unit tests and clippy; not rerun in the harness.
 
-### PB9: load list wider than its window, event ids as place names (open)
+### PB9: load list wider than its window, event ids as place names (fixed)
 
 - Repro: ui3 `hunt/out/t3-ps1/f000060.png` (title, Load Game, PS1 skin): the slot rows run
   past the window's right edge; in both skins the place is the field's event id
   (`EVT_LIND1_TN_LB_RFS_0`), not its name. `play.rs` `slot_labels` uses
   `PlayData::field_name`, which is the event id; the window width is fixed.
-- Not fixed: the save screen's own layout (`SaveLoadUI`) and the place name table are not
-  ported.
+- Fix: the place is the game's location name (`FF9TextTool.LocationName`, the
+  `Location/loc_name.mes` table `LocationNameImporter` reads: `id:name` lines with the codes
+  removed), `field_data.rs` `location_names`. A save now keeps its place as the C# preview does
+  (`SharedDataBytesStorage`: `Location = FF9.mapNameStr`): on the world map the area's name
+  (`FF9TextTool.WorldLocationText` of the area, `worldloc.mes`, as `UIManager.MenuOpenEvent`
+  sets it), else the field's location name. Saves from before name the field's location, or
+  "World Map" for a world map save. The rows are columns (slot, lead and level, place cut at
+  25 letters with `...`); the gil of the slot under the cursor moved to a window beside
+  Load/Save.
+- Check: fix2 `hunt/out/pb9-ps1/f000120.png` and `pb9-steam/f000120.png` (title, load list):
+  "Ice Cavern/Entrance", "Lindblum/Station Area", "L. Castle/Base Level", all inside the
+  window in both skins; unit test `location_names_drop_their_codes`. Not ported: play time,
+  portraits and the Steam save screen's two-line blocks (`SaveLoadUI`); the script's
+  `SETMAPNAME`/`RESETMAPNAME` renames (`EventEngine.DoEventCode.cs:2339`).
 
 ### PB10: field song under the title after a game over (fixed)
 

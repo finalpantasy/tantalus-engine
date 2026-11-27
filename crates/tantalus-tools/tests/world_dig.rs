@@ -117,6 +117,7 @@ fn square_on_the_spot_digs_up_the_treasure_and_the_hint_map_saves() {
         position: None,
         ticks: 0,
         world: player.for_save(),
+        place: None,
     };
     play_save::write(&dir, 1, &save).unwrap();
     let back = play_save::read(&dir, 1).unwrap().unwrap();

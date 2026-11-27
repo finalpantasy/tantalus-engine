@@ -97,6 +97,10 @@ pub struct PlayData {
     backgrounds: BTreeMap<i32, String>,
     text: FieldText,
     item_names: BTreeMap<i32, String>,
+    /// Field location names by field id (`FF9TextTool.LocationName`, `loc_name.mes`).
+    location_names: BTreeMap<i32, String>,
+    /// World map area names by area (`FF9TextTool.WorldLocationText`, `worldloc.mes`).
+    world_locations: BTreeMap<i32, String>,
     game_data: PathBuf,
     battles: Option<FieldBattles>,
     battle_base: BTreeMap<i32, BaseStats>,
@@ -141,6 +145,8 @@ impl PlayData {
         let backgrounds = parse_background_map(&mes_source);
         let text = FieldText::open(&paths.game_data, &mes_source, paths.language.clone())?;
         let item_names = text.item_names().unwrap_or_default();
+        let location_names = text.location_names().unwrap_or_default();
+        let world_locations = text.names("etc/worldloc").unwrap_or_default();
         let characters = memoria.join("Memoria.Patcher/StreamingAssets/Data/Characters");
         let base = tantalus_game::new_game::parse_base_stats(&read_text(
             &characters.join("BaseStats.csv"),
@@ -212,6 +218,8 @@ impl PlayData {
             backgrounds,
             text,
             item_names,
+            location_names,
+            world_locations,
             game_data: paths.game_data.clone(),
             battles,
             battle_base: base,
@@ -275,6 +283,24 @@ impl PlayData {
 
     pub fn field_name(&self, map: i32) -> Option<&str> {
         self.db.get(&map).map(String::as_str)
+    }
+
+    /// The place name the save screen shows for field `map` (`FF9TextTool.LocationName`,
+    /// which `EventEngine` copies to `FF9.mapNameStr` on entering the field).
+    pub fn place_name(&self, map: i32) -> Option<&str> {
+        self.location_names
+            .get(&map)
+            .map(String::as_str)
+            .filter(|name| !name.is_empty())
+    }
+
+    /// The world map area name of `area` (`FF9TextTool.WorldLocationText`, which
+    /// `UIManager.MenuOpenEvent` copies to `FF9.mapNameStr` from system variable 192).
+    pub fn world_place_name(&self, area: i32) -> Option<&str> {
+        self.world_locations
+            .get(&area)
+            .map(String::as_str)
+            .filter(|name| !name.is_empty())
     }
 
     pub fn has_battles(&self) -> bool {
@@ -1063,6 +1089,7 @@ impl PlayGame {
                 player_position(self.world()),
             ),
         };
+        let place = self.place_now(map);
         let world = self.world();
         let save = PlaySave {
             format: SAVE_FORMAT,
@@ -1070,8 +1097,31 @@ impl PlayGame {
             position,
             ticks: self.ticks,
             world: world.for_save(),
+            place,
         };
         play_save::write(&self.save_dir, slot, &save)
+    }
+
+    /// `FF9.mapNameStr` now, which the save keeps as its preview's place
+    /// (`SharedDataBytesStorage`: `Location = mapNameStr`): the world map area's name on the
+    /// world map, else field `map`'s location name.
+    fn place_now(&self, map: i32) -> Option<String> {
+        if let Some(play) = &self.world_play {
+            let area = tantalus_legacy::world::id_area(play.walker.status.id);
+            return self.data.world_place_name(area).map(str::to_owned);
+        }
+        self.data.place_name(map).map(str::to_owned)
+    }
+
+    /// The place a save slot names: what it kept, else the field's location name, else (a
+    /// world map save from before saves kept the area's name) "World Map", else the field's
+    /// event id.
+    fn slot_place(&self, kept: Option<&str>, map: i32) -> String {
+        kept.or_else(|| self.data.place_name(map))
+            .or_else(|| (9000..=9012).contains(&map).then_some("World Map"))
+            .or_else(|| self.data.field_name(map))
+            .unwrap_or("?")
+            .to_owned()
     }
 
     /// Replaces the game with `slot`: enters the saved map with the saved
@@ -1236,13 +1286,10 @@ impl PlayGame {
                             .flatten()
                             .find_map(|&index| state.party.characters.get(usize::from(index)));
                         let who = lead.map_or(String::new(), |record| {
-                            format!("{} Lv {}  ", record.name, record.level)
+                            format!("{} Lv {}", record.name, record.level)
                         });
-                        let place = self
-                            .data
-                            .field_name(i32::from(state.field.fld_map_no))
-                            .unwrap_or("?");
-                        format!("{slot}  {who}{} Gil  {place}", state.party.gil)
+                        let place = self.slot_place(None, i32::from(state.field.fld_map_no));
+                        crate::field_menu::slot_label(slot, &who, &place, state.party.gil)
                     }
                     Err(message) if message == steam_save::EMPTY_SLOT => format!("{slot}  Empty"),
                     Err(_) => format!("{slot}  Unreadable"),
@@ -1273,10 +1320,10 @@ impl PlayGame {
                     let who = lead.map_or(String::new(), |id| {
                         let level =
                             tables.level(save.world.character_exp.get(&id).copied().unwrap_or(0));
-                        format!("{} Lv {level}  ", character_name(id))
+                        format!("{} Lv {level}", character_name(id))
                     });
-                    let place = self.data.field_name(save.map).unwrap_or("?");
-                    format!("{slot}  {who}{} Gil  {place}", save.world.gil)
+                    let place = self.slot_place(save.place.as_deref(), save.map);
+                    crate::field_menu::slot_label(slot, &who, &place, save.world.gil)
                 }
                 Ok(None) => format!("{slot}  Empty"),
                 Err(_) => format!("{slot}  Unreadable"),
