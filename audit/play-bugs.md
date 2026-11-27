@@ -27,7 +27,7 @@ frame-rate setting.
 |---|---|---|---|---|
 | PB1 | P1 | fixed | yes (interp off) | Vanilla 30 fps judders: about half the frames show no motion and the next jumps two ticks |
 | PB2 | P1 | open | no | Battle camera looks at empty sky or fills the screen with one model during actions |
-| PB7 | P1 | open | no | Music stops for good after a story battle that kept the field song (no battle song, no win pose) |
+| PB7 | P1 | fixed | no | Music stops for good after a story battle that kept the field song (no battle song, no win pose) |
 | PB3 | P2 | fixed | no | A button held across a battle or movie end is a new press on the first field tick |
 | PB4 | P2 | open | partly | First field after launch shows the clear color instead of the background for 5 to 20 frames |
 | PB5 | P2 | open, unverified | no | Random battles take about a minute (one enemy action ran 12 s) |
@@ -79,7 +79,7 @@ frame-rate setting.
 - Fix: `PlayGame::carry_held`, called by the play window when the battle view finishes and
   when a movie ends or is skipped.
 
-### PB7: field song stopped after a no-win-pose battle (open)
+### PB7: field song stopped after a no-win-pose battle (fixed)
 
 - Repro: slot 11, `--battle row4`: battle 297 (`CY_E021B`, flags special, no_win_pose,
   no_run_away, message_event) plays no song of its own, so field song 98 goes on; when the
@@ -94,10 +94,12 @@ frame-rate setting.
   song to play (`BattleSwirl.cs:88-98`). The same branch (`battle.cs:379-381`) runs
   `ManageBattleSong` (the fanfare) only with the win pose; the director played the fanfare for
   every victory.
-- Planned fix: `FightReport::no_win_pose` from `SB2_HEAD` flag 0x10, carried on
+- Fix: `FightReport::no_win_pose` from `SB2_HEAD` flag 0x10, carried on
   `AudioCue::BattleEnded`; the director keeps `field_song_in_battle` and `keep_field_song` as
   the C# does and plays no fanfare for a victory without the win pose. Unit test
   `a_battle_without_its_own_song_or_win_pose_leaves_the_field_song_playing`.
+- Check: the same run after the fix keeps song 98 past the result screen and into field 1105
+  in both modes (`hunt/out/z11-hi`, `z11-lo`).
 
 ### PB4: first field without its background (open)
 

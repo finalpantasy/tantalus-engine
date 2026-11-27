@@ -83,6 +83,10 @@ pub struct FightReport {
     /// The scene's `Info.NoGameOver`: a lost fight goes back to the field.
     #[serde(skip)]
     pub no_game_over: bool,
+    /// The scene has no win pose (`SB2_HEAD` flag 0x10, `Info.WinPose` false): no fanfare,
+    /// and a field song that played through the fight goes on after it.
+    #[serde(skip)]
+    pub no_win_pose: bool,
     /// The first battle script error, if any.
     pub ai_error: Option<String>,
     /// Distinct script events worth a look: unmodeled reads and spawns,
@@ -1235,6 +1239,8 @@ impl FieldBattles {
     ) -> Result<LiveFight, Box<FightReport>> {
         // `SB2_HEAD` flag 4 is `Info.NoGameOver` (`BTL_SCENE.cs`).
         report.no_game_over = scene.header.flags & 0x4 != 0;
+        // `Info.WinPose = (flags & 16) == 0` (`BTL_SCENE.cs:321`).
+        report.no_win_pose = scene.header.flags & 0x10 != 0;
         let mut units: Vec<BattleUnit> = party
             .iter()
             .enumerate()

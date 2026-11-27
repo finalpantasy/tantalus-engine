@@ -78,8 +78,9 @@ pub enum AudioCue {
     /// `BtlEncountBgmMetaData` or `WldBtlEncountBgmMetaData`
     /// (`BattleSwirl.RequestPlayBattleEncounterSongForField` / `ForWorld`, `BattleSwirl.cs:88`).
     BattleStarted { map: i32, battle: i32, world: bool },
-    /// The battle ended; a won or lost battle plays its end song first.
-    BattleEnded { end: BattleEnd },
+    /// The battle ended; a won or lost battle plays its end song first. `no_win_pose` is the
+    /// scene's `SB2_HEAD` flag 0x10 (`Info.WinPose = (flags & 16) == 0`, `BTL_SCENE.cs:321`).
+    BattleEnded { end: BattleEnd, no_win_pose: bool },
     /// The result screen closed (`BattleResultUI.Hide` -> `battle.ff9ShutdownStateBattleResult`):
     /// the end song stops and the song set aside returns.
     BattleLeft,
@@ -169,7 +170,7 @@ pub fn describe_cue(cue: &AudioCue, bank: &SoundBank) -> String {
                 format!("battle {battle} from {place} {map}: play {}", music(song))
             }
         }
-        AudioCue::BattleEnded { end } => match end {
+        AudioCue::BattleEnded { end, .. } => match end {
             BattleEnd::Victory => format!("battle won: fade, play {}", music(VICTORY_SONG)),
             BattleEnd::Defeat => format!("battle lost: fade, play {}", music(DEFEAT_SONG)),
             BattleEnd::Escape => {
@@ -256,6 +257,13 @@ pub struct AudioDirector {
     field_suspend_before: Option<i32>,
     /// Sound ids handed out to effect sounds by resource name.
     effect_sounds: Vec<(i32, String)>,
+    /// `FF9StateSystem.Battle.IsPlayFieldBGMInCurrentBattle`: the last field battle started with
+    /// no song of its own, so the field song played on (`BattleSwirl.cs:88-98`; a world map
+    /// battle leaves it as it was).
+    field_song_in_battle: bool,
+    /// `btl_flag & BTL_CONTI_FLD_SONG` set by the battle's end (`battle.cs:416-446`): the field
+    /// song goes on past the result screen.
+    keep_field_song: bool,
 }
 
 impl AudioDirector {
@@ -284,6 +292,8 @@ impl AudioDirector {
             latest_world_song: -1,
             field_suspend_before: None,
             effect_sounds: Vec::new(),
+            field_song_in_battle: false,
+            keep_field_song: false,
         }
     }
 
@@ -307,7 +317,7 @@ impl AudioDirector {
             AudioCue::BattleStarted { map, battle, world } => {
                 self.battle_started(*map, *battle, *world)
             }
-            AudioCue::BattleEnded { end } => self.battle_ended(*end),
+            AudioCue::BattleEnded { end, no_win_pose } => self.battle_ended(*end, *no_win_pose),
             AudioCue::BattleLeft => self.battle_left(),
             AudioCue::CardStarted => self.card_started(),
             AudioCue::CardEnded => self.card_ended(),
@@ -430,6 +440,11 @@ impl AudioDirector {
         };
         let song = music_for_battle(table, map, battle);
         let current = self.system.current_music_id();
+        // `battle.InitBattle` clears `btl_flag`.
+        self.keep_field_song = false;
+        if !world {
+            self.field_song_in_battle = song < 0 || song == current;
+        }
         if song < 0 || song == current {
             return;
         }
@@ -441,8 +456,16 @@ impl AudioDirector {
 
     /// `btl_util.ManageBattleSong` (`btl_util.cs:244`): every song fades over 30 ticks, the field
     /// song is set aside (unless a battle song is what plays), then the end song starts.
-    fn battle_ended(&mut self, end: BattleEnd) {
+    ///
+    /// `battle.cs:416-446`: a battle without the win pose that kept the field song
+    /// (`Info.FieldBGM`) sets `BTL_CONTI_FLD_SONG` when it is won, ends by its script or is fled,
+    /// so the result screen's close leaves that song playing.
+    fn battle_ended(&mut self, end: BattleEnd, no_win_pose: bool) {
+        self.keep_field_song =
+            no_win_pose && self.field_song_in_battle && !matches!(end, BattleEnd::Defeat);
         let song = match end {
+            // Only a victory with the win pose runs `ManageBattleSong` (`battle.cs:379-381`).
+            BattleEnd::Victory if no_win_pose => return,
             BattleEnd::Victory => VICTORY_SONG,
             BattleEnd::Defeat => DEFEAT_SONG,
             BattleEnd::Escape => return,
@@ -493,7 +516,7 @@ impl AudioDirector {
             if restored >= 0 {
                 self.system.song_vol(restored, 127);
             }
-        } else if !self.system.continue_field_song_after_battle {
+        } else if !self.system.continue_field_song_after_battle && !self.keep_field_song {
             self.system.song_vol_intplall(120, 0);
             self.system.stop_current_song(120);
         }
@@ -623,6 +646,7 @@ mod tests {
         assert_eq!(d.system.suspend_song_id(), 10);
         d.apply(&AudioCue::BattleEnded {
             end: BattleEnd::Victory,
+            no_win_pose: false,
         });
         // 30 ticks of fade, then the fanfare, which goes on (the game's loops) until the
         // result screen closes; then the field song again.
@@ -634,6 +658,55 @@ mod tests {
         assert_eq!(d.system.current_music_id(), 10);
         assert_eq!(d.system.suspend_song_id(), -1);
         assert!(level(&mut d) > 0);
+    }
+
+    #[test]
+    fn a_battle_without_its_own_song_or_win_pose_leaves_the_field_song_playing() {
+        // Battle 297 (`CY_E021B`, flags special, no_win_pose): no table song, so the field song
+        // plays through it and goes on after the result screen (`BTL_CONTI_FLD_SONG`).
+        let mut d = director();
+        d.apply(&play(10));
+        d.apply(&AudioCue::BattleStarted {
+            map: 7,
+            battle: 99,
+            world: false,
+        });
+        assert_eq!(d.system.current_music_id(), 10);
+        d.apply(&AudioCue::BattleEnded {
+            end: BattleEnd::Escape,
+            no_win_pose: true,
+        });
+        let _ = d.render(31);
+        d.apply(&AudioCue::BattleLeft);
+        let _ = d.render(200);
+        assert_eq!(d.system.current_music_id(), 10);
+        assert!(level(&mut d) > 0);
+        // A won one without the win pose plays no fanfare either.
+        d.apply(&AudioCue::BattleStarted {
+            map: 7,
+            battle: 99,
+            world: false,
+        });
+        d.apply(&AudioCue::BattleEnded {
+            end: BattleEnd::Victory,
+            no_win_pose: true,
+        });
+        let _ = d.render(31);
+        assert_eq!(d.system.current_music_id(), 10);
+        // With the win pose the song stops at the close, as before.
+        d.apply(&AudioCue::BattleLeft);
+        d.apply(&AudioCue::BattleStarted {
+            map: 7,
+            battle: 99,
+            world: false,
+        });
+        d.apply(&AudioCue::BattleEnded {
+            end: BattleEnd::Escape,
+            no_win_pose: false,
+        });
+        d.apply(&AudioCue::BattleLeft);
+        let _ = d.render(200);
+        assert_eq!(d.system.current_music_id(), -1);
     }
 
     #[test]
@@ -655,6 +728,7 @@ mod tests {
         assert_eq!(d.system.suspend_song_id(), 69);
         d.apply(&AudioCue::BattleEnded {
             end: BattleEnd::Victory,
+            no_win_pose: false,
         });
         let _ = d.render(31);
         assert_eq!(d.system.current_music_id(), VICTORY_SONG);

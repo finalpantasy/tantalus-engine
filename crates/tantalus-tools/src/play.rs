@@ -1812,21 +1812,26 @@ impl PlayGame {
                         world: false,
                     },
                 ));
-                let outcome = match &self.data.battles {
+                let (outcome, no_win_pose) = match &self.data.battles {
                     Some(battles) => {
                         let items = session.director.world().items.clone();
                         let mut report = battles.fight_with_items(request, &party, &items);
                         save_party(&report, session.director.world_mut());
                         pay_rewards(&report, session.director.world_mut());
                         stages.push(report.stage.take());
-                        report.outcome.unwrap_or_else(|| "no result".to_owned())
+                        let no_win_pose = report.no_win_pose;
+                        (
+                            report.outcome.unwrap_or_else(|| "no result".to_owned()),
+                            no_win_pose,
+                        )
                     }
-                    None => "skipped".to_owned(),
+                    None => ("skipped".to_owned(), false),
                 };
                 self.audio.push((
                     self.ticks,
                     AudioCue::BattleEnded {
                         end: crate::play_audio::BattleEnd::from_outcome(&outcome),
+                        no_win_pose,
                     },
                 ));
                 self.audio.push((self.ticks, AudioCue::BattleLeft));
@@ -2248,11 +2253,13 @@ impl PlayGame {
         if let Some(stage) = report.stage.take() {
             pending.stage = Some(stage);
         }
+        let no_win_pose = report.no_win_pose;
         let outcome = report.outcome.unwrap_or_else(|| "no result".to_owned());
         self.audio.push((
             self.ticks,
             AudioCue::BattleEnded {
                 end: crate::play_audio::BattleEnd::from_outcome(&outcome),
+                no_win_pose,
             },
         ));
         events.push(PlayEvent::Battle {
