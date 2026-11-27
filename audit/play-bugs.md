@@ -28,7 +28,7 @@ frame-rate setting.
 | PB1 | P1 | fixed | yes (interp off) | Vanilla 30 fps judders: about half the frames show no motion and the next jumps two ticks |
 | PB2 | P1 | open | no | Battle camera looks at empty sky or fills the screen with one model during actions |
 | PB7 | P1 | open | no | Music stops for good after a story battle that kept the field song (no battle song, no win pose) |
-| PB3 | P2 | open | no | A button held across a battle or movie end is a new press on the first field tick |
+| PB3 | P2 | fixed | no | A button held across a battle or movie end is a new press on the first field tick |
 | PB4 | P2 | open | partly | First field after launch shows the clear color instead of the background for 5 to 20 frames |
 | PB5 | P2 | open, unverified | no | Random battles take about a minute (one enemy action ran 12 s) |
 | PB6 | P2 | open | no | Battle HUD (party panel, enemy list) is up during the opening camera |
@@ -68,7 +68,7 @@ frame-rate setting.
   ported, so a snap with it aims at the origin (known item 6 of
   `audit/playability-gaps.md`, play-test note 1).
 
-### PB3: held button carried across a battle or movie end (open)
+### PB3: held button carried across a battle or movie end (fixed)
 
 - Repro: slot 9, any policy: the Confirm that closes the result screen is still held on the
   first field tick (`hunt/out/x9-lo/frames.jsonl` field tick 136, `held` 0x22000).
@@ -76,7 +76,7 @@ frame-rate setting.
   (`crates/tantalus-tools/src/play.rs:1618`) and `previous` is the pad of the last tick before
   the battle, so a button held while the battle view or movie read the pad becomes a new press
   (talk, examine) on return. Unity's `GetKeyDown` sees no new press there.
-- Planned fix: `PlayGame::carry_held`, called by the play window when the battle view finishes and
+- Fix: `PlayGame::carry_held`, called by the play window when the battle view finishes and
   when a movie ends or is skipped.
 
 ### PB7: field song stopped after a no-win-pose battle (open)

@@ -646,6 +646,8 @@ fn live_tick_inner(world: &mut World) {
             let mut game = live.game.lock().expect("game lock");
             game.end_movie();
             game.movie_sound(None);
+            // The Start that skipped the movie is no new press on the next field tick.
+            game.carry_held(held);
             send_audio(live.audio.as_ref(), &mut game);
             drop(game);
             live.elapsed = 0.0;
@@ -673,6 +675,8 @@ fn live_tick_inner(world: &mut World) {
         send_audio(live.audio.as_ref(), &mut game);
         if done {
             view.finish(world);
+            // The Confirm that closed the result screen is no press in the field or world map.
+            game.carry_held(held);
             live.elapsed = 0.0;
         } else {
             let hud = live.battle_hud.lock().expect("hud lock");

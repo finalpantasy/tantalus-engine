@@ -1496,6 +1496,14 @@ impl PlayGame {
         self.audio.push((self.ticks, AudioCue::Movie { resource }));
     }
 
+    /// The pad bits held when a view that reads the pad itself (the live battle, a movie)
+    /// hands back to the game ticks: a button still held from it is not a new press on the
+    /// next tick. Unity reads `GetKeyDown` each frame whatever scene is up, so the Confirm that
+    /// closed the battle result is no press in the field it returns to.
+    pub fn carry_held(&mut self, held: i32) {
+        self.previous = held;
+    }
+
     /// The movie finished or was skipped: the script's cinematic wait ends.
     pub fn end_movie(&mut self) {
         let map = self.map().unwrap_or(0);
