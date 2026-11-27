@@ -807,6 +807,11 @@ impl LegacyEventHost for FieldHost<'_> {
                 // Chocograph prompt): the picture list opens.
                 self.world.chocograph_requested = true;
             }
+            if let HostEvent::OpenMenu { menu: 1, subject } = event {
+                // `EventService.FF9Menu_Command` case 1 `OpenNameMenu`: the
+                // subject is the `CharacterId` to name.
+                self.world.name_requested = Some(*subject);
+            }
             if let HostEvent::OpenMenu { menu: 2, subject } = event {
                 // `EventService.OpenShopMenu`: the subject is the shop id.
                 self.world.shop_requested = Some(*subject);
@@ -2224,6 +2229,32 @@ mod tests {
             .apply(std::slice::from_ref(&turn))
             .unwrap();
         assert!(world.actors[&actor].anim_loop);
+    }
+
+    /// `EventService.FF9Menu_Command` case 1 `OpenNameMenu`: `MENU(1, character)`
+    /// asks for the naming screen; a chosen name is saved with the world.
+    #[test]
+    fn menu_one_asks_for_the_naming_screen() {
+        let mut world = FieldWorld::new();
+        assert_eq!(world.name_requested, None);
+        FieldHost::new(&mut world)
+            .apply(&[HostEvent::OpenMenu {
+                menu: 1,
+                subject: 4,
+            }])
+            .unwrap();
+        assert_eq!(world.name_requested, Some(4));
+        assert_eq!(world.shop_requested, None);
+        // The request is runtime-only; the chosen name is saved.
+        world.character_names.insert(4, "Frey".into());
+        let json = serde_json::to_string(&world.for_save()).unwrap();
+        let back: FieldWorld = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.name_requested, None);
+        assert_eq!(
+            back.character_names.get(&4).map(String::as_str),
+            Some("Frey")
+        );
+        assert!(back == world.for_save());
     }
 
     #[test]

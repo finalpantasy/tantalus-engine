@@ -19,7 +19,7 @@ use tantalus_legacy::party_menu::config::{
 use tantalus_legacy::party_menu::main_menu::{OrderMember, toggle_order};
 
 use crate::field_menu::{MenuFrame, MenuTables, MenuText, ROW, Tint, step, window};
-use crate::play::{character_name, pad};
+use crate::play::pad;
 
 /// Outcome of a press on one of these screens.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,7 +89,12 @@ impl OrderState {
             } else {
                 "Front"
             };
-            texts.push(text(12.0, slot as f32, character_name(*member), tint));
+            texts.push(text(
+                12.0,
+                slot as f32,
+                crate::name_menu::display_name(world, *member),
+                tint,
+            ));
             texts.push(right(172.0, slot as f32, row, tint));
         }
         frame.windows.push(window(

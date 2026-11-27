@@ -1930,6 +1930,27 @@ fn chain(
             }
         };
         let (pool, decode_errors) = decode_pool(&binary)?;
+        // A diagnostic on stderr (the trace opens no screens): the fields whose scripts run
+        // `MENU(1, character)`, the naming screen.
+        for (entry, functions) in pool.iter().enumerate() {
+            for (tag, program) in functions {
+                for instruction in program.instructions.values() {
+                    if let InstructionKind::OpenMenu {
+                        menu: Expression(menu),
+                        subject: Expression(subject),
+                    } = &instruction.kind
+                        && matches!(
+                            menu.as_slice(),
+                            [ExpressionOp::Constant(1), ExpressionOp::End]
+                        )
+                    {
+                        eprintln!(
+                            "naming screen: map {map} entry {entry} function {tag} subject {subject:?}"
+                        );
+                    }
+                }
+            }
+        }
         // Entries of type 2 (`InitObject` actors, `cid == 4`): the objects a push reaches.
         let actor_entries: BTreeSet<usize> = (0..pool.len())
             .filter(|entry| binary.entry_bytes(*entry).and_then(|bytes| bytes.first()) == Some(&2))

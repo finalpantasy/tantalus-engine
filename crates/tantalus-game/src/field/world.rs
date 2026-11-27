@@ -1004,6 +1004,15 @@ pub struct FieldWorld {
     /// (runtime-only).
     #[serde(skip)]
     pub shop_requested: Option<i32>,
+    /// A script ran `MENU(1, character)`: the character to name, the naming
+    /// screen not open yet (runtime-only; `EventService.OpenNameMenu`).
+    #[serde(skip)]
+    pub name_requested: Option<i32>,
+    /// Names the player chose, by character id (`PLAYER.Name` after
+    /// `NameSettingUI.SetCharacterName`); a character not here has the
+    /// default name. Saved with the world.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub character_names: BTreeMap<i32, String>,
     /// `RunWorldCode` calls (`ff9.w_frameSetParameter(code, value)`) the
     /// world script made since the last [`FieldWorld::take_world_codes`]
     /// (runtime-only).
@@ -1173,6 +1182,7 @@ impl PartialEq for FieldWorld {
             && self.ability_pa == other.ability_pa
             && self.learned_abilities == other.learned_abilities
             && self.support_enabled == other.support_enabled
+            && self.character_names == other.character_names
             && self.equipment == other.equipment
             && self.overlays == other.overlays
             && self.tile_animations == other.tile_animations
@@ -1292,6 +1302,8 @@ impl FieldWorld {
             shop_requested: None,
             world_codes: Vec::new(),
             support_enabled: BTreeMap::new(),
+            name_requested: None,
+            character_names: BTreeMap::new(),
             actor_shadows: BTreeMap::new(),
             light_changes: Vec::new(),
             tex_anims: BTreeMap::new(),
@@ -1436,6 +1448,7 @@ impl FieldWorld {
         self.save_requested = false;
         self.chocograph_requested = false;
         self.shop_requested = None;
+        self.name_requested = None;
         self.clear_tile_animations();
         self.control_actor = None;
         self.exit_arrivals.clear();

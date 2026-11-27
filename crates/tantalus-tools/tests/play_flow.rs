@@ -333,3 +333,47 @@ fn a_world_map_save_in_an_airship_loads_flying() {
     assert_eq!(game.world_play.as_ref().expect("walking").ride, 0);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// `MENU(1, character)` opens the naming screen: the field waits, typing and Enter store the
+/// name, and it shows in the main menu and in a save.
+#[test]
+fn the_naming_screen_pauses_the_field_and_stores_the_name() {
+    let Some(paths) = paths() else { return };
+    let data = PlayData::load(&paths).expect("play data");
+    let (mut game, _) = PlayGame::new(data, 70).expect("game");
+    for _ in 0..5 {
+        game.tick(0).expect("tick");
+    }
+    game.open_name(1);
+    game.tick(0).expect("tick");
+    assert!(game.name_screen_open());
+    let (_, frame) = game.menu_frame().expect("name frame");
+    assert!(frame.windows[0].texts.iter().any(|t| t.text == "Vivi_"));
+    let before = game.world().actors.clone();
+    for _ in 0..30 {
+        game.tick(0).expect("tick");
+    }
+    assert!(game.name_screen_open(), "the screen waits for a name");
+    assert!(
+        game.world().actors == before,
+        "the field does not run behind it"
+    );
+    // Empty is refused; the screen stays.
+    game.name_input("", 10, true);
+    assert!(game.name_screen_open());
+    game.name_input("Bobo", 0, true);
+    assert!(!game.name_screen_open());
+    assert_eq!(
+        game.world().character_names.get(&1).map(String::as_str),
+        Some("Bobo")
+    );
+    let dir = temp_dir("name");
+    game.set_save_dir(dir.clone());
+    game.save_slot(1).expect("save");
+    let mut events = Vec::new();
+    game.load_slot(1, &mut events).expect("load");
+    assert_eq!(
+        game.world().character_names.get(&1).map(String::as_str),
+        Some("Bobo")
+    );
+}

@@ -2070,7 +2070,7 @@ impl FightView {
                                 level_of: &|exp| game.level_of(exp),
                                 to_level: &to_level,
                             },
-                            &|character| tantalus_tools::play::character_name(character).to_owned(),
+                            &|character| tantalus_tools::name_menu::display_name(world, character),
                             &item_name,
                             &|id| game.ability_name(id),
                             &|card| game.card_name(card).map(str::to_owned),

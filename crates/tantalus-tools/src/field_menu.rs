@@ -34,7 +34,7 @@ use tantalus_legacy::shop::{
 use crate::ability_menu::{
     AbilityState, AbilityTables, Exit as AbilityExit, frame as ability_frame,
 };
-use crate::play::{character_name, pad};
+use crate::play::pad;
 use crate::play_save::SLOTS;
 use crate::system_menu::{CardState, ConfigState, Exit as SystemExit, OrderState};
 
@@ -813,7 +813,7 @@ impl FieldMenu {
         let Some(effect) = tables.effects.get(&item) else {
             return;
         };
-        let name = character_name(member);
+        let name = crate::name_menu::display_name(world, member);
         let seed = (self.revision as u32).wrapping_mul(2_654_435_761) >> 24;
         self.message = Some(
             match use_field_item(world, &tables.db, item, effect, member, || seed) {
@@ -1129,7 +1129,12 @@ impl FieldMenu {
         let character = tables.character(world, member);
         let level = tables.level(world.character_exp.get(&member).copied().unwrap_or(0));
         let mut texts = vec![
-            text(8.0, 0.0, character_name(member), Tint::Yellow),
+            text(
+                8.0,
+                0.0,
+                crate::name_menu::display_name(world, member),
+                Tint::Yellow,
+            ),
             right(172.0, 0.0, format!("Lv {level}"), Tint::White),
         ];
         for (row, name) in SLOT_NAMES.iter().enumerate() {
@@ -1232,7 +1237,12 @@ pub(crate) fn party_window(
         let base = index as f32 * 3.0;
         let stats = world.character_stats.get(member);
         let level = tables.level(world.character_exp.get(member).copied().unwrap_or(0));
-        texts.push(text(14.0, base, character_name(*member), Tint::White));
+        texts.push(text(
+            14.0,
+            base,
+            crate::name_menu::display_name(world, *member),
+            Tint::White,
+        ));
         texts.push(right(w - 10.0, base, format!("Lv {level}"), Tint::White));
         let (hp, max_hp, mp, max_mp) = stats.map_or((0, 0, 0, 0), |s| {
             (s.current_hp, s.max_hp, s.current_mp, s.max_mp)
@@ -1359,7 +1369,13 @@ fn main_party(world: &FieldWorld, tables: &MenuTables) -> (MenuWindow, Vec<MenuI
         let level = tables.level(world.character_exp.get(member).copied().unwrap_or(0));
         let (hp_tint, mp_tint) = point_tints(hp, max_hp, mp, max_mp);
         let x = 56.0;
-        texts.push(at(x, top, character_name(*member), Tint::White, false));
+        texts.push(at(
+            x,
+            top,
+            crate::name_menu::display_name(world, *member),
+            Tint::White,
+            false,
+        ));
         texts.push(at(150.0, top, "LV", Tint::Yellow, false));
         texts.push(at(
             PARTY_W - 12.0,
@@ -1406,7 +1422,12 @@ fn status_frame(frame: &mut MenuFrame, world: &FieldWorld, tables: &MenuTables, 
     let all = stats(&tables.db, character.basis, &character.equip);
     let all = tantalus_legacy::menu::equip::stat_array(&all);
     let mut texts = vec![
-        text(8.0, 0.0, character_name(member), Tint::Yellow),
+        text(
+            8.0,
+            0.0,
+            crate::name_menu::display_name(world, member),
+            Tint::Yellow,
+        ),
         text(8.0, 1.0, "Level", Tint::Yellow),
         right(140.0, 1.0, level.to_string(), Tint::White),
         text(8.0, 2.0, "EXP", Tint::Yellow),

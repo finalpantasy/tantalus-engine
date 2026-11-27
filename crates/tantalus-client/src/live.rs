@@ -66,6 +66,85 @@ pub fn pad_bits(keys: &ButtonInput<KeyCode>) -> i32 {
         .fold(0, |bits, (_, bit)| bits | bit)
 }
 
+/// The text keys pressed this frame on a US layout, as typed characters and
+/// the Backspaces and whether Enter was pressed (the naming screen's input
+/// field).
+pub fn name_keys(keys: &ButtonInput<KeyCode>) -> (String, usize, bool) {
+    let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
+    let mut typed = String::new();
+    for key in keys.get_just_pressed() {
+        let letter = match key {
+            KeyCode::KeyA => 'a',
+            KeyCode::KeyB => 'b',
+            KeyCode::KeyC => 'c',
+            KeyCode::KeyD => 'd',
+            KeyCode::KeyE => 'e',
+            KeyCode::KeyF => 'f',
+            KeyCode::KeyG => 'g',
+            KeyCode::KeyH => 'h',
+            KeyCode::KeyI => 'i',
+            KeyCode::KeyJ => 'j',
+            KeyCode::KeyK => 'k',
+            KeyCode::KeyL => 'l',
+            KeyCode::KeyM => 'm',
+            KeyCode::KeyN => 'n',
+            KeyCode::KeyO => 'o',
+            KeyCode::KeyP => 'p',
+            KeyCode::KeyQ => 'q',
+            KeyCode::KeyR => 'r',
+            KeyCode::KeyS => 's',
+            KeyCode::KeyT => 't',
+            KeyCode::KeyU => 'u',
+            KeyCode::KeyV => 'v',
+            KeyCode::KeyW => 'w',
+            KeyCode::KeyX => 'x',
+            KeyCode::KeyY => 'y',
+            KeyCode::KeyZ => 'z',
+            KeyCode::Space => {
+                typed.push(' ');
+                continue;
+            }
+            KeyCode::Minus => {
+                typed.push('-');
+                continue;
+            }
+            KeyCode::Period => {
+                typed.push('.');
+                continue;
+            }
+            KeyCode::Quote => {
+                typed.push('\'');
+                continue;
+            }
+            _ => continue,
+        };
+        typed.push(if shift {
+            letter.to_ascii_uppercase()
+        } else {
+            letter
+        });
+    }
+    (
+        typed,
+        usize::from(keys.just_pressed(KeyCode::Backspace)),
+        keys.just_pressed(KeyCode::Enter),
+    )
+}
+
+/// Keyboard bits while the naming screen types: the arrows move the grid
+/// cursor; letters are text, not walking keys.
+pub fn name_pad_bits(keys: &ButtonInput<KeyCode>) -> i32 {
+    [
+        (KeyCode::ArrowUp, pad::UP),
+        (KeyCode::ArrowDown, pad::DOWN),
+        (KeyCode::ArrowLeft, pad::LEFT),
+        (KeyCode::ArrowRight, pad::RIGHT),
+    ]
+    .iter()
+    .filter(|(key, _)| keys.pressed(*key))
+    .fold(0, |bits, (_, bit)| bits | bit)
+}
+
 /// Gamepad button to `EventInput` bits. The Steam game's default XInput layout is
 /// `HonoInputManager.defaultJoystickInputKeys` read through `HonoInputManager.CheckRawXInput`:
 /// JoystickButton0 (XInput A) Confirm, 1 (B) Cancel, 3 (Y) Menu, 2 (X) Special, 4 (LB)
@@ -734,7 +813,26 @@ fn live_tick_inner(world: &mut World) {
     let delta = frame_delta(world);
     let held = match world.get_resource_mut::<crate::play_harness::Harness>() {
         Some(mut harness) => harness.next_held(),
-        None => pad_bits(world.resource::<ButtonInput<KeyCode>>()) | gamepad_bits(world),
+        None => {
+            let keys = world.resource::<ButtonInput<KeyCode>>();
+            let naming = world
+                .get_resource::<Live>()
+                .is_some_and(|live| live.game.lock().expect("game lock").name_screen_open());
+            let keyboard = if naming {
+                // `NameSettingUI`'s input field: the keyboard types.
+                let (typed, backspaces, enter) = name_keys(keys);
+                if let Some(live) = world.get_resource::<Live>() {
+                    live.game
+                        .lock()
+                        .expect("game lock")
+                        .name_input(&typed, backspaces, enter);
+                }
+                name_pad_bits(world.resource::<ButtonInput<KeyCode>>())
+            } else {
+                pad_bits(keys)
+            };
+            keyboard | gamepad_bits(world)
+        }
     };
     note_window_size(world);
     let mut live = world.remove_resource::<Live>().expect("live state");

@@ -713,6 +713,8 @@ fn run_play_capture(args: &[std::ffi::OsString]) -> ExitCode {
         "--learn",
         "--save-point",
         "--shop",
+        "--name",
+        "--name-text",
         "--chocograph",
         "--moogle-save",
         "--gil",
@@ -780,6 +782,10 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
     }
     let shop: Option<i32> = match values.get("--shop") {
         Some(shop) => Some(shop.parse().map_err(|_| "bad --shop")?),
+        None => None,
+    };
+    let name: Option<i32> = match values.get("--name") {
+        Some(name) => Some(name.parse().map_err(|_| "bad --name")?),
         None => None,
     };
     if let Some(list) = values.get("--learn") {
@@ -854,6 +860,15 @@ fn play_capture(values: &std::collections::BTreeMap<String, String>) -> Result<S
             if values.contains_key("--moogle-save") {
                 game.request_save();
             }
+            if let Some(name) = name {
+                // `MENU(1, character)`: the naming screen.
+                game.open_name(name);
+            }
+        }
+        if tick == 20
+            && let Some(typed) = values.get("--name-text")
+        {
+            game.name_input(typed, 0, false);
         }
         for event in game.tick(held)? {
             println!("{}", tantalus_client::live::describe(&event));

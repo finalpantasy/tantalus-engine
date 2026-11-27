@@ -420,6 +420,11 @@ pub fn character_name(id: i32) -> &'static str {
         5 => "Quina",
         6 => "Eiko",
         7 => "Amarant",
+        // `FF9TextTool.CharacterDefaultName` for the guest cast.
+        8 => "Cinna",
+        9 => "Marcus",
+        10 => "Blank",
+        11 => "Beatrix",
         _ => "Zidane",
     }
 }
@@ -466,6 +471,8 @@ pub struct PlayGame {
     menu: Option<FieldMenu>,
     /// The open shop; the field does not run while it is open.
     shop: Option<ShopMenu>,
+    /// The naming screen a `MENU(1, character)` opened.
+    name_screen: Option<crate::name_menu::NameMenu>,
     /// The cursor on the party screen a field script opened (`PARTYMENU`).
     party_select: crate::party_select::PartySelect,
     save_dir: PathBuf,
@@ -689,6 +696,7 @@ impl PlayGame {
             last_results: None,
             menu: None,
             shop: None,
+            name_screen: None,
             party_select: Default::default(),
             save_dir: play_save::default_dir(),
             pending_position: None,
@@ -813,13 +821,16 @@ impl PlayGame {
                 match tag.code.as_str() {
                     "CharacterName" => {
                         let keyword = tag.params.first().map_or("", String::as_str);
-                        text(character_name(keyword_character(keyword)).to_owned())
+                        text(crate::name_menu::display_name(
+                            world,
+                            keyword_character(keyword),
+                        ))
                     }
                     // `[PTYn]`: the character in party slot n (1-based).
                     "Party" => {
                         let slot = param(0).unwrap_or(1).max(1) as usize - 1;
                         let id = world.party.get(slot).copied().unwrap_or(0);
-                        text(character_name(id).to_owned())
+                        text(crate::name_menu::display_name(world, id))
                     }
                     "Variable" => text(
                         world
@@ -979,6 +990,21 @@ impl PlayGame {
         pressed: i32,
         events: &mut Vec<PlayEvent>,
     ) -> Result<bool, String> {
+        if let Some(mut screen) = self.name_screen.take() {
+            // `NameSettingUI`: the field stays paused until a name is confirmed.
+            let world = match self.session.as_mut() {
+                Some(session) => session.director.world_mut(),
+                None => &mut self.world,
+            };
+            let result = screen.press(pressed, world);
+            if let Some(id) = result.sound {
+                self.audio.push((self.ticks, AudioCue::Effect { id }));
+            }
+            if !result.closed {
+                self.name_screen = Some(screen);
+            }
+            return Ok(true);
+        }
         if let Some(mut shop) = self.shop.take() {
             let mut open = true;
             if pressed != 0 {
@@ -1095,6 +1121,14 @@ impl PlayGame {
         let world = session.director.world_mut();
         let allowed =
             world.user_control && !world.menu_disabled && !world.windows.values().any(|open| *open);
+        if let Some(id) = world.name_requested
+            && !world.windows.values().any(|open| *open)
+        {
+            // A script ran `MENU(1, character)` (`EventService.OpenNameMenu`).
+            world.name_requested = None;
+            self.name_screen = Some(crate::name_menu::NameMenu::new(world, id));
+            return Ok(true);
+        }
         if let Some(id) = world.shop_requested
             && !world.windows.values().any(|open| *open)
         {
@@ -1195,6 +1229,7 @@ impl PlayGame {
         self.session = None;
         self.menu = None;
         self.shop = None;
+        self.name_screen = None;
         self.stopped = None;
         self.disc_change = None;
         // A load leaves the world map for the saved field.
@@ -1257,6 +1292,7 @@ impl PlayGame {
         self.session = None;
         self.menu = None;
         self.shop = None;
+        self.name_screen = None;
         self.stopped = None;
         self.disc_change = None;
         // A load leaves the world map for the saved field.
@@ -1378,7 +1414,10 @@ impl PlayGame {
                     let who = lead.map_or(String::new(), |id| {
                         let level =
                             tables.level(save.world.character_exp.get(&id).copied().unwrap_or(0));
-                        format!("{} Lv {level}", character_name(id))
+                        format!(
+                            "{} Lv {level}",
+                            crate::name_menu::display_name(&save.world, id)
+                        )
                     });
                     let place = self.slot_place(save.place.as_deref(), save.map);
                     crate::field_menu::slot_label(slot, &who, &place, save.world.gil)
@@ -1465,6 +1504,11 @@ impl PlayGame {
             play.script_mut_for_tests().world_mut().chocograph_requested = true;
         }
         Ok(())
+    }
+
+    /// Asks for the naming screen as `MENU(1, character)` does (a test aid).
+    pub fn open_name(&mut self, id: i32) {
+        self.world_mut_any().name_requested = Some(id);
     }
 
     pub fn open_shop(&mut self, id: i32) {
@@ -1721,11 +1765,46 @@ impl PlayGame {
         ));
     }
 
+    /// True while the naming screen is open (the keyboard types into it).
+    pub fn name_screen_open(&self) -> bool {
+        self.name_screen.is_some()
+    }
+
+    /// Keyboard text for the open naming screen (`NameSettingUI`'s input
+    /// field): `typed` is added (filtered), `backspaces` characters removed.
+    /// `enter` is the field's Confirm (`OnKeyConfirm` -> `OnConfirmButtonClick`).
+    pub fn name_input(&mut self, typed: &str, backspaces: usize, enter: bool) {
+        let Some(screen) = self.name_screen.as_mut() else {
+            return;
+        };
+        for _ in 0..backspaces {
+            screen.backspace();
+        }
+        screen.type_text(typed);
+        if enter {
+            let world = match self.session.as_mut() {
+                Some(session) => session.director.world_mut(),
+                None => &mut self.world,
+            };
+            let result = screen.confirm(world);
+            if let Some(id) = result.sound {
+                self.audio.push((self.ticks, AudioCue::Effect { id }));
+            }
+            if result.closed {
+                self.name_screen = None;
+            }
+        }
+    }
+
     /// The main menu to draw, with a number that changes when it does.
     pub fn menu_frame(&self) -> Option<(u64, crate::field_menu::MenuFrame)> {
         if let Some(screen) = &self.chocograph_screen {
             // Offset so it never matches a shop's or the menu's revision.
             return Some((screen.revision | 1 << 40, screen.frame()));
+        }
+        if let Some(screen) = &self.name_screen {
+            // Offset so it never matches another screen's revision.
+            return Some((screen.revision | 1 << 41, screen.frame()));
         }
         if let Some(shop) = &self.shop {
             return Some((
@@ -2111,6 +2190,7 @@ impl PlayGame {
                 self.world_play = None;
                 self.menu = None;
                 self.shop = None;
+                self.name_screen = None;
                 self.stopped = None;
                 self.chocograph_screen = None;
                 self.ticks = 0;

@@ -15,7 +15,7 @@ use tantalus_legacy::shop::{
 };
 
 use crate::field_menu::{MenuFrame, MenuTables, MenuText, ROW, Tint, step, window};
-use crate::play::{character_name, pad};
+use crate::play::pad;
 
 /// Rows of the list window.
 const LIST_ROWS: usize = 8;
@@ -514,7 +514,7 @@ impl ShopMenu {
                     else {
                         break;
                     };
-                    let who = character_name(*member).to_string();
+                    let who = crate::name_menu::display_name(world, *member);
                     let (shown, tint) = if !compare.can_equip {
                         ("--".to_string(), Tint::Dim)
                     } else if compare.hidden {

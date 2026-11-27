@@ -25,7 +25,7 @@ use tantalus_legacy::menu::{MenuCharacter, MenuConfig, SupportRow, SupportTable}
 use tantalus_legacy::shop::stats;
 
 use crate::field_menu::{MenuFrame, MenuText, ROW, Tint};
-use crate::play::{character_name, pad};
+use crate::play::pad;
 
 const LIST_ROWS: usize = 9;
 
@@ -486,7 +486,10 @@ fn cast(
     if let Some(stat) = world.character_stats.get_mut(&caster) {
         stat.current_mp = (stat.current_mp - cost).max(0);
     }
-    format!("{} recovered {healed} HP.", character_name(target))
+    format!(
+        "{} recovered {healed} HP.",
+        crate::name_menu::display_name(world, target)
+    )
 }
 
 fn text(x: f32, row: f32, value: impl Into<String>, tint: Tint) -> MenuText {
@@ -570,7 +573,12 @@ pub fn frame(
         vec![
             text(8.0, 0.0, magic, magic_tint),
             text(60.0, 0.0, sup, sup_tint),
-            right(142.0, 0.0, character_name(state.member), Tint::White),
+            right(
+                142.0,
+                0.0,
+                crate::name_menu::display_name(world, state.member),
+                Tint::White,
+            ),
         ],
     ));
     frame.windows.push(crate::field_menu::window(
