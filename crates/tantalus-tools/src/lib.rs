@@ -35,6 +35,7 @@ pub mod special_effects_cli;
 pub mod steam_save;
 pub mod sweep_compare;
 pub mod system_menu;
+pub mod title_menu;
 pub mod world_data;
 pub mod world_places;
 pub mod world_play;

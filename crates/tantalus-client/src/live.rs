@@ -832,6 +832,7 @@ fn live_tick_inner(world: &mut World) {
                 }
             }
             // The main menu, save screen and Chocograph list over the world map.
+            crate::title_view::sync_title(world, &game);
             bench::time("menu", || crate::menu_view::sync_menu(world, &game));
             drop(game);
             world.insert_resource(live);
@@ -986,6 +987,8 @@ fn live_tick_inner(world: &mut World) {
         );
     }
     // Outside the field branch: field 70 (between discs) has no background to draw.
+    // The title first: the menu draws on its camera.
+    crate::title_view::sync_title(world, &game);
     bench::time("menu", || crate::menu_view::sync_menu(world, &game));
     crate::disc_view::sync_disc(world, &game);
     let mut title = format!(

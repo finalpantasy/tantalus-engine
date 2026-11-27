@@ -248,3 +248,48 @@ fn the_world_map_plays_its_song_and_a_chocobo_its_own() {
     );
     assert_eq!(director.system.current_music_id(), 100);
 }
+
+/// The title screen (`TitleUI`): New Game starts the opening, Load Game opens the load list
+/// (cancel goes back to the title) and Continue loads the save written last.
+#[test]
+fn the_title_screen_starts_a_new_game_or_continues() {
+    let Some(paths) = paths() else { return };
+    let data = PlayData::load(&paths).expect("play data");
+    let (mut game, _) = PlayGame::new(data, 70).expect("game");
+    let dir = temp_dir("title");
+    game.set_save_dir(dir.clone());
+    game.open_title(70);
+    assert!(game.title_open());
+    assert!(game.menu_frame().is_some(), "the title draws");
+    // No save: the cursor starts on New Game, and Continue is refused.
+    press(&mut game, pad::UP);
+    press(&mut game, pad::CONFIRM);
+    assert!(game.title_open(), "nothing to continue");
+    press(&mut game, pad::DOWN);
+    press(&mut game, pad::DOWN);
+    press(&mut game, pad::CONFIRM);
+    assert!(game.title_open());
+    assert!(game.menu_frame().is_some(), "the load list is up");
+    press(&mut game, pad::CANCEL);
+    assert!(game.title_open(), "cancel goes back to the title");
+    press(&mut game, pad::UP);
+    let events = press(&mut game, pad::CONFIRM);
+    assert!(!game.title_open(), "New Game closes the title");
+    assert_eq!(game.map(), Some(70));
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event, PlayEvent::Field { map: 70, .. }))
+    );
+    // A save: Continue loads it.
+    game.save_slot(3).expect("save");
+    game.open_title(70);
+    let events = press(&mut game, pad::CONFIRM);
+    assert!(!game.title_open(), "Continue loads slot 3");
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event, PlayEvent::Field { .. }))
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

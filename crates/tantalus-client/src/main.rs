@@ -582,6 +582,14 @@ fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
         }
     };
     let result = load_game(&values).and_then(|mut game| {
+        // `TitleUI` first, unless the launch line names a save or a start field.
+        if !["--load", "--load-save", "--start"]
+            .iter()
+            .any(|flag| values.contains_key(*flag))
+            && std::env::var_os("TANTALUS_BENCH_SCENE").is_none()
+        {
+            game.open_title(70);
+        }
         // Frame-rate bench scenes (`TANTALUS_BENCH_SCENE=world:FIELD|battle:ID|cards:OPPONENT`).
         if let Ok(scene) = std::env::var("TANTALUS_BENCH_SCENE")
             && let Some((kind, number)) = scene.split_once(':')

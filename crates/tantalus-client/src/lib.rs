@@ -33,6 +33,7 @@ pub mod psx_blend;
 pub mod scene_adapter;
 pub mod smooth;
 pub mod sps_view;
+pub mod title_view;
 pub mod track;
 pub mod trance_glow;
 pub mod ui_skin;

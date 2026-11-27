@@ -1969,9 +1969,9 @@ impl FightView {
             let done = shown >= HOLD_SECONDS
                 && (!waits || confirmed || self.result.state == ResultState::Closed);
             if done && outcome == "defeat" {
-                // Game over: back to the saved games
-                // (`GameOverUI.GoToTitleScene` -> title -> Continue).
-                game.open_load_screen();
+                // Game over: the title screen (`GameOverUI.GoToTitleScene`), whose New Game
+                // starts the opening field.
+                game.open_title(70);
             }
             if done {
                 // `BattleResultUI.Hide` -> `battle.ff9ShutdownStateBattleResult`.

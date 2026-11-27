@@ -271,6 +271,9 @@ impl UiArt {
 /// bare 16-bit TIM of 320 by 224 pixels, the whole PS1 screen (the Steam `gameover` sprite's
 /// source).
 pub const GAME_OVER_FILE: u32 = 11;
+/// The resident file with the title screen: the background in 224-line strips, the logo, and
+/// the NEW GAME, CONTINUE and copyright words.
+pub const TITLE_FILE: u32 = 60;
 
 /// Reads the resident UI file from the first disc image found in `disc_dir`.
 pub fn read_ui_file(disc_dir: &std::path::Path) -> Result<Vec<u8>, String> {

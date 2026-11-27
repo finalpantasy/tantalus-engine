@@ -533,29 +533,30 @@ pub fn faces(game_data: &Path) -> HashMap<i32, Image> {
 /// The cached copy of the discs' game over picture.
 const GAME_OVER_CACHE: &str = "game-over.tim";
 
-/// The PS1 game over picture (`tantalus_psxaudio::ui_art::GAME_OVER_FILE`), from the cache or
-/// the discs.
+/// Resident file `id` of the PS1 disc, from the cache (`cache` under [`cache_dir`]) or read from
+/// the discs and cached.
+fn ps1_resident(id: u32, cache: &str) -> Result<Vec<u8>, String> {
+    let path = cache_dir().join(cache);
+    if let Ok(bytes) = std::fs::read(&path) {
+        return Ok(bytes);
+    }
+    let discs = settings()
+        .discs
+        .as_deref()
+        .ok_or_else(|| format!("no cached {cache} and no disc folder"))?;
+    let bytes = tantalus_psxaudio::ui_art::read_resident_file(discs, id)?;
+    if let Err(error) =
+        std::fs::create_dir_all(cache_dir()).and_then(|()| std::fs::write(&path, &bytes))
+    {
+        println!("ui skin: cannot cache {cache}: {error}");
+    }
+    Ok(bytes)
+}
+
+/// The PS1 game over picture (`tantalus_psxaudio::ui_art::GAME_OVER_FILE`), a bare 320 x 224
+/// TIM.
 fn ps1_game_over() -> Result<Image, String> {
-    let cache = cache_dir().join(GAME_OVER_CACHE);
-    let bytes = match std::fs::read(&cache) {
-        Ok(bytes) => bytes,
-        Err(_) => {
-            let discs = settings()
-                .discs
-                .as_deref()
-                .ok_or("no cached game over picture and no disc folder")?;
-            let bytes = tantalus_psxaudio::ui_art::read_resident_file(
-                discs,
-                tantalus_psxaudio::ui_art::GAME_OVER_FILE,
-            )?;
-            if let Err(error) =
-                std::fs::create_dir_all(cache_dir()).and_then(|()| std::fs::write(&cache, &bytes))
-            {
-                println!("ui skin: cannot cache the game over picture: {error}");
-            }
-            bytes
-        }
-    };
+    let bytes = ps1_resident(tantalus_psxaudio::ui_art::GAME_OVER_FILE, GAME_OVER_CACHE)?;
     let tim = Tim::parse(&bytes)?;
     Ok(Image {
         width: tim.width,
@@ -564,8 +565,56 @@ fn ps1_game_over() -> Result<Image, String> {
     })
 }
 
-/// The Steam game over picture: the `gameover` texture of `GameOverUI.GameOverSprite`.
-fn steam_game_over(game_data: &Path) -> Result<Image, String> {
+const TITLE_CACHE: &str = "title.bin";
+
+/// The PS1 title picture (`tantalus_psxaudio::ui_art::TITLE_FILE`): the TIMs 224 lines tall,
+/// side by side in file order, make the 320 x 224 background with the logo.
+fn ps1_title() -> Result<Image, String> {
+    let bytes = ps1_resident(tantalus_psxaudio::ui_art::TITLE_FILE, TITLE_CACHE)?;
+    let strips: Vec<Tim> = tim_offsets(&bytes)
+        .into_iter()
+        .filter_map(|at| Tim::parse(&bytes[at..]).ok())
+        .filter(|tim| tim.height == TITLE_HEIGHT)
+        .collect();
+    let width: usize = strips.iter().map(|tim| tim.width).sum();
+    if width == 0 {
+        return Err("no title strips".to_owned());
+    }
+    let mut out = Image::new(width, TITLE_HEIGHT);
+    let mut left = 0;
+    for tim in &strips {
+        let rgba = tim.rgba((0, 0, tim.width, tim.height), 0);
+        for y in 0..tim.height {
+            for x in 0..tim.width {
+                let from = (y * tim.width + x) * 4;
+                let to = (y * width + left + x) * 4;
+                out.rgba[to..to + 3].copy_from_slice(&rgba[from..from + 3]);
+                // Black is a color here, not the see-through one.
+                out.rgba[to + 3] = 255;
+            }
+        }
+        left += tim.width;
+    }
+    Ok(out)
+}
+
+/// The title picture's height on the PS1, in lines.
+const TITLE_HEIGHT: usize = 224;
+
+/// Where TIM headers start in `bytes` (4-byte aligned, magic `0x10` and a known mode).
+fn tim_offsets(bytes: &[u8]) -> Vec<usize> {
+    (0..bytes.len().saturating_sub(8))
+        .step_by(4)
+        .filter(|&at| {
+            bytes[at..at + 4] == [0x10, 0, 0, 0]
+                && matches!(bytes[at + 4], 2 | 8 | 9)
+                && bytes[at + 5..at + 8] == [0, 0, 0]
+        })
+        .collect()
+}
+
+/// A Texture2D of `sharedassets2.assets` by name, as RGBA rows top first.
+fn steam_texture(game_data: &Path, name: &str) -> Result<Image, String> {
     use tantalus_assets::pc::serialized_inventory::StandaloneSerialized;
     let mut file = StandaloneSerialized::open(&game_data.join(HAND_FILE))
         .map_err(|error| error.to_string())?;
@@ -576,13 +625,13 @@ fn steam_game_over(game_data: &Path) -> Result<Image, String> {
         .cloned()
         .collect();
     for object in textures {
-        if file.object_name(&object).ok().as_deref() != Some("gameover") {
+        if file.object_name(&object).ok().as_deref() != Some(name) {
             continue;
         }
         let bytes = file
             .read_object(&object)
             .map_err(|error| error.to_string())?;
-        let texture = tantalus_assets::pc::texture::Texture2D::parse(&bytes, "gameover")
+        let texture = tantalus_assets::pc::texture::Texture2D::parse(&bytes, name)
             .map_err(|error| error.to_string())?;
         let rgba = texture.rgba_bytes().map_err(|error| error.to_string())?;
         return Ok(Image {
@@ -591,7 +640,7 @@ fn steam_game_over(game_data: &Path) -> Result<Image, String> {
             rgba,
         });
     }
-    Err("no `gameover` texture".to_owned())
+    Err(format!("no `{name}` texture"))
 }
 
 /// The game over picture of the skin (`GameOverUI`), the PS1 one when the PS1 skin draws.
@@ -602,8 +651,61 @@ pub fn game_over_picture(game_data: &Path) -> Option<Image> {
             Err(error) => println!("ui skin: PS1 game over picture: {error}; using the Steam one"),
         }
     }
-    steam_game_over(game_data)
+    // `GameOverUI.GameOverSprite`.
+    steam_texture(game_data, "gameover")
         .map_err(|error| println!("!! game over picture: {error}"))
+        .ok()
+}
+
+/// The Steam title picture (`TitleUI.MenuPanelObject`): the `title_bg` sprite with the
+/// `title_logo` texture over it, on the logo drawn into the background.
+fn steam_title(game_data: &Path) -> Result<Image, String> {
+    let mut picture = steam_texture(game_data, "title_bg")?;
+    match steam_texture(game_data, "title_logo") {
+        Ok(logo) => {
+            let left = picture.width.saturating_sub(logo.width) / 2;
+            let top = (picture.height as f32 * TITLE_LOGO_TOP) as usize;
+            blend_over(&mut picture, &logo, left, top);
+        }
+        Err(error) => println!("ui skin: title logo: {error}"),
+    }
+    Ok(picture)
+}
+
+/// The Steam title logo's top edge as a share of the picture's height: placed by eye over the
+/// logo drawn into `title_bg` (the two are the same size).
+const TITLE_LOGO_TOP: f32 = 0.231;
+
+/// `top` drawn over `under` at (`left`, `y`) with its alpha.
+fn blend_over(under: &mut Image, top: &Image, left: usize, y: usize) {
+    for row in 0..top.height {
+        let to_y = y + row;
+        if to_y >= under.height {
+            break;
+        }
+        for x in 0..top.width.min(under.width.saturating_sub(left)) {
+            let from = (row * top.width + x) * 4;
+            let to = (to_y * under.width + left + x) * 4;
+            let a = f32::from(top.rgba[from + 3]) / 255.0;
+            for c in 0..3 {
+                let blended =
+                    f32::from(top.rgba[from + c]) * a + f32::from(under.rgba[to + c]) * (1.0 - a);
+                under.rgba[to + c] = blended.round() as u8;
+            }
+        }
+    }
+}
+
+/// The title picture of the skin (`TitleUI`), the PS1 one when the PS1 skin draws.
+pub fn title_picture(game_data: &Path) -> Option<Image> {
+    if active() == UiSkin::Ps1 {
+        match ps1_title() {
+            Ok(image) => return Some(image),
+            Err(error) => println!("ui skin: PS1 title picture: {error}; using the Steam one"),
+        }
+    }
+    steam_title(game_data)
+        .map_err(|error| println!("!! title picture: {error}"))
         .ok()
 }
 

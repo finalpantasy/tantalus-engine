@@ -464,6 +464,8 @@ pub struct PlayGame {
     steam: Option<SteamFile>,
     /// A disc change in progress (`DISCCHANGE`); the field waits until it is done.
     disc_change: Option<DiscChange>,
+    /// The title screen while it is up, and the field a new game starts on.
+    title: Option<(crate::title_menu::TitleScreen, i32)>,
     /// The ride whose world song was last asked for (`w_musicRequestNoIdx`); `None` off the
     /// world map. Runtime-only.
     world_song_ride: Option<u8>,
@@ -630,6 +632,7 @@ impl PlayGame {
             card: None,
             steam: None,
             disc_change: None,
+            title: None,
             world_song_ride: None,
             field_ready_due: None,
             result_screen_open: false,
@@ -1089,6 +1092,7 @@ impl PlayGame {
         // A load leaves the world map for the saved field.
         self.world_play = None;
         self.chocograph_screen = None;
+        self.title = None;
         self.ticks = save.ticks;
         self.pending_position = save.position;
         self.enter(save.map, events)?;
@@ -1150,6 +1154,7 @@ impl PlayGame {
         // A load leaves the world map for the saved field.
         self.world_play = None;
         self.chocograph_screen = None;
+        self.title = None;
         self.ticks = (save.state.play_time_seconds * 60.0) as u64;
         self.pending_position = None;
         if let Some(steam) = self.steam.as_mut() {
@@ -1623,8 +1628,11 @@ impl PlayGame {
                 shop.frame(self.world(), &self.data.menu, &self.data.shops),
             ));
         }
-        let menu = self.menu.as_ref()?;
-        Some((menu.revision, menu.frame(self.world(), &self.data.menu)))
+        if let Some(menu) = self.menu.as_ref() {
+            return Some((menu.revision, menu.frame(self.world(), &self.data.menu)));
+        }
+        let (title, _) = self.title.as_ref()?;
+        Some((title.revision | 1 << 41, title.frame()))
     }
 
     /// One field tick (30 a second) with `held` pad bits.
@@ -1642,6 +1650,10 @@ impl PlayGame {
         }
         if self.disc_change.is_some() {
             self.tick_disc_change(held, pressed, &mut events)?;
+            return Ok(events);
+        }
+        if self.title.is_some() {
+            self.tick_title(held, pressed, &mut events)?;
             return Ok(events);
         }
         if self.tick_menu(held, pressed, &mut events)? {
@@ -1864,6 +1876,110 @@ impl PlayGame {
         }
         self.leave(step.next_field, step.world_map, &mut events)?;
         Ok(events)
+    }
+
+    /// Puts the title screen up (`TitleUI`): what was on screen waits behind it, and New Game
+    /// starts a new game on `start`. The game over screen comes here too
+    /// (`GameOverUI.GoToTitleScene`).
+    pub fn open_title(&mut self, start: i32) {
+        let screen = crate::title_menu::TitleScreen::new(self.latest_slot().is_some());
+        self.title = Some((screen, start));
+        self.menu = None;
+    }
+
+    /// Whether the title screen is up.
+    pub fn title_open(&self) -> bool {
+        self.title.is_some()
+    }
+
+    /// The save slot written last (Continue loads it; the play window has no autosave).
+    pub fn latest_slot(&self) -> Option<usize> {
+        if self.steam.is_some() {
+            return None;
+        }
+        (1..=SLOTS)
+            .filter_map(|slot| {
+                let path = play_save::slot_path(&self.save_dir, slot);
+                let written = std::fs::metadata(&path).ok()?.modified().ok()?;
+                Some((written, slot))
+            })
+            .max()
+            .map(|(_, slot)| slot)
+    }
+
+    /// One tick of the title: its menu, or the load screen it opened (cancel goes back).
+    fn tick_title(
+        &mut self,
+        held: i32,
+        pressed: i32,
+        events: &mut Vec<PlayEvent>,
+    ) -> Result<(), String> {
+        use crate::title_menu::TitleChoice;
+        if self.menu.is_some() {
+            // Load Game's screen; a load closes the title (`load_slot`).
+            self.tick_menu(held, pressed, events)?;
+            return Ok(());
+        }
+        let Some((mut screen, start)) = self.title.take() else {
+            return Ok(());
+        };
+        let choice = if pressed != 0 {
+            let before = screen.cursor;
+            let choice = screen.press(pressed);
+            if screen.cursor != before {
+                self.audio.push((
+                    self.ticks,
+                    AudioCue::Effect {
+                        id: menu_sound::CURSOR,
+                    },
+                ));
+            }
+            choice
+        } else {
+            None
+        };
+        match choice {
+            // `OnContinueButtonClick`: sound 1261 and the save, or the refusal.
+            Some(TitleChoice::Continue) => match self.latest_slot() {
+                Some(slot) => {
+                    self.audio.push((self.ticks, AudioCue::Effect { id: 1261 }));
+                    return self.load_slot(slot, events);
+                }
+                None => self.audio.push((
+                    self.ticks,
+                    AudioCue::Effect {
+                        id: menu_sound::REFUSE,
+                    },
+                )),
+            },
+            Some(TitleChoice::NewGame) => {
+                // `OnNewGameButtonClick`: sound 3096, `ReInitStateSystem`, the opening field.
+                self.audio.push((self.ticks, AudioCue::Effect { id: 3096 }));
+                self.world = self.data.new_game.clone();
+                self.session = None;
+                self.world_play = None;
+                self.menu = None;
+                self.shop = None;
+                self.stopped = None;
+                self.chocograph_screen = None;
+                self.ticks = 0;
+                self.pending_position = None;
+                return self.enter(start, events);
+            }
+            Some(TitleChoice::LoadGame) => {
+                // `OnLoadGameButtonClick`: sound 103 and the load screen.
+                self.audio.push((
+                    self.ticks,
+                    AudioCue::Effect {
+                        id: menu_sound::CONFIRM,
+                    },
+                ));
+                self.open_load_screen();
+            }
+            None => {}
+        }
+        self.title = Some((screen, start));
+        Ok(())
     }
 
     /// The disc change in progress, if any.
