@@ -105,6 +105,8 @@ pub struct EffectLibrary {
     cache: std::sync::Mutex<std::collections::HashMap<i32, std::sync::Arc<EffectCameras>>>,
     /// The plugin's per-effect flag words, read once.
     flags: std::sync::OnceLock<Vec<u16>>,
+    /// The plugin's built-in camera sets by table byte offset, read once each.
+    plugin_cameras: Mutex<HashMap<usize, Option<Arc<Vec<u8>>>>>,
     /// The plugin's data from the player's DLL, read once.
     runtime: std::sync::OnceLock<Option<tantalus_sfx::SfxRuntime>>,
     packages: Mutex<HashMap<i32, Option<Arc<Vec<u8>>>>>,
@@ -145,6 +147,7 @@ impl EffectLibrary {
             resources,
             cache: std::sync::Mutex::new(std::collections::HashMap::new()),
             flags: std::sync::OnceLock::new(),
+            plugin_cameras: Mutex::new(HashMap::new()),
             runtime: std::sync::OnceLock::new(),
             packages: Mutex::new(HashMap::new()),
             playing: Mutex::new(HashMap::new()),
@@ -206,6 +209,22 @@ impl EffectLibrary {
             .and_then(|id| flags.get(id))
             .copied()
             .unwrap_or(0)
+    }
+
+    /// The camera set at byte `field` of the plugin's built-in camera table
+    /// ([`tantalus_assets::pc::special_effect::plugin_camera_set`]).
+    pub fn plugin_camera(&self, field: usize) -> Option<Arc<Vec<u8>>> {
+        let mut cameras = self
+            .plugin_cameras
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        cameras
+            .entry(field)
+            .or_insert_with(|| {
+                let dll = std::fs::read(self.dll()).ok()?;
+                tantalus_assets::pc::special_effect::plugin_camera_set(&dll, field).map(Arc::new)
+            })
+            .clone()
     }
 
     /// The cameras effect `id` plays (empty when its data is missing).

@@ -20,7 +20,7 @@
 //! (unit positions, angles and heights) is a [`CameraWorld`] the caller
 //! fills. Not ported: the per-character key table at `0x18004AC60` (keys
 //! with the top bits set fall back to their 7-bit fields), the host
-//! "slave" query, anchor 9's stored point and anchor 15's object.
+//! "slave" query and anchor 15's object.
 
 use std::f64::consts::PI;
 
@@ -185,6 +185,12 @@ pub struct CameraScript {
     pub camera_caster: Option<usize>,
     pub camera_target: Option<usize>,
     pub target_center: [i16; 3],
+    /// The playing effect's target centre, `S_Eff_Req_Org.trgcpos` (the mean
+    /// of its targets' base x and z, `BTL_VFX_REQ.UpdateTargetAveragePosition`):
+    /// `SfxResolveActors` keeps it at `0x180211EB8`, offset 56 of the state block
+    /// `SfxStateReset` copies to `unk_18021FFA0`, so anchor 9 reads it as
+    /// `word_18021FFD8` and `word_18021FFDC`.
+    pub effect_center: [i16; 3],
     pub context: VariantContext,
     eye: [i16; 4],
     look: [i16; 4],
@@ -229,6 +235,7 @@ impl CameraScript {
             camera_caster: None,
             camera_target: None,
             target_center: [0; 3],
+            effect_center: [0; 3],
             context: VariantContext::default(),
             eye: [0; 4],
             look: [0; 4],
@@ -933,6 +940,11 @@ impl CameraScript {
             actor.position
         };
         let mut position = [from[0], 0, from[2]];
+        // Anchor 9: the tracked target's heights at the effect's target centre.
+        if id == 9 {
+            position[0] = self.effect_center[0];
+            position[2] = self.effect_center[2];
+        }
         if id == 14 {
             position[0] = self.target_center[0];
             position[2] = self.target_center[2];

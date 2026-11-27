@@ -26,7 +26,7 @@ frame-rate setting.
 | id | sev | status | FPS | bug |
 |---|---|---|---|---|
 | PB1 | P1 | fixed | yes (interp off) | Vanilla 30 fps judders: about half the frames show no motion and the next jumps two ticks |
-| PB2 | P1 | open | no | Battle camera looks at empty sky or fills the screen with one model during actions |
+| PB2 | P1 | fixed | no | Battle camera looks at empty sky or fills the screen with one model during actions |
 | PB7 | P1 | fixed | no | Music stops for good after a story battle that kept the field song (no battle song, no win pose) |
 | PB3 | P2 | fixed | no | A button held across a battle or movie end is a new press on the first field tick |
 | PB4 | P2 | open | partly | First field after launch shows the clear color instead of the background for 5 to 20 frames |
@@ -57,16 +57,43 @@ frame-rate setting.
   and 9 differ by one frame after a battle, where the result screen closed on a different
   display frame).
 
-### PB2: battle camera on empty sky (open)
+### PB2: battle camera on empty sky (fixed)
 
 - Repro: slot 5, `--battle row2` (Steal): `hunt/out/p5-hi/f003840.png` ("Stole Tent!" over
   sky only), `f003720.png` (camera under Freya's Jump); slot 1 opening
   `hunt/out/p1-hi/f001620.png` (sky); slot 4 `hunt/out/s4-hi/f005400.png` (Vivi's hat fills
   the right third). Same frames in both modes.
-- Suspected cause: the camera anchors of `crates/tantalus-assets/src/pc/battle_camera.rs`
-  (`anchor`, around line 881-943): anchor 9 (the stored point) with height bits `0xC0` is not
-  ported, so a snap with it aims at the origin (known item 6 of
-  `audit/playability-gaps.md`, play-test note 1).
+- Cause: not the `0xC0` anchor. A camera trace of the same run (fix1 `hunt/out/c5-hi`,
+  stage ticks 521 to 548) showed the reaction camera, set 4, playing for Steal and Jump: eye
+  at knee height in front of Zidane's base position (anchor `0xE1`: id 1, base `0x20`,
+  height `0xC0`) looking up past his head while the effect had already run him to the enemy.
+  `CameraDirector::command` started set 3 or 4 for every party effect. In the plugin
+  `SeqStateUpdateStart` (`u0010_SeqStateUpdate.cs`) reads the effect's flag word
+  (`unk_18004F020`, copied to `dword_18032318C`): with bit `0x8000` it skips `SfxStateReset`
+  and `SfxTriggerReaction` altogether, and `SfxTriggerReaction` (`u0009_EvalOrbitTrack.cs`)
+  plays nothing for a code whose high nibble is `0xF` and the plugin's own camera table
+  (`unk_180063860`, `+44` Garnet, `+48` the others) for nibbles 1 and 7. Steal (effect 200),
+  Jump (393) and the weapon attacks (100 on) are `0x83FF`; 118 of the first 520 effects
+  have bit `0x8000`.
+- Fix: `battle_camera_play::reaction_camera` applies the flag word: no reaction for `0x8000`
+  or nibble `0xF`, the camera gate (`RecomputeGate323268`: off with Battle Camera: Fixed
+  unless flag `0x8`), the table sets for nibbles 1 and 7
+  (`special_effect::plugin_camera_set`, read from the player's DLL), set 3 or 4 otherwise.
+  A `0x8000` effect also draws no side bit. Anchor 9's stored point is now ported: it is the
+  request's `trgcpos` (`SfxResolveActors` keeps it at offset 56 of the state block that
+  `SfxStateReset` copies to `unk_18021FFA0`, so `word_18021FFD8`/`FFDC`), the mean base x and z
+  of the effect's targets (`CameraScript::effect_center`).
+- Check: the same run after the fix (`hunt/out/f5-hi`, side by side in
+  `hunt/out/pb2-before-after.png`) keeps the default camera through Steal and Jump: Zidane at
+  the enemy, then home, with "Stole Tent!"; Freya's Jump seen from the default camera.
+  Unit tests `reaction_cameras_follow_the_effects_flag_word`,
+  `anchor_9_stands_at_the_effects_target_centre`, `reads_a_camera_set_of_the_built_in_table`.
+- Left as data-driven, not a bug: the slot 1 opening starts in the sky and sweeps down to the
+  party (set 0 of the scene, `p1-hi` f1560 to f1770); the slot 4 shot over Freya's shoulder
+  with her arm filling the right third is the Potion's (effect 8, flags `0x300`) reaction set 3
+  (`s4-hi` f5280 to f5430). Not checked against the Steam game. Not modelled: the caster's
+  statuses in `SfxTriggerReaction` (Trance takes table `+52`/`+56`; two statuses stop it), the
+  scene's `FixedCamera1/2` flags and the context flags at `+64`.
 
 ### PB3: held button carried across a battle or movie end (fixed)
 

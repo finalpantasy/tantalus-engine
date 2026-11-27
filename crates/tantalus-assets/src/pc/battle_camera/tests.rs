@@ -69,3 +69,23 @@ fn real_opening_reaches_the_default_camera() {
     }
     assert_eq!(frames, 112);
 }
+
+#[test]
+fn anchor_9_stands_at_the_effects_target_centre() {
+    let world = CameraWorld {
+        actors: vec![CameraActor {
+            position: [100, 0, 200],
+            base: [100, 0, 200],
+            height: 512,
+            ..CameraActor::default()
+        }],
+        ..CameraWorld::default()
+    };
+    let mut script = CameraScript::new(simple_block(), 1);
+    script.target = Some(0);
+    script.effect_center = [500, 0, -300];
+    // The target's own point for anchor 5, the request's centre for 9; both
+    // at the target's middle height.
+    assert_eq!(script.anchor(5, &world).0, [100, -256, 200]);
+    assert_eq!(script.anchor(9, &world).0, [500, -256, -300]);
+}

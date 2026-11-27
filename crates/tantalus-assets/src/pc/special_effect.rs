@@ -1030,6 +1030,17 @@ const PLUGIN_EFFECT_FLAGS: usize = 1024;
 /// (`RecomputeGate323268`); with bit `0x8000` `SeqStateUpdateStart`
 /// takes its other path (no gate, no state reset).
 pub fn plugin_effect_flags(dll: &[u8]) -> Option<Vec<u16>> {
+    let start = plugin_rva_offset(dll, PLUGIN_EFFECT_FLAGS_RVA)?;
+    (0..PLUGIN_EFFECT_FLAGS)
+        .map(|index| {
+            let at = start + index * 2;
+            Some(u16::from_le_bytes(dll.get(at..at + 2)?.try_into().ok()?))
+        })
+        .collect()
+}
+
+/// File offset of `rva` in the PE image `dll` (its section table).
+fn plugin_rva_offset(dll: &[u8], rva: u32) -> Option<usize> {
     let u16_at = |at: usize| Some(u16::from_le_bytes(dll.get(at..at + 2)?.try_into().ok()?));
     let u32_at = |at: usize| Some(u32::from_le_bytes(dll.get(at..at + 4)?.try_into().ok()?));
     let pe = usize::try_from(u32_at(0x3C)?).ok()?;
@@ -1039,7 +1050,6 @@ pub fn plugin_effect_flags(dll: &[u8]) -> Option<Vec<u16>> {
     let sections = usize::from(u16_at(pe + 6)?);
     let optional = usize::from(u16_at(pe + 20)?);
     let table = pe + 24 + optional;
-    let rva = PLUGIN_EFFECT_FLAGS_RVA;
     let offset = (0..sections).find_map(|index| {
         let at = table + index * 40;
         let virtual_size = u32_at(at + 8)?;
@@ -1049,10 +1059,39 @@ pub fn plugin_effect_flags(dll: &[u8]) -> Option<Vec<u16>> {
         let inside = rva.checked_sub(virtual_address)?;
         (inside < virtual_size.max(raw_size)).then_some(raw_offset + inside)
     })?;
-    let start = usize::try_from(offset).ok()?;
-    (0..PLUGIN_EFFECT_FLAGS)
-        .map(|index| u16_at(start + index * 2))
-        .collect()
+    usize::try_from(offset).ok()
+}
+
+/// RVA of the plugin's built-in camera table (`unk_180063860`, which
+/// `SfxVramInitUpload` stores in `qword_1803231E0`): 24 `i32` offsets from
+/// the table's start, each a camera set.
+const PLUGIN_CAMERA_TABLE_RVA: u32 = 0x63860;
+/// Offsets in that table.
+const PLUGIN_CAMERA_TABLE_ENTRIES: usize = 24;
+
+/// The camera set at byte `field` of the plugin's built-in camera table
+/// (`SfxTriggerReaction`, `u0009_EvalOrbitTrack.cs`: `+44`/`+48` a summon's
+/// for Garnet and for the others, `+52`/`+56` in Trance, `+72` with context
+/// flag 4): its bytes up to the next set. `None` when `dll` has no table.
+pub fn plugin_camera_set(dll: &[u8], field: usize) -> Option<Vec<u8>> {
+    let table = plugin_rva_offset(dll, PLUGIN_CAMERA_TABLE_RVA)?;
+    let i32_at = |at: usize| Some(i32::from_le_bytes(dll.get(at..at + 4)?.try_into().ok()?));
+    if !field.is_multiple_of(4) || field / 4 >= PLUGIN_CAMERA_TABLE_ENTRIES {
+        return None;
+    }
+    let offsets: Vec<usize> = (0..PLUGIN_CAMERA_TABLE_ENTRIES)
+        .filter_map(|index| usize::try_from(i32_at(table + 4 * index)?).ok())
+        .collect();
+    let start = usize::try_from(i32_at(table + field)?).ok()?;
+    // A set runs to the next one; the last is capped.
+    let end = offsets
+        .iter()
+        .copied()
+        .filter(|&offset| offset > start)
+        .min()
+        .unwrap_or(start + 0x400);
+    let bytes = dll.get(table + start..(table + end).min(dll.len()))?;
+    (bytes.len() >= 4).then(|| bytes.to_vec())
 }
 
 #[cfg(test)]
