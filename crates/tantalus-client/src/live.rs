@@ -252,6 +252,7 @@ pub fn describe(event: &PlayEvent) -> String {
         PlayEvent::DiscChange { field, disc } => {
             format!("** disc change: disc {} starts at field {field}", disc + 1)
         }
+        PlayEvent::GameOver => "** game over".to_owned(),
         PlayEvent::Stopped(reason) => format!("!! stopped: {reason}"),
     }
 }
@@ -988,6 +989,7 @@ fn live_tick_inner(world: &mut World) {
     }
     // Outside the field branch: field 70 (between discs) has no background to draw.
     // The title first: the menu draws on its camera.
+    crate::game_over_view::sync_game_over(world, &game);
     crate::title_view::sync_title(world, &game);
     bench::time("menu", || crate::menu_view::sync_menu(world, &game));
     crate::disc_view::sync_disc(world, &game);
@@ -1047,6 +1049,8 @@ fn harness_frame(world: &mut World) {
             ("battle", None)
         } else if live.card.is_some() {
             ("card", None)
+        } else if game.game_over_alpha().is_some() {
+            ("gameover", None)
         } else if let Some(play) = game.world_play.as_ref() {
             let pos = play.walker.pos;
             (

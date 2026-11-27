@@ -370,6 +370,8 @@ pub enum PlayEvent {
     /// The script changed disc (`DISCCHANGE`): `disc` (0-based) starts at `field` once the
     /// disc picture and the save prompt are done.
     DiscChange { field: i32, disc: u8 },
+    /// A field script ended the game (`GAMEOVER`): the game over screen, then the title.
+    GameOver,
     /// The run cannot go on.
     Stopped(String),
 }
@@ -490,6 +492,8 @@ pub struct PlayGame {
     steam: Option<SteamFile>,
     /// A disc change in progress (`DISCCHANGE`); the field waits until it is done.
     disc_change: Option<DiscChange>,
+    /// The game over screen a field script's `GAMEOVER` opened (`GameOverUI`).
+    game_over: Option<GameOverScreen>,
     /// The title screen while it is up, and the field a new game starts on.
     title: Option<(crate::title_menu::TitleScreen, i32)>,
     /// The ride whose world song was last asked for (`w_musicRequestNoIdx`); `None` off the
@@ -529,6 +533,41 @@ pub fn world_song(music: u8, scenario: i32) -> i32 {
 
 /// Ticks the disc picture takes to fade in or out: `SceneDirector` draws it over 100 frames
 /// each way, at 60 frames a second; the play ticks at 30.
+/// `GameOverUI.duration`: the picture fades in and out over 1 second (30 ticks).
+pub const GAME_OVER_FADE_TICKS: u32 = 30;
+
+/// The game over screen of a field script's `GAMEOVER` (`HonoluluFieldMain` `FLOW_STATE_GAMEOVER`
+/// -> `EventService.OpenGameOver` -> `GameOverUI`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GameOverScreen {
+    pub stage: GameOverStage,
+    /// Ticks in the stage.
+    pub ticks: u32,
+}
+
+/// Where the game over screen is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GameOverStage {
+    /// `Show`: `AnimatePanel(1)`, the picture fades in.
+    FadeIn,
+    /// Up until Confirm (`OnKeyConfirm` -> `GoToTitleScene`).
+    Wait,
+    /// `AnimatePanel(0)`, then `WaitAndHide` -> `Hide` -> the title.
+    FadeOut,
+}
+
+impl GameOverScreen {
+    /// The picture's opacity.
+    pub fn alpha(&self) -> f32 {
+        let t = (self.ticks as f32 / GAME_OVER_FADE_TICKS as f32).min(1.0);
+        match self.stage {
+            GameOverStage::FadeIn => t,
+            GameOverStage::Wait => 1.0,
+            GameOverStage::FadeOut => 1.0 - t,
+        }
+    }
+}
+
 pub const DISC_FADE_TICKS: u32 = 50;
 
 /// The end of a disc (`EventEngine.DoEventCode.cs` `case DISCCHANGE`): the script sets
@@ -658,6 +697,7 @@ impl PlayGame {
             card: None,
             steam: None,
             disc_change: None,
+            game_over: None,
             title: None,
             world_song_ride: None,
             field_ready_due: None,
@@ -1699,6 +1739,10 @@ impl PlayGame {
             self.tick_disc_change(held, pressed, &mut events)?;
             return Ok(events);
         }
+        if self.game_over.is_some() {
+            self.tick_game_over(pressed);
+            return Ok(events);
+        }
         if self.title.is_some() {
             self.tick_title(held, pressed, &mut events)?;
             return Ok(events);
@@ -1905,6 +1949,21 @@ impl PlayGame {
             }
         }
 
+        // `GAMEOVER` (`FLOW_STATE_GAMEOVER`, `HonoluluFieldMain.cs:259`): the field stops
+        // (`shutdownField`) and the game over screen opens (`EventService.OpenGameOver`).
+        if self
+            .session
+            .as_ref()
+            .is_some_and(|session| session.director.world().game_over)
+        {
+            self.menu = None;
+            self.game_over = Some(GameOverScreen {
+                stage: GameOverStage::FadeIn,
+                ticks: 0,
+            });
+            events.push(PlayEvent::GameOver);
+            return Ok(events);
+        }
         // `DISCCHANGE` waits (`FLOW_STATE_WAIT`) while the scene changes to the next disc.
         if let Some((field, disc)) = self
             .session
@@ -2030,6 +2089,38 @@ impl PlayGame {
         }
         self.title = Some((screen, start));
         Ok(())
+    }
+
+    /// The game over screen's picture opacity while it is up (a field script's `GAMEOVER`).
+    pub fn game_over_alpha(&self) -> Option<f32> {
+        self.game_over.as_ref().map(GameOverScreen::alpha)
+    }
+
+    /// One tick of the game over screen: the picture fades in, waits for Confirm
+    /// (`GameOverUI.OnKeyConfirm`), fades out, and the title comes up
+    /// (`GameOverUI.Hide` -> `SceneDirector.Replace("Title")`).
+    fn tick_game_over(&mut self, pressed: i32) {
+        let Some(mut screen) = self.game_over else {
+            return;
+        };
+        screen.ticks += 1;
+        match screen.stage {
+            GameOverStage::FadeIn if screen.ticks >= GAME_OVER_FADE_TICKS => {
+                screen.stage = GameOverStage::Wait;
+                screen.ticks = 0;
+            }
+            GameOverStage::Wait if pressed & CONFIRM != 0 => {
+                screen.stage = GameOverStage::FadeOut;
+                screen.ticks = 0;
+            }
+            GameOverStage::FadeOut if screen.ticks >= GAME_OVER_FADE_TICKS => {
+                self.game_over = None;
+                self.open_title(70);
+                return;
+            }
+            _ => {}
+        }
+        self.game_over = Some(screen);
     }
 
     /// The disc change in progress, if any.

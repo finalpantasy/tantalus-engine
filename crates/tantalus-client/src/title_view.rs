@@ -21,7 +21,7 @@ const TITLE_LAYER: usize = 29;
 const TITLE_ORDER: isize = 20;
 
 /// The title picture's image and its size in pixels.
-type Picture = (Handle<Image>, (u32, u32));
+pub(crate) type Picture = (Handle<Image>, (u32, u32));
 
 /// What the title view has on screen.
 #[derive(Default)]
