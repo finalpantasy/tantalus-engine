@@ -107,6 +107,7 @@ impl TitleScreen {
             return MenuFrame {
                 windows: Vec::new(),
                 pointer: Some((160.0 + (px - 160.0) * scale, 112.0 - (112.0 - py) * scale)),
+                ..MenuFrame::default()
             };
         }
         let (x, y, w) = (116.0, 150.0, 88.0);
@@ -134,6 +135,7 @@ impl TitleScreen {
                 texts,
             }],
             pointer: Some((x + 4.0, y + 3.0 + (self.cursor as f32 + 0.5) * ROW)),
+            ..MenuFrame::default()
         }
     }
 }

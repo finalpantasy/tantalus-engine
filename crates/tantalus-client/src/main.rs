@@ -1689,6 +1689,8 @@ fn overlay_menu(
             Tint::Yellow => [0.96, 0.82, 0.4, 1.0],
             Tint::Green => [0.45, 0.95, 0.5, 1.0],
             Tint::Red => [1.0, 0.45, 0.4, 1.0],
+            Tint::Cyan => [0.45, 0.9, 0.95, 1.0],
+            Tint::Magenta => [0.95, 0.5, 0.9, 1.0],
         }
     };
     for window in &frame.windows {

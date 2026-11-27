@@ -39,6 +39,9 @@ use tantalus_legacy::HostEvent;
 /// The script's bit for the Special control (`Control.Special`).
 const SPECIAL_KEY: i32 = 0x80000;
 
+/// Field ticks a second (the play time counts them).
+const TICKS_PER_SECOND: u64 = 30;
+
 pub mod pad {
     pub const SELECT: i32 = 0x1;
     pub const START: i32 = 0x8;
@@ -1009,6 +1012,9 @@ impl PlayGame {
         }
         if let Some(mut menu) = self.menu.take() {
             let mut open = true;
+            // `MainMenuUI.Update`: `UpdateTickTime` then `DisplayTime`, the clock runs while
+            // the menu is up. Ticks are field ticks, 30 a second.
+            menu.seconds = self.ticks / TICKS_PER_SECOND;
             if pressed != 0 {
                 let tables = &self.data.menu;
                 let world = match self.session.as_mut() {
@@ -1079,7 +1085,7 @@ impl PlayGame {
             if opens && let Some(session) = self.session.as_mut() {
                 // `MainMenuUI` has no Save command; the world map saves through its moogle.
                 session.director.world_mut().save_point = false;
-                self.menu = Some(FieldMenu::new());
+                self.menu = Some(self.main_menu());
             }
             return Ok(self.menu.is_some());
         }
@@ -1107,10 +1113,19 @@ impl PlayGame {
             return Ok(true);
         }
         if pressed & pad::START != 0 && allowed && held & pad::START != 0 {
-            self.menu = Some(FieldMenu::new());
+            self.menu = Some(self.main_menu());
             return Ok(true);
         }
         Ok(false)
+    }
+
+    /// The main menu as it opens: the clock and the place it names
+    /// (`MainMenuUI.DisplayGeneralInfo`: the field's location name, the world map area's name).
+    fn main_menu(&self) -> FieldMenu {
+        let mut menu = FieldMenu::new();
+        menu.seconds = self.ticks / TICKS_PER_SECOND;
+        menu.place = self.place_now(self.map().unwrap_or(0)).unwrap_or_default();
+        menu
     }
 
     /// Folder the save slots live in.
@@ -1719,7 +1734,16 @@ impl PlayGame {
             ));
         }
         if let Some(menu) = self.menu.as_ref() {
-            return Some((menu.revision, menu.frame(self.world(), &self.data.menu)));
+            // The main screen's clock redraws it each second.
+            let clock = if menu.shows_clock() {
+                (menu.seconds & 0x3F_FFFF) << 42
+            } else {
+                0
+            };
+            return Some((
+                menu.revision | clock,
+                menu.frame(self.world(), &self.data.menu),
+            ));
         }
         let (title, _) = self.title.as_ref()?;
         Some((title.revision | 1 << 41, title.frame()))

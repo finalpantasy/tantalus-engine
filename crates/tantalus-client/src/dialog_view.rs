@@ -118,7 +118,7 @@ pub struct DialogView {
 
 /// The skin's hand cursor (`FF9UIDataTool.IconSpriteName[1]` on Steam) as an image and its
 /// size in PSX pixels (the skin gives its width in UI pixels, `PointerManager.PointerSize`).
-fn load_hand(
+pub(crate) fn load_hand(
     game_data: &std::path::Path,
     images: &mut Assets<Image>,
 ) -> Option<(Handle<Image>, Vec2)> {

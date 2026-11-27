@@ -67,6 +67,8 @@ pub enum Tint {
     Yellow,
     Green,
     Red,
+    Cyan,
+    Magenta,
 }
 
 /// One piece of text, in PSX pixels from the window body's top left.
@@ -90,10 +92,30 @@ pub struct MenuWindow {
     pub texts: Vec<MenuText>,
 }
 
-/// What to draw: windows, and the pointer position in PSX pixels.
+/// Art a menu shows beside its text; the client picks the skin's picture.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum MenuArt {
+    /// A member's portrait (`FF9UIDataTool.DisplayCharacterAvatar`), half transparent when
+    /// `dim` (`alpha = cur.hp != 0 ? 1 : 0.5`).
+    Face { character: i32, dim: bool },
+}
+
+/// A picture in PSX pixels from the frame's top left, fitted into `w` by `h`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MenuImage {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub art: MenuArt,
+}
+
+/// What to draw: windows, pictures over them, and the pointer (the hand's center) in PSX
+/// pixels.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct MenuFrame {
     pub windows: Vec<MenuWindow>,
+    pub images: Vec<MenuImage>,
     pub pointer: Option<(f32, f32)>,
 }
 
@@ -400,6 +422,12 @@ pub struct FieldMenu {
     pub revision: u64,
     /// Set when the last press was refused (the game plays the refusal sound).
     pub refused: bool,
+    /// Seconds played, for the main screen's clock (`FF9StateSystem.Settings.time`); the
+    /// game sets it each tick.
+    pub seconds: u64,
+    /// The place the main screen names (`MainMenuUI.DisplayGeneralInfo`); the game sets it
+    /// when the menu opens.
+    pub place: String,
 }
 
 pub(crate) fn step(cursor: usize, len: usize, pressed: i32) -> usize {
@@ -502,7 +530,14 @@ impl FieldMenu {
             slots_stale: false,
             action: None,
             revision: 0,
+            seconds: 0,
+            place: String::new(),
         }
+    }
+
+    /// True while the main screen and its clock are up: the client redraws each second.
+    pub fn shows_clock(&self) -> bool {
+        matches!(self.screen, Screen::Main | Screen::Member { .. })
     }
 
     /// The save screen a moogle or save point opens.
@@ -892,28 +927,18 @@ impl FieldMenu {
         let mut frame = MenuFrame::default();
         match &self.screen {
             Screen::Main => {
-                frame.windows.push(self.commands(world));
-                frame.windows.push(window(
-                    8.0,
-                    132.0,
-                    84.0,
-                    1.0,
-                    vec![
-                        text(8.0, 0.0, "Gil", Tint::White),
-                        right(76.0, 0.0, world.gil.to_string(), Tint::White),
-                    ],
+                self.main_frame(&mut frame, world, tables);
+                frame.pointer = Some((
+                    MAIN_COMMANDS_X + COMMAND_TEXT_X - HAND_GAP,
+                    8.0 + 3.0 + (self.main as f32 + 0.5) * ROW,
                 ));
-                frame
-                    .windows
-                    .push(party_window(world, tables, 98.0, 214.0, 4));
-                frame.pointer = Some((10.0, 8.0 + 3.0 + (self.main as f32 + 0.5) * ROW));
             }
             Screen::Member { cursor, .. } => {
-                frame.windows.push(self.commands(world));
-                frame
-                    .windows
-                    .push(party_window(world, tables, 98.0, 214.0, 4));
-                frame.pointer = Some((102.0, 8.0 + 3.0 + (*cursor as f32 * 3.0 + 0.5) * ROW));
+                self.main_frame(&mut frame, world, tables);
+                frame.pointer = Some((
+                    6.0,
+                    8.0 + *cursor as f32 * MEMBER_H + FACE_TOP + FACE_SIZE / 2.0,
+                ));
             }
             Screen::Items { cursor } => {
                 self.items_frame(&mut frame, world, tables, *cursor, None);
@@ -999,11 +1024,47 @@ impl FieldMenu {
         frame
     }
 
+    /// `MainMenuUI`: the party panel on the left (`DisplayCharacter`), the commands on the
+    /// right, under them the clock and the gil (`DisplayTime`, `DisplayGeneralInfo`), and the
+    /// place along the bottom (`LocationInfoPanel`, left-anchored to the screen).
+    fn main_frame(&self, frame: &mut MenuFrame, world: &FieldWorld, tables: &MenuTables) {
+        let (party, faces) = main_party(world, tables);
+        frame.windows.push(party);
+        frame.images.extend(faces);
+        frame.windows.push(self.commands(world));
+        let (time, tint) = clock(self.seconds);
+        frame.windows.push(window(
+            MAIN_COMMANDS_X,
+            INFO_Y,
+            MAIN_COMMANDS_W,
+            2.0,
+            vec![
+                right(MAIN_COMMANDS_W - 8.0, 0.0, time, tint),
+                // `GilSymbol`: `%[YSUB=1.3][sub]G`.
+                right(
+                    MAIN_COMMANDS_W - 8.0,
+                    1.0,
+                    format!("{}G", world.gil),
+                    Tint::White,
+                ),
+            ],
+        ));
+        if !self.place.is_empty() {
+            frame.windows.push(window(
+                8.0,
+                PLACE_Y,
+                304.0,
+                1.0,
+                vec![text(8.0, 0.0, self.place.clone(), Tint::White)],
+            ));
+        }
+    }
+
     fn commands(&self, world: &FieldWorld) -> MenuWindow {
         window(
+            MAIN_COMMANDS_X,
             8.0,
-            8.0,
-            84.0,
+            MAIN_COMMANDS_W,
             COMMANDS.len() as f32,
             COMMANDS
                 .iter()
@@ -1011,7 +1072,7 @@ impl FieldMenu {
                 .map(|(row, name)| {
                     let on = WORKING[row] || (row == 7 && world.save_point);
                     let tint = if on { Tint::White } else { Tint::Dim };
-                    text(12.0, row as f32, *name, tint)
+                    text(COMMAND_TEXT_X, row as f32, *name, tint)
                 })
                 .collect(),
         )
@@ -1199,6 +1260,135 @@ pub(crate) fn party_window(
     window(x, 8.0, w, 12.0, texts)
 }
 
+/// Main screen layout in PSX pixels (laid out by eye after `MainMenuUI`'s panels, not
+/// measured on a PS1 frame).
+const MAIN_COMMANDS_X: f32 = 232.0;
+const MAIN_COMMANDS_W: f32 = 80.0;
+const COMMAND_TEXT_X: f32 = 18.0;
+/// The hand's center sits this far left of the text it points at.
+const HAND_GAP: f32 = 13.0;
+const INFO_Y: f32 = 136.0;
+const PLACE_Y: f32 = 194.0;
+const PARTY_W: f32 = 216.0;
+/// One member's band of the party panel.
+const MEMBER_H: f32 = 43.0;
+const FACE_TOP: f32 = 3.0;
+const FACE_SIZE: f32 = 37.0;
+/// `MainMenuUI.FrontRowPosition` / `BackRowPosition` (-418 and -392 of the 1543-wide UI):
+/// a back-row portrait sits 26 UI pixels, about 5 PSX pixels, to the right.
+const BACK_ROW_SHIFT: f32 = 5.0;
+
+/// `MainMenuUI.DisplayTime`: hours, minutes and seconds, the color stepping each 100 hours,
+/// held at 99:59:59 green past 600.
+pub fn clock(seconds: u64) -> (String, Tint) {
+    let (shown, tint) = match seconds / 360_000 {
+        0 => (seconds, Tint::White),
+        1 => (seconds % 360_000, Tint::Red),
+        2 => (seconds % 360_000, Tint::Yellow),
+        3 => (seconds % 360_000, Tint::Cyan),
+        4 => (seconds % 360_000, Tint::Magenta),
+        5 => (seconds % 360_000, Tint::Green),
+        _ => (359_999, Tint::Green),
+    };
+    (
+        format!(
+            "{:02}:{:02}:{:02}",
+            shown / 3600,
+            shown / 60 % 60,
+            shown % 60
+        ),
+        tint,
+    )
+}
+
+/// `FF9UIDataTool.DisplayCharacterDetail` colors: HP red at 0 and yellow at a sixth or less,
+/// MP yellow at a sixth or less.
+pub(crate) fn point_tints(hp: i32, max_hp: i32, mp: i32, max_mp: i32) -> (Tint, Tint) {
+    let hp_tint = if hp == 0 {
+        Tint::Red
+    } else if hp <= max_hp / 6 {
+        Tint::Yellow
+    } else {
+        Tint::White
+    };
+    let mp_tint = if mp <= max_mp / 6 {
+        Tint::Yellow
+    } else {
+        Tint::White
+    };
+    (hp_tint, mp_tint)
+}
+
+/// A text run at a pixel offset (not a row) in its window.
+pub(crate) fn at(x: f32, y: f32, value: impl Into<String>, tint: Tint, right: bool) -> MenuText {
+    MenuText {
+        x,
+        y,
+        text: value.into(),
+        tint,
+        right,
+    }
+}
+
+/// The main screen's party panel: per member a portrait (moved right in the back row), the
+/// name, `LV` and the level, `HP` and `MP` as current / max.
+fn main_party(world: &FieldWorld, tables: &MenuTables) -> (MenuWindow, Vec<MenuImage>) {
+    let mut texts = Vec::new();
+    let mut faces = Vec::new();
+    for (index, member) in world.party.iter().take(4).enumerate() {
+        let top = index as f32 * MEMBER_H;
+        let (hp, max_hp, mp, max_mp) =
+            world.character_stats.get(member).map_or((0, 0, 0, 0), |s| {
+                (s.current_hp, s.max_hp, s.current_mp, s.max_mp)
+            });
+        let shift = if world.back_row.contains(member) {
+            BACK_ROW_SHIFT
+        } else {
+            0.0
+        };
+        faces.push(MenuImage {
+            x: 8.0 + 4.0 + shift,
+            y: 8.0 + top + FACE_TOP,
+            w: FACE_SIZE,
+            h: FACE_SIZE,
+            art: MenuArt::Face {
+                character: *member,
+                dim: hp == 0,
+            },
+        });
+        let level = tables.level(world.character_exp.get(member).copied().unwrap_or(0));
+        let (hp_tint, mp_tint) = point_tints(hp, max_hp, mp, max_mp);
+        let x = 56.0;
+        texts.push(at(x, top, character_name(*member), Tint::White, false));
+        texts.push(at(150.0, top, "LV", Tint::Yellow, false));
+        texts.push(at(
+            PARTY_W - 12.0,
+            top,
+            level.to_string(),
+            Tint::White,
+            true,
+        ));
+        let points = [("HP", hp, max_hp, hp_tint), ("MP", mp, max_mp, mp_tint)];
+        for (row, (label, now, max, tint)) in points.into_iter().enumerate() {
+            let y = top + 14.0 + row as f32 * 13.0;
+            texts.push(at(x + 8.0, y, label, Tint::Yellow, false));
+            texts.push(at(150.0, y, now.to_string(), tint, true));
+            texts.push(at(156.0, y, "/", Tint::White, false));
+            texts.push(at(PARTY_W - 12.0, y, max.to_string(), Tint::White, true));
+        }
+    }
+    (
+        MenuWindow {
+            x: 8.0,
+            y: 8.0,
+            w: PARTY_W,
+            h: 4.0 * MEMBER_H,
+            texts,
+        },
+        faces,
+    )
+}
+
 fn status_frame(frame: &mut MenuFrame, world: &FieldWorld, tables: &MenuTables, member: i32) {
     let character = tables.character(world, member);
     let exp = world.character_exp.get(&member).copied().unwrap_or(0);
@@ -1331,6 +1521,46 @@ mod tests {
         world.items.insert(2, 1);
         world.equip(0, 0, Some(1));
         world
+    }
+
+    #[test]
+    fn the_clock_steps_color_each_hundred_hours() {
+        assert_eq!(clock(3_725), ("01:02:05".to_owned(), Tint::White));
+        assert_eq!(clock(360_000 + 61), ("00:01:01".to_owned(), Tint::Red));
+        assert_eq!(clock(5 * 360_000), ("00:00:00".to_owned(), Tint::Green));
+        assert_eq!(clock(7 * 360_000), ("99:59:59".to_owned(), Tint::Green));
+    }
+
+    #[test]
+    fn the_main_screen_shows_portraits_points_clock_gil_and_place() {
+        let (tables, mut world) = (tables(), world());
+        world.gil = 1234;
+        world.back_row.insert(0);
+        let mut menu = FieldMenu::new();
+        menu.seconds = 65;
+        menu.place = "Ice Cavern".into();
+        let frame = menu.frame(&world, &tables);
+        assert_eq!(frame.images.len(), 1);
+        assert_eq!(
+            frame.images[0].art,
+            MenuArt::Face {
+                character: 0,
+                dim: false
+            }
+        );
+        // The back row moves the portrait right.
+        assert_eq!(frame.images[0].x, 12.0 + BACK_ROW_SHIFT);
+        let all: Vec<(&str, Tint)> = frame
+            .windows
+            .iter()
+            .flat_map(|w| w.texts.iter().map(|t| (t.text.as_str(), t.tint)))
+            .collect();
+        // 10 of 150 HP is a sixth or less: yellow.
+        assert!(all.contains(&("10", Tint::Yellow)), "{all:?}");
+        assert!(all.contains(&("00:01:05", Tint::White)));
+        assert!(all.contains(&("1234G", Tint::White)));
+        assert!(all.contains(&("Ice Cavern", Tint::White)));
+        assert!(menu.shows_clock());
     }
 
     #[test]
