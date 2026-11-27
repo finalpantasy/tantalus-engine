@@ -496,6 +496,8 @@ pub struct PlayGame {
     game_over: Option<GameOverScreen>,
     /// The title screen while it is up, and the field a new game starts on.
     title: Option<(crate::title_menu::TitleScreen, i32)>,
+    /// The title is the PS1's (NEW GAME and CONTINUE from the disc's art), not `TitleUI`'s.
+    ps1_title: bool,
     /// The ride whose world song was last asked for (`w_musicRequestNoIdx`); `None` off the
     /// world map. Runtime-only.
     world_song_ride: Option<u8>,
@@ -699,6 +701,7 @@ impl PlayGame {
             disc_change: None,
             game_over: None,
             title: None,
+            ps1_title: false,
             world_song_ride: None,
             field_ready_due: None,
             result_screen_open: false,
@@ -1988,12 +1991,27 @@ impl PlayGame {
     /// starts a new game on `start`. The game over screen comes here too
     /// (`GameOverUI.GoToTitleScene`).
     pub fn open_title(&mut self, start: i32) {
-        let screen = crate::title_menu::TitleScreen::new(self.latest_slot().is_some());
+        let saved = self.latest_slot().is_some();
+        let screen = if self.ps1_title {
+            crate::title_menu::TitleScreen::ps1(saved)
+        } else {
+            crate::title_menu::TitleScreen::new(saved)
+        };
         self.title = Some((screen, start));
         self.menu = None;
         // `TitleUI.Show` with the splash screen (at launch, and after a game over since every
         // game start sets `SplashScreenEnabled`): `SoundLib.StopAllSounds(true)`.
         self.audio.push((self.ticks, AudioCue::TitleShown));
+    }
+
+    /// Makes the title the PS1's (the PS1 skin with the disc's title art).
+    pub fn set_ps1_title(&mut self, on: bool) {
+        self.ps1_title = on;
+    }
+
+    /// Whether the title up is the PS1's.
+    pub fn title_is_ps1(&self) -> bool {
+        self.title.as_ref().is_some_and(|(screen, _)| screen.ps1)
     }
 
     /// Whether the title screen is up.

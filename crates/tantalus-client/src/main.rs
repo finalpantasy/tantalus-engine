@@ -582,6 +582,9 @@ fn run_play(args: &[std::ffi::OsString]) -> ExitCode {
         }
     };
     let result = load_game(&values).and_then(|mut game| {
+        // The PS1 skin shows the disc's own title menu when its art is there (at launch and
+        // after a game over).
+        game.set_ps1_title(tantalus_client::ui_skin::ps1_title_words().is_some());
         // `TitleUI` first, unless the launch line names a save or a start field.
         if !["--load", "--load-save", "--start"]
             .iter()

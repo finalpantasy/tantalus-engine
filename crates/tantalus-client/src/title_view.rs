@@ -29,6 +29,36 @@ pub struct TitleView {
     camera: Option<Entity>,
     /// The picture, read once, and its size in pixels.
     picture: Option<Option<Picture>>,
+    /// The PS1 title's words, read once ([`crate::ui_skin::ps1_title_words`]).
+    words: Option<Option<Vec<Picture>>>,
+}
+
+/// An RGBA picture of the skin as a Bevy image.
+fn to_image(world: &mut World, picture: tantalus_assets::pc::dialog_render::Image) -> Picture {
+    let size = (picture.width as u32, picture.height as u32);
+    let image = Image::new(
+        Extent3d {
+            width: size.0,
+            height: size.1,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        picture.rgba,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    );
+    (world.resource_mut::<Assets<Image>>().add(image), size)
+}
+
+/// Where a PS1 title word's centre goes on the title camera, for a word at (`x`, `y`) of the
+/// PS1's 320 x 224 screen, `w` x `h` pixels: the picture's scale (224 lines shown as
+/// [`FRAME`]`.y`), y up.
+pub fn word_centre(x: f32, y: f32, w: f32, h: f32) -> Vec2 {
+    let scale = FRAME.y / 224.0;
+    Vec2::new(
+        (x + w / 2.0 - 160.0) * scale,
+        (112.0 - (y + h / 2.0)) * scale,
+    )
 }
 
 /// The picture's size in frame pixels for a `width` x `height` image: the screen's height and
@@ -54,22 +84,18 @@ pub fn sync_title(world: &mut World, game: &PlayGame) {
         return;
     }
     if view.picture.is_none() {
-        let picture = crate::ui_skin::title_picture(game.game_data()).map(|picture| {
-            let size = (picture.width as u32, picture.height as u32);
-            let image = Image::new(
-                Extent3d {
-                    width: size.0,
-                    height: size.1,
-                    depth_or_array_layers: 1,
-                },
-                TextureDimension::D2,
-                picture.rgba,
-                TextureFormat::Rgba8UnormSrgb,
-                RenderAssetUsages::default(),
-            );
-            (world.resource_mut::<Assets<Image>>().add(image), size)
-        });
+        let picture =
+            crate::ui_skin::title_picture(game.game_data()).map(|picture| to_image(world, picture));
         view.picture = Some(picture);
+    }
+    if game.title_is_ps1() && view.words.is_none() {
+        let words = crate::ui_skin::ps1_title_words().map(|words| {
+            words
+                .into_iter()
+                .map(|word| to_image(world, word))
+                .collect::<Vec<_>>()
+        });
+        view.words = Some(words);
     }
     // The PS1 screen's shape when there is no picture.
     let size = match &view.picture {
@@ -104,9 +130,30 @@ pub fn sync_title(world: &mut World, game: &PlayGame) {
                     ..default()
                 },
                 Transform::default(),
-                layers,
+                layers.clone(),
                 ChildOf(camera),
             ));
+        }
+        if game.title_is_ps1()
+            && let Some(Some(words)) = &view.words
+        {
+            // NEW GAME, CONTINUE and the copyright line over the picture.
+            let scale = FRAME.y / 224.0;
+            for ((handle, size), &(x, y, w, h)) in words
+                .iter()
+                .zip(tantalus_tools::title_menu::PS1_WORDS.iter())
+            {
+                world.spawn((
+                    Sprite {
+                        image: handle.clone(),
+                        custom_size: Some(Vec2::new(size.0 as f32, size.1 as f32) * scale),
+                        ..default()
+                    },
+                    Transform::from_translation(word_centre(x, y, w, h).extend(0.5)),
+                    layers.clone(),
+                    ChildOf(camera),
+                ));
+            }
         }
         view.camera = Some(camera);
     }

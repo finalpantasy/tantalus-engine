@@ -598,6 +598,32 @@ fn ps1_title() -> Result<Image, String> {
     Ok(out)
 }
 
+/// The PS1 title's NEW GAME, CONTINUE and copyright words (the title file's TIMs that are not
+/// background strips or the logo, in file order: 66 x 10, 64 x 10 and 82 x 18), with their
+/// see-through color. `None` outside the PS1 skin or without the art.
+pub fn ps1_title_words() -> Option<[Image; 3]> {
+    if active() != UiSkin::Ps1 {
+        return None;
+    }
+    let bytes = ps1_resident(tantalus_psxaudio::ui_art::TITLE_FILE, TITLE_CACHE)
+        .map_err(|error| println!("ui skin: PS1 title words: {error}"))
+        .ok()?;
+    let words: Vec<Image> = tim_offsets(&bytes)
+        .into_iter()
+        .filter_map(|at| Tim::parse(&bytes[at..]).ok())
+        .filter(|tim| tim.height != TITLE_HEIGHT && tim.height <= 32)
+        .map(|tim| Image {
+            width: tim.width,
+            height: tim.height,
+            rgba: tim.rgba((0, 0, tim.width, tim.height), 0),
+        })
+        .collect();
+    let [new_game, continue_, copyright] = <[Image; 3]>::try_from(words)
+        .map_err(|words| println!("ui skin: PS1 title has {} words, not 3", words.len()))
+        .ok()?;
+    Some([new_game, continue_, copyright])
+}
+
 /// The title picture's height on the PS1, in lines.
 const TITLE_HEIGHT: usize = 224;
 
