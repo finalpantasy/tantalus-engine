@@ -1362,6 +1362,18 @@ impl SoundSystem {
         self.sfx_res_slot = [None, None];
     }
 
+    /// `StopAllSounds`, `ASDP.cs:1166`: the current song, every effect, the resident effect
+    /// slots and the stream stop.
+    pub fn stop_all_sounds(&mut self) {
+        self.song_stop(self.current_music_id);
+        let playing: Vec<i32> = self.sfx_channels.iter().map(|c| c.obj_no).collect();
+        for obj_no in playing {
+            self.sndeffect_stop(obj_no, 0);
+        }
+        self.sndeffectres_stopcurrent();
+        self.stream_stop();
+    }
+
     /// `AllSoundDispatchPlayer.Update`, `ASDP.cs:1344`.
     pub fn update(&mut self) {
         if self.current_music_id != -1 {

@@ -33,7 +33,7 @@ frame-rate setting.
 | PB5 | P2 | matches (rates); pacing unverified | no | Random battles take about a minute (one enemy action ran 12 s) |
 | PB6 | P2 | fixed | no | Battle HUD (party panel, enemy list) is up during the opening camera |
 | PB9 | P3 | open | no | The load list runs past its window's right edge in the PS1 skin and names places by event id (`EVT_ICE_IC_ENT_0`) |
-| PB10 | P3 | open | no | After a game over the field song keeps playing under the title screen |
+| PB10 | P3 | fixed | no | After a game over the field song keeps playing under the title screen |
 
 ### PB1: vanilla 30 fps judders (fixed)
 
@@ -210,12 +210,23 @@ frame-rate setting.
 - Not fixed: the save screen's own layout (`SaveLoadUI`) and the place name table are not
   ported.
 
-### PB10: field song under the title after a game over (open)
+### PB10: field song under the title after a game over (fixed)
 
 - Repro: ui3 `hunt/out/d3-ps1` (`--battle idle --hurt 1`, slot 9): after the game over the
   title shows from frame 4917 and `frames.jsonl` still reports song 92 to the end.
 - Cause: `GameOverUI.GoToTitleScene` loads the title scene, which stops the field's music;
   `PlayGame::open_title` only opens the menu over the paused field.
+- Fix: `open_title` sends `AudioCue::TitleShown`: `TitleUI.Show` with the splash screen
+  (every game start sets `SplashScreenEnabled`, so it holds at launch and after a game over)
+  calls `SoundLib.StopAllSounds(true)` and `ClearSuspendedSounds`; the director stops the
+  song, every effect and the stream (`AllSoundDispatchPlayer.StopAllSounds`, now
+  `SoundSystem::stop_all_sounds`) and drops the song set aside. The battle's defeat path closes
+  the result screen (`ff9ShutdownStateBattleResult`, which brings the field song back) before
+  the title opens, as `GameOverUI.Hide` does.
+- Check: fix2 `hunt/out/pb10-ps1` (slot 9, `--battle idle --hurt 1`, 30 Hz): the title shows
+  from frame 4917 with song -1 to the end (before: 92), cues "result screen closed" then
+  "title screen: every sound stops". Unit test `the_title_after_a_game_over_stops_the_field_song`.
+  Not ported: the title's own music (`TitleUI` plays the `FMV000` movie sound).
 
 ## Checked and fine
 

@@ -102,6 +102,10 @@ pub enum AudioCue {
     Volumes { music: i32, sound: i32 },
     /// A movie's sound starts (`Some`: the sound resource) or stops (`None`).
     Movie { resource: Option<String> },
+    /// The title screen came up (`TitleUI.Show` with `SplashScreenEnabled`, as at launch and
+    /// after a game over, `TitleUI.cs:346`): `SoundLib.StopAllSounds(true)` and
+    /// `ClearSuspendedSounds`, so no field song plays under the title.
+    TitleShown,
 }
 
 /// The song id a movie's sound is registered under (above every real song id).
@@ -193,6 +197,7 @@ pub fn describe_cue(cue: &AudioCue, bank: &SoundBank) -> String {
             Some(resource) => format!("movie sound {resource} starts"),
             None => "movie sound stops".to_owned(),
         },
+        AudioCue::TitleShown => "title screen: every sound stops".to_owned(),
     }
 }
 
@@ -321,6 +326,7 @@ impl AudioDirector {
             AudioCue::BattleLeft => self.battle_left(),
             AudioCue::CardStarted => self.card_started(),
             AudioCue::CardEnded => self.card_ended(),
+            AudioCue::TitleShown => self.title_shown(),
             AudioCue::Volumes { music, sound } => {
                 // `SoundLib.TryUpdateMusicVolume` / `TryUpdateSoundVolume`.
                 self.system.settings.music_volume = *music as f32 / 100.0;
@@ -384,6 +390,19 @@ impl AudioDirector {
                 );
             }
         }
+    }
+
+    /// `TitleUI.Show` (`TitleUI.cs:346`): `SoundLib.StopAllSounds(true)` (`SoundLib.cs:755`,
+    /// `AllSoundDispatchPlayer.StopAllSounds`) and `ClearSuspendedSounds`; a battle end song
+    /// waiting on its fade is dropped too.
+    fn title_shown(&mut self) {
+        self.pending = None;
+        self.system.stop_all_sounds();
+        self.system.clear_suspended_sounds();
+        self.field_suspend_before = None;
+        self.keep_field_song = false;
+        self.field_song_in_battle = false;
+        self.latest_world_song = -1;
     }
 
     /// `HonoluluFieldMain.cs:141-151`, after the field's `StartEvents`.
@@ -623,6 +642,36 @@ mod tests {
         // 60,000 frames at 100 a tick is 600 ticks; the loop keeps it going well past that.
         let _ = d.render(700);
         assert!(level(&mut d) > 0);
+    }
+
+    #[test]
+    fn the_title_after_a_game_over_stops_the_field_song() {
+        // PB10: a lost battle, the result screen's close brings the field song back
+        // (`ff9ShutdownStateBattleResult`), then `TitleUI.Show` stops every sound.
+        let mut d = director();
+        d.apply(&play(10));
+        d.apply(&AudioCue::BattleStarted {
+            map: 7,
+            battle: 3,
+            world: false,
+        });
+        d.apply(&AudioCue::BattleEnded {
+            end: BattleEnd::Defeat,
+            no_win_pose: false,
+        });
+        let _ = d.render(10);
+        d.apply(&AudioCue::BattleLeft);
+        assert_eq!(d.system.current_music_id(), 10);
+        d.apply(&AudioCue::TitleShown);
+        assert_eq!(d.system.current_music_id(), -1);
+        assert_eq!(d.system.suspend_song_id(), -1);
+        let _ = d.render(60);
+        assert_eq!(level(&mut d), 0, "silence under the title");
+        assert_eq!(
+            d.system.current_music_id(),
+            -1,
+            "no end song after the fade"
+        );
     }
 
     #[test]

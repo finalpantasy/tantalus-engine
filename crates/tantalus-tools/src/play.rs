@@ -1885,6 +1885,9 @@ impl PlayGame {
         let screen = crate::title_menu::TitleScreen::new(self.latest_slot().is_some());
         self.title = Some((screen, start));
         self.menu = None;
+        // `TitleUI.Show` with the splash screen (at launch, and after a game over since every
+        // game start sets `SplashScreenEnabled`): `SoundLib.StopAllSounds(true)`.
+        self.audio.push((self.ticks, AudioCue::TitleShown));
     }
 
     /// Whether the title screen is up.

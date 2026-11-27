@@ -1968,14 +1968,15 @@ impl FightView {
             }
             let done = shown >= HOLD_SECONDS
                 && (!waits || confirmed || self.result.state == ResultState::Closed);
+            if done {
+                // `BattleResultUI.Hide` -> `battle.ff9ShutdownStateBattleResult` (for a defeat
+                // `GameOverUI.Hide` calls it before the title scene loads).
+                game.battle_result_closed();
+            }
             if done && outcome == "defeat" {
                 // Game over: the title screen (`GameOverUI.GoToTitleScene`), whose New Game
-                // starts the opening field.
+                // starts the opening field; its `Show` stops every sound.
                 game.open_title(70);
-            }
-            if done {
-                // `BattleResultUI.Hide` -> `battle.ff9ShutdownStateBattleResult`.
-                game.battle_result_closed();
             }
             return (events, done);
         }
