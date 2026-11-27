@@ -25,7 +25,7 @@ frame-rate setting.
 
 | id | sev | status | FPS | bug |
 |---|---|---|---|---|
-| PB1 | P1 | open | yes (interp off) | Vanilla 30 fps judders: about half the frames show no motion and the next jumps two ticks |
+| PB1 | P1 | fixed | yes (interp off) | Vanilla 30 fps judders: about half the frames show no motion and the next jumps two ticks |
 | PB2 | P1 | open | no | Battle camera looks at empty sky or fills the screen with one model during actions |
 | PB7 | P1 | open | no | Music stops for good after a story battle that kept the field song (no battle song, no win pose) |
 | PB3 | P2 | open | no | A button held across a battle or movie end is a new press on the first field tick |
@@ -33,7 +33,7 @@ frame-rate setting.
 | PB5 | P2 | open, unverified | no | Random battles take about a minute (one enemy action ran 12 s) |
 | PB6 | P2 | open | no | Battle HUD (party panel, enemy list) is up during the opening camera |
 
-### PB1: vanilla 30 fps judders (open)
+### PB1: vanilla 30 fps judders (fixed)
 
 - Repro: any slot, `--fps-cap 30 --fps-interp off` in the real window. The harness clock has
   no jitter, so it shows only the rounding half: with the clock in whole nanoseconds every 30 Hz
@@ -47,7 +47,7 @@ frame-rate setting.
   hair short misses its tick and the next runs two. A simulation of grid-locked frames with
   20 us to 1 ms jitter gives 742 no-tick and 742 two-tick frames in 3000. With interpolation the
   drawn alpha follows the banked time, so the default mode hides it.
-- Planned fix: `smooth::tick_due`: without interpolation the tick goes to the display frame nearest its
+- Fix: `smooth::tick_due`: without interpolation the tick goes to the display frame nearest its
   time (up to half a frame early, the debt carried), so 30 fps runs exactly one tick a frame
   and the logic rate is unchanged; with interpolation only 1 us of clock rounding is allowed.
   The battle view's 15 Hz loop (`battle_view.rs:1988`) gets the same rounding slack. The

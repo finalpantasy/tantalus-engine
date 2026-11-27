@@ -174,6 +174,34 @@ pub fn alpha(elapsed: f64, interpolate: bool) -> f32 {
     (elapsed / LOGIC_STEP).clamp(0.0, 1.0) as f32
 }
 
+/// Whether the fixed-step loop runs a logic tick now, with `elapsed` seconds
+/// banked (this frame's `frame` seconds included).
+///
+/// A capped display's frames start on a fixed grid (`FrameLimiter` adds the
+/// budget to the last deadline), so each frame is the tick length plus or
+/// minus a few microseconds of wake-up jitter. With nothing banked (as after
+/// a load hitch, a battle or a movie, which reset the bank) a strict
+/// `elapsed >= LOGIC_STEP` then misses the tick on every frame that is a hair
+/// short and runs two on the next: at `--fps-cap 30 --fps-interp off` about
+/// half the frames showed no motion and half jumped two ticks. Without
+/// interpolation (one picture a tick, the vanilla mode) the tick goes to the
+/// display frame nearest its time: one up to half a frame early takes it and
+/// the debt carries, so the logic rate is unchanged and a 30 fps display gets
+/// exactly one tick a frame. With interpolation the drawn alpha follows the
+/// banked time, so only rounding slack is allowed.
+pub fn tick_due(elapsed: f64, frame: f64, interpolate: bool) -> bool {
+    let slack = if interpolate {
+        TICK_ROUNDING
+    } else {
+        (frame.min(LOGIC_STEP) / 2.0).max(TICK_ROUNDING)
+    };
+    elapsed + slack >= LOGIC_STEP
+}
+
+/// Clock rounding a tick may be early by (a `Duration` holds whole
+/// nanoseconds, so 1/30 s of frames sums a little short of `LOGIC_STEP`).
+pub const TICK_ROUNDING: f64 = 1e-6;
+
 pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }
@@ -538,6 +566,43 @@ mod tests {
         assert!(forced.interpolate);
         let file = FpsSettings::from_config("# comment\nfps_cap = 60\ninterpolation = on\n");
         assert_eq!(file.unwrap().cap, FpsCap::Limit(60));
+    }
+
+    #[test]
+    fn a_capped_vanilla_display_ticks_once_a_frame() {
+        // Frames on a 1/30 s grid with wake-up jitter, the bank starting
+        // empty: every frame runs exactly one tick without interpolation.
+        let jitter = [0.0, -4e-5, 3e-5, -1e-5, 5e-5, -6e-5, 2e-5, 0.0, -3e-5];
+        let (mut elapsed, mut last, mut ticks) = (0.0, 0.0, 0);
+        for (frame, offset) in jitter.iter().cycle().take(300).enumerate() {
+            let at = (frame + 1) as f64 * LOGIC_STEP + offset;
+            let delta = at - last;
+            last = at;
+            elapsed += delta;
+            let mut steps = 0;
+            while tick_due(elapsed, delta, false) && steps < 4 {
+                elapsed -= LOGIC_STEP;
+                steps += 1;
+            }
+            assert_eq!(steps, 1, "frame {frame}");
+            ticks += steps;
+        }
+        assert_eq!(ticks, 300);
+        // With interpolation only clock rounding is slack.
+        assert!(!tick_due(LOGIC_STEP - 4e-5, LOGIC_STEP / 2.0 - 4e-5, true));
+        assert!(tick_due(LOGIC_STEP - 1e-9, LOGIC_STEP / 2.0, true));
+        // At 60 fps without interpolation the tick lands on every second frame.
+        let (mut elapsed, mut ticks) = (0.0, 0);
+        for frame in 0..120 {
+            let delta = LOGIC_STEP / 2.0 + if frame % 2 == 0 { 3e-5 } else { -3e-5 };
+            elapsed += delta;
+            if tick_due(elapsed, delta, false) {
+                elapsed -= LOGIC_STEP;
+                ticks += 1;
+                assert_eq!(frame % 2, 1, "frame {frame}");
+            }
+        }
+        assert_eq!(ticks, 60);
     }
 
     #[test]

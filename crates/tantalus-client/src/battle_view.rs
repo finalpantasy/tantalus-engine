@@ -1985,7 +1985,9 @@ impl FightView {
             self.run_held = 0.0;
         }
         self.since_tick += delta;
-        while self.since_tick >= TICK_SECONDS && self.ended.is_none() {
+        // Clock rounding slack: 1/15 s of display frames sums a little short in a `Duration`.
+        while self.since_tick + crate::smooth::TICK_ROUNDING >= TICK_SECONDS && self.ended.is_none()
+        {
             self.since_tick -= TICK_SECONDS;
             events.extend(game.battle_tick(self.pending.take()));
             if game.battle().is_none() {

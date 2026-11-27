@@ -700,7 +700,7 @@ fn live_tick_inner(world: &mut World) {
     let mut steps = 0;
     {
         let mut game = live.game.lock().expect("game lock");
-        while live.elapsed >= step && steps < 4 {
+        while crate::smooth::tick_due(live.elapsed, delta, live.fps.interpolate) && steps < 4 {
             live.elapsed -= step;
             steps += 1;
             match bench::time("game_tick", || game.tick(held)) {
