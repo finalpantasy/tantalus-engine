@@ -29,7 +29,7 @@ frame-rate setting.
 | PB2 | P1 | fixed | no | Battle camera looks at empty sky or fills the screen with one model during actions |
 | PB7 | P1 | fixed | no | Music stops for good after a story battle that kept the field song (no battle song, no win pose) |
 | PB3 | P2 | fixed | no | A button held across a battle or movie end is a new press on the first field tick |
-| PB4 | P2 | open | partly | First field after launch shows the clear color instead of the background for 5 to 20 frames |
+| PB4 | P2 | fixed | partly | First field after launch shows the clear color instead of the background for 5 to 20 frames |
 | PB5 | P2 | open, unverified | no | Random battles take about a minute (one enemy action ran 12 s) |
 | PB6 | P2 | fixed | no | Battle HUD (party panel, enemy list) is up during the opening camera |
 
@@ -128,15 +128,23 @@ frame-rate setting.
 - Check: the same run after the fix keeps song 98 past the result screen and into field 1105
   in both modes (`hunt/out/z11-hi`, `z11-lo`).
 
-### PB4: first field without its background (open)
+### PB4: first field without its background (fixed)
 
 - Repro: slot 4, every frame (`hunt/out/e4-lo`, `e4p-lo`, `e4i-lo`, all 30 Hz harness): the
   clear color with Zidane drawn, background missing, from frame 5 or 9 to frame 11, 21 or 27.
-  At 60 Hz (`e4-hi`) none. Wall-time dependent, so not a logic bug.
-- Suspected cause: the first sprite draw waits on render pipeline compilation (Bevy compiles
-  specialized pipelines in the background and skips items until ready); at 60 Hz the first
-  frame happened to block 588 ms and covered it. Not confirmed. A warm-up draw of the
-  background material during the opening field 70 would hide it.
+  At 60 Hz (`e4-hi`) none. Wall-time dependent, so not a logic bug. Reproduced by fix1 on the
+  build before the fix (`hunt/out/e4-base`: frames 6 to 9 are 96% clear color).
+- Cause: Bevy compiles render pipelines in the background and skips a draw whose pipeline is
+  not ready yet (`PipelineCache`); the background layers' material pipelines were not ready
+  for the first frames, the actor pipeline was. At 60 Hz the first frame happened to block
+  long enough to cover it.
+- Fix: the play window sets `RenderPlugin::synchronous_pipeline_compilation`, so a pipeline is
+  compiled before the frame that first needs it (`live.rs`). The cost is a one-time stall the
+  first time a pipeline is used: frame 3 of the first field took 934 ms instead of a few
+  missing frames (`e4-wip3` wall times), inside the load.
+- Check: the same 40-frame 30 Hz run three times after the fix (`hunt/out/e4-wip3`,
+  `e4-wip3-2`, `e4-wip3-3`): no frame with the clear color (`tools/clear.py`); frame 7 before
+  and after in `hunt/out/pb4-before-after.png`.
 
 ### PB5: long random battles (open, unverified)
 

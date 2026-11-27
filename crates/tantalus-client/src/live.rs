@@ -363,6 +363,14 @@ pub fn play(
         .add_plugins(
             DefaultPlugins
                 .set(ImagePlugin::default_nearest())
+                // Pipelines compile before the frame that first needs them: with Bevy's
+                // background compilation a draw whose pipeline is not ready is skipped, so the
+                // first field showed the clear color without its background for up to 20 frames
+                // (play-bugs PB4). The game draws every layer from the first frame of a fade.
+                .set(bevy::render::RenderPlugin {
+                    synchronous_pipeline_compilation: true,
+                    ..default()
+                })
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "Tantalus Engine".into(),
