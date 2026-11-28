@@ -720,12 +720,37 @@ pub fn parse_level_exp(tree: &Tree) -> Result<Vec<u64>> {
     int_array("ff9level._FF9Level_Exp", tree).map(|v| v.into_iter().map(|x| x as u64).collect())
 }
 
+/// True when the assembly defines types in the `Memoria` namespace (the Memoria patcher
+/// compiles its own code into `Assembly-CSharp.dll`).
+pub fn is_memoria_patched(assembly: &Assembly<'_>) -> bool {
+    assembly
+        .type_names()
+        .map(|names| names.iter().any(|n| n.starts_with("Memoria.")))
+        .unwrap_or(false)
+}
+
 /// Evaluate every source class in the assembly and parse all tables.
+///
+/// A Memoria-patched `Assembly-CSharp.dll` does not carry these tables inline: its
+/// `FF9BattleDB` static constructor loads CSV files at runtime (Memoria
+/// `FF9BattleDB.cs`, `LoadActions` and friends), so the constant evaluator stops at a
+/// branch. That case is reported as such instead of as a bare IL error; read the
+/// vanilla assembly (Memoria's installer keeps it as `Assembly-CSharp.bak`) instead.
 pub fn extract_battle_tables(assembly: &Assembly<'_>) -> Result<BattleTables> {
     let load = |class: &str| {
-        assembly
-            .static_initializer(class)
-            .map_err(|error| TableError::new(class, error.to_string()))
+        assembly.static_initializer(class).map_err(|error| {
+            let detail = error.to_string();
+            if is_memoria_patched(assembly) {
+                TableError::new(
+                    class,
+                    format!(
+                        "{detail}; this assembly is Memoria-patched (tables are loaded from CSV at runtime, not stored in IL), use the vanilla Assembly-CSharp (Assembly-CSharp.bak)"
+                    ),
+                )
+            } else {
+                TableError::new(class, detail)
+            }
+        })
     };
     let battle_db = load("FF9BattleDB")?;
     let item = load("ff9item")?;

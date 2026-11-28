@@ -1124,7 +1124,7 @@ fn update_after_equip_matches_the_documented_refund_rule() {
 // ---------------------------------------------------------------------------
 
 fn installed_tables() -> Option<tantalus_assets::pc::battle_tables::BattleTables> {
-    use tantalus_assets::pc::battle_tables::extract_battle_tables;
+    use tantalus_assets::pc::battle_tables::{extract_battle_tables, is_memoria_patched};
     use tantalus_assets::pc::managed_il::Assembly;
     let path = std::env::var_os("TANTALUS_ASSEMBLY_CSHARP")
         .map(std::path::PathBuf::from)
@@ -1133,9 +1133,28 @@ fn installed_tables() -> Option<tantalus_assets::pc::battle_tables::BattleTables
                 "E:/SteamLibrary/steamapps/common/FINAL FANTASY IX/x64/FF9_Data/Managed/Assembly-CSharp.dll",
             )
         });
-    let bytes = std::fs::read(path).ok()?;
-    let assembly = Assembly::parse(&bytes).ok()?;
-    Some(extract_battle_tables(&assembly).unwrap())
+    // A Memoria-patched DLL loads these tables from CSV at runtime, so they are not in its
+    // IL. Memoria's installer keeps the vanilla assembly next to it as `.bak`; read that.
+    let mut candidates = vec![path.clone()];
+    candidates.push(path.with_extension("bak"));
+    for candidate in candidates {
+        let Ok(bytes) = std::fs::read(&candidate) else {
+            continue;
+        };
+        let Ok(assembly) = Assembly::parse(&bytes) else {
+            continue;
+        };
+        if is_memoria_patched(&assembly) {
+            eprintln!(
+                "skip {}: Memoria-patched, tables are not in its IL",
+                candidate.display()
+            );
+            continue;
+        }
+        return Some(extract_battle_tables(&assembly).unwrap());
+    }
+    eprintln!("skipping: no vanilla Assembly-CSharp found (set TANTALUS_ASSEMBLY_CSHARP)");
+    None
 }
 
 /// The item table of the install as an [`ItemDb`] (equip mask, type bits,
