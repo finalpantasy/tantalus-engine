@@ -22,7 +22,7 @@ use crate::field_data::{
     FieldText, load_cameras, load_navigation, load_tile_animations, parse_background_map,
     parse_event_db,
 };
-use crate::field_menu::{FieldMenu, MenuAction};
+use crate::field_menu::{FieldMenu, MenuAction, SlotFile, SlotRow};
 use crate::field_session::{
     CONFIRM, FieldSession, WorldExit, decode_pool, load_event, prepare_field_world, world_exit,
 };
@@ -40,7 +40,7 @@ use tantalus_legacy::HostEvent;
 const SPECIAL_KEY: i32 = 0x80000;
 
 /// Field ticks a second (the play time counts them).
-const TICKS_PER_SECOND: u64 = 30;
+pub(crate) const TICKS_PER_SECOND: u64 = 30;
 
 pub mod pad {
     pub const SELECT: i32 = 0x1;
@@ -1084,7 +1084,7 @@ impl PlayGame {
                 }
             }
             if menu.slots_stale {
-                menu.slot_labels = self.slot_labels();
+                menu.slot_rows = self.slot_rows();
                 menu.slots_stale = false;
                 menu.revision += 1;
             }
@@ -1141,7 +1141,7 @@ impl PlayGame {
             // A moogle asked for the save screen.
             world.save_requested = false;
             let mut menu = FieldMenu::save_screen();
-            menu.slot_labels = self.slot_labels();
+            menu.slot_rows = self.slot_rows();
             menu.slots_stale = false;
             self.menu = Some(menu);
             return Ok(true);
@@ -1299,7 +1299,7 @@ impl PlayGame {
         self.world_play = None;
         self.chocograph_screen = None;
         self.title = None;
-        self.ticks = (save.state.play_time_seconds * 60.0) as u64;
+        self.ticks = (save.state.play_time_seconds * TICKS_PER_SECOND as f64) as u64;
         self.pending_position = None;
         if let Some(steam) = self.steam.as_mut() {
             steam.base = save.state;
@@ -1365,7 +1365,7 @@ impl PlayGame {
         self.enter_steam_save(save, events).map(|_| ())
     }
 
-    fn steam_slot_labels(&self, steam: &SteamFile) -> Vec<String> {
+    fn steam_slot_rows(&self, steam: &SteamFile) -> Vec<SlotRow> {
         let bytes = std::fs::read(Self::steam_file(steam)).unwrap_or_default();
         (1..=SLOTS)
             .map(|slot| {
@@ -1373,20 +1373,29 @@ impl PlayGame {
                 match steam_save::read_slot_bytes(&bytes, &location) {
                     Ok(save) => {
                         let state = &save.state;
-                        let lead = state
+                        // The party's character ids; the first is the leader
+                        // (`SaveLoadUI.DisplayFileInfo`).
+                        let party: Vec<i32> = state
                             .party
                             .members
                             .iter()
                             .flatten()
-                            .find_map(|&index| state.party.characters.get(usize::from(index)));
-                        let who = lead.map_or(String::new(), |record| {
-                            format!("{} Lv {}", record.name, record.level)
-                        });
-                        let place = self.slot_place(None, i32::from(state.field.fld_map_no));
-                        crate::field_menu::slot_label(slot, &who, &place, state.party.gil)
+                            .map(|&index| i32::from(index))
+                            .collect();
+                        let lead = party
+                            .first()
+                            .and_then(|&index| state.party.characters.get(index as usize));
+                        SlotRow::Filled(SlotFile {
+                            leader: lead.map_or(String::new(), |record| record.name.clone()),
+                            level: lead.map_or(1, |record| i32::from(record.level)),
+                            place: self.slot_place(None, i32::from(state.field.fld_map_no)),
+                            gil: u64::from(state.party.gil),
+                            seconds: state.play_time_seconds as u64,
+                            party,
+                        })
                     }
-                    Err(message) if message == steam_save::EMPTY_SLOT => format!("{slot}  Empty"),
-                    Err(_) => format!("{slot}  Unreadable"),
+                    Err(message) if message == steam_save::EMPTY_SLOT => SlotRow::Empty,
+                    Err(_) => SlotRow::Unreadable,
                 }
             })
             .collect()
@@ -1396,34 +1405,39 @@ impl PlayGame {
     /// resume).
     pub fn open_load_screen(&mut self) {
         let mut menu = FieldMenu::load_screen();
-        menu.slot_labels = self.slot_labels();
+        menu.slot_rows = self.slot_rows();
         menu.slots_stale = false;
         self.menu = Some(menu);
     }
 
-    /// One line per save slot for the save and load screens.
-    pub fn slot_labels(&self) -> Vec<String> {
+    /// One entry per save slot for the save and load screens. The play time is the save's
+    /// `ticks` (or the Steam file's `play_time_seconds`), the same clock the main menu's Time
+    /// window shows.
+    pub fn slot_rows(&self) -> Vec<SlotRow> {
         if let Some(steam) = &self.steam {
-            return self.steam_slot_labels(steam);
+            return self.steam_slot_rows(steam);
         }
         (1..=SLOTS)
             .map(|slot| match play_save::read(&self.save_dir, slot) {
                 Ok(Some(save)) => {
                     let tables = &self.data.menu;
                     let lead = save.world.party.first().copied();
-                    let who = lead.map_or(String::new(), |id| {
-                        let level =
-                            tables.level(save.world.character_exp.get(&id).copied().unwrap_or(0));
-                        format!(
-                            "{} Lv {level}",
-                            crate::name_menu::display_name(&save.world, id)
-                        )
+                    let level = lead.map_or(1usize, |id| {
+                        tables.level(save.world.character_exp.get(&id).copied().unwrap_or(0))
                     });
-                    let place = self.slot_place(save.place.as_deref(), save.map);
-                    crate::field_menu::slot_label(slot, &who, &place, save.world.gil)
+                    SlotRow::Filled(SlotFile {
+                        leader: lead.map_or(String::new(), |id| {
+                            crate::name_menu::display_name(&save.world, id)
+                        }),
+                        level: level as i32,
+                        place: self.slot_place(save.place.as_deref(), save.map),
+                        gil: u64::from(save.world.gil),
+                        seconds: save.ticks / TICKS_PER_SECOND,
+                        party: save.world.party.iter().take(4).copied().collect(),
+                    })
                 }
-                Ok(None) => format!("{slot}  Empty"),
-                Err(_) => format!("{slot}  Unreadable"),
+                Ok(None) => SlotRow::Empty,
+                Err(_) => SlotRow::Unreadable,
             })
             .collect()
     }
@@ -2304,7 +2318,7 @@ impl PlayGame {
             change.stage = DiscStage::Save;
             change.ticks = 0;
             let mut menu = FieldMenu::save_screen();
-            menu.slot_labels = self.slot_labels();
+            menu.slot_rows = self.slot_rows();
             menu.slots_stale = false;
             self.menu = Some(menu);
         }

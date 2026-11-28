@@ -412,9 +412,9 @@ pub struct FieldMenu {
     screen: Screen,
     main: usize,
     message: Option<String>,
-    /// One line per save slot, filled by the game while a slot screen is up.
-    pub slot_labels: Vec<String>,
-    /// Set when `slot_labels` should be read again.
+    /// One entry per save slot, filled by the game while a slot screen is up.
+    pub slot_rows: Vec<SlotRow>,
+    /// Set when `slot_rows` should be read again.
     pub slots_stale: bool,
     /// A save or load the game should carry out.
     pub action: Option<MenuAction>,
@@ -470,26 +470,111 @@ fn usable(tables: &MenuTables, id: u16) -> bool {
         && tables.effects.contains_key(&id)
 }
 
-/// Where the lead character and the place start on a save slot row.
+/// Where the lead character starts on a save slot row.
 const SLOT_WHO_X: f32 = 28.0;
-const SLOT_PLACE_X: f32 = 124.0;
-/// The longest place a save slot row shows: the room to the list window's right edge at the
-/// PS1 font's widest average (about 7 pixels a letter).
-const SLOT_PLACE_CHARS: usize = 25;
+/// The longest place the detail panel shows: the room right of the portraits at the PS1
+/// font's widest average (about 7 pixels a letter).
+const SLOT_PLACE_CHARS: usize = 20;
+/// The detail panel's top, and one portrait's box and step in it.
+const SLOT_DETAIL_Y: f32 = 158.0;
+const SLOT_FACE: f32 = 33.0;
+const SLOT_FACE_STEP: f32 = 36.0;
 
-/// A save slot row (`SaveLoadUI` file info: the lead's name and level, the location name and
-/// the gil), split by tabs for the list's columns.
-pub fn slot_label(slot: usize, who: &str, place: &str, gil: impl std::fmt::Display) -> String {
-    format!("{slot}\t{who}\t{place}\t{gil} Gil")
+/// What one save slot holds (`SharedDataPreviewSlot`, the preview `SaveLoadUI.DisplayFileInfo`
+/// reads).
+#[derive(Debug, Clone, PartialEq)]
+pub enum SlotRow {
+    /// No save (`EmptyFile`).
+    Empty,
+    /// A file that does not read (`CorruptFile`).
+    Unreadable,
+    Filled(SlotFile),
 }
 
-/// `place` cut to fit the save list: past [`SLOT_PLACE_CHARS`] letters it ends in `...`.
+/// The preview of a filled slot: `CharacterInfoList` (the party, the first is the leader),
+/// `Location`, `Gil` and `PlayDuration`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SlotFile {
+    pub leader: String,
+    pub level: i32,
+    pub place: String,
+    pub gil: u64,
+    /// `PlayDuration`, seconds.
+    pub seconds: u64,
+    /// Character ids of the party in order, for the portraits (at most four).
+    pub party: Vec<i32>,
+}
+
+/// `place` cut to fit the detail panel: past [`SLOT_PLACE_CHARS`] letters it ends in `...`.
 fn fit_place(place: &str) -> String {
     if place.chars().count() <= SLOT_PLACE_CHARS {
         return place.to_owned();
     }
     let kept: String = place.chars().take(SLOT_PLACE_CHARS - 3).collect();
     format!("{}...", kept.trim_end())
+}
+
+impl SlotRow {
+    /// The list's text for `slot` (1-based): the file number, then the lead and level, the play
+    /// time right-aligned (`SaveLoadUI.DisplayFileInfo`: `FileNo`, `LeaderNameLabel`,
+    /// `LeaderLvLabel`, `TimeLabel` colored per 100 hours; an empty slot shows `EmptyFile`).
+    fn list_texts(&self, slot: usize, row: f32, save: bool) -> Vec<MenuText> {
+        match self {
+            Self::Empty | Self::Unreadable => {
+                let (word, tint) = match self {
+                    Self::Unreadable => ("Unreadable", Tint::Red),
+                    _ if save => ("Empty", Tint::White),
+                    _ => ("Empty", Tint::Dim),
+                };
+                vec![
+                    text(12.0, row, slot.to_string(), tint),
+                    text(SLOT_WHO_X, row, word, tint),
+                ]
+            }
+            Self::Filled(file) => {
+                let (time, tint) = clock(file.seconds);
+                vec![
+                    text(12.0, row, slot.to_string(), Tint::White),
+                    text(
+                        SLOT_WHO_X,
+                        row,
+                        format!("{} Lv {}", file.leader, file.level),
+                        Tint::White,
+                    ),
+                    right(290.0, row, time, tint),
+                ]
+            }
+        }
+    }
+}
+
+/// The detail panel of the slot under the cursor: the party's portraits left, the location and
+/// leader level right (`FileInfoHUD`: `CharacterAvatarList`, `LocationNameLabel`,
+/// `LeaderLvLabel`); the gil is in the Load / Save bar.
+fn slot_detail(file: &SlotFile) -> (MenuWindow, Vec<MenuImage>) {
+    let faces = file
+        .party
+        .iter()
+        .take(4)
+        .enumerate()
+        .map(|(index, &character)| MenuImage {
+            x: 12.0 + index as f32 * SLOT_FACE_STEP,
+            y: SLOT_DETAIL_Y + 4.0,
+            w: SLOT_FACE,
+            h: SLOT_FACE,
+            art: MenuArt::Face {
+                character,
+                dim: false,
+            },
+        })
+        .collect();
+    let x = 4.0 * SLOT_FACE_STEP + 14.0;
+    let texts = vec![
+        text(x, 0.0, fit_place(&file.place), Tint::White),
+        text(x, 1.0, "Lv", Tint::Yellow),
+        right(290.0, 1.0, file.level.to_string(), Tint::White),
+    ];
+    (window(8.0, SLOT_DETAIL_Y, 304.0, 2.5, texts), faces)
 }
 
 fn text(x: f32, row: f32, value: impl Into<String>, tint: Tint) -> MenuText {
@@ -526,7 +611,7 @@ impl FieldMenu {
             main: 0,
             message: None,
             refused: false,
-            slot_labels: Vec::new(),
+            slot_rows: Vec::new(),
             slots_stale: false,
             action: None,
             revision: 0,
@@ -755,10 +840,7 @@ impl FieldMenu {
                     }
                     self.screen = Screen::Main;
                 } else if confirm {
-                    let filled = self
-                        .slot_labels
-                        .get(cursor)
-                        .is_some_and(|label| !label.ends_with("Empty"));
+                    let filled = matches!(self.slot_rows.get(cursor), Some(SlotRow::Filled(_)));
                     if save {
                         self.action = Some(MenuAction::Save(cursor + 1));
                     } else if filled {
@@ -959,35 +1041,22 @@ impl FieldMenu {
             Screen::Slots { save, cursor, .. } => {
                 let mut texts = Vec::new();
                 let mut gil = None;
+                let mut detail = None;
                 for slot in 0..SLOTS {
-                    let label = self
-                        .slot_labels
-                        .get(slot)
-                        .cloned()
-                        .unwrap_or_else(|| format!("{}  Empty", slot + 1));
-                    let tint = if label.ends_with("Empty") && !*save {
-                        Tint::Dim
-                    } else {
-                        Tint::White
-                    };
-                    let row = slot as f32;
-                    match label.split('\t').collect::<Vec<_>>().as_slice() {
-                        // `slot_label`: the slot, the lead and level, the place; the gil goes to
-                        // the window under the list for the slot under the cursor.
-                        [number, who, place, money] => {
-                            texts.push(text(12.0, row, *number, tint));
-                            texts.push(text(SLOT_WHO_X, row, *who, tint));
-                            texts.push(text(SLOT_PLACE_X, row, fit_place(place), tint));
-                            if slot == *cursor {
-                                gil = Some((*money).to_owned());
-                            }
-                        }
-                        _ => texts.push(text(12.0, row, label, tint)),
+                    let row = self.slot_rows.get(slot).unwrap_or(&SlotRow::Empty);
+                    texts.extend(row.list_texts(slot + 1, slot as f32, *save));
+                    if let (SlotRow::Filled(file), true) = (row, slot == *cursor) {
+                        gil = Some(format!("{} Gil", file.gil));
+                        detail = Some(slot_detail(file));
                     }
                 }
                 frame
                     .windows
                     .push(window(8.0, 8.0, 304.0, SLOTS as f32, texts));
+                if let Some((panel, faces)) = detail {
+                    frame.windows.push(panel);
+                    frame.images.extend(faces);
+                }
                 if let Some(gil) = gil {
                     frame.windows.push(window(
                         136.0,
@@ -1672,5 +1741,81 @@ mod tests {
         let (tables, mut world) = (tables(), world());
         let mut menu = FieldMenu::new();
         assert!(!menu.press(pad::START, &mut world, &tables));
+    }
+
+    fn slot_file(seconds: u64, party: Vec<i32>) -> SlotRow {
+        SlotRow::Filled(SlotFile {
+            leader: "Zidane".into(),
+            level: 8,
+            place: "Lindblum Castle/Base Level Too Long".into(),
+            gil: 1234,
+            seconds,
+            party,
+        })
+    }
+
+    #[test]
+    fn the_save_list_shows_time_portraits_place_and_gil_of_the_slot_under_the_cursor() {
+        let (tables, world) = (tables(), world());
+        let mut menu = FieldMenu::load_screen();
+        menu.slot_rows = vec![SlotRow::Empty, slot_file(3_725, vec![0, 5, 1, 2, 3])];
+        let frame = menu.frame(&world, &tables);
+        // The cursor is on the empty first slot: no portraits, no gil.
+        assert!(frame.images.is_empty());
+        let list = &frame.windows[0];
+        assert!(
+            list.texts
+                .iter()
+                .any(|t| t.text == "Empty" && t.tint == Tint::Dim)
+        );
+        // Slots past the file's rows read as empty too.
+        assert_eq!(list.texts.iter().filter(|t| t.text == "Empty").count(), 7);
+        menu.press(pad::DOWN, &mut world.clone(), &tables);
+        let frame = menu.frame(&world, &tables);
+        let list = &frame.windows[0];
+        assert!(list.texts.iter().any(|t| t.text == "Zidane Lv 8"));
+        let time = list.texts.iter().find(|t| t.right).expect("time");
+        assert_eq!((time.text.as_str(), time.tint), ("01:02:05", Tint::White));
+        // Four portraits at most, in party order.
+        let faces: Vec<i32> = frame
+            .images
+            .iter()
+            .map(|image| match image.art {
+                MenuArt::Face { character, .. } => character,
+            })
+            .collect();
+        assert_eq!(faces, vec![0, 5, 1, 2]);
+        let detail = &frame.windows[1];
+        assert!(
+            frame
+                .windows
+                .iter()
+                .any(|w| w.texts.iter().any(|t| t.text == "1234 Gil"))
+        );
+        assert!(
+            detail
+                .texts
+                .iter()
+                .any(|t| t.text == "Lindblum Castle/B...")
+        );
+    }
+
+    #[test]
+    fn the_save_list_play_time_steps_color_each_hundred_hours() {
+        assert_eq!(clock(359_999), ("99:59:59".into(), Tint::White));
+        assert_eq!(clock(360_000), ("00:00:00".into(), Tint::Red));
+    }
+
+    #[test]
+    fn an_empty_slot_cannot_be_loaded_but_can_be_saved_over() {
+        let (tables, mut world) = (tables(), world());
+        let mut menu = FieldMenu::load_screen();
+        menu.slot_rows = vec![SlotRow::Empty, slot_file(0, vec![0])];
+        menu.press(pad::CONFIRM, &mut world, &tables);
+        assert!(menu.refused && menu.action.is_none());
+        let mut menu = FieldMenu::save_screen();
+        menu.slot_rows = vec![SlotRow::Empty];
+        menu.press(pad::CONFIRM, &mut world, &tables);
+        assert_eq!(menu.action, Some(MenuAction::Save(1)));
     }
 }

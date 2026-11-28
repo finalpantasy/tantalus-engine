@@ -28,7 +28,8 @@ pub struct PlaySave {
     pub map: i32,
     /// Player position when saving, `None` when there was no player.
     pub position: Option<[f32; 3]>,
-    /// Game ticks played.
+    /// Game ticks played (the play time the main menu's clock and the save list show).
+    #[serde(default)]
     pub ticks: u64,
     pub world: FieldWorld,
     /// The place the save screen names (`FF9.mapNameStr` when saving); older saves have none.
@@ -136,6 +137,27 @@ mod tests {
         restored.copy_providers_from(&world);
         assert_eq!(restored, world);
         assert!(read(&dir, 4).expect("read").is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_old_save_without_ticks_or_place_loads() {
+        let dir = std::env::temp_dir().join(format!("tantalus-save-old-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let save = PlaySave {
+            format: SAVE_FORMAT,
+            map: 154,
+            position: None,
+            ticks: 5,
+            world: world().for_save(),
+            place: None,
+        };
+        let mut value = serde_json::to_value(&save).expect("json");
+        value.as_object_mut().expect("object").remove("ticks");
+        std::fs::create_dir_all(&dir).expect("dir");
+        std::fs::write(slot_path(&dir, 1), value.to_string()).expect("write");
+        let loaded = read(&dir, 1).expect("read").expect("slot");
+        assert_eq!((loaded.ticks, loaded.place), (0, None));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

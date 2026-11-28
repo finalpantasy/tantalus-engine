@@ -226,10 +226,10 @@ impl NameMenu {
         let mut head = vec![
             at(48.0, 0.0, "Name", Tint::Yellow, false),
             at(48.0, ROW, shown, Tint::White, false),
-            at(296.0, 0.0, "Max 12", Tint::Dim, true),
+            at(288.0, 0.0, "Max 12", Tint::Dim, true),
         ];
         if self.warning {
-            head.push(at(296.0, ROW, "Enter a name.", Tint::Red, true));
+            head.push(at(288.0, ROW, "Enter a name.", Tint::Red, true));
         }
         frame.windows.push(window(8.0, 8.0, 304.0, 2.0, head));
         frame.images.push(MenuImage {

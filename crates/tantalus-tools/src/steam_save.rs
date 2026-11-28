@@ -396,7 +396,7 @@ pub fn capture(
         .map_err(|error| error.context)?;
     state.field.fld_map_no = i16::try_from(map).map_err(|_| "map number out of range")?;
     state.mode.mode = MODE_FIELD;
-    state.play_time_seconds = ticks as f64 / 60.0;
+    state.play_time_seconds = ticks as f64 / crate::play::TICKS_PER_SECOND as f64;
     let party = &mut state.party;
     party.gil = world.gil;
     party.items = vec![None; 256];
@@ -741,7 +741,7 @@ mod tests {
     fn a_played_world_survives_save_file_and_load() {
         let tables = tables();
         let world = played_world();
-        let state = capture(&world, 810, 7_200, &tables, &SaveState::empty()).unwrap();
+        let state = capture(&world, 810, 3_600, &tables, &SaveState::empty()).unwrap();
         let path = temp_file("round-trip");
         let location = parse_location("17").unwrap();
         write_slot(&path, &location, &state, "Test Field").unwrap();
@@ -788,7 +788,7 @@ mod tests {
         assert_eq!(restored.card_stats, world.card_stats);
         assert_eq!(restored.global_memory, world.global_memory);
         assert_eq!(restored.settings.fld_msg, 4);
-        // 7,200 ticks at 60 a second.
+        // 3,600 ticks at 30 a second (`play::TICKS_PER_SECOND`, the clock the main menu shows).
         assert_eq!(loaded.state.play_time_seconds, 120.0);
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
