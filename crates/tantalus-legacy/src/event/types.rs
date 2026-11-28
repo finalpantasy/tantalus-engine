@@ -1125,7 +1125,7 @@ pub enum HostEvent {
     },
     WalkActor {
         actor: EntityId,
-        destination: [i16; 2],
+        destination: [i32; 2],
     },
     MoveActor {
         actor: EntityId,

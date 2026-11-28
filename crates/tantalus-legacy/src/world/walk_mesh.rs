@@ -411,6 +411,58 @@ impl WorldWalk {
         self.blocks.get(column * BLOCK_ROWS + row)?.as_ref()
     }
 
+    /// `ff9.w_movementChrVerifyValidCastPosition` with `w_movementChrTryFindPositionNearby`
+    /// (`ff9/ff9.cs:4734-4795`, Memoria CL 2025.07.04, bug G39): a chocobo the script
+    /// places where the ray from the sky finds no ground (the sea, a hole in the mesh) is
+    /// moved to the nearest ground. The search is a square spiral of 20-unit (fixed point,
+    /// 1/256 world unit) steps from the spot, every ring 40 wider, and gives up past
+    /// radius 200. The PC port's earlier search had no end on such a spot: the world map
+    /// froze on the save the chocobo stood in. `None` when the spot has ground already (the
+    /// chocobo stays) or nothing is found (it stays too, as in the reference).
+    pub fn verify_valid_cast_position(&self, pos: Vec3) -> Option<Vec3> {
+        const STEP: i32 = 20;
+        // `WMPhysics.CastRayFromSky`, `IgnoreExceptions` and `UseInfiniteRaycast` are on.
+        let mode = RaycastMode {
+            cast_from_sky: true,
+            ignore_exceptions: true,
+            control_type: 0,
+        };
+        let hit_at = |x: i32, z: i32| {
+            let at = Vec3::new(x as f32 / 256.0, pos.y, z as f32 / 256.0);
+            (self.nwp_hit(at, &mode, None).pno != -1).then_some(at)
+        };
+        let (init_x, init_z) = ((pos.x * 256.0) as i32, (pos.z * 256.0) as i32);
+        if hit_at(init_x, init_z).is_some() {
+            return None;
+        }
+        let mut r2 = 2 * STEP;
+        let (mut step, mut dir) = (0, 0);
+        let (mut x, mut z) = (init_x + STEP, init_z + STEP);
+        while r2 < 400 {
+            match dir {
+                0 => z -= STEP,
+                1 => x -= STEP,
+                2 => z += STEP,
+                _ => x += STEP,
+            }
+            if let Some(found) = hit_at(x, z) {
+                return Some(found);
+            }
+            step += 20;
+            if step >= r2 {
+                step = 0;
+                dir += 1;
+                if dir >= 4 {
+                    dir = 0;
+                    r2 += 40;
+                    x = init_x + r2 / 2;
+                    z = init_z + r2 / 2;
+                }
+            }
+        }
+        None
+    }
+
     /// `ff9.w_nwpHit` (`ff9/ff9.cs:6980`): casts a ray down from `pos.y + offset`
     /// into the block that holds `pos`. A missing or unloaded block gives
     /// `defaultHeight`, id 0 and `pno` -1.

@@ -417,3 +417,42 @@ fn airships_board_fly_and_land() {
         assert_eq!(play.ride, control);
     }
 }
+
+/// Memoria G39 (CL 2025.07.04, `ff9.w_movementChrVerifyValidCastPosition`): a chocobo set
+/// where no ground is under it moves to the nearest ground by a bounded spiral; a spot with
+/// ground stays; with no ground anywhere the search ends (the PC port's nested loop did not,
+/// and the world map froze on the save).
+#[test]
+fn a_chocobo_without_ground_moves_to_the_ground_nearby_and_the_search_ends() {
+    use tantalus_legacy::world::{Vec3, WorldWalk};
+    let Some(dir) = streaming() else {
+        return;
+    };
+    let assets = Arc::new(WorldAssets::load(&dir, 1).expect("world assets"));
+    let events: BTreeMap<u16, i32> =
+        event_places(&dir.join("p0data7.bin"), "EVT_WORLD_WORLD00").expect("place events");
+    let play = WorldPlay::new(assets, events, 1100.0, -800.0, 1).unwrap();
+    let ground = play.ground();
+    // Open land has ground: the chocobo stays.
+    assert_eq!(
+        ground.verify_valid_cast_position(Vec3::new(1100.0, 30.0, -800.0)),
+        None
+    );
+    // A seam between two blocks (x 512, z -1494) lets the ray through; the first ring of
+    // the spiral (one 20/256 step east) has ground.
+    let seam = Vec3::new(512.0, 30.0, -1494.0);
+    let moved = ground
+        .verify_valid_cast_position(seam)
+        .expect("ground beside the seam");
+    assert!(
+        (moved.x - (seam.x + 20.0 / 256.0)).abs() < 1e-3,
+        "{moved:?}"
+    );
+    assert_eq!(moved.z, seam.z);
+    // Nothing anywhere: the search ends and the chocobo stays where the script put it.
+    let empty = WorldWalk::new();
+    assert_eq!(
+        empty.verify_valid_cast_position(Vec3::new(10.0, 30.0, 10.0)),
+        None
+    );
+}

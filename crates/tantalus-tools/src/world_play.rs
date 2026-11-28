@@ -186,6 +186,11 @@ impl WorldPlay {
         self.chocobo = self.script_start().and_then(|start| start.chocobo);
         // `ff9.w_movementChrInitSlice`: the chocobo stands on the ground.
         if let Some(chocobo) = self.chocobo.as_mut() {
+            // `EventEngine.SetObjectPosition` -> `WMActor.VerifyValidCastPosition` (G39): a
+            // chocobo set where there is no ground moves to the ground nearby.
+            if let Some(near) = self.walk.verify_valid_cast_position(chocobo.pos) {
+                chocobo.pos = near;
+            }
             let mut walker = FootWalker::new(0, chocobo.pos, chocobo.rot_y).ok();
             if let Some(walker) = walker.as_mut() {
                 walker.place(&self.walk, chocobo.pos);
@@ -238,6 +243,11 @@ impl WorldPlay {
     #[doc(hidden)]
     pub fn script_mut_for_tests(&mut self) -> &mut crate::world_script::WorldScript {
         self.script.as_mut().expect("a world script")
+    }
+
+    /// The ground the actors stand on (the walk mesh of every loaded block).
+    pub fn ground(&self) -> &WorldWalk {
+        &self.walk
     }
 
     /// The running world script, if any.
@@ -734,11 +744,18 @@ impl WorldPlay {
         self.frames += 1;
         // A confirm press answers the script's open dialogs and goes no
         // further (`EventInput.isDialogConfirm`).
-        let (pressed, held) = if pressed & confirm != 0 && self.close_script_windows() {
+        // The script still sees the press (`ETb.KeyOn`): the moogle's windows wait for it
+        // (`EVT_WORLD_WORLD00` entry 6 function 25) after the window closes.
+        let script_held = held;
+        let answered = pressed & confirm != 0 && self.close_script_windows();
+        // While the script has controls off (a moogle talking) the walk gets no pad.
+        let held_still = !self.script_gives_control();
+        let (pressed, held) = if answered {
             (pressed & !confirm, held & !confirm)
         } else {
             (pressed, held)
         };
+        let (pressed, held) = if held_still { (0, 0) } else { (pressed, held) };
         let axis = |negative: i32, positive: i32| match (held & negative != 0, held & positive != 0)
         {
             (true, false) => -128,
@@ -786,7 +803,7 @@ impl WorldPlay {
         let hit_code = report
             .world_event
             .map(|hit| event_code(hit.cell_x, hit.cell_z, hit.event));
-        let (scripted, events) = self.script_place(hit_code, held);
+        let (scripted, events) = self.script_place(hit_code, script_held);
         self.poll_chocograph_menu();
         tick.script_battle = events.0;
         tick.field = events.1;
@@ -858,7 +875,10 @@ impl WorldPlay {
                     }
                     true
                 }
-                Err(_) => false,
+                Err(error) => {
+                    eprintln!("WORLD SCRIPT ERR {error}");
+                    false
+                }
             }
         };
         if let Some(code) = code {
@@ -955,6 +975,45 @@ impl WorldPlay {
             to.global_memory.clone_from(&world.global_memory);
         }
         to.hintmap_id = self.hintmap;
+    }
+
+    /// False while the world script holds the player (`SetUserControl` off or a window up).
+    pub fn script_gives_control(&self) -> bool {
+        self.script
+            .as_ref()
+            .is_none_or(|script| script.world().user_control && !self.has_script_window())
+    }
+
+    fn has_script_window(&self) -> bool {
+        self.script
+            .as_ref()
+            .is_some_and(|script| script.world().windows.values().any(|open| *open))
+    }
+
+    /// The script's choice answer (`SetupChoose`: the cursor row a confirm picked).
+    pub fn set_dialog_choice(&mut self, row: i32) {
+        if let Some(script) = self.script.as_mut() {
+            script.world_mut().dialog_choice = row;
+        }
+    }
+
+    /// `OpenMenu(4, 0)` ran in the world script: the moogle's save screen was asked for.
+    pub fn take_save_request(&mut self) -> bool {
+        self.script
+            .as_mut()
+            .is_some_and(|script| std::mem::take(&mut script.world_mut().save_requested))
+    }
+
+    /// Copies the script's open windows into `to` so the field's dialog code draws them.
+    pub fn mirror_windows_into(&self, to: &mut FieldWorld) {
+        let Some(script) = self.script.as_ref() else {
+            return;
+        };
+        let from = script.world();
+        to.windows.clone_from(&from.windows);
+        to.window_texts.clone_from(&from.window_texts);
+        to.window_speakers.clone_from(&from.window_speakers);
+        to.mes_values.clone_from(&from.mes_values);
     }
 
     /// Closes the dialogs the script has open (the player confirmed them),

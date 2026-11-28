@@ -1108,6 +1108,17 @@ impl PlayGame {
                 && play.ride == 0
                 && self.chocograph_screen.is_none()
                 && script_allows;
+            let moogle_save = self.session.as_mut().is_some_and(|session| {
+                std::mem::take(&mut session.director.world_mut().save_requested)
+            });
+            if moogle_save {
+                // The moogle's `MENU(4, 0)`: the save screen, as a field moogle opens it.
+                let mut menu = FieldMenu::save_screen();
+                menu.slot_rows = self.slot_rows();
+                menu.slots_stale = false;
+                self.menu = Some(menu);
+                return Ok(true);
+            }
             if opens && let Some(session) = self.session.as_mut() {
                 // `MainMenuUI` has no Save command; the world map saves through its moogle.
                 session.director.world_mut().save_point = false;
@@ -1808,6 +1819,93 @@ impl PlayGame {
                 self.name_screen = None;
             }
         }
+    }
+
+    /// The world script's open windows (the moogle's words and choices) as one frame over the
+    /// world map: the world has no field camera to hang the field's speech bubbles on, so each
+    /// window is a plain box along the bottom with the choice hand. `None` off the world map or
+    /// with no window up. The number changes with the text and the cursor row.
+    pub fn world_dialog_frame(&self) -> Option<(u64, crate::field_menu::MenuFrame)> {
+        use crate::field_menu::{MenuFrame, MenuText, MenuWindow, Tint};
+        use tantalus_assets::pc::mes::MesToken;
+        self.world_play.as_ref()?;
+        let dialogs = self.open_dialogs();
+        if dialogs.is_empty() {
+            return None;
+        }
+        const LINE: f32 = 12.0;
+        const INDENT: f32 = 18.0;
+        let mut frame = MenuFrame::default();
+        let mut revision = 0u64;
+        let mut bottom = 214.0;
+        for dialog in dialogs.iter().rev() {
+            // Rows of the text: `[CHOO]` starts the choice rows, `[MOVE=n,0]` indents one.
+            let mut rows: Vec<(String, bool)> = vec![(String::new(), false)];
+            let mut first_choice = None;
+            for token in &dialog.entry.tokens {
+                match token {
+                    MesToken::Text { text } => {
+                        for (index, part) in text.split('\n').enumerate() {
+                            if index > 0 {
+                                rows.push((String::new(), false));
+                            }
+                            if let Some(row) = rows.last_mut() {
+                                row.0.push_str(part);
+                            }
+                        }
+                    }
+                    MesToken::Tag(tag) if tag.code == "Choice" => {
+                        first_choice = Some(rows.len() - 1);
+                    }
+                    MesToken::Tag(tag) if tag.code == "MoveCaret" => {
+                        if let Some(row) = rows.last_mut() {
+                            row.1 = tag.params.first().is_some_and(|x| x != "0");
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            while rows.last().is_some_and(|(text, _)| text.is_empty()) && rows.len() > 1 {
+                rows.pop();
+            }
+            let widest = rows
+                .iter()
+                .map(|(text, indented)| {
+                    text.chars().count() as f32 * 6.5 + if *indented { INDENT } else { 0.0 }
+                })
+                .fold(60.0_f32, f32::max);
+            let w = (widest + 22.0).min(304.0);
+            let h = rows.len() as f32 * LINE + 12.0;
+            let (x, y) = ((320.0 - w) / 2.0, bottom - h);
+            bottom = y - 4.0;
+            let texts = rows
+                .iter()
+                .enumerate()
+                .map(|(row, (text, indented))| MenuText {
+                    x: 11.0 + if *indented { INDENT } else { 0.0 },
+                    y: 6.0 + row as f32 * LINE,
+                    text: text.clone(),
+                    tint: Tint::White,
+                    right: false,
+                })
+                .collect();
+            frame.windows.push(MenuWindow { x, y, w, h, texts });
+            revision = revision
+                .wrapping_mul(31)
+                .wrapping_add(u64::from(dialog.text));
+            if let Some(first) = first_choice
+                && dialog.choosing
+            {
+                let choices = rows.len() - first;
+                let pick = usize::try_from(self.cursor.max(0))
+                    .unwrap_or(0)
+                    .min(choices.saturating_sub(1));
+                frame.pointer =
+                    Some((x + 8.0, y + 6.0 + (first + pick) as f32 * LINE + LINE / 2.0));
+                revision = revision.wrapping_mul(31).wrapping_add(pick as u64 + 1);
+            }
+        }
+        Some((revision | 1 << 43, frame))
     }
 
     /// The main menu to draw, with a number that changes when it does.
@@ -2819,6 +2917,8 @@ impl PlayGame {
         // the actor from the story state, as the original does. A few
         // frames first, so its objects have their positions.
         let mut script_world = self.world.clone();
+        // The scripts read the atan table (`AngleToObject`: the moogle turns to the player).
+        script_world.copy_providers_from(&self.data.new_game);
         script_world.global_memory = globals.clone();
         let mut script = crate::world_script::WorldScript::start(
             &self.data.bundle,
@@ -2948,10 +3048,12 @@ impl PlayGame {
             }
             return Ok(());
         }
+        let mut dismounted = false;
         if pressed & pad::SQUARE != 0 {
-            // Square gets off whatever the player rides, or else boards the
-            // anchored Blue Narciss, or calls the yellow chocobo.
+            // Square gets off whatever the player rides, or else boards a ship in reach;
+            // on foot with none near, the moogle answers it.
             if play.ride != 0 {
+                dismounted = true;
                 if !play.get_off() {
                     self.audio.push((
                         self.ticks,
@@ -2960,18 +3062,70 @@ impl PlayGame {
                         },
                     ));
                 }
-            } else if !play.board() {
-                play.set_ride(1);
+            } else {
+                // On foot, anything but a ship in reach leaves Square to the world script
+                // (`EVT_WORLD_WORLD00` entry 3: `KeyOn(Special)` with ride 0 sets map var 30,
+                // entry 2 then requests the moogle, entry 6 function 25).
+                play.board();
             }
         }
+        // A press that got off the ride is not the moogle's call: `KeyOn(Special)` in the
+        // world script reads it with the ride at 0 once the walker is on foot.
+        let (held, pressed) = if dismounted {
+            (held & !pad::SQUARE, pressed & !pad::SQUARE)
+        } else {
+            (held, pressed)
+        };
         // The script's inventory and Chocograph state follow the player's
         // (a dig's treasure reaches the bag, the save keeps the pick).
         if let Some(session) = self.session.as_ref() {
             play.sync_into_script(session.director.world());
         }
+        // A window the world script opened (the moogle's): the choice cursor moves with
+        // up and down and a confirm answers it (`DialogBoxSymbols.SetupChoose`).
+        let open = play.script_dialogs();
+        if open
+            .iter()
+            .any(|(_, text)| self.choice_texts.contains(text))
+        {
+            let before = self.cursor;
+            if pressed & pad::UP != 0 {
+                self.cursor = (self.cursor - 1).max(0);
+            }
+            if pressed & pad::DOWN != 0 {
+                self.cursor += 1;
+            }
+            if self.cursor != before {
+                self.audio.push((
+                    self.ticks,
+                    AudioCue::Effect {
+                        id: menu_sound::CURSOR,
+                    },
+                ));
+            }
+            if pressed & CONFIRM != 0 {
+                play.set_dialog_choice(self.cursor);
+                self.audio.push((
+                    self.ticks,
+                    AudioCue::Effect {
+                        id: menu_sound::CONFIRM,
+                    },
+                ));
+            }
+        }
+        if !open.is_empty() && pressed & CONFIRM != 0 {
+            self.cursor = 0;
+        }
         let tick = play.tick(held, pressed, CONFIRM, false);
         if let Some(session) = self.session.as_mut() {
             play.sync_out_of_script(session.director.world_mut());
+            // The field's dialog drawing reads the session world's windows.
+            play.mirror_windows_into(session.director.world_mut());
+            // `OpenMenu(4, 0)` from the moogle: the save screen opens over the world map.
+            if play.take_save_request() {
+                session.director.world_mut().save_point = true;
+                session.director.world_mut().save_requested = true;
+            }
         }
         if self.world_song_ride != self.world_play.as_ref().map(|play| play.ride) {
             self.request_world_song();

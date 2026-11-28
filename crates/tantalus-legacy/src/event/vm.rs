@@ -3344,8 +3344,10 @@ impl EventVm {
                     events.push(HostEvent::MasterAbility { character, ability });
                 }
                 InstructionKind::WalkActor { x, z } => {
-                    let x = self.evaluate(host, &x, instruction.offset, opcode)? as i16;
-                    let z = self.evaluate(host, &z, instruction.offset, opcode)? as i16;
+                    // `EventEngine.DoEventCode` MOVE: `getv2()` is a whole Int32 (the world
+                    // map's moogle walks to a fixed point about 300000 units out).
+                    let x = self.evaluate(host, &x, instruction.offset, opcode)?;
+                    let z = self.evaluate(host, &z, instruction.offset, opcode)?;
                     let Some(actor) = self.entity else {
                         return Err(VmError::new(
                             VmErrorKind::Host,

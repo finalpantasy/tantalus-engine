@@ -1073,7 +1073,7 @@ fn memoria_widescreen_script_patches() {
         (400.0, 2172.0)
     );
     // 1815 Steiner on the dock; 1901 Quina walks further and is hidden past the edge.
-    let walk = |map: i32, sc: u16, who: u64, from: f32, to: [i16; 2]| {
+    let walk = |map: i32, sc: u16, who: u64, from: f32, to: [i32; 2]| {
         run(
             map,
             sc,

@@ -52,7 +52,8 @@ fn color(tint: Tint) -> [f32; 4] {
 /// Draws the open menu of `game`, or removes the drawing when it closed.
 pub fn sync_menu(world: &mut World, game: &PlayGame) {
     let mut view = world.remove_non_send::<MenuView>().unwrap_or_default();
-    let shown = game.menu_frame();
+    // The world script's windows (the moogle's) draw as a frame when no screen is up.
+    let shown = game.menu_frame().or_else(|| game.world_dialog_frame());
     let revision = shown.as_ref().map(|(revision, _)| *revision);
     // The topmost 2D camera: the field's, or the world map's frame camera over it.
     let mut cameras =

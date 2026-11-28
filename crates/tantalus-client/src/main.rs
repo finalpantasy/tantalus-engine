@@ -1683,7 +1683,7 @@ fn overlay_menu(
         WindowText,
     };
     use tantalus_tools::field_menu::Tint;
-    let Some((_, frame)) = game.menu_frame() else {
+    let Some((_, frame)) = game.menu_frame().or_else(|| game.world_dialog_frame()) else {
         return Ok(());
     };
     let assets = tantalus_client::ui_skin::dialog_assets(game.game_data())
