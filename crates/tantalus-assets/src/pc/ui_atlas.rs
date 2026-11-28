@@ -972,6 +972,38 @@ pub fn load_sprites(
     Ok(sprites)
 }
 
+/// Cuts every sprite of the atlas `atlas_name` whose name starts with `prefix` (for the
+/// `item<shape>_<color>` icons, `FF9UIDataTool.DisplayItem`), by name.
+pub fn load_sprites_with_prefix(
+    path: &Path,
+    atlas_name: &str,
+    prefix: &str,
+) -> Result<BTreeMap<String, SpriteImage>, ImportError> {
+    let (atlas, width, height, rgba) = load_atlas(path, atlas_name)?;
+    let mut sprites = BTreeMap::new();
+    for sprite in atlas.sprites.iter().filter(|s| s.name.starts_with(prefix)) {
+        let (w, h) = (sprite.width.max(0) as usize, sprite.height.max(0) as usize);
+        let mut cut = Vec::with_capacity(w * h * 4);
+        for row in 0..h {
+            for column in 0..w {
+                let x = (sprite.x as usize + column).min(width as usize - 1);
+                let y = (sprite.y as usize + row).min(height as usize - 1);
+                let at = (y * width as usize + x) * 4;
+                cut.extend_from_slice(&rgba[at..at + 4]);
+            }
+        }
+        sprites.insert(
+            sprite.name.clone(),
+            SpriteImage {
+                width: w as u32,
+                height: h as u32,
+                rgba: cut,
+            },
+        );
+    }
+    Ok(sprites)
+}
+
 /// The leading Texture2D fields (enough to size and classify it).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextureHeader {

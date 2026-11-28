@@ -38,6 +38,9 @@ use crate::play::pad;
 use crate::play_save::SLOTS;
 use crate::system_menu::{CardState, ConfigState, Exit as SystemExit, OrderState};
 
+mod items;
+use items::ItemState;
+
 /// Row height in PSX pixels.
 pub const ROW: f32 = 14.0;
 const COMMANDS: [&str; 8] = [
@@ -56,7 +59,6 @@ const SLOT_NAMES: [&str; 5] = ["Weapon", "Helmet", "Armlet", "Armor", "Accessory
 const STAT_NAMES: [&str; 9] = [
     "Speed", "Strength", "Magic", "Spirit", "Attack", "Defense", "Evade", "Mag Def", "Mag Eva",
 ];
-const LIST_ROWS: usize = 9;
 const PICK_ROWS: usize = 7;
 
 /// Text color class; the client maps it to a color.
@@ -98,6 +100,9 @@ pub enum MenuArt {
     /// A member's portrait (`FF9UIDataTool.DisplayCharacterAvatar`), half transparent when
     /// `dim` (`alpha = cur.hp != 0 ? 1 : 0.5`).
     Face { character: i32, dim: bool },
+    /// An item's icon (`FF9UIDataTool.DisplayItem`: the sprite `item<shape>_<color>`), half
+    /// transparent when `dim`.
+    Icon { shape: u8, color: u8, dim: bool },
 }
 
 /// A picture in PSX pixels from the frame's top left, fitted into `w` by `h`.
@@ -117,6 +122,9 @@ pub struct MenuFrame {
     pub windows: Vec<MenuWindow>,
     pub images: Vec<MenuImage>,
     pub pointer: Option<(f32, f32)>,
+    /// More hands drawn with the pointer: the whole party as a target, the item picked up by
+    /// Arrange.
+    pub more_pointers: Vec<(f32, f32)>,
 }
 
 /// Tables the menu needs, loaded once.
@@ -129,6 +137,18 @@ pub struct MenuTables {
     pub exp: Vec<u32>,
     pub base: BTreeMap<i32, BaseStats>,
     pub item_names: BTreeMap<i32, String>,
+    /// Item id -> (`GraphicsId`, `ColorId`), the icon sprite `item<shape>_<color>`
+    /// (`Items.csv`).
+    pub item_icons: BTreeMap<u16, (u8, u8)>,
+    /// Item id -> (target type, display) of its effect (`ItemEffects.csv` `Targets`, `Display`).
+    pub item_targets: BTreeMap<u16, (u8, u8)>,
+    /// `FF9TextTool.ItemHelpDescription` (`Item/itm_help`) by item id.
+    pub item_help: BTreeMap<i32, String>,
+    /// `ImportantItemName`, `ImportantItemHelpDescription` and `ImportantItemSkin`
+    /// (`KeyItem/imp_name`, `imp_help`, `imp_skin`) by key item id.
+    pub key_names: BTreeMap<i32, String>,
+    pub key_help: BTreeMap<i32, String>,
+    pub key_skin: BTreeMap<i32, String>,
     /// Character id -> default equipment (weapon, helmet, armlet, armor,
     /// accessory).
     pub default_equipment: BTreeMap<i32, [Option<u16>; 5]>,
@@ -221,6 +241,17 @@ impl MenuTables {
             })
             .collect();
         let effect_text = read(&items.join("ItemEffects.csv"))?;
+        let effect_targets: BTreeMap<i32, (u8, u8)> = rows(&effect_text)
+            .filter_map(|row| {
+                Some((
+                    int(&row, 0)?,
+                    (
+                        u8::try_from(int(&row, 1)?).ok()?,
+                        u8::try_from(int(&row, 3)?).ok()?,
+                    ),
+                ))
+            })
+            .collect();
         let effect_rows: BTreeMap<i32, FieldEffect> = rows(&effect_text)
             .filter_map(|row| {
                 Some((
@@ -239,6 +270,8 @@ impl MenuTables {
             ..ItemDb::default()
         };
         let mut effects = BTreeMap::new();
+        let mut item_icons = BTreeMap::new();
+        let mut item_targets = BTreeMap::new();
         for row in rows(&item_text) {
             let (Some(id), Some(price)) = (int(&row, 0), int(&row, 4)) else {
                 continue;
@@ -273,8 +306,16 @@ impl MenuTables {
                     armor: int(&row, 2).and_then(|a| armors.get(&a).copied()),
                 },
             );
+            if let (Some(shape), Some(color)) = (int(&row, 6), int(&row, 7))
+                && let (Ok(shape), Ok(color)) = (u8::try_from(shape), u8::try_from(color))
+            {
+                item_icons.insert(id16, (shape, color));
+            }
             if let Some(effect) = int(&row, 3).and_then(|e| effect_rows.get(&e)) {
                 effects.insert(id16, *effect);
+            }
+            if let Some(target) = int(&row, 3).and_then(|e| effect_targets.get(&e)) {
+                item_targets.insert(id16, *target);
             }
         }
         let parameters = read(&characters.join("CharacterParameters.csv"))?;
@@ -301,6 +342,12 @@ impl MenuTables {
             exp,
             base,
             item_names,
+            item_icons,
+            item_targets,
+            item_help: BTreeMap::new(),
+            key_names: BTreeMap::new(),
+            key_help: BTreeMap::new(),
+            key_skin: BTreeMap::new(),
             default_equipment,
             abilities: AbilityTables::load(&data, active_names, support_names)?,
             card_names: BTreeMap::new(),
@@ -359,14 +406,7 @@ enum Screen {
         pick: Pick,
         cursor: usize,
     },
-    Items {
-        cursor: usize,
-    },
-    ItemTarget {
-        item: u16,
-        list: usize,
-        cursor: usize,
-    },
+    Items(ItemState),
     Equip {
         member: i32,
         slot: usize,
@@ -443,26 +483,7 @@ pub(crate) fn step(cursor: usize, len: usize, pressed: i32) -> usize {
     }
 }
 
-/// Held item ids shown in the Items list, in inventory order.
-fn item_rows(world: &FieldWorld, tables: &MenuTables) -> Vec<(u16, i32)> {
-    let mut list: Vec<(u16, i32)> = world
-        .items
-        .iter()
-        .filter_map(|(id, count)| {
-            let id = u16::try_from(*id).ok()?;
-            let data = tables.db.get(id)?;
-            (*count > 0 && data.kind & (item_type::ITEM | item_type::USABLE) != 0)
-                .then_some((id, *count))
-        })
-        .collect();
-    list.sort_by(|a, b| {
-        let key = |id: u16| tables.db.get(id).map_or(0.0, |data| data.sort);
-        key(a.0).total_cmp(&key(b.0)).then(a.0.cmp(&b.0))
-    });
-    list
-}
-
-fn usable(tables: &MenuTables, id: u16) -> bool {
+pub(crate) fn usable(tables: &MenuTables, id: u16) -> bool {
     tables
         .db
         .get(id)
@@ -577,7 +598,7 @@ fn slot_detail(file: &SlotFile) -> (MenuWindow, Vec<MenuImage>) {
     (window(8.0, SLOT_DETAIL_Y, 304.0, 2.5, texts), faces)
 }
 
-fn text(x: f32, row: f32, value: impl Into<String>, tint: Tint) -> MenuText {
+pub(crate) fn text(x: f32, row: f32, value: impl Into<String>, tint: Tint) -> MenuText {
     MenuText {
         x,
         y: row * ROW,
@@ -672,7 +693,7 @@ impl FieldMenu {
                 if confirm {
                     self.message = None;
                     match (self.main, WORKING[self.main]) {
-                        (0, _) => self.screen = Screen::Items { cursor: 0 },
+                        (0, _) => self.screen = Screen::Items(ItemState::open(world, tables)),
                         (1, _) if party > 0 => {
                             self.screen = Screen::Member {
                                 pick: Pick::Abilities,
@@ -736,46 +757,7 @@ impl FieldMenu {
                     };
                 }
             }
-            Screen::Items { cursor } => {
-                let list = item_rows(world, tables);
-                let cursor = step(cursor, list.len(), pressed);
-                self.screen = Screen::Items { cursor };
-                if cancel {
-                    self.message = None;
-                    self.screen = Screen::Main;
-                } else if confirm && let Some((item, _)) = list.get(cursor) {
-                    // A Tent (script 76) is for save points only.
-                    let tent = tables.effects.get(item).is_some_and(|e| e.script_id == 76);
-                    if tent && usable(tables, *item) && party > 0 && world.save_point {
-                        // The Tent's effect spans the party (`ItemUI`
-                        // `_multiTarget`): one tent, every member.
-                        self.use_item_on_party(world, tables, *item);
-                    } else if usable(tables, *item) && party > 0 && (world.save_point || !tent) {
-                        self.message = None;
-                        self.screen = Screen::ItemTarget {
-                            item: *item,
-                            list: cursor,
-                            cursor: 0,
-                        };
-                    } else {
-                        self.refused = true;
-                        self.message = Some("That cannot be used here.".into());
-                    }
-                }
-            }
-            Screen::ItemTarget { item, list, cursor } => {
-                let cursor = step(cursor, party, pressed);
-                self.screen = Screen::ItemTarget { item, list, cursor };
-                if cancel {
-                    self.message = None;
-                    self.screen = Screen::Items { cursor: list };
-                } else if confirm && let Some(member) = world.party.get(cursor).copied() {
-                    self.use_item(world, tables, item, member);
-                    if world.items.get(&i32::from(item)).copied().unwrap_or(0) <= 0 {
-                        self.screen = Screen::Items { cursor: list };
-                    }
-                }
-            }
+            Screen::Items(state) => self.press_items(state, pressed, world, tables),
             Screen::Equip {
                 member,
                 slot,
@@ -1022,12 +1004,7 @@ impl FieldMenu {
                     8.0 + *cursor as f32 * MEMBER_H + FACE_TOP + FACE_SIZE / 2.0,
                 ));
             }
-            Screen::Items { cursor } => {
-                self.items_frame(&mut frame, world, tables, *cursor, None);
-            }
-            Screen::ItemTarget { list, cursor, .. } => {
-                self.items_frame(&mut frame, world, tables, *list, Some(*cursor));
-            }
+            Screen::Items(state) => self.items_frame(state, &mut frame, world, tables),
             Screen::Equip {
                 member,
                 slot,
@@ -1145,45 +1122,6 @@ impl FieldMenu {
                 })
                 .collect(),
         )
-    }
-
-    fn items_frame(
-        &self,
-        frame: &mut MenuFrame,
-        world: &FieldWorld,
-        tables: &MenuTables,
-        cursor: usize,
-        target: Option<usize>,
-    ) {
-        let list = item_rows(world, tables);
-        let top = cursor.saturating_sub(LIST_ROWS - 1);
-        let mut texts = Vec::new();
-        for (row, (id, count)) in list.iter().skip(top).take(LIST_ROWS).enumerate() {
-            let tint = if usable(tables, *id) {
-                Tint::White
-            } else {
-                Tint::Dim
-            };
-            texts.push(text(12.0, row as f32, tables.item_name(*id), tint));
-            texts.push(right(142.0, row as f32, count.to_string(), tint));
-        }
-        if list.is_empty() {
-            texts.push(text(12.0, 0.0, "No items", Tint::Dim));
-        }
-        frame
-            .windows
-            .push(window(8.0, 8.0, 150.0, LIST_ROWS as f32, texts));
-        frame
-            .windows
-            .push(party_window(world, tables, 164.0, 148.0, 4));
-        match target {
-            None => {
-                frame.pointer = Some((10.0, 8.0 + 3.0 + ((cursor - top) as f32 + 0.5) * ROW));
-            }
-            Some(member) => {
-                frame.pointer = Some((168.0, 8.0 + 3.0 + (member as f32 * 3.0 + 0.5) * ROW));
-            }
-        }
     }
 
     fn equip_frame(
@@ -1411,7 +1349,7 @@ pub(crate) fn at(x: f32, y: f32, value: impl Into<String>, tint: Tint, right: bo
 
 /// The main screen's party panel: per member a portrait (moved right in the back row), the
 /// name, `LV` and the level, `HP` and `MP` as current / max.
-fn main_party(world: &FieldWorld, tables: &MenuTables) -> (MenuWindow, Vec<MenuImage>) {
+pub(crate) fn main_party(world: &FieldWorld, tables: &MenuTables) -> (MenuWindow, Vec<MenuImage>) {
     let mut texts = Vec::new();
     let mut faces = Vec::new();
     for (index, member) in world.party.iter().take(4).enumerate() {
@@ -1582,7 +1520,7 @@ mod tests {
                     selling_price: 0,
                     equip: 1 << 11,
                     kind: item_type::WEAPON,
-                    sort: 0.0,
+                    sort: 100.0,
                     eq_lv: 0.0,
                     bonus: 0,
                     ability: vec![],
@@ -1672,8 +1610,8 @@ mod tests {
         assert_eq!(world.character_stats[&0].current_hp, 110);
         assert_eq!(world.items[&236], 1);
         assert!(menu.message.as_deref().unwrap().contains("recovered"));
-        // Cancel back out, then cancel closes.
-        for _ in 0..2 {
+        // Cancel back out (target, list, tabs), then cancel closes.
+        for _ in 0..3 {
             assert!(menu.press(pad::CANCEL, &mut world, &tables));
         }
         assert!(!menu.press(pad::CANCEL, &mut world, &tables));
@@ -1730,6 +1668,8 @@ mod tests {
                 max_mp: 5,
             },
         );
+        // The Tent's target panel opens on the whole party; confirm uses it.
+        menu.press(pad::CONFIRM, &mut world, &tables);
         menu.press(pad::CONFIRM, &mut world, &tables);
         assert_eq!(world.items[&236], 1, "one tent for the whole party");
         assert_eq!(world.character_stats[&0].current_hp, 75 + 10);
@@ -1782,6 +1722,7 @@ mod tests {
             .iter()
             .map(|image| match image.art {
                 MenuArt::Face { character, .. } => character,
+                MenuArt::Icon { .. } => -1,
             })
             .collect();
         assert_eq!(faces, vec![0, 5, 1, 2]);

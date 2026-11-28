@@ -181,6 +181,10 @@ impl PlayData {
         menu.card_names = text.names("etc/minista").unwrap_or_default();
         menu.card_levels = text.names("etc/card").unwrap_or_default();
         menu.chocograph_text = text.names("etc/ff9choco").unwrap_or_default();
+        menu.item_help = text.menu_text("item/itm_help").unwrap_or_default();
+        menu.key_names = text.names("keyitem/imp_name").unwrap_or_default();
+        menu.key_help = text.menu_text("keyitem/imp_help").unwrap_or_default();
+        menu.key_skin = text.menu_text("keyitem/imp_skin").unwrap_or_default();
         menu.seed_equipment(&mut new_game);
         // `FF9Play_SetDefEquips`' sets for `JOIN`; the tables carry non-UTF-8 comments.
         let lossy = |name: &str| {

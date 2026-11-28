@@ -258,6 +258,34 @@ impl FieldText {
             .collect())
     }
 
+    /// Like [`Self::names`] for texts with line breaks and name tags (item and key item help,
+    /// `FF9TextTool.ItemHelpDescription`): the lines are kept, a character or party tag stands
+    /// for the default name, other tags are dropped.
+    pub fn menu_text(&self, asset: &str) -> Result<BTreeMap<i32, String>, String> {
+        use tantalus_assets::pc::mes::MesToken;
+        let mes = self.read_mes(&format!("embeddedasset/text/{}/{asset}", self.language))?;
+        Ok(mes
+            .entries
+            .iter()
+            .map(|entry| {
+                let mut text = String::new();
+                for token in &entry.tokens {
+                    match token {
+                        MesToken::Text { text: part } => text.push_str(part),
+                        MesToken::Tag(tag)
+                            if matches!(tag.code.as_str(), "CharacterName" | "Party") =>
+                        {
+                            text.push_str(tag_name(tag.params.first().map_or("", String::as_str)));
+                        }
+                        _ => {}
+                    }
+                }
+                let lines: Vec<&str> = text.lines().map(str::trim).collect();
+                (entry.id, lines.join("\n").trim().to_owned())
+            })
+            .collect())
+    }
+
     /// The battle text of battle `battle` (`FF9TextTool.GetBattleText`,
     /// `Battle/<id>.mes`): the enemy type names, then the attack names.
     pub fn battle_text(&self, battle: i32) -> Result<Vec<String>, String> {

@@ -196,6 +196,8 @@ fn the_main_menu_opens_on_the_world_map_on_foot() {
     press(&mut game, pad::CONFIRM);
     let before = text(&game);
     assert!(game.menu_frame().is_some());
+    // The list goes back to the Use / Arrange / Key Items row, that one to the commands.
+    press(&mut game, pad::CANCEL);
     press(&mut game, pad::CANCEL);
     assert_ne!(text(&game), before, "back on the commands");
     press(&mut game, pad::CANCEL);

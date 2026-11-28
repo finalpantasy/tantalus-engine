@@ -530,6 +530,37 @@ pub fn faces(game_data: &Path) -> HashMap<i32, Image> {
         .collect()
 }
 
+/// The item icons (`FF9UIDataTool.DisplayItem`: `item<shape>_<color>` in the Icon Atlas) by
+/// `(shape, color)`. Both skins draw the install's atlas: the PS1 resident icon sheet holds
+/// the hand, button marks and window labels but no item icons.
+pub fn item_icons(game_data: &Path) -> HashMap<(u8, u8), Image> {
+    let sprites = match tantalus_assets::pc::ui_atlas::load_sprites_with_prefix(
+        &game_data.join(HAND_FILE),
+        HAND_ATLAS,
+        "item",
+    ) {
+        Ok(sprites) => sprites,
+        Err(error) => {
+            println!("!! item icon art: {error}");
+            return HashMap::new();
+        }
+    };
+    sprites
+        .into_iter()
+        .filter_map(|(name, sprite)| {
+            let (shape, color) = name.strip_prefix("item")?.split_once('_')?;
+            Some((
+                (shape.parse().ok()?, color.parse().ok()?),
+                Image {
+                    width: sprite.width as usize,
+                    height: sprite.height as usize,
+                    rgba: sprite.rgba,
+                },
+            ))
+        })
+        .collect()
+}
+
 /// The cached copy of the discs' game over picture.
 const GAME_OVER_CACHE: &str = "game-over.tim";
 

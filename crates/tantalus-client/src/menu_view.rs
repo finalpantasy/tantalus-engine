@@ -32,9 +32,12 @@ pub struct MenuView {
     hand: Option<Option<(Handle<Image>, Vec2)>>,
     /// Portraits by character id, with their pixel size.
     faces: Option<FaceArt>,
+    /// Item icons by (shape, color), with their pixel size.
+    icons: Option<IconArt>,
 }
 
 type FaceArt = HashMap<i32, (Handle<Image>, Vec2)>;
+type IconArt = HashMap<(u8, u8), (Handle<Image>, Vec2)>;
 
 fn color(tint: Tint) -> [f32; 4] {
     let [r, g, b, a] = DEFAULT_TEXT_COLOR;
@@ -98,6 +101,15 @@ pub fn sync_menu(world: &mut World, game: &PlayGame) {
             let mut images = world.resource_mut::<Assets<Image>>();
             view.faces = Some(load_faces(game.game_data(), &mut images));
         }
+        if view.icons.is_none()
+            && frame
+                .images
+                .iter()
+                .any(|image| matches!(image.art, MenuArt::Icon { .. }))
+        {
+            let mut images = world.resource_mut::<Assets<Image>>();
+            view.icons = Some(load_icons(game.game_data(), &mut images));
+        }
         if let Some(Some(assets)) = view.assets.as_ref() {
             // The world map's camera sits with its frame picture at z 0; draw in front of it.
             let z = if layers.is_some() { 10.0 } else { WINDOW_Z };
@@ -111,6 +123,7 @@ pub fn sync_menu(world: &mut World, game: &PlayGame) {
             let art = Art {
                 hand: view.hand.clone().flatten(),
                 faces: view.faces.as_ref(),
+                icons: view.icons.as_ref(),
             };
             spawn_frame(world, assets, root, &frame, layers.as_ref(), &art);
             view.root = Some(root);
@@ -123,6 +136,7 @@ pub fn sync_menu(world: &mut World, game: &PlayGame) {
 struct Art<'a> {
     hand: Option<(Handle<Image>, Vec2)>,
     faces: Option<&'a FaceArt>,
+    icons: Option<&'a IconArt>,
 }
 
 fn spawn_frame(
@@ -216,9 +230,38 @@ fn spawn_frame(
                     ChildOf(root),
                 ));
             }
+            MenuArt::Icon { shape, color, dim } => {
+                let Some((handle, size)) = art.icons.and_then(|icons| icons.get(&(shape, color)))
+                else {
+                    continue;
+                };
+                let shown = fit(*size, image.w, image.h);
+                let x = image.x + (image.w - shown.x) / 2.0;
+                let y = image.y + (image.h - shown.y) / 2.0;
+                world.spawn((
+                    Sprite {
+                        image: handle.clone(),
+                        custom_size: Some(shown),
+                        color: Color::srgba(1.0, 1.0, 1.0, if dim { 0.5 } else { 1.0 }),
+                        ..default()
+                    },
+                    Anchor::TOP_LEFT,
+                    Transform::from_translation(
+                        local(x, y) + Vec3::Z * (over + index as f32 * 0.01),
+                    ),
+                    layers.clone(),
+                    ChildOf(root),
+                ));
+            }
         }
     }
-    if let Some((x, y)) = frame.pointer {
+    let pointers: Vec<(f32, f32)> = frame
+        .pointer
+        .into_iter()
+        .chain(frame.more_pointers.iter().copied())
+        .collect();
+    for (x, y) in pointers {
+        let layers = layers.clone();
         match art.hand.clone() {
             // The hand's center at the pointer.
             Some((hand, size)) => {
@@ -267,6 +310,29 @@ fn load_faces(game_data: &std::path::Path, images: &mut Assets<Image>) -> FaceAr
             );
             image.sampler = ImageSampler::linear();
             (character, (images.add(image), size))
+        })
+        .collect()
+}
+
+/// The skin's item icons (`ui_skin::item_icons`) as images by (shape, color).
+fn load_icons(game_data: &std::path::Path, images: &mut Assets<Image>) -> IconArt {
+    crate::ui_skin::item_icons(game_data)
+        .into_iter()
+        .map(|(key, icon)| {
+            let size = Vec2::new(icon.width as f32, icon.height as f32);
+            let mut image = Image::new(
+                Extent3d {
+                    width: icon.width as u32,
+                    height: icon.height as u32,
+                    depth_or_array_layers: 1,
+                },
+                TextureDimension::D2,
+                icon.rgba,
+                TextureFormat::Rgba8UnormSrgb,
+                RenderAssetUsages::default(),
+            );
+            image.sampler = ImageSampler::linear();
+            (key, (images.add(image), size))
         })
         .collect()
 }

@@ -946,6 +946,15 @@ pub struct FieldWorld {
     /// ids; everyone else stands in the front row).
     #[serde(default)]
     pub back_row: std::collections::BTreeSet<i32>,
+    /// The Items screen's stack order (`FF9StateSystem.Common.FF9.item`, the `List<FF9ITEM>` the
+    /// menu's Arrange reorders): item ids first to last. Empty until the player arranges; items
+    /// held but not listed follow in `FF9ITEM_DATA.sort` order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub item_order: Vec<i32>,
+    /// Key items opened in the Key Items list (`ff9item.FF9Item_UseImportant`); the list marks
+    /// the others new. Ids are key item ids (item id minus 256).
+    #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
+    pub key_used: std::collections::BTreeSet<i32>,
     /// Background tile blocks the scripts changed on this field, by
     /// overlay index; the renderer applies them over the imported scene.
     #[serde(default)]
@@ -1139,6 +1148,8 @@ impl PartialEq for FieldWorld {
             && self.trance == other.trance
             && self.summons_seen == other.summons_seen
             && self.back_row == other.back_row
+            && self.item_order == other.item_order
+            && self.key_used == other.key_used
             && self.character_stats == other.character_stats
             && self.character_info == other.character_info
             && self.party_reserve == other.party_reserve
@@ -1283,6 +1294,8 @@ impl FieldWorld {
             trance: BTreeMap::new(),
             summons_seen: Vec::new(),
             back_row: std::collections::BTreeSet::new(),
+            item_order: Vec::new(),
+            key_used: std::collections::BTreeSet::new(),
             overlays: BTreeMap::new(),
             tile_animations: Vec::new(),
             tile_camera_count: 0,
